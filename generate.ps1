@@ -22,7 +22,10 @@ Run-Python (Join-Path $sdk 'tools\find_functions.py') $elf --seed-json (Join-Pat
 # trampolines bounds executable code before the read-only data in PT_LOAD.
 $imports = Get-Content -LiteralPath (Join-Path $analysis 'EBOOT.imports.json') -Raw | ConvertFrom-Json
 $stubAddresses = $imports | ForEach-Object { [Convert]::ToUInt32($_.stub.Substring(2),16) }
-$codeEnd = '0x{0:x}' -f (($stubAddresses | Measure-Object -Maximum).Maximum + 32)
+if (-not $stubAddresses) { throw 'No firmware import trampolines were found in the supported ELF.' }
+# Measure-Object returns Double on supported PowerShell versions. Hex format
+# requires an integer even when all measured inputs are UInt32.
+$codeEnd = '0x{0:x}' -f ([uint64](($stubAddresses | Measure-Object -Maximum).Maximum + 32))
 Run-Python (Join-Path $sdk 'tools\ppu_lifter.py') $elf --functions (Join-Path $analysis 'functions-full.json') --hle-stubs (Join-Path $analysis 'EBOOT.imports.json') --output $recompiled --jobs $Jobs --chunks 96 --code-end $codeEnd
 $spuImages = Join-Path $analysis 'spu-images'
 $spu = Join-Path $experimentRoot 'port\spu'
