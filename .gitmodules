@@ -1,8 +1,7 @@
 [submodule "ps3recomp"]
 	path = ps3recomp
 	url = https://github.com/mario910/ps3recomp.git
-	branch = buzz-quizworld
-	shallow = true
+	branch = master
 [submodule "third_party/zlib"]
 	path = third_party/zlib
 	url = https://github.com/madler/zlib.git
