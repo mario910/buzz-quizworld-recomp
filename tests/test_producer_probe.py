@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -10,6 +11,11 @@ probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
 
 class ProducerProbeTests(unittest.TestCase):
     def test_pinned_source_roundtrip(self):
+        marker=ROOT/'analysis/game-generation.json'
+        if marker.is_file() and json.loads(marker.read_text(encoding='utf-8-sig'))['family'] != 'quizworld-102-verified':
+            self.skipTest('Producer probe roundtrip requires locally generated 1.02 translations')
+        if any(not (ROOT/'port/recompiled'/name).is_file() for name in probe.SOURCES):
+            self.skipTest('Optional: generate the supported 1.02 translations to check pinned producer bodies')
         for name,(expected,targets) in probe.SOURCES.items():
             original=(ROOT/'port/recompiled'/name).read_text()
             self.assertEqual(hashlib.sha256(original.encode()).hexdigest(),expected)

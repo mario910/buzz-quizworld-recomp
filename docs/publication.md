@@ -123,6 +123,12 @@ this technical content/licensing review.
   generator/report regressions passed. A launcher fixture was corrected to keep
   the real ELF/EXE identity guard active after a local build creates its manifest.
 - No gameplay or FPS claim is added by this source-layout/history migration.
+- A recursive clone from the actual GitHub URL fetched the restored SDK pin and
+  zlib successfully, retaining full SDK ancestry. The no-game source checkout
+  runs the same 50-test suite with three expected skips (the two native helpers
+  and the optional pinned-1.02 producer-body test). Synthetic producer tests
+  still run without generated files; a wrong hash in an available 1.02 body
+  remains a failure, not a skip.
 
 ## Earlier source-snapshot validation — 2026-10-29
 
