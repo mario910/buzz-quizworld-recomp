@@ -1,0 +1,12 @@
+# Tool environment for generation, build and analysis (versions used so far).
+# python -m venv toolenv && toolenv\Scripts\python.exe -m pip install -r requirements.txt
+-r ps3recomp/requirements.txt
+clang-tool-chain==1.5.9
+clang-tool-chain-bins==0.4.6
+cmake==4.4.4
+ninja==1.13.2
+capstone==5.0.9
+construct==2.10.70
+pycryptodome==4.2.0
+tabulate==0.10.0
+tqdm==4.70.1

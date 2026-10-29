@@ -1,0 +1,32 @@
+# Everything derived from the game or produced locally stays out of git.
+# The repository must build only from sources plus the user's own game files.
+
+# Generated from the user's EBOOT.elf by generate.ps1 / generate-*.py
+/port/recompiled/
+/port/spu/
+# Analysis output, derived lifts, traces, dumped jobs, captures
+/analysis/
+# Runtime state: saves, profiles, shader/pipeline caches
+/runtime/
+/logs/
+/scratch/
+# Build output and local tool environments
+/build-windows/
+/toolenv/
+__pycache__/
+*.pyc
+# Local paths to the user's own game files
+/buzz-paths.json
+/buzz-input.ini
+# Measurement artefacts
+*.trace
+*.trigger
+/perf/claude-solo-shots/
+# Superseded SDK snapshot (the SDK changes live on the ps3recomp submodule branch)
+/ps3recomp-buzz.patch
+
+# Private working notes (kept locally, not published)
+/docs/DEVLOG.md
+/docs/perf-notes.md
+/docs/job41-edge-geometry.md
+/docs/claude-*.md
