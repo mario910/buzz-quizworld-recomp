@@ -27,10 +27,17 @@ if ($SpuIsa -notin @('avx2','avx512') -and -not $PSBoundParameters.ContainsKey('
     $NativeSpuFloat = [System.Management.Automation.SwitchParameter]::new($false)
 }
 $experimentRoot = $PSScriptRoot
+$expectedExe = Join-Path $experimentRoot 'build-windows\BuzzQuizWorldRecomp.exe'
+if (Get-Process -Name BuzzQuizWorldRecomp -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $expectedExe }) {
+    throw 'Close this checkout''s running game before building; it will not be stopped for you.'
+}
 $toolScripts = Join-Path $experimentRoot 'toolenv\Scripts'
+if (-not (Test-Path -LiteralPath (Join-Path $toolScripts 'python.exe'))) { throw 'Run .\Setup-Buzz.ps1 first.' }
 $env:PATH = "$toolScripts;$env:PATH"
 $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
-$vsRoot = & $vswhere -latest -products '*' -property installationPath
+if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK.' }
+$vsRoot = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+if (-not $vsRoot) { throw 'No Visual Studio C++ toolchain found. Install the Desktop development with C++ workload.' }
 & (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 if (-not $CompilerDirectory) {
     $CompilerDirectory = & (Join-Path $toolScripts 'python.exe') -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'

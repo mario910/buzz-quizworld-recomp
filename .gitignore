@@ -18,6 +18,42 @@ __pycache__/
 # Local paths to the user's own game files
 /buzz-paths.json
 /buzz-input.ini
+# Never publish retail assets, firmware, keys, saves or local executable packages.
+*.elf
+*.ELF
+*.self
+*.SELF
+*.prx
+*.sprx
+*.bin
+*.BIN
+*.iso
+*.ISO
+*.pkg
+*.PKG
+*.rap
+*.rif
+*.edat
+*.pup
+*.PUP
+*.keys
+*.pem
+*.p12
+*.pfx
+*.exe
+*.dll
+*.obj
+*.pdb
+*.log
+*.zip
+*.7z
+*.bak
+.env
+.env.*
+.claude/
+.codex/
+.vs/
+.vscode/
 # Measurement artefacts
 *.trace
 *.trigger

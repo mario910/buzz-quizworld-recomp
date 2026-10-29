@@ -1,7 +1,12 @@
+param([ValidateRange(1,64)][int]$Jobs = 6)
 $ErrorActionPreference = 'Stop'
 $experimentRoot = $PSScriptRoot
 $sdk = Join-Path $experimentRoot 'ps3recomp'
 $python = Join-Path $experimentRoot 'toolenv\Scripts\python.exe'
+if (-not (Test-Path -LiteralPath $python)) { throw 'Run .\Setup-Buzz.ps1 first.' }
+if (-not (Test-Path -LiteralPath (Join-Path $sdk 'tools\ppu_loader.py'))) { throw 'Initialize the ps3recomp submodule first.' }
+& $python (Join-Path $experimentRoot 'verify-game.py') --elf-only
+if ($LASTEXITCODE) { throw 'Unsupported generation input; no generated files were written.' }
 . (Join-Path $experimentRoot 'buzz-paths.ps1')
 $elf = (Resolve-Path -LiteralPath (Get-BuzzPaths).eboot_elf).Path
 $analysis = Join-Path $experimentRoot 'analysis'
@@ -18,7 +23,7 @@ Run-Python (Join-Path $sdk 'tools\find_functions.py') $elf --seed-json (Join-Pat
 $imports = Get-Content -LiteralPath (Join-Path $analysis 'EBOOT.imports.json') -Raw | ConvertFrom-Json
 $stubAddresses = $imports | ForEach-Object { [Convert]::ToUInt32($_.stub.Substring(2),16) }
 $codeEnd = '0x{0:x}' -f (($stubAddresses | Measure-Object -Maximum).Maximum + 32)
-Run-Python (Join-Path $sdk 'tools\ppu_lifter.py') $elf --functions (Join-Path $analysis 'functions-full.json') --hle-stubs (Join-Path $analysis 'EBOOT.imports.json') --output $recompiled --jobs 6 --chunks 96 --code-end $codeEnd
+Run-Python (Join-Path $sdk 'tools\ppu_lifter.py') $elf --functions (Join-Path $analysis 'functions-full.json') --hle-stubs (Join-Path $analysis 'EBOOT.imports.json') --output $recompiled --jobs $Jobs --chunks 96 --code-end $codeEnd
 $spuImages = Join-Path $analysis 'spu-images'
 $spu = Join-Path $experimentRoot 'port\spu'
 Run-Python (Join-Path $sdk 'tools\extract_spu_images.py') $elf --output $spuImages

@@ -13,6 +13,8 @@ uint32_t ppu_vm_size=0,ppu_hle_inject_base=0;
 PPU_THREAD_LOCAL void (*g_trampoline_fn)(void*)=nullptr;
 uint8_t vm_read8(uint64_t){assert(false);return 0;}
 uint32_t vm_read32(uint64_t){assert(false);return 0;}
+// boot_trace's timestamp is diagnostic only; no real host clock in this fixture.
+unsigned long long ps3_qpc_us(void){return 1000000;}
 }
 static std::map<uint64_t,void(*)(ppu_context*)> hooks;
 static int original_calls,pushed;
