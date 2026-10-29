@@ -117,3 +117,7 @@ this technical content/licensing review.
   were changed by these publication fixes.
 - No new full gameplay, physical-controller or FPS claim is made by this
   publication check. Existing status observations in README are qualified.
+- After publication, a recursive `--shallow-submodules` clone from the actual
+  GitHub port URL succeeded. Both pinned SDK/zlib commits were fetched and
+  checked out, the worktree was clean, and the SDK HEAD had exactly one
+  reachable commit with no `fw_spu`/firmware binary paths in that ancestry.

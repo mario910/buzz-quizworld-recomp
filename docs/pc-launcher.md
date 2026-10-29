@@ -2,7 +2,7 @@
 
 ## Starting it
 
-In the `quizworld-recomp` folder, double-click **Launch-Buzz.cmd**, or run:
+In the `buzz-quizworld-recomp` repository folder, double-click **Launch-Buzz.cmd**, or run:
 
 ```powershell
 .\Launch-Buzz.ps1
