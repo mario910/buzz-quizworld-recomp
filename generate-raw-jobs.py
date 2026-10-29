@@ -79,6 +79,14 @@ captured = [
 EXTRA_STARTS = {
     # ila $r22, 0xB90 at 0xB18 and ila $r75, 0x4E0 at 0x328: continuations after bi/br
     "buzz_job_d2c1": [0x4E0, 0xB90],
+    # Indirect-call targets reached through function pointers, observed with
+    # SPU_INTERP_ENTRIES=1 in the menu (6.6-9 M interpreted instructions/s,
+    # mostly images 40/41). Images 37/40/43 share one library routine set at
+    # shifted offsets (identical first words).
+    "buzz_job_6eba": [0x2978, 0x2E60, 0x3550, 0x35F8, 0x3608, 0x38F8],
+    "buzz_job_abe1": [0x1394, 0x14A8, 0x1EF4, 0x2140, 0x232C, 0x25E8, 0x2764],
+    "buzz_job_40b5": [0x140C, 0x1520, 0x1F6C, 0x21B8, 0x23A4, 0x2660, 0x27DC],
+    "buzz_job_19d0": [0x1524, 0x1638, 0x2084, 0x22D0, 0x24BC, 0x2778, 0x28F4],
 }
 out = ROOT / "analysis/raw-jobs"
 out.mkdir(exist_ok=True)

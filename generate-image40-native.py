@@ -7,7 +7,7 @@ import shutil
 root = Path(__file__).resolve().parent
 source_dir = root / "port/spu/buzz_job_abe1"
 raw = (source_dir / "spu_recomp.c").read_bytes()
-expected = "c318e026e937ae32d907c137b3476e814bec472a19d31ff7c87f767c2d0a9271"
+expected = "29af00779cbaacc132c46947811f43ab2e9ac78564c82952fc6f0e27744b5fed"  # + function-pointer starts (generate-raw-jobs EXTRA_STARTS); 6D78 unchanged
 if hashlib.sha256(raw).hexdigest() != expected:
     raise SystemExit("Image 40 reference changed: re-audit before generating")
 source = raw.decode("utf-8")
