@@ -12,7 +12,7 @@ foreach ($spec in $Variants) {
     # one press (language): the offline frontend has no PSN dialog
     $env:PS3_VERBOSE = '0'; $env:BUZZ_SCRIPT = '12:0x01'; $env:SPURS_JOB_PHASEPROF = '10'
     Remove-Item Env:PS3_FTRACE,Env:PS3_FTRACE_WAIT,Env:BUZZ_TRACE_TRIGGER -ErrorAction SilentlyContinue
-    & .\run-windows.ps1 -Seconds $Seconds -MenuBootstrap -SkipVideo -Mute -Background | Out-Null
+    & .\scripts\run-windows.ps1 -Seconds $Seconds -MenuBootstrap -SkipVideo -Mute -Background | Out-Null
     foreach ($k in $set + @('BUZZ_SCRIPT','SPURS_JOB_PHASEPROF')) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
     $log = Get-ChildItem logs -Filter '*.stderr.log' | Sort-Object LastWriteTime | Select-Object -Last 1
     $lines = Get-Content $log.FullName | Select-String 'jobphase\] image=(41|40|39|36) ' | Select-Object -Last 12

@@ -169,7 +169,7 @@ class Wizard:
     def play(self):
         if self.busy or not self.ready:
             return
-        subprocess.Popen([sys.executable, str(self.project / "launch-buzz.pyw"), "--project", str(self.ready)], cwd=self.project,
+        subprocess.Popen([sys.executable, str(self.project / "launcher/start.pyw"), "--project", str(self.ready)], cwd=self.project,
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def poll(self):

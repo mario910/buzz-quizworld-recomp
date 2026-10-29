@@ -34,7 +34,7 @@ if ($CapDir) {
     $env:RSX_CAP = '1:3:1'; $env:RSX_CAP_DIR = $CapDir; $env:RSX_CAP_TRIGGER_FILE = $capTrigger; $env:RSX_CAP_TEXTURES = '1'
     $set += @('RSX_CAP','RSX_CAP_DIR','RSX_CAP_TRIGGER_FILE','RSX_CAP_TEXTURES')
 }
-$out = .\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background | Out-String
+$out = .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background | Out-String
 foreach ($k in $set + @('PS3_FTRACE','PS3_FTRACE_WAIT','BUZZ_TRACE_TRIGGER')) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
 $procId = [int]([regex]::Match($out, 'PID=(\d+)').Groups[1].Value)
 $log = [regex]::Match($out, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value

@@ -3,7 +3,7 @@ import json
 import hashlib
 from pathlib import Path
 from .setup_pipeline import fingerprint
-from buzz_paths import EXPECTED_ELF_SHA256
+from launcher.paths import EXPECTED_ELF_SHA256
 
 
 def ready_workspace(project):

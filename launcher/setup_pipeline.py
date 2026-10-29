@@ -260,7 +260,7 @@ def helper(inputs, arguments, home, log, cancel):
 
 def firmware_validator(path):
     import importlib.util
-    spec = importlib.util.spec_from_file_location("verify_game", Path(__file__).resolve().parents[1] / "verify-game.py")
+    spec = importlib.util.spec_from_file_location("verify_game", Path(__file__).resolve().parents[1] / "tools/verify-game.py")
     verifier = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
     verifier.verify_firmware(path)
@@ -411,8 +411,8 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         def ps(script, *arguments):
             process([powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", workspace / script, *arguments],
                     workspace, log, cancel, env=env, timeout=7200)
-        stage("generate translations", lambda: ps("generate.ps1", "-Jobs", str(inputs.jobs)))
-        stage("build native game", lambda: ps("Build-Buzz.ps1", "-SkipGeneration", "-Jobs", str(inputs.jobs)))
+        stage("generate translations", lambda: ps("scripts/generate.ps1", "-Jobs", str(inputs.jobs)))
+        stage("build native game", lambda: ps("scripts/Build-Buzz.ps1", "-SkipGeneration", "-Jobs", str(inputs.jobs)))
         exe = workspace / "build-windows/BuzzQuizWorldRecomp.exe"
         result = fingerprint(exe)
         if state.get("built_exe") and state["built_exe"] != result:

@@ -3,7 +3,7 @@ param([string]$Pattern = 'claude-dmawake-*.trace')
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 $py = '.\toolenv\Scripts\python.exe'
-$tick = Join-Path $root 'claude-jts-tick.py'
+$tick = Join-Path $root 'perf/claude-jts-tick.py'
 foreach ($t in Get-ChildItem -LiteralPath analysis -Filter ($Pattern) | Sort-Object Name) {
     "=== $($t.Name)"
     & $py .\ps3recomp\tools\ftrace_report.py $t.FullName --frame-source present --frames 0 |

@@ -3,7 +3,7 @@ from pathlib import Path
 import random
 import unittest
 
-spec = importlib.util.spec_from_file_location("dependencies", Path(__file__).resolve().parents[1] / "inspect-geometry-dependencies.py")
+spec = importlib.util.spec_from_file_location("dependencies", Path(__file__).resolve().parents[1] / "tools/inspect/inspect-geometry-dependencies.py")
 dependencies = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(dependencies)
 

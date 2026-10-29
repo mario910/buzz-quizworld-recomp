@@ -65,19 +65,19 @@ entitled to use under the rules in your jurisdiction.
 
 PowerShell commands below work from the repository directory. If script
 execution is blocked, use `powershell.exe -NoProfile -ExecutionPolicy Bypass
--File .\Setup-Buzz.ps1` (and the corresponding build/start script). This is a
+-File .\scripts\Setup-Buzz.ps1` (and the corresponding build/start script). This is a
 per-process option; changing the machine-wide execution policy is unnecessary.
 
 ## Build and play
 
 ```powershell
-git clone --recurse-submodules --shallow-submodules https://github.com/mario910/buzz-quizworld-recomp.git
+git clone --recurse-submodules https://github.com/mario910/buzz-quizworld-recomp.git
 cd buzz-quizworld-recomp
-.\Setup-Buzz.ps1
+.\scripts\Setup-Buzz.ps1
 ```
 
 For the guided route, double-click **Prepare-Buzz.cmd** (or run
-`Prepare-Buzz.ps1`). Select your ISO/dump, PUP/dev_flash and local `rpcs3.exe`;
+`scripts/Prepare-Buzz.ps1`). Select your ISO/dump, PUP/dev_flash and local `rpcs3.exe`;
 select an update only if you want to use that executable. The wizard identifies
 the exact title/executable, generates its matching translations and builds in
 an isolated `runtime/setup/sessions/` workspace. It supports cancellation and
@@ -110,13 +110,13 @@ firmware or global Python installation.
 
 ```powershell
 # Optional read-only preflight (also performed by Build-Buzz).
-.\toolenv\Scripts\python.exe .\verify-game.py
+.\toolenv\Scripts\python.exe .\tools\verify-game.py
 
 # Validate, generate all PPU/SPU translations, then build the supported variant.
-.\Build-Buzz.ps1 -Jobs 6
+.\scripts\Build-Buzz.ps1 -Jobs 6
 
 # Start the desktop launcher; Launch-Buzz.cmd is the double-click equivalent.
-.\Launch-Buzz.ps1
+.\scripts\Launch-Buzz.ps1
 ```
 
 The gameplay GUI lets you validate/select files, configure keyboard/controllers
@@ -127,7 +127,7 @@ game window before using keyboard controls. See [launcher guide](docs/pc-launche
 For a direct start using `buzz-paths.json` and the verified runtime defaults:
 
 ```powershell
-.\run-windows.ps1 -Seconds 0 -MenuBootstrap
+.\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap
 # Optional: -InputConfig .\buzz-input.ini -Mute -Background
 ```
 
@@ -136,11 +136,16 @@ For a direct start using `buzz-paths.json` and the verified runtime defaults:
 timeout. `-SkipVideo` skips startup films for repeatable tests; normal play
 keeps them and the studio movies enabled.
 
-After editing hand-written code, `Build-Buzz.ps1 -SkipGeneration` reuses local
+After editing hand-written code, `scripts/Build-Buzz.ps1 -SkipGeneration` reuses local
 lifts. After updating lifters or generation scripts, run the full build again.
 For an existing clone: `git pull --ff-only`, then
-`git submodule update --init --recursive --depth 1`. Use the **pinned SDK
-commit**, not the fork's `master` or `git submodule update --remote`.
+`git submodule update --init --recursive`. Use the **pinned SDK commit**,
+not the moving branch tip or `git submodule update --remote`.
+
+The SDK is a normal fork on `master`, retaining upstream and original Buzz
+commit history. Its runtime/codegen remain on the validated **v0.17.0** baseline;
+v0.18.0 is not yet integrated. See the [fork notes](ps3recomp/BUZZ_FORK.md)
+and [inherited-history caveat](docs/publication.md#important-sdk-fork-caveat).
 
 ## Buzzers and controllers
 
@@ -154,7 +159,7 @@ emulates their USB protocol and supplies virtual handsets. Default keys:
 | 3 | A | S | D | F | G |
 | 4 | Z | X | C | V | B |
 
-Configure mappings in the GUI, or copy `buzz-input.example.ini` to
+Configure mappings in the GUI, or copy `config/buzz-input.example.ini` to
 `buzz-input.ini` and pass `-InputConfig`. XInput controllers are opt-in, with
 up to **four physical pads**. Eight logical handsets/two virtual receivers
 are experimental, not proof of a tested eight-player match. Physical USB
@@ -205,7 +210,7 @@ supported build of this port. Other game languages/content sets are unverified.
 
 Thanks to **Ned Heller / sp00nznet and the ps3recomp contributors**, the FFmpeg,
 PPSSPP, stb and zlib authors. The port pins the modified
-[mario910 SDK branch](https://github.com/mario910/ps3recomp/tree/buzz-quizworld),
+[mario910 SDK fork](https://github.com/mario910/ps3recomp/tree/master),
 based on the [upstream toolkit](https://github.com/sp00nznet/ps3recomp).
 Buzz! and PlayStation are their owners' trademarks. This project is unofficial
 and is not endorsed by Sony or Relentless Software.

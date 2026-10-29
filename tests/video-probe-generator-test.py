@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 root=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location('video_probe_generator',root/'generate-video-probe.py')
+spec=importlib.util.spec_from_file_location('video_probe_generator',root/'tools/codegen/generate-video-probe.py')
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 
 

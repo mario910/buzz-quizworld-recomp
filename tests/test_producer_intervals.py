@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec=importlib.util.spec_from_file_location('producer_scopes',Path(__file__).resolve().parents[1]/'inspect-producer-scopes.py')
+spec=importlib.util.spec_from_file_location('producer_scopes',Path(__file__).resolve().parents[1]/'tools/inspect/inspect-producer-scopes.py')
 report=importlib.util.module_from_spec(spec);spec.loader.exec_module(report)
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 import struct
 import unittest
 
-spec = importlib.util.spec_from_file_location("sdi", Path(__file__).resolve().parents[1]/"inspect-sdi.py")
+spec = importlib.util.spec_from_file_location("sdi", Path(__file__).resolve().parents[1]/"tools/inspect/inspect-sdi.py")
 sdi = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sdi)
 

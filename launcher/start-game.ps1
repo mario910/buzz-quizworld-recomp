@@ -7,4 +7,4 @@ param(
 $ErrorActionPreference='Stop'
 # Windows PowerShell 5.1 otherwise emits the console code page into the GUI pipe.
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-& (Join-Path $PSScriptRoot '..\run-windows.ps1') -Seconds 0 -MenuBootstrap -InputConfig $InputConfig -PathsConfig $PathsConfig -Background:$Background
+& (Join-Path $PSScriptRoot '..\scripts\run-windows.ps1') -Seconds 0 -MenuBootstrap -InputConfig $InputConfig -PathsConfig $PathsConfig -Background:$Background

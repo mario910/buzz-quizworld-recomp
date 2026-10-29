@@ -12,7 +12,7 @@ from pathlib import Path
 import statistics
 import re
 
-spec = importlib.util.spec_from_file_location("intervals", Path(__file__).resolve().parents[1] / "inspect-geometry-dependencies.py")
+spec = importlib.util.spec_from_file_location("intervals", Path(__file__).resolve().parents[1] / "tools/inspect/inspect-geometry-dependencies.py")
 intervals = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(intervals)
 union, subtract = intervals.union, intervals.subtract

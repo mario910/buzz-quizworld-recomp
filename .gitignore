@@ -1,7 +1,7 @@
 # Everything derived from the game or produced locally stays out of git.
 # The repository must build only from sources plus the user's own game files.
 
-# Generated from the user's EBOOT.elf by generate.ps1 / generate-*.py
+# Generated from the user's EBOOT.elf by scripts/generate.ps1 / generate-*.py
 /port/recompiled/
 /port/spu/
 # Analysis output, derived lifts, traces, dumped jobs, captures

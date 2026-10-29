@@ -17,7 +17,7 @@ def module(name, file):
 
 
 audit = module("audit_publication", ROOT / "tools/audit-publication.py")
-verify = module("verify_game", ROOT / "verify-game.py")
+verify = module("verify_game", ROOT / "tools/verify-game.py")
 
 
 class PublicationTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class PublicationTests(unittest.TestCase):
             self.assertIsNotNone(audit.path_issue(path, "port"), path)
         self.assertIsNone(audit.path_issue("runtime/spu/spu_context.h", "sdk"))
         self.assertIsNotNone(audit.path_issue("fw_spu/lifted/a.c", "sdk"))
-        self.assertIsNone(audit.path_issue("buzz-paths.example.json", "port"))
+        self.assertIsNone(audit.path_issue("config/buzz-paths.example.json", "port"))
 
     def test_all_ancestors_not_only_tip(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -48,6 +48,9 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(audit.audit(root, safe, "port")["issues"], [])
             report = audit.audit(root, "HEAD", "port")
             self.assertTrue(any(item["path"] == "bad.elf" for item in report["issues"]))
+            tip = audit.audit(root, "HEAD", "port", "tip")
+            self.assertEqual(tip["scope"], "tip")
+            self.assertEqual(tip["issues"], [])  # deletion is NOT a clean history
             # Credentials must never be printed back in diagnostics.
             token = "gh" + "p_" + "S" * 36
             (root / "config.txt").write_text(token)
@@ -56,6 +59,9 @@ class PublicationTests(unittest.TestCase):
             report = audit.audit(root, "HEAD", "port")
             self.assertTrue(any("credential" in item["reason"] for item in report["issues"]))
             self.assertNotIn(token, str(report))
+            tip = audit.audit(root, "HEAD", "port", "tip")
+            self.assertTrue(any("credential" in item["reason"] for item in tip["issues"]))
+            self.assertNotIn(token, str(tip))
 
     def test_elf_rejected_before_any_other_path_is_used(self):
         with tempfile.TemporaryDirectory() as directory:

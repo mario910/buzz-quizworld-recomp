@@ -33,7 +33,7 @@ Restore independently, before launch:
 ```powershell
 $env:BUZZ_OFFLINE='0'          # Original account/login behavior, e.g. custom server tests
 $env:BUZZ_HIDE_PSN_STORE='0'   # Original Store visibility policy
-.\run-windows.ps1 -Seconds 0 -MenuBootstrap
+.\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap
 ```
 
 Unset variables use the new offline/hidden defaults. Values must be exactly
@@ -43,16 +43,16 @@ listener in this change.
 ## Configure input
 
 A graphical editor and live input test are now available through
-`Launch-Buzz.cmd` / `Launch-Buzz.ps1`; see [pc-launcher.md](pc-launcher.md).
+`Launch-Buzz.cmd` / `scripts/Launch-Buzz.ps1`; see [pc-launcher.md](pc-launcher.md).
 Manual INI configuration below remains supported independently.
 
 The file is deliberately opt-in, so existing automated scripts keep their
 keyboard behavior. From the project directory:
 
 ```powershell
-Copy-Item -LiteralPath .\buzz-input.example.ini -Destination .\buzz-input.ini
+Copy-Item -LiteralPath .\config\buzz-input.example.ini -Destination .\buzz-input.ini
 # Edit buzz-input.ini, then:
-.\run-windows.ps1 -Seconds 0 -MenuBootstrap -InputConfig .\buzz-input.ini
+.\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -InputConfig .\buzz-input.ini
 ```
 
 `buzz-input.ini` is ignored by Git. The launcher resolves a relative path before
@@ -146,8 +146,8 @@ added without changing the guest USB protocol or the game's logic.
 ## Tests and current validation
 
 ```powershell
-.\test-buzzer.ps1
-.\test-frontend.ps1
+.\tests\scripts\test-buzzer.ps1
+.\tests\scripts\test-frontend.ps1
 ```
 
 - Existing exhaustive 20-bit USB report and script tests: PASS.

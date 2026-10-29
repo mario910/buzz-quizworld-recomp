@@ -84,7 +84,7 @@ frontend limitation, not an omitted performance optimization.
 
 ## Developer entry point
 
-`tools/build-disc100-reference.py --help` describes the isolated probe builder.
+`tools/codegen/build-disc100-reference.py --help` describes the isolated probe builder.
 Supply your own matching decrypted ELF, extracted game and dev_flash. Generated
 sources, executable and evidence stay under the ignored analysis directory.
 The default developer probe uses reference SPU arithmetic. Standard preparation
@@ -130,7 +130,7 @@ cell while clearing the second player's cell.
 The SDK fix maps format/pitch/bounds-validated interior RGBA8 views to independent
 GPU region resources, invalidates them by surface write generation, and clips
 ordered color/depth clears to captured scissor state. There are no game-address
-exceptions in the renderer. `test-rt-regions.ps1` covers layout/bounds/overflow
+exceptions in the renderer. `tests/scripts/test-rt-regions.ps1` covers layout/bounds/overflow
 and independent cell clearing. Full 1.02 and prepared EU 1.00 builds compile
 with the fix.
 

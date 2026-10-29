@@ -5,7 +5,7 @@
 In the `buzz-quizworld-recomp` repository folder, double-click **Launch-Buzz.cmd**, or run:
 
 ```powershell
-.\Launch-Buzz.ps1
+.\scripts\Launch-Buzz.ps1
 ```
 
 The launcher uses the local Python from `toolenv` and the standard Tkinter.
@@ -81,7 +81,7 @@ command-line files stay unchanged.
   confirmed game start. Writes are atomic.
 - `runtime/launcher/sessions/<time-id>/paths.json` and `input.ini` — a
   separate, immutable set per start. The launcher passes their full paths to
-  `run-windows.ps1` via `-PathsConfig` and `-InputConfig`.
+  `scripts/run-windows.ps1` via `-PathsConfig` and `-InputConfig`.
 - `runtime/launcher/last-start.log` — output of the PowerShell start.
 - `runtime/launcher/launcher-error.log` — an unhandled error of the `.pyw`
   entry point, if the interface fails to start.
@@ -105,10 +105,10 @@ running game.
 ## Tests
 
 ```powershell
-.\test-pc-launcher.ps1
-.\test-launcher.ps1
-.\test-buzzer.ps1
-.\Launch-Buzz.ps1 -Smoke
+.\tests\scripts\test-pc-launcher.ps1
+.\tests\scripts\test-launcher.ps1
+.\tests\scripts\test-buzzer.ps1
+.\scripts\Launch-Buzz.ps1 -Smoke
 ```
 
 The model and headless-UI tests cover validation, saving/loading and
@@ -126,5 +126,5 @@ Not yet verified by hand: the full visual check, physical pads, and starting
 a round through the GUI button.
 
 The launcher code lives in `launcher/`; the command-line integration is the
-optional `-PathsConfig` of `run-windows.ps1`/`buzz-paths.ps1`, and the only
+optional `-PathsConfig` of `scripts/run-windows.ps1`/`scripts/buzz-paths.ps1`, and the only
 input-adapter change of this work is `gamepad.N=NONE`.

@@ -7,7 +7,7 @@ either, or the following separately licensed components.
 
 | Component | License / retained notice | Use |
 |---|---|---|
-| [ps3recomp](https://github.com/sp00nznet/ps3recomp), Ned Heller / sp00nznet and contributors | `ps3recomp/LICENSE` (MIT), except separately licensed components | Runtime, lifters, port scaffolding; our modified source-only branch is pinned as a submodule |
+| [ps3recomp](https://github.com/sp00nznet/ps3recomp), Ned Heller / sp00nznet and contributors | `ps3recomp/LICENSE` (MIT), except separately licensed components | Runtime, lifters, port scaffolding; our normal fork `master` is pinned as a submodule; inherited-history caveat in `docs/publication.md` |
 | zlib, Jean-loup Gailly and Mark Adler | `third_party/zlib/LICENSE` (zlib) | Native decompression |
 | FFmpeg ATRAC3/ATRAC3plus decoders, extracted via PPSSPP | `ps3recomp/third_party/at3_standalone/COPYING.LGPLv2.1`, per-file notices and `README.txt` (LGPL-2.1-or-later; some shims have their own notices) | SDK codec component; compiled into the runtime |
 | stb_image, Sean Barrett and contributors | license text inside `ps3recomp/libs/codec/stb_image.h` (MIT or public domain) | SDK image decoding |

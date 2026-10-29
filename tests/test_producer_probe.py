@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location('producer_probe',ROOT/'generate-producer-probe.py')
+spec=importlib.util.spec_from_file_location('producer_probe',ROOT/'tools/codegen/generate-producer-probe.py')
 probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
 
 

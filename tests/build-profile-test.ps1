@@ -6,7 +6,7 @@ Push-Location $root
 try {
     $options=& $python -c 'import json; from launcher.game_profiles import PROFILES; print(json.dumps(PROFILES[0].compiler_options()))'
     if($LASTEXITCODE){throw 'Profile query failed'}
-    $command=Get-Command (Join-Path $root 'build-windows.ps1')
+    $command=Get-Command (Join-Path $root 'scripts/build-windows.ps1')
     $properties=@(($options|ConvertFrom-Json).PSObject.Properties)
     if($properties.Count -ne 9){throw 'Unexpected reference native adapter plan'}
     foreach($property in $properties) {

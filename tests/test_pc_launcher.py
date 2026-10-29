@@ -172,7 +172,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_runtime_ini_oracle(self):
         oracle=os.environ.get('BUZZ_CONFIG_ORACLE')
-        if not oracle:self.skipTest('Set BUZZ_CONFIG_ORACLE via test-pc-launcher.ps1 for native parser parity')
+        if not oracle:self.skipTest('Set BUZZ_CONFIG_ORACLE via tests/scripts/test-pc-launcher.ps1 for native parser parity')
         import subprocess
         for places in (4,8):
             settings=model.Settings();settings.places=places;settings.pads[0].player=None
@@ -186,7 +186,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_native_adapter_unicode_config(self):
         adapter=os.environ.get('BUZZ_INPUT_ADAPTER_CHECK')
-        if not adapter:self.skipTest('Set BUZZ_INPUT_ADAPTER_CHECK via test-pc-launcher.ps1')
+        if not adapter:self.skipTest('Set BUZZ_INPUT_ADAPTER_CHECK via tests/scripts/test-pc-launcher.ps1')
         import subprocess
         with tempfile.TemporaryDirectory(prefix='Buzz żółć 汉字 & ! ') as temporary:
             settings=model.Settings();settings.places=8;settings.pads[0].player=None

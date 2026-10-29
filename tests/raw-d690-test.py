@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "ps3recomp/tools"))
 from spu_disasm import disassemble_spu
 from find_spu_functions import collect_branch_targets
 
-tree = ast.parse((ROOT / "generate-raw-jobs.py").read_text())
+tree = ast.parse((ROOT / "tools/codegen/generate-raw-jobs.py").read_text())
 catalog = next(ast.literal_eval(n.value) for n in tree.body
                if isinstance(n, ast.Assign)
                and any(isinstance(t, ast.Name) and t.id == "captured" for t in n.targets))

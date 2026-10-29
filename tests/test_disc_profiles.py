@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from launcher.game_profiles import identify, identify_elf
-from tools.disc100_profiles import (EU100_SHA256, US100_SHA256,
+from tools.codegen.disc100_profiles import (EU100_SHA256, US100_SHA256,
                                    US_EMBEDDED_ALIASES, canonicalize_embedded)
 
 

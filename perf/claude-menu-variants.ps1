@@ -21,7 +21,7 @@ foreach ($spec in $Variants) {
     $env:PS3_FTRACE_WAIT = '0'; $env:PS3_FTRACE = "${Start}:${Length}:$trace"
     "run $n $spec -> $trace"
     if ($Affinity -or $MeasureCpu) {
-        $out = & .\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background | Out-String
+        $out = & .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background | Out-String
         $pidMatch = [regex]::Match($out, 'PID=(\d+)')
         if (-not $pidMatch.Success) { throw 'Missing benchmark process ID' }
         $gamePid = [int]$pidMatch.Groups[1].Value
@@ -51,7 +51,7 @@ foreach ($spec in $Variants) {
         $log = [regex]::Match($out, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
         Get-Content -LiteralPath $log | Select-String -Pattern 'ftrace\] wrote' | ForEach-Object { $_.Line }
     } else {
-        & .\run-windows.ps1 -Seconds ($Start + $Length + 8) -MenuBootstrap -SkipVideo -Mute -Background | Select-String -Pattern 'ftrace\] wrote' | ForEach-Object { $_.Line }
+        & .\scripts\run-windows.ps1 -Seconds ($Start + $Length + 8) -MenuBootstrap -SkipVideo -Mute -Background | Select-String -Pattern 'ftrace\] wrote' | ForEach-Object { $_.Line }
     }
     foreach ($k in $set + @('BUZZ_SCRIPT','PS3_FTRACE','PS3_FTRACE_WAIT')) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 3

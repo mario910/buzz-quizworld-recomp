@@ -2,7 +2,7 @@
 import importlib.util
 from pathlib import Path
 root = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("image36_generator", root / "generate-image36-native.py")
+spec = importlib.util.spec_from_file_location("image36_generator", root / "tools/codegen/generate-image36-native.py")
 generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(generator)
 tail = ("        SPU_RET(ctx);\n"

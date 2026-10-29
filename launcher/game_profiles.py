@@ -1,7 +1,7 @@
 """Exact executable identities; detection is NOT the same as build compatibility."""
 from dataclasses import dataclass
 
-from buzz_paths import EXPECTED_ELF_SHA256
+from launcher.paths import EXPECTED_ELF_SHA256
 
 
 @dataclass(frozen=True)

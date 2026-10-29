@@ -21,7 +21,7 @@ foreach ($v in $Order) {
     $env:PS3_FTRACE = "100:20:$trace"
     $env:SPURS_JTS_DMA_WAKE = $v
     "run $n variant SPURS_JTS_DMA_WAKE=$v script=$Script -> $trace"
-    & .\run-windows.ps1 -Seconds 128 -MenuBootstrap -SkipVideo -Mute | Select-String -Pattern 'PID=|ftrace|Stopped|ExitCode' | ForEach-Object { $_.Line }
+    & .\scripts\run-windows.ps1 -Seconds 128 -MenuBootstrap -SkipVideo -Mute | Select-String -Pattern 'PID=|ftrace|Stopped|ExitCode' | ForEach-Object { $_.Line }
     Remove-Item Env:SPURS_JTS_DMA_WAKE,Env:PS3_FTRACE,Env:PS3_FTRACE_WAIT -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
 }

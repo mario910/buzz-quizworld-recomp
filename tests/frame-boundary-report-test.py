@@ -2,7 +2,7 @@ import io
 import runpy
 from pathlib import Path
 
-inspect = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'inspect-frame-boundaries.py'))['inspect']
+inspect = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'tools/inspect/inspect-frame-boundaries.py'))['inspect']
 trace = '# fixture\nT 1 main\n' + '\n'.join([
     '9 0 0 1 1 1', '8 0 0 0 2 2', '25 1 0 ffff 2 2',
     '25 4 ffffffff 100 3 3', '10 0 0 0 3 4', '25 9 ffffffff 0 5 5',

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
-from buzz_paths import EXPECTED_ELF_SHA256 as ELF_SHA256
+from launcher.paths import EXPECTED_ELF_SHA256 as ELF_SHA256
 BUTTONS = ('Red', 'Yellow', 'Green', 'Orange', 'Blue')
 PAD_BITS = {'START': 0x10, 'BACK': 0x20, 'A': 0x1000, 'B': 0x2000,
             'X': 0x4000, 'Y': 0x8000, 'LB': 0x100, 'RB': 0x200,

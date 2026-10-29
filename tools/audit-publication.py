@@ -1,4 +1,4 @@
-"""Check blobs reachable from ONE explicitly named publication ref, not all refs.
+"""Check ONE named ref (full history by default; explicit tip-only mode available).
 
 Heuristic source-package guard, not a legal opinion or a complete secret scan.
 Does not print matched secret values. Submodules must be audited separately.
@@ -43,11 +43,16 @@ def git(repo, *args):
     return subprocess.check_output(["git", "-C", str(repo), *args])
 
 
-def audit(repo, ref, profile):
-    if git(repo, "rev-parse", "--is-shallow-repository").strip() != b"false":
+def audit(repo, ref, profile, scope="history"):
+    if scope not in ("history", "tip"):
+        raise ValueError("Unknown audit scope")
+    if scope == "history" and git(repo, "rev-parse", "--is-shallow-repository").strip() != b"false":
         raise ValueError("Full reachable-history audit requires a non-shallow local checkout.")
     sha = git(repo, "rev-parse", "--verify", ref + "^{commit}").decode().strip()
-    lines = git(repo, "rev-list", "--objects", sha).decode().splitlines()
+    lines = git(repo, "rev-list", "--objects", sha).decode().splitlines() if scope == "history" else [
+        entry.split()[2] + " " + entry.split("\t", 1)[1]
+        for entry in git(repo, "-c", "core.quotepath=false", "ls-tree", "-r", sha).decode().splitlines()
+        if entry.split()[1] == "blob"]
     objects = {}
     for line in lines:
         oid, _, path = line.partition(" ")
@@ -59,7 +64,7 @@ def audit(repo, ref, profile):
     issues = []
     # rev-list prints only one path for a reused blob. Inspect every changed
     # path as well, so renaming a known blob to a forbidden name cannot hide it.
-    changed = git(repo, "-c", "core.quotepath=false", "log", sha, "--format=", "--name-only", "--no-renames").decode()
+    changed = git(repo, "-c", "core.quotepath=false", "log", sha, "--format=", "--name-only", "--no-renames").decode() if scope == "history" else "\n".join(line.partition(" ")[2] for line in lines)
     for path in sorted(set(changed.splitlines()) - {""}):
         reason = path_issue(path, profile)
         if reason:
@@ -95,7 +100,7 @@ def audit(repo, ref, profile):
         reader.stdout.close()
         if reader.wait(timeout=10):
             raise ValueError("git cat-file failed")
-    return {"ref": ref, "commit": sha, "profile": profile, "blobs_checked": len(blobs), "issues": issues}
+    return {"ref": ref, "commit": sha, "scope": scope, "profile": profile, "blobs_checked": len(blobs), "issues": issues}
 
 
 def main():
@@ -103,9 +108,11 @@ def main():
     parser.add_argument("--repo", default=".")
     parser.add_argument("--ref", required=True, help="Only this ref and its ancestors are audited/published.")
     parser.add_argument("--profile", choices=("port", "sdk"), default="port")
+    parser.add_argument("--scope", choices=("history", "tip"), default="history",
+                        help="Default: all reachable history. tip checks only the current source tree; it does NOT clear inherited history.")
     args = parser.parse_args()
     try:
-        report = audit(args.repo, args.ref, args.profile)
+        report = audit(args.repo, args.ref, args.profile, args.scope)
     except (ValueError, subprocess.CalledProcessError) as exc:
         print(f"Audit failed: {exc}", file=sys.stderr)
         return 2
