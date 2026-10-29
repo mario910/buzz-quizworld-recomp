@@ -25,6 +25,7 @@ void buzz_register_video_queue();
 void buzz_register_virtual_buzzer();
 void buzz_register_boot_trace();
 void buzz_register_frontend_policy();
+extern "C" void sys_timer_register_usleep_wait(uint32_t lr, int reg, uint32_t offset);
 extern "C" int32_t cellPadGetData(uint32_t, void*);
 extern "C" int32_t cellNetCtlGetInfo(int32_t, void*);
 
@@ -100,6 +101,14 @@ extern "C" void buzz_register_overrides(void)
     buzz_register_frontend_policy();
     buzz_register_boot_trace();
     buzz_register_video_queue();
+    /* The two ThreadPoolWorkers share a busy flag: one sets *(u32*)(r30+0x1A0)
+     * (0x287BCC), works, clears it (0x287AD4); the other loops
+     * `while (flag) usleep(2)` with LR 0x28AA8C -- ~100k spinning calls a
+     * second, on the frame's critical path. Block it until the clearing store
+     * instead (sys_timer.c wait sites, opt-in PS3_USLEEP_WAIT_SITES=1). Measured:
+     * no FPS gain, 0.05-0.2 core saved at 4C/8T -- the worker's CPU is mostly
+     * its real work; the flag is cleared by SPU job DMA, not by the PPU. */
+    sys_timer_register_usleep_wait(0x0028AA8Cu, 30, 0x1A0u);
     ps3_hle_register_ctx(0x1E585B5Du, "Buzz: net control trace", buzz_netctl_info);
     ps3_hle_register_ctx(0x8A85674Du, "Buzz: Edge inflate / LFQueue diagnostic",
                         buzz_lfqueue_push_missing);
