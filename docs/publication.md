@@ -91,3 +91,29 @@ executables; see [LGPL 2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.h
 and [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). No binary game release
 is being made. Obtain qualified legal advice if you need assurance beyond
 this technical content/licensing review.
+
+## Validation record — 2026-10-29
+
+- Clean SDK export: `bc25dcc5515e3752292688061772915279ffea22`, one root commit,
+  883 reachable source blobs checked; no findings from the publication guard.
+- Port code through `f5a56bb`: all 254 reachable blobs checked, no findings.
+  Documentation-only follow-ups are re-audited before push.
+- A separate source checkout with the clean SDK and zlib regenerated all lifts
+  and completed the full `Build-Buzz.ps1 -Jobs 6` pipeline successfully. It did
+  **not** reuse generated files or compiler objects from the developer build.
+  It reused the installed Python/tool environment (Python 3.13; `pip check`
+  passed), so this is not a claim of a fresh pip/network-install test.
+- The clean-build EXE's local SHA-256 was
+  `BD721130B2A9B619872AC2AB87BB55A600BB5A3D23254DCDF2351B044282DD37`.
+  That EXE remains local/ignored and is **not** a release asset.
+- Synthetic publication tests: 3 passed. Launcher/model/native-parser/adapter
+  and withdrawn-UI suite: 17 passed. Buzzer/protocol/router, frontend/boot-hook
+  and command-line launcher fixtures passed. Image36 generator and present
+  phase-report regression tests passed.
+- PowerShell entry-point syntax checked; the generation bound regression
+  passed on Windows PowerShell 5.1 and PowerShell 7. The clean build found and
+  fixed the old Double-to-hex bound error; the boot-hook fixture also gained
+  the missing synthetic clock stub. No gameplay/runtime performance settings
+  were changed by these publication fixes.
+- No new full gameplay, physical-controller or FPS claim is made by this
+  publication check. Existing status observations in README are qualified.
