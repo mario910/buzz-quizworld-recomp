@@ -22,8 +22,8 @@ static void original(ppu_context* c){++original_calls;c->gpr[3]=77;}
 extern "C" const func_entry function_table[]={
     {0x119F04,original,"fade"},{0x12E17C,original,"playing"},
     {0x12DFBC,original,"errored"},{0x11F074,original,"open"},{0x1381A8,original,"play"},
-    {0x23D8A0,original,"include"}};
-extern "C" const uint64_t function_table_count=6;
+    {0x23D8A0,original,"include"},{0x16E96C,original,"menu"}};
+extern "C" const uint64_t function_table_count=7;
 extern "C" void ppu_register_function(uint64_t pc,void(*fn)(ppu_context*)){hooks[pc]=fn;}
 void func_0046B8F8(ppu_context* c){pushed=(int)c->gpr[4];}
 void buzz_register_boot_trace();
@@ -43,12 +43,19 @@ int main(){
     environment("BUZZ_BOOT_TRACE",nullptr);environment("BUZZ_NO_FMV",nullptr);
     buzz_register_boot_trace();assert(hooks.empty());
     environment("BUZZ_NO_FMV","1");buzz_register_boot_trace();
-    assert(hooks.size()==4 && !hooks.count(0x119F04));
+    assert(hooks.size()==5 && !hooks.count(0x119F04));
     ppu_context c{};c.gpr[3]=1;
     hooks.at(0x12DFBC)(&c);assert(c.gpr[3]==1 && pushed==1 && original_calls==0);
     c.gpr[3]=1;hooks.at(0x12E17C)(&c);assert(c.gpr[3]==1 && pushed==0 && original_calls==0);
     c.gpr[3]=1;hooks.at(0x11F074)(&c);assert(c.gpr[3]==0 && original_calls==0);
     c.gpr[3]=1;hooks.at(0x1381A8)(&c);assert(c.gpr[3]==0 && original_calls==0);
+    c.gpr[3]=1;hooks.at(0x16E96C)(&c);assert(c.gpr[3]==77 && original_calls==1);
+    for(uint64_t pc : {0x11F074ull,0x1381A8ull,0x12E17Cull,0x12DFBCull}) {
+        const int before=original_calls;c.gpr[3]=1;hooks.at(pc)(&c);
+        assert(c.gpr[3]==77 && original_calls==before+1);
+    }
+    puts("PASS: startup skip is released by first menu; question media open/play/queries pass through");
+    original_calls=0;
     environment("BUZZ_NO_FMV",nullptr);environment("BUZZ_BOOT_TRACE","1");buzz_register_boot_trace();
     c.gpr[3]=1;hooks.at(0x119F04)(&c);assert(c.gpr[3]==77 && original_calls==1);
     c.gpr[3]=1;hooks.at(0x12DFBC)(&c);assert(c.gpr[3]==77 && original_calls==2);

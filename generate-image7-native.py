@@ -22,10 +22,17 @@ import re
 import shutil
 
 ROOT = Path(__file__).resolve().parent
-SOURCE = ROOT / "port/spu/spu_0006_at_007E7500"
 OUT = ROOT / "analysis/native-image7"
-NAME = "spu_0006_at_007E7500_spu_func_00008638"
-PIN = "614c795eb0004d69f5df66ff6962a379d506df5549f15e778a765be2f89c233a"
+PROFILES = (
+    ("spu_0006_at_007E7500", "8638", "8F70", "614c795eb0004d69f5df66ff6962a379d506df5549f15e778a765be2f89c233a"),
+    ("spu_0006_at_007FF780", "86B8", "8FF0", "91aa78e6de6c31734d0c639e5b9ff14790a7bad50990f804d5d7f8af40733f0c"),
+)
+found = [p for p in PROFILES if (ROOT / "port/spu" / p[0] / "spu_recomp.c").exists()]
+if len(found) != 1:
+    raise SystemExit("Expected one reviewed video image profile; clean stale generated images")
+image, pc, exit_pc, PIN = found[0]
+SOURCE = ROOT / "port/spu" / image
+NAME = image + "_spu_func_0000" + pc
 
 raw = (SOURCE / "spu_recomp.c").read_bytes()
 if hashlib.sha256(raw).hexdigest() != PIN:
@@ -41,7 +48,7 @@ if re.search(r"spu_(?:df\w*|fesd|frds|fscr\w*)\(", body):
 if re.search(r"spu_(?:rdch|wrch|rchcnt|stop|halt)|spu_drain_call|SPU_RET", body):
     raise SystemExit("0x8638 has channel/stop/call exits: MXCSR scope unsafe")
 exits = set(re.findall(r"g_spu_trampoline_fn = (\w+);", body))
-if exits != {"spu_0006_at_007E7500_spu_func_00008F70"}:
+if exits != {image + "_spu_func_0000" + exit_pc}:
     raise SystemExit(f"unexpected exits {exits}")
 
 wrapper = f"""

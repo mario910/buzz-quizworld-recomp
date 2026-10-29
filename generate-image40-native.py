@@ -7,8 +7,12 @@ import shutil
 root = Path(__file__).resolve().parent
 source_dir = root / "port/spu/buzz_job_abe1"
 raw = (source_dir / "spu_recomp.c").read_bytes()
-expected = "29af00779cbaacc132c46947811f43ab2e9ac78564c82952fc6f0e27744b5fed"  # + function-pointer starts (generate-raw-jobs EXTRA_STARTS); 6D78 unchanged
-if hashlib.sha256(raw).hexdigest() != expected:
+profiles = {
+    "29af00779cbaacc132c46947811f43ab2e9ac78564c82952fc6f0e27744b5fed": "6D78",  # 1.02
+    "6b4483d57acf7a145d0bf3e4f70c83875f7f67b3dd6931d52a9d980ca65cf7df": "6DB8",  # EU 1.00
+}
+pc = profiles.get(hashlib.sha256(raw).hexdigest())
+if pc is None:
     raise SystemExit("Image 40 reference changed: re-audit before generating")
 source = raw.decode("utf-8")
 if re.search(r"spu_(?:df|fesd|frds|fscr)", source):
@@ -16,7 +20,7 @@ if re.search(r"spu_(?:df|fesd|frds|fscr)", source):
 anchor = '#include "spu_helpers.h"'
 if source.count(anchor) != 1:
     raise SystemExit("Unexpected helper include count")
-name = "buzz_job_abe1_spu_func_00006D78"
+name = "buzz_job_abe1_spu_func_0000" + pc
 match = re.search(r"(?ms)^void " + name + r"\(spu_context\* ctx\) \{(.*?)^\}", source)
 if not match:
     raise SystemExit("Missing audited loop 6D78")

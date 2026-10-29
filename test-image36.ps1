@@ -4,11 +4,12 @@ $ErrorActionPreference='Stop'
 Set-Location -LiteralPath $PSScriptRoot
 $vsRoot=& 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
 & (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
-$compiler=& .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
+$toolPython=Join-Path $(if($env:BUZZ_TOOL_ENV){$env:BUZZ_TOOL_ENV}else{Join-Path $PSScriptRoot 'toolenv'}) 'Scripts\python.exe'
+$compiler=& $toolPython -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
 $cc=Join-Path $compiler 'clang-cl.exe'
-& .\toolenv\Scripts\python.exe generate-image36-native.py
+& $toolPython generate-image36-native.py
 if($LASTEXITCODE) { throw 'Generator failed' }
-& .\toolenv\Scripts\python.exe tests\image36-generator-test.py
+& $toolPython tests\image36-generator-test.py
 if($LASTEXITCODE) { throw 'Generator checks failed' }
 $flags=@('/nologo','/O2','/D_CRT_SECURE_NO_WARNINGS','/DSPU_LS_DEBUG_HOOKS=0','/clang:-mavx2','/clang:-ffp-contract=off','/Ianalysis\native-image36','/Ips3recomp\runtime\spu','/Ips3recomp\include')
 $units=@(

@@ -23,6 +23,25 @@ def sfo(title='BCES00647'):
 
 
 class LauncherTests(unittest.TestCase):
+    def test_english_defaults_and_legacy_labels_preserve_custom_input(self):
+        settings = model.Settings()
+        self.assertEqual(model.BUTTONS, ('Red', 'Yellow', 'Green', 'Orange', 'Blue'))
+        self.assertEqual(settings.players[7].name, 'Player 8')
+        legacy = asdict(settings)
+        legacy['players'][0]['name'] = 'Gracz 1'
+        legacy['players'][1]['name'] = 'Łukasz'
+        expected_keys = copy.deepcopy(legacy['players'][0]['keys'])
+        loaded = model.from_dict(legacy)
+        self.assertEqual(loaded.players[0].name, 'Player 1')
+        self.assertEqual(loaded.players[1].name, 'Łukasz')
+        self.assertEqual(loaded.players[0].keys, expected_keys)
+        self.assertEqual(legacy['players'][0]['name'], 'Gracz 1')
+        with self.assertRaisesRegex(ValueError, 'Unknown key'):
+            model.key_code('not-a-key')
+        settings.places = 3
+        with self.assertRaisesRegex(ValueError, 'player slots'):
+            settings.validate()
+
     def test_keys(self):
         for code in range(1,256):
             self.assertEqual(model.key_code(model.key_label(code)),code)
@@ -84,9 +103,9 @@ class LauncherTests(unittest.TestCase):
     def test_warnings(self):
         s=model.Settings();self.assertEqual(s.warnings(),[])
         s.players[1].keys[0]='Space'
-        self.assertTrue(any('Wspólne' in text for text in s.warnings()))
+        self.assertTrue(any('Keys shared' in text for text in s.warnings()))
         s.places=8
-        self.assertTrue(any('Gracz 8' in text for text in s.warnings()))
+        self.assertTrue(any('Player 8' in text for text in s.warnings()))
 
     def test_sfo_bounds(self):
         self.assertEqual(model.title_id(sfo()),'BCES00647')

@@ -9,9 +9,15 @@ In the `buzz-quizworld-recomp` repository folder, double-click **Launch-Buzz.cmd
 ```
 
 The launcher uses the local Python from `toolenv` and the standard Tkinter.
-It installs no extra framework, downloads no game files and does not build the
-port. You need an already built Windows EXE plus your own game dump and
-firmware, exactly as for the command-line start. It is not yet a standalone
+The launcher, preparation wizard and application-provided messages are in
+English. Native file dialogs follow the Windows display language. The game
+window is titled **Buzz! Quiz World** (with the existing FPS statistics).
+Only legacy default labels such as "Gracz 1" are translated to "Player 1";
+custom player names and input mappings are preserved.
+It downloads no game files. The separate **Import ISO / prepare** wizard can
+generate/build from your ISO/dump and firmware, using your local RPCS3 as an
+import helper. A completed prepared build is selected automatically. Python,
+the C++ build tools and Windows SDK are still required; this is not a standalone
 installer or a packaged launcher EXE.
 
 ## Three tabs
@@ -19,8 +25,11 @@ installer or a packaged launcher EXE.
 **Start and game files**
 
 - Select the game folder, `dev_flash` and the decrypted `EBOOT.elf`.
-- Checks the dump structure, TITLE_ID=BCES00647 in PARAM.SFO, the font folder,
-  the SHA-256 of the update 1.02 EBOOT and the presence of the native EXE.
+- Checks the dump structure, title ID, font folder and exact EBOOT SHA-256.
+  Profiles cover EU 1.00 (BCES00644/645/647) and BCES00647 1.02. Other language
+  assets remain experimental. Changing executable paths selects an existing
+  matching prepared build, not a fixed default version. The build's ELF/EXE
+  identity and version-specific runtime options are recorded in a manifest.
 - Offline mode or the original network-services path, plus a separate option
   to hide the store. The second mode only restores the game's existing
   behaviour; it does not start or configure any server, PSN, DNS or RPCS3.

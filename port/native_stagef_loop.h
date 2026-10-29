@@ -23,6 +23,29 @@
  */
 #include <immintrin.h>
 
+// Canonical algorithm inputs -> reviewed compiler register allocation. Only
+// vertex-input reads use this map; architectural state is never renumbered.
+static inline unsigned stagef_vertex_reg(unsigned reg)
+{
+#ifdef BUZZ_STAGEF_DISC100
+    switch (reg) {
+    case 4: return 11; case 7: return 8; case 5: return 7;
+    case 17: return 4; case 10: return 12; case 9: return 10; case 8: return 9;
+    case 50: return 51; case 51: return 52; case 52: return 53;
+    case 53: return 54; case 54: return 55; case 55: return 57;
+    case 56: return 59; case 58: return 60; case 60: return 61;
+    case 61: return 63; case 62: return 62; case 63: return 64;
+    case 64: return 65; case 65: return 66; case 66: return 67;
+    case 67: return 68; case 68: return 69; case 69: return 70;
+    }
+#endif
+    return reg;
+}
+static inline uint32_t stagef_vertex_word(const spu_context* ctx, unsigned reg)
+{
+    return ctx->gpr[stagef_vertex_reg(reg)]._u32[0];
+}
+
 static inline __m128i stagef_ld(const uint8_t* ls, uint32_t a)
 {
     const __m128i swap = _mm_setr_epi8(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12);
@@ -37,7 +60,7 @@ static inline u128 stagef_u(__m128i v) { u128 r; memcpy(&r, &v, 16); return r; }
 static inline __m128i stagef_m(u128 v) { __m128i r; memcpy(&r, &v, 16); return r; }
 static inline u128 stagef_splat(const spu_context* ctx, int reg, int lane)
 {
-    return stagef_u(_mm_set1_epi32((int)ctx->gpr[reg]._u32[lane]));
+    return stagef_u(_mm_set1_epi32((int)ctx->gpr[stagef_vertex_reg(reg)]._u32[lane]));
 }
 static inline u128 stagef_row(u128 x, u128 y, u128 z, u128 mx, u128 my, u128 mz, u128 t)
 {
@@ -53,7 +76,7 @@ static inline v8 stagef_row8(v8 x, v8 y, v8 z, v8 mx, v8 my, v8 mz, v8 t)
 {
     return v8_fma(z, mz, v8_fma(y, my, v8_fma(x, mx, t)));
 }
-static inline v8 stagef_bcast(const spu_context* ctx, int reg, int lane) { return v8_set(ctx->gpr[reg]._u32[lane]); }
+static inline v8 stagef_bcast(const spu_context* ctx, int reg, int lane) { return v8_set(ctx->gpr[stagef_vertex_reg(reg)]._u32[lane]); }
 
 /* Groups g and g+1 of the vertex loop at once (same operations per lane). */
 static void stagef_vertex_pair(spu_context* ctx, const uint32_t in[4], const uint32_t out[4], uint32_t off,
@@ -116,8 +139,8 @@ static int buzz_stagef_native_loop(spu_context* ctx)
     if (groups < 1) { buzz_stagef_fallback_reason = 2; return 0; }   /* prologue junk would survive: keep the reference */
     const uint32_t mode = ctx->gpr[6]._u32[0];
     const __m128i mask = _mm_set1_epi32(mode == 0 ? (int)0xFFFFFFFCu : mode == 1 ? (int)0xFFFFFFFEu : -1);
-    const uint32_t in[4] = { ctx->gpr[4]._u32[0], ctx->gpr[7]._u32[0], ctx->gpr[5]._u32[0], ctx->gpr[3]._u32[0] };
-    const uint32_t out[4] = { ctx->gpr[17]._u32[0], ctx->gpr[10]._u32[0], ctx->gpr[9]._u32[0], ctx->gpr[8]._u32[0] };
+    const uint32_t in[4] = { stagef_vertex_word(ctx,4), stagef_vertex_word(ctx,7), stagef_vertex_word(ctx,5), stagef_vertex_word(ctx,3) };
+    const uint32_t out[4] = { stagef_vertex_word(ctx,17), stagef_vertex_word(ctx,10), stagef_vertex_word(ctx,9), stagef_vertex_word(ctx,8) };
     /* The SPU reads group g+3 before it writes group g; keep that order out of
      * the question by requiring the record arrays not to overlap the input
      * groups that are used. The three groups it prefetches past the end are
@@ -210,7 +233,30 @@ static int buzz_stagef_native_loop(spu_context* ctx)
  * PUT sends. Beyond that boundary nothing reads the LS (corpus check
  * BUZZ_STAGEF_CULLTEST), nor r2..r102 except r51/r81 at 0x6888; the loop is
  * de-pipelined (tools/cull_model.py is the checked Python form). */
-void buzz_job_6eba_spu_func_00006888(spu_context* ctx);
+#ifdef BUZZ_STAGEF_DISC100
+#define STAGEF_CULL_EXIT buzz_job_6eba_spu_func_00006958
+#define STAGEF_CULL_PC 0x6958
+#define STAGEF_CULL_SEL 0xD980
+#define STAGEF_CULL_TOGGLE 0xCFF0
+#else
+#define STAGEF_CULL_EXIT buzz_job_6eba_spu_func_00006888
+#define STAGEF_CULL_PC 0x6888
+#define STAGEF_CULL_SEL 0xD800
+#define STAGEF_CULL_TOGGLE 0xCEB0
+#endif
+void STAGEF_CULL_EXIT(spu_context* ctx);
+static inline unsigned stagef_cull_reg(unsigned reg)
+{
+#ifdef BUZZ_STAGEF_DISC100
+    switch(reg) {
+    case 6: return 3; case 39: return 37; case 50: return 48;
+    case 51: return 50; case 59: return 57; case 66: return 64;
+    case 72: return 70; case 82: return 80; case 83: return 82;
+    }
+#endif
+    return reg;
+}
+#define CULL_GPR(r) ctx->gpr[stagef_cull_reg(r)]
 
 static inline u128 stagef_lane_gather(const uint8_t* ls, uint32_t base, const uint16_t* idx, int word)
 {
@@ -227,10 +273,10 @@ static inline u128 stagef_lane_gather(const uint8_t* ls, uint32_t base, const ui
 static int buzz_stagef_native_cull(spu_context* ctx)
 {
     const uint32_t groups = ctx->gpr[15]._u32[0];
-    const uint32_t in = ctx->gpr[13]._u32[0] + ctx->gpr[50]._u32[0];
+    const uint32_t in = CULL_GPR(13)._u32[0] + CULL_GPR(50)._u32[0];
     const uint32_t verts = ctx->gpr[10]._u32[0];
-    uint32_t cursor = ctx->gpr[39]._u32[0];
-    if (groups == 0 || groups > STAGEF_MAX_GROUPS || cursor != in || ctx->gpr[51]._u32[0] != 0 ||
+    uint32_t cursor = CULL_GPR(39)._u32[0];
+    if (groups == 0 || groups > STAGEF_MAX_GROUPS || cursor != in || CULL_GPR(51)._u32[0] != 0 ||
         ctx->gpr[41]._u32[0] != 0 || ctx->gpr[43]._u32[0] != 0 || ctx->gpr[84]._u32[0] > 15) {
         buzz_stagef_fallback_reason = 1;
         return 0;
@@ -241,12 +287,12 @@ static int buzz_stagef_native_cull(spu_context* ctx)
     const u128 pick = spu_or(spu_ceqi(mode, 2), spu_ceqi(mode, 0));
     const u128 flip = spu_and(spu_shufb(pick, pick, ctx->gpr[12]), stagef_u(_mm_set1_epi32((int)0x80000000u)));
     const u128 r48 = spu_xor(ctx->gpr[11], flip);
-    const u128 r72 = ctx->gpr[72], r82 = ctx->gpr[82], r83 = ctx->gpr[83];
+    const u128 r72 = CULL_GPR(72), r82 = CULL_GPR(82), r83 = CULL_GPR(83);
     const uint32_t pad = ctx->gpr[84]._u32[0];
-    const u128 sel0 = spu_ls_read128(ctx, 0xD800), toggle = spu_ls_read128(ctx, 0xCEB0);
+    const u128 sel0 = spu_ls_read128(ctx, STAGEF_CULL_SEL), toggle = spu_ls_read128(ctx, STAGEF_CULL_TOGGLE);
     const u128 sel1 = spu_xor(sel0, toggle);
-    const uint32_t t_mask1 = ctx->gpr[8]._u32[0], t_mask2 = ctx->gpr[7]._u32[0], t_align = ctx->gpr[6]._u32[0];
-    const uint32_t lim0 = ctx->gpr[66]._u32[0], lim1 = ctx->gpr[66]._u32[1], scratch = ctx->gpr[59]._u32[0];
+    const uint32_t t_mask1 = CULL_GPR(8)._u32[0], t_mask2 = CULL_GPR(7)._u32[0], t_align = CULL_GPR(6)._u32[0];
+    const uint32_t lim0 = CULL_GPR(66)._u32[0], lim1 = CULL_GPR(66)._u32[1], scratch = CULL_GPR(59)._u32[0];
     /* per-thread work buffers, allocated once (not TLS-sized arrays: every
      * host thread, PPU ones included, would carry them) */
     static _Thread_local u128 (*part)[2];
@@ -353,12 +399,13 @@ static int buzz_stagef_native_cull(spu_context* ctx)
         cursor += 6u * kept;
         kept_total += kept;
     }
-    for (int w = 0; w < 4; w++) ctx->gpr[51]._u32[w] = kept_total;
-    ctx->pc = 0x6888;
-    g_spu_trampoline_fn = buzz_job_6eba_spu_func_00006888;
+    for (int w = 0; w < 4; w++) CULL_GPR(51)._u32[w] = kept_total;
+    ctx->pc = STAGEF_CULL_PC;
+    g_spu_trampoline_fn = STAGEF_CULL_EXIT;
     return 1;
 }
 
+#undef CULL_GPR
 /* ---- Matrix x float4 array (SPU 0xC3A0, loop 0xC488) ----
  * r3 = count, r4 = input, r5 = output (in place in every corpus call),
  * r6 = 4x4 row-major matrix. Per vector v, row k in the SPU's order:

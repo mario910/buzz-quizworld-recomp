@@ -19,6 +19,7 @@ time (BUZZ_STAGEF, BUZZ_STAGEF_KERNELS; see native_stagef.cpp).
 """
 from pathlib import Path
 import re
+import hashlib
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "port/spu/buzz_job_6eba"
@@ -30,6 +31,17 @@ KERNELS = (("6338", "buzz_stagef_native_loop", 0),
            ("2C10", "buzz_stagef_native_normalize", 2))
 
 source = (SOURCE / "spu_recomp.c").read_text()
+digest = hashlib.sha256((SOURCE / "spu_recomp.c").read_bytes()).hexdigest()
+if digest not in {"5ae9232d4f2d47004b687251b479b4515c1f2ea46e9f868332e3305a4a13434e",
+                  "7727abc0b151a75b9d480102192f2aac6b623da117d23e20662b8b7e02b3bd82"}:
+    raise SystemExit("Unreviewed geometry image; do not infer the native ABI from addresses")
+disc100 = digest == "5ae9232d4f2d47004b687251b479b4515c1f2ea46e9f868332e3305a4a13434e"
+if disc100:
+    # The vertex algorithm is shared; its input register allocation is mapped
+    # explicitly in the native header. Cull stays reference until reviewed.
+    KERNELS = (("63E0", "buzz_stagef_native_loop", 0),
+               ("C518", "buzz_stagef_native_xform", 1),
+               ("2C00", "buzz_stagef_native_normalize", 2))
 header = (ROOT / "port/native_stagef_loop.h").as_posix()
 included = False
 for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
@@ -44,6 +56,8 @@ for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
         raise SystemExit(f"0x{pc} has side effects beyond LS and registers")
     wrapper = ""
     if not included:   # the first kernel in address order precedes every user
+        if disc100:
+            wrapper += "\n#define BUZZ_STAGEF_DISC100 1\n"
         wrapper += f'\n#include "{header}"\n'
         wrapper += ("extern void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),\n"
                     "                            int (*native)(spu_context*), int kernel);\n"
@@ -57,22 +71,23 @@ for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
     source = (source[:match.start()] + f"void {name}_reference(spu_context* ctx) {{"
               + body + "\n}\n" + wrapper + source[body_end + 2:])
 
-for pc in ("6D28", "6888", "8FD4", "82B8"):   # analysis probes; 6D28 also routes
+for pc in (("6E08",) if disc100 else ("6D28", "6888", "8FD4", "82B8")):
     probe = PREFIX + pc
     m = re.search(rf"(?m)^void {probe}\(spu_context\* ctx\) \{{", source)
     if not m:
         raise SystemExit(f"missing {probe}")
     route = ""
-    if pc == "6D28":
+    if pc in ("6D28", "6E08"):
+        exit_pc, base_reg, kept_reg = ("6958", 37, 50) if disc100 else ("6888", 39, 51)
         route = (f"    if (buzz_stagef_mode) {{ buzz_stagef_cull_run(ctx, {probe}_body,"
-                 f" buzz_stagef_native_cull, {PREFIX}6888); return; }}\n")
+                 f" buzz_stagef_native_cull, {PREFIX}{exit_pc}, {base_reg}, {kept_reg}); return; }}\n")
     source = (source[:m.start()] + "extern void buzz_stagef_probe(spu_context*, unsigned);\n"
               "extern void buzz_stagef_cull_run(spu_context*, void (*)(spu_context*),\n"
-              "    int (*)(spu_context*), void (*)(spu_context*));\n"
+              "    int (*)(spu_context*), void (*)(spu_context*), unsigned, unsigned);\n"
               "extern int buzz_stagef_probe_on;\n"
               f"static void {probe}_body(spu_context* ctx);\n"
               f"void {probe}(spu_context* ctx) {{\n"
-              f"    if (buzz_stagef_probe_on) buzz_stagef_probe(ctx, 0x{pc});\n"
+              + ("" if disc100 else f"    if (buzz_stagef_probe_on) buzz_stagef_probe(ctx, 0x{pc});\n")
               + route +
               f"    {probe}_body(ctx);\n}}\n"
               f"static void {probe}_body(spu_context* ctx) {{" + source[m.end():])

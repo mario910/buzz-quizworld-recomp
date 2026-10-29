@@ -12,6 +12,8 @@ either, or the following separately licensed components.
 | FFmpeg ATRAC3/ATRAC3plus decoders, extracted via PPSSPP | `ps3recomp/third_party/at3_standalone/COPYING.LGPLv2.1`, per-file notices and `README.txt` (LGPL-2.1-or-later; some shims have their own notices) | SDK codec component; compiled into the runtime |
 | stb_image, Sean Barrett and contributors | license text inside `ps3recomp/libs/codec/stb_image.h` (MIT or public domain) | SDK image decoding |
 | stb_truetype, Sean Barrett and contributors | license text inside `ps3recomp/libs/font/stb_truetype.h` (MIT or public domain) | SDK font support |
+| pycdlib, Chris Lalancette and contributors | LGPL-2.1-only; [upstream license](https://github.com/clalancette/pycdlib/blob/master/COPYING), also installed with the pip distribution | ISO/Joliet/UDF import tool, not vendored source |
+| RPCS3 | GPLv2; [upstream license](https://github.com/RPCS3/rpcs3/blob/master/LICENSE), consult the separately supplied distribution | Optional local preparation helper for PUP/PKG/SELF; not redistributed or linked into this port |
 
 Other notices in upstream files remain in place. Tool dependencies installed
 by pip have their own licenses; they are not vendored by this repository.
@@ -35,7 +37,10 @@ Source publication is not authorization to redistribute game-derived builds.
 Owning a disc is not a blanket exception to copyright or anti-circumvention
 law. Use files you are entitled to use, follow the rules in your jurisdiction,
 and obtain legal advice if you need a legal opinion. This project does not
-supply game/update/firmware downloads or decryption instructions/keys.
+supply game/update/firmware downloads or fetch per-disc/license keys. The
+preparation wizard can invoke the user's separate RPCS3 installation to import
+their firmware/update and prepare a local executable; this does not change the
+rights associated with those inputs or the generated output.
 
 Buzz!, PlayStation and other product names belong to their respective owners.
 This is an unofficial project, not endorsed by Sony, Relentless Software or

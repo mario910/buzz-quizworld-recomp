@@ -2,6 +2,7 @@
 // No game/menu state is patched. Descriptor and report layout are compatible
 // with the wired Sony 054c:1000 Buzz receiver (four five-button handsets).
 #include "ppu_recomp.h"
+#include "../ps3recomp/runtime/ppu/ppu_tls_image.h"
 #include "buzzer_protocol.h"
 #include "buzzer_script.h"
 #include "buzzer_input.h"
@@ -54,6 +55,9 @@ using buzz_usb::ScriptEvent;
 std::array<ScriptEvent,64> script{};
 unsigned script_count=0;
 uint64_t script_start=0;
+const char* test_input_path=nullptr;
+buzz_usb::TestMailbox test_mailbox;
+uint64_t test_input_next_poll=0;
 
 uint64_t now_ms() { return GetTickCount64(); }
 void result(ppu_context* c, uint32_t v) { c->gpr[3] = (uint64_t)(int64_t)(int32_t)v; }
@@ -68,7 +72,7 @@ uint64_t callback(uint32_t opd, uint64_t a = 0, uint64_t b = 0, uint64_t d = 0)
         return (uint64_t)-1;
     }
     // Dedicated guest stack and TLS: do not alias the renderer's callback stack
-    // or the main thread's allocator TLS. Sizes are from this 1.02 ELF PT_TLS.
+    // or the main thread's allocator TLS. Initialized from the loaded ELF's PT_TLS.
     ppu_context c{};
     c.gpr[1] = arena + stack_size - 0x100;
     c.gpr[2] = toc;
@@ -95,8 +99,16 @@ uint64_t input_buttons()
 {
     const auto now=now_ms();
     // Explicit opt-in, reproducible input test; never enabled by the launcher.
-    const uint32_t pulses=buzz_usb::due_script_pulses(
+    uint32_t pulses=buzz_usb::due_script_pulses(
         script.data(),script_count,(double)(now-script_start)/1000.0);
+    if(test_input_path && now>=test_input_next_poll) {
+        test_input_next_poll=now+25; // Diagnostic opt-in only; disabled in ordinary play.
+        if(FILE* f=fopen(test_input_path,"rb")) {
+            char command[96]{};const size_t n=fread(command,1,sizeof(command)-1,f);
+            const bool complete=n<sizeof(command)-1 && !ferror(f);fclose(f);
+            if(complete)pulses|=test_mailbox.consume(command);
+        }
+    }
     return buzz_input_poll(pulses);
 }
 
@@ -273,13 +285,17 @@ void buzz_register_virtual_buzzer()
 {
     if (getenv("BUZZ_NO_VIRTUAL_BUZZER")) return;
     buzz_input_init();receiver_count=buzz_input_players()/4;
+    test_input_path=getenv("BUZZ_TEST_INPUT_FILE");
+    if(test_input_path && !*test_input_path)test_input_path=nullptr;
     for (uint64_t i=0;i<function_table_count;++i)
         guest_functions[(uint32_t)function_table[i].addr]=function_table[i].func;
     arena=vm_stack_allocate(&g_vm_stack_alloc,stack_size);
     if (!arena || vm_commit(arena,stack_size)!=0) {fprintf(stderr,"[buzzer] arena allocation failed\n");return;}
     for(unsigned r=0;r<receiver_count;++r)memcpy(vm_base+arena+r*0x100,descriptors,sizeof(descriptors));
-    memset(vm_base+arena+0x2000,0,0x1000);
-    memcpy(vm_base+arena+0x2000,vm_base+0x860CCC,8); // 1.02 PT_TLS template
+    if (ppu_tls_copy_template(arena+0x2000,0x1000)!=0) {
+        fprintf(stderr,"[buzzer] loaded ELF TLS does not fit the callback TLS block; adapter disabled\n");
+        return;
+    }
     if (const char* p=getenv("BUZZ_SCRIPT")) {
         while (*p && script_count<script.size()) {
             char* next=nullptr;

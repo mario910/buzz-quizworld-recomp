@@ -1,5 +1,12 @@
 # Locations of the user's own game files, from buzz-paths.json (not in git).
 #   . (Join-Path $PSScriptRoot 'buzz-paths.ps1'); $paths = Get-BuzzPaths
+function Get-BuzzFileSha256 {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    $stream=[System.IO.File]::OpenRead((Resolve-Path -LiteralPath $Path).Path)
+    $hasher=[System.Security.Cryptography.SHA256]::Create()
+    try { ([BitConverter]::ToString($hasher.ComputeHash($stream))).Replace('-','').ToLowerInvariant() }
+    finally { $hasher.Dispose(); $stream.Dispose() }
+}
 function Get-BuzzPaths {
     param([string]$ConfigPath = '')
     $file = if ($ConfigPath) { (Resolve-Path -LiteralPath $ConfigPath -ErrorAction Stop).Path } else { Join-Path $PSScriptRoot 'buzz-paths.json' }

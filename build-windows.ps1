@@ -19,10 +19,17 @@ param(
     [switch]$NativeImage36,
     [switch]$NativeImage7,
     [switch]$MStreamModules,
+    [switch]$ReferenceOnly,
     [switch]$SpuLsDebugHooks,
     [ValidateSet('-O2','-O3')][string]$SpuOpt = '-O2'
 )
 $ErrorActionPreference = 'Stop'
+if($ReferenceOnly) {
+    if($NativeCompletion -or $NativeImage40 -or $NativeImage39 -or $NativeImage36 -or $NativeImage7 -or $MStreamModules -or $StageF -or $NativeGeometry -or $MergeGeometry -or $FusedGeometry) {
+        throw 'ReferenceOnly cannot be combined with version-specific native adapters.'
+    }
+    $NativeSpuFloat=[System.Management.Automation.SwitchParameter]::new($false)
+}
 if ($SpuIsa -notin @('avx2','avx512') -and -not $PSBoundParameters.ContainsKey('NativeSpuFloat')) {
     $NativeSpuFloat = [System.Management.Automation.SwitchParameter]::new($false)
 }
@@ -31,7 +38,8 @@ $expectedExe = Join-Path $experimentRoot 'build-windows\BuzzQuizWorldRecomp.exe'
 if (Get-Process -Name BuzzQuizWorldRecomp -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $expectedExe }) {
     throw 'Close this checkout''s running game before building; it will not be stopped for you.'
 }
-$toolScripts = Join-Path $experimentRoot 'toolenv\Scripts'
+$toolEnvironment = if($env:BUZZ_TOOL_ENV){$env:BUZZ_TOOL_ENV}else{Join-Path $experimentRoot 'toolenv'}
+$toolScripts = Join-Path $toolEnvironment 'Scripts'
 if (-not (Test-Path -LiteralPath (Join-Path $toolScripts 'python.exe'))) { throw 'Run .\Setup-Buzz.ps1 first.' }
 $env:PATH = "$toolScripts;$env:PATH"
 $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
@@ -49,6 +57,19 @@ $sdk = Join-Path $experimentRoot 'ps3recomp'
 $port = Join-Path $experimentRoot 'port'
 $build = Join-Path $experimentRoot 'build-windows'
 $geometryOverride = ''
+$hostProfile = ''
+$generationPath=Join-Path $experimentRoot 'analysis\game-generation.json'
+if(Test-Path -LiteralPath $generationPath) {
+    $generation=Get-Content -LiteralPath $generationPath -Raw | ConvertFrom-Json
+    . (Join-Path $experimentRoot 'buzz-paths.ps1')
+    $buildElf=(Get-BuzzPaths).eboot_elf
+    if((Get-BuzzFileSha256 -Path $buildElf) -ne $generation.elf_sha256) {
+        throw 'Generated translations belong to another executable. Generate in a separate preparation workspace.'
+    }
+    if($generation.family -eq 'quizworld-eu100') {
+        $hostProfile=Join-Path $experimentRoot 'analysis\host-disc100\port'
+    } elseif($generation.family -ne 'quizworld-102-verified') {throw 'Unknown generation family'}
+}
 $completionOverride = ''
 $image40Override = ''
 $image39Override = ''
@@ -94,7 +115,10 @@ if ($NativeImage40) {
 if ($NativeCompletion) {
     & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'generate-native-completion.py')
     if ($LASTEXITCODE) { throw 'Native completion generation failed' }
-    $completionOverride = Join-Path $experimentRoot 'analysis\native-completion\ppu_recomp_015.cpp'
+    $completionProfile = Get-Content (Join-Path $experimentRoot 'analysis\native-completion\profile.json') -Raw | ConvertFrom-Json
+    if($completionProfile.source -notin @('ppu_recomp_013.cpp','ppu_recomp_015.cpp')) { throw 'Unexpected completion source profile' }
+    $completionOverride = Join-Path $experimentRoot ('analysis\native-completion\' + $completionProfile.source)
+    if($ProducerTrace -and $completionProfile.version -ne '102') { throw 'Producer trace is only validated on 1.02.' }
 }
 if ($ProducerTrace) {
     $producerArguments=@((Join-Path $experimentRoot 'generate-producer-probe.py'))
@@ -130,7 +154,13 @@ if ($MergeGeometry) {
     if ($LASTEXITCODE) { throw "Merged geometry generation failed: $LASTEXITCODE" }
     $geometryOverride = Join-Path $experimentRoot 'analysis\merged-geometry\spu_recomp.c'
 }
-& cmake -S $port -B $build -G Ninja "-DPS3RECOMP_DIR=$sdk" "-DCMAKE_C_COMPILER=$compiler" "-DCMAKE_CXX_COMPILER=$compiler" "-DPORT_SPU_ISA=$SpuIsa" "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)" "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)" "-DPORT_SPU_LS_DEBUG_HOOKS=$($SpuLsDebugHooks.IsPresent)" "-DPORT_SPU_OPT=$SpuOpt" "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)" "-DPORT_GEOMETRY_SOURCE=$geometryOverride" "-DPORT_COMPLETION_SOURCE=$completionOverride" "-DPORT_IMAGE40_SOURCE=$image40Override" "-DPORT_IMAGE39_SOURCE=$image39Override" "-DPORT_IMAGE7_SOURCE=$image7Override" "-DPORT_MSTREAM_DIR=$mstreamDir" "-DPORT_IMAGE36_SOURCE=$image36Override" "-DPORT_VIDEO_SOURCE=$videoOverride" "-DPORT_PRODUCER_PROBE_DIR=$producerOverride" -DCMAKE_BUILD_TYPE=Release '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG' '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
+& cmake -S $port -B $build -G Ninja "-DPS3RECOMP_DIR=$sdk" "-DCMAKE_C_COMPILER=$compiler" "-DCMAKE_CXX_COMPILER=$compiler" "-DPORT_HOST_PROFILE_DIR=$hostProfile" "-DPORT_SPU_ISA=$SpuIsa" "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)" "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)" "-DPORT_SPU_LS_DEBUG_HOOKS=$($SpuLsDebugHooks.IsPresent)" "-DPORT_SPU_OPT=$SpuOpt" "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)" "-DPORT_GEOMETRY_SOURCE=$geometryOverride" "-DPORT_COMPLETION_SOURCE=$completionOverride" "-DPORT_IMAGE40_SOURCE=$image40Override" "-DPORT_IMAGE39_SOURCE=$image39Override" "-DPORT_IMAGE7_SOURCE=$image7Override" "-DPORT_MSTREAM_DIR=$mstreamDir" "-DPORT_IMAGE36_SOURCE=$image36Override" "-DPORT_VIDEO_SOURCE=$videoOverride" "-DPORT_PRODUCER_PROBE_DIR=$producerOverride" -DCMAKE_BUILD_TYPE=Release '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG' '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
 if ($LASTEXITCODE) { throw "CMake configuration failed: $LASTEXITCODE" }
 & cmake --build $build --parallel $Jobs
 if ($LASTEXITCODE) { throw "Build failed: $LASTEXITCODE" }
+if($generation) {
+    $runtimePlan = & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'verify-game.py') --runtime-options
+    if($LASTEXITCODE){throw 'Cannot bind runtime defaults to the validated build'}
+    @{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);runtime_defaults=($runtimePlan | ConvertFrom-Json)} |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'game-build.json') -Encoding UTF8
+}

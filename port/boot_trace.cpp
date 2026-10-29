@@ -14,6 +14,7 @@ namespace {
 bool trace_enabled=false;
 unsigned long long trace_t0;
 bool skip_fmv=false;
+std::atomic<bool> menu_seen{false};
 using Fn=void(*)(ppu_context*);
 struct Probe {uint32_t pc;const char* name;Fn original;std::atomic<unsigned> calls{0};};
 Probe probes[]={
@@ -54,6 +55,9 @@ template<unsigned I> void traced(ppu_context* c)
     const uint32_t L=(uint32_t)c->gpr[3];
     const bool apply_frontend=I==11 && buzz_frontend_target_include(L);
     const bool valid=L>=0x10000 && L<0xD0000000u;
+    if(I==17 && !menu_seen.exchange(true,std::memory_order_relaxed) && skip_fmv)
+        fprintf(stderr,"[buzz-video] First menu reached: real video/media calls restored.\n");
+    const bool suppress_video=skip_fmv && !menu_seen.load(std::memory_order_relaxed);
     if(show){
         fprintf(stderr,"[boot-lua] t=%llums %s #%u L=%08X",(ps3_qpc_us()-trace_t0)/1000,p.name,n,L);
         if(valid){
@@ -68,11 +72,11 @@ template<unsigned I> void traced(ppu_context* c)
     // Wait.UntilVideoIsDisplaying also exits on IsStreamErrored. Report the
     // unsupported FMV explicitly; never claim that decoded video is displaying.
     // IsStreamPlaying must be false so the next script loop can terminate too.
-    if(skip_fmv && (I==5 || I==6)) {
+    if(suppress_video && (I==5 || I==6)) {
         // These Lua entry points normally return no results. No movie state
         // should be allocated or played in the explicitly selected bootstrap.
         c->gpr[3]=0;
-    }else if(skip_fmv && (I==7 || I==10)){
+    }else if(suppress_video && (I==7 || I==10)){
         c->gpr[4]=(I==10)?1:0;
         func_0046B8F8(c);
         c->gpr[3]=1;
@@ -94,8 +98,9 @@ void buzz_register_boot_trace()
     trace_enabled=buzz_boot::enabled(getenv("BUZZ_BOOT_TRACE"));
     trace_t0=ps3_qpc_us();
     skip_fmv=buzz_boot::enabled(getenv("BUZZ_NO_FMV"));
+    menu_seen.store(false,std::memory_order_relaxed);
     if(!trace_enabled && !skip_fmv && !buzz_frontend_needs_include())return;
-    if(skip_fmv)fprintf(stderr,"[buzz-video] No-FMV bootstrap: report unsupported movies as errored, not playing.\n");
+    if(skip_fmv)fprintf(stderr,"[buzz-video] Startup-only video skip active until the first menu.\n");
     const Fn hooks[]={traced<0>,traced<1>,traced<2>,traced<3>,traced<4>,
                       traced<5>,traced<6>,traced<7>,traced<8>,traced<9>,traced<10>,traced<11>,
                       traced<12>,traced<13>,traced<14>,traced<15>,traced<16>,traced<17>,traced<18>,

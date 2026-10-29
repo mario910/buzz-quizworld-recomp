@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 import sys
 import struct
+import json
 
 import buzz_paths
 from launcher.model import title_id
@@ -12,22 +13,36 @@ from launcher.model import title_id
 def verify(paths, *, elf_only=False, expected_hash=buzz_paths.EXPECTED_ELF_SHA256):
     elf = Path(paths["eboot_elf"])
     if not elf.is_file() or elf.stat().st_size > 256 * 1024 * 1024:
-        raise ValueError("eboot_elf must be the decrypted update 1.02 EBOOT.elf (not EBOOT.BIN).")
+        raise ValueError("eboot_elf must be a reviewed decrypted EBOOT.elf (not encrypted EBOOT.BIN).")
     with elf.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
-    if digest != expected_hash:
-        raise ValueError(f"Unsupported EBOOT.elf SHA-256: {digest}; expected {expected_hash} (BCES00647 1.02).")
+    profile = None
+    if expected_hash == buzz_paths.EXPECTED_ELF_SHA256:
+        from launcher.game_profiles import identify
+        profile = identify("BCES00647", digest)
+        if not profile.buildable:
+            raise ValueError(profile.note)
+    elif digest != expected_hash:  # synthetic harness override, never a CLI option
+        raise ValueError(f"Unsupported EBOOT.elf SHA-256: {digest}; expected {expected_hash}.")
     if elf.stem != "EBOOT":
         raise ValueError("Name the decrypted input EBOOT.elf; generation uses the EBOOT basename.")
     if elf_only:
-        return
+        return profile
     game = Path(paths["game_root"])
     sfo = game / "PS3_GAME/PARAM.SFO"
     if not (game / "PS3_GAME/USRDIR").is_dir() or not sfo.is_file() or sfo.stat().st_size > 1024 * 1024:
         raise ValueError("game_root must contain PS3_GAME/USRDIR and PS3_GAME/PARAM.SFO.")
-    if title_id(sfo.read_bytes()) != "BCES00647":
-        raise ValueError("Only the BCES00647 disc dump is supported.")
-    flash = Path(paths["dev_flash"])
+    if profile is not None:
+        from launcher.game_profiles import identify
+        profile = identify(title_id(sfo.read_bytes()), digest)
+    elif title_id(sfo.read_bytes()) != "BCES00647":
+        raise ValueError("Unexpected title ID in synthetic fixture")
+    verify_firmware(paths["dev_flash"])
+    return profile
+
+
+def verify_firmware(path):
+    flash = Path(path)
     if not (flash / "data/font").is_dir():
         raise ValueError("dev_flash must contain data/font from your installed PS3 firmware.")
     atrac = flash / "sys/external/flashATRAC.pic"
@@ -45,13 +60,20 @@ def verify(paths, *, elf_only=False, expected_hash=buzz_paths.EXPECTED_ELF_SHA25
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--elf-only", action="store_true", help="Check only the generation input, before writing any lifts.")
+    parser.add_argument("--build-options", action="store_true", help="Print the validated profile's compiler switches as JSON.")
+    parser.add_argument("--runtime-options", action="store_true", help="Print version-bound runtime defaults as JSON.")
     args = parser.parse_args()
     try:
-        verify(buzz_paths.load(), elf_only=args.elf_only)
+        profile = verify(buzz_paths.load(), elf_only=args.elf_only)
     except (OSError, ValueError, KeyError, TypeError, IndexError, struct.error, SystemExit) as exc:
         print(f"Validation failed: {exc}", file=sys.stderr)
         return 1
-    print("Validated BCES00647 update 1.02" + (" EBOOT.elf." if args.elf_only else " game, EBOOT.elf and firmware inputs."))
+    if args.runtime_options:
+        print(json.dumps(dict(profile.runtime_defaults)))
+    elif args.build_options:
+        print(json.dumps(profile.compiler_options()))
+    else:
+        print(f"Validated {profile.key}" + (" EBOOT.elf." if args.elf_only else " game, EBOOT.elf and firmware inputs."))
     return 0
 
 

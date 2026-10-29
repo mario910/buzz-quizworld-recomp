@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include "../port/completion_profile.h"
 static unsigned char ram[8192], expected[8192];
 extern "C" {
 PPU_THREAD_LOCAL void (*g_trampoline_fn)(void*);
@@ -19,15 +20,15 @@ static int probe_result;
 static unsigned probe_calls;
 static int probe(uint32_t flag) { assert(flag==0x1600);++probe_calls;return probe_result; }
 static void callback(void* opaque) { auto c=(ppu_context*)opaque; ++callbacks;c->gpr[12]^=0x1234; }
-void func_0068CF6C(ppu_context* c) {
-    ++polls; assert(c->lr==0x26a8d0 && c->gpr[5]==1);
+void BUZZ_COMPLETION_POLL_FN(ppu_context* c) {
+    ++polls; assert(c->lr==buzz_completion_poll_lr && c->gpr[5]==1);
     assert(ram[c->gpr[4]]==0 && ram[c->gpr[4]+1]==1);
     vm_write64(c->gpr[1]+0x28,c->gpr[2]);
     c->gpr[3]=result; if(!result)vm_write16(c->gpr[4],7);
     g_trampoline_fn=callback;
 }
-void func_0026A7C4(ppu_context* c) {
-    ++retired; assert(c->lr==0x26a8e8);
+void BUZZ_COMPLETION_RETIRE_FN(ppu_context* c) {
+    ++retired; assert(c->lr==buzz_completion_retire_lr);
     c->gpr[0]=0x55;c->gpr[11]=c->gpr[3]+9;c->cr^=0x76543210;
     g_trampoline_fn=callback;
 }
@@ -49,7 +50,7 @@ int main() {
         assert(!memcmp(&a,&b,sizeof a)&&!memcmp(ram,expected,sizeof ram));
     }
     puts("PASS: 12000 completion states, BUSY/error/success, full context/stack/TOC, exactly-once retirement, callback drain");
-    for (uint64_t lr : {0x26be10ull,0x26bf94ull,0x123456ull})
+    for (uint64_t lr : {uint64_t(buzz_completion_busy_lr1),uint64_t(buzz_completion_busy_lr2),uint64_t(0x123456)})
         for(int p=-1;p<=1;++p) {
             ppu_context a{},b{};for(unsigned r=0;r<32;++r)a.gpr[r]=r*19+77;
             a.gpr[3]=0x1000;a.lr=lr;a.cr=0xabcdef12;b=a;

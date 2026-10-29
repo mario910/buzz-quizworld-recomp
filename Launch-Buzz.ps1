@@ -2,6 +2,10 @@ param([switch]$Smoke)
 $ErrorActionPreference='Stop'
 $python=Join-Path $PSScriptRoot 'toolenv\Scripts\python.exe'
 $pythonWindowed=Join-Path $PSScriptRoot 'toolenv\Scripts\pythonw.exe'
+if(-not $Smoke -and -not(Test-Path -LiteralPath $python)) {
+    & (Join-Path $PSScriptRoot 'Prepare-Buzz.ps1')
+    return
+}
 if (-not (Test-Path -LiteralPath $python)) { throw 'Missing toolenv Python. See README setup instructions.' }
 if ($Smoke) {
     Push-Location $PSScriptRoot

@@ -79,8 +79,23 @@ def main():
                 "extern void spu_begin_image(int image_id);",
                 "extern void spu_runtime_code_register(uint32_t lsa, uint32_t size, uint32_t skip_lo,",
                 "                                      uint32_t skip_hi, uint64_t fnv, int image_id);"]
+    import buzz_paths
+    digest = hashlib.sha256(buzz_paths.eboot_elf().read_bytes()).hexdigest()
+    modules, pins = MODULES, PINNED
+    if digest == "6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8":
+        # Actual 1.00 runtime entries, not a PPU address relocation. Dispatch
+        # still verifies the complete immutable LS bytes before using a lift.
+        modules = (
+            ("atrac", "dev_flash:sys/external/flashATRAC.pic", 0x32890, (0x32890, 0x36B58), (0x53C0, 0x53D0)),
+            ("compressor", "analysis/spu-images/spu_0003_at_00737100.elf", 0x2FB90, (0x2FB90, 0x30278), (0, 0)),
+            ("vumeter", "analysis/spu-images/spu_0005_at_0073A180.elf", 0x2F7F0, (0x2F7F0,), (0, 0)),
+        )
+        pins = dict(PINNED, compressor="64fa006a8073a801d87fd816926189a15cbac8ffb8d67cf5fe78adce1e711f05",
+                    vumeter="c3a67640bca66ef439648e609637d52b3bfe830f6c0182207cc97440c89b89c0")
+    elif digest != buzz_paths.EXPECTED_ELF_SHA256:
+        raise SystemExit("Unreviewed executable family for MultiStream modules")
     body = []
-    for index, (name, source, base, entries, (skip_lo, skip_hi)) in enumerate(MODULES):
+    for index, (name, source, base, entries, (skip_lo, skip_hi)) in enumerate(modules):
         path = (Path(args.dev_flash) / source[len("dev_flash:"):] if source.startswith("dev_flash:")
                 else ROOT / source)
         if not path.exists():
@@ -90,7 +105,7 @@ def main():
         if args.print_hashes:
             print(name, digest)
             continue
-        if digest != PINNED[name]:
+        if digest != pins[name]:
             raise SystemExit(f"{name}: .text sha256 {digest} is not the audited module")
         image = FIRST_IMAGE_ID + index
         prefix = f"buzz_mstream_{name}_"

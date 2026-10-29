@@ -66,23 +66,23 @@ class App:
         header = ttk.Frame(outer)
         header.pack(fill='x', pady=(0, 14))
         ttk.Label(header, text='BUZZ!  /  PC', style='Title.TLabel').pack(side='left')
-        ttk.Label(header, text='Quiz World 1.02 • eksperymentalny port', style='Muted.TLabel').pack(side='right', anchor='s')
+        ttk.Label(header, text='Quiz World • PC', style='Muted.TLabel').pack(side='right', anchor='s')
         self.notebook = ttk.Notebook(outer)
         self.notebook.pack(fill='both', expand=True)
         self.tab_canvases = []
-        self.start_tab = self._tab('Start i pliki gry')
-        self.players_tab = self._tab('Gracze i mapowanie')
-        self.test_tab = self._tab('Test przycisków')
+        self.start_tab = self._tab('Start and game files')
+        self.players_tab = self._tab('Players and mapping')
+        self.test_tab = self._tab('Button test')
         self.paths = {key: tk.StringVar(value=value) for key, value in initial.paths.items()}
         self.places = tk.StringVar(value=str(initial.places))
-        self.network = tk.StringVar(value='Offline — bez logowania PSN' if initial.offline else 'Oryginalna ścieżka sieciowa')
+        self.network = tk.StringVar(value='Offline — no PSN sign-in' if initial.offline else 'Original network services')
         self.hide_store = tk.BooleanVar(value=initial.hide_store)
         self.background = tk.BooleanVar(value=initial.background)
         self.gamepads = tk.BooleanVar(value=initial.gamepads)
         self.pulse = tk.StringVar(value=str(initial.pulse_ms))
         self.names = [tk.StringVar(value=p.name) for p in initial.players]
         self.key_vars = [[tk.StringVar(value=k) for k in p.keys] for p in initial.players]
-        self.pad_players = [tk.StringVar(value='Nieprzypisany' if p.player is None else f'Gracz {p.player + 1}') for p in initial.pads]
+        self.pad_players = [tk.StringVar(value='Unassigned' if p.player is None else f'Player {p.player + 1}') for p in initial.pads]
         self.pad_buttons = [[tk.StringVar(value=b) for b in p.buttons] for p in initial.pads]
         self.pad_labels = []
         self._start_ui()
@@ -94,20 +94,22 @@ class App:
         # Allocate the footer before the expandable notebook on short displays.
         self.notebook.pack_forget()
         self.notebook.pack(fill='both', expand=True)
-        self.status = tk.StringVar(value='Gotowy. Ustawienia nie zmieniają plików gry ani zapisanych profili.')
+        self.status = tk.StringVar(value='Ready. Settings do not change game files or saved profiles.')
         status_label = ttk.Label(footer, textvariable=self.status, style='Muted.TLabel', wraplength=950)
         status_label.pack(side='top', fill='x', pady=(0, 8))
         footer.bind('<Configure>', lambda event: status_label.configure(wraplength=max(200, event.width)))
         controls = ttk.Frame(footer)
         controls.pack(side='bottom', anchor='e')
-        self.check_button = ttk.Button(controls, text='Sprawdź pliki', command=self.check_files)
+        self.check_button = ttk.Button(controls, text='Check files', command=self.check_files)
         self.check_button.pack(side='left', padx=5)
-        self.save_button = ttk.Button(controls, text='Zapisz', command=self.save)
+        self.save_button = ttk.Button(controls, text='Save', command=self.save)
         self.save_button.pack(side='left', padx=5)
-        self.launch_button = ttk.Button(controls, text='Uruchom grę', style='Primary.TButton', command=self.launch)
+        self.launch_button = ttk.Button(controls, text='Play', style='Primary.TButton', command=self.launch)
         self.launch_button.pack(side='left', padx=(5, 0))
+        self.prepare_button = ttk.Button(controls, text='Import ISO / prepare…', command=self.open_prepare)
+        self.prepare_button.pack(side='left', padx=(8, 0))
         if self.load_error:
-            self.status.set('Nie udało się wczytać ustawień: ' + self.load_error + ' Zapis nowego zestawu wymaga potwierdzenia.')
+            self.status.set('Could not load settings: ' + self.load_error + ' Confirm before saving a new configuration.')
         root.bind('<KeyPress>', self._key_down)
         root.bind('<KeyRelease>', self._key_up)
         root.bind('<FocusOut>', lambda event: root.after_idle(self._clear_if_inactive))
@@ -147,41 +149,41 @@ class App:
 
     def _start_ui(self):
         tab = self.start_tab
-        ttk.Label(tab, text='Twoja kopia gry', font=('Segoe UI', 14, 'bold')).pack(anchor='w')
-        ttk.Label(tab, text='Wskaż własny dump BCES00647, firmware i odszyfrowany EBOOT aktualizacji 1.02.', style='Muted.TLabel').pack(anchor='w', pady=(4, 14))
-        for key, label in (('game_root', 'Folder gry (z PS3_GAME)'), ('dev_flash', 'Folder dev_flash'), ('eboot_elf', 'Plik EBOOT.elf • update 1.02')):
+        ttk.Label(tab, text='Your game copy', font=('Segoe UI', 14, 'bold')).pack(anchor='w')
+        ttk.Label(tab, text='Select your own game dump, firmware and a supported decrypted EBOOT (EU 1.00 or 1.02).', style='Muted.TLabel').pack(anchor='w', pady=(4, 14))
+        for key, label in (('game_root', 'Game folder (with PS3_GAME)'), ('dev_flash', 'dev_flash folder'), ('eboot_elf', 'Decrypted EBOOT.elf')):
             row = ttk.Frame(tab)
             row.pack(fill='x', pady=5)
             ttk.Label(row, text=label, width=28).pack(side='left')
             ttk.Entry(row, textvariable=self.paths[key]).pack(side='left', fill='x', expand=True, padx=(0, 10))
-            ttk.Button(row, text='Wybierz…', command=lambda k=key: self.browse(k)).pack(side='right')
+            ttk.Button(row, text='Browse…', command=lambda k=key: self.browse(k)).pack(side='right')
         ttk.Separator(tab).pack(fill='x', pady=22)
-        ttk.Label(tab, text='Uruchomienie', font=('Segoe UI', 14, 'bold')).pack(anchor='w')
+        ttk.Label(tab, text='Launch options', font=('Segoe UI', 14, 'bold')).pack(anchor='w')
         row = ttk.Frame(tab)
         row.pack(fill='x', pady=12)
-        ttk.Label(row, text='Tryb usług sieciowych', width=28).pack(side='left')
+        ttk.Label(row, text='Network services', width=28).pack(side='left')
         ttk.Combobox(row, textvariable=self.network, state='readonly', width=38,
-                     values=['Offline — bez logowania PSN', 'Oryginalna ścieżka sieciowa']).pack(side='left')
-        ttk.Label(tab, text='Offline wyłącza logowanie, MyBuzz i grę sieciową. Drugi tryb korzysta z istniejącej konfiguracji usług;\nlauncher nie uruchamia serwera i nie emuluje PSN.', style='Muted.TLabel').pack(anchor='w', pady=(0, 14))
-        ttk.Checkbutton(tab, text='Ukryj PlayStation Store w menu', variable=self.hide_store).pack(anchor='w', pady=5)
-        ttk.Checkbutton(tab, text='Uruchom okno gry w tle, bez przejmowania fokusu', variable=self.background).pack(anchor='w', pady=5)
-        ttk.Label(tab, text='Launcher zachowuje aktualne ustawienia wydajności. Nie przebudowuje EXE ani nie zmienia schedulerów.', style='Muted.TLabel', wraplength=900).pack(anchor='w', pady=(18, 0))
+                     values=['Offline — no PSN sign-in', 'Original network services']).pack(side='left')
+        ttk.Label(tab, text='Offline disables sign-in, MyBuzz and online play. Original services use your existing configuration;\nthe launcher does not start a server or emulate PSN.', style='Muted.TLabel').pack(anchor='w', pady=(0, 14))
+        ttk.Checkbutton(tab, text='Hide PlayStation Store in the menu', variable=self.hide_store).pack(anchor='w', pady=5)
+        ttk.Checkbutton(tab, text='Start the game in the background without taking focus', variable=self.background).pack(anchor='w', pady=5)
+        ttk.Label(tab, text='The launcher preserves performance settings. It does not rebuild the game or change scheduling.', style='Muted.TLabel', wraplength=900).pack(anchor='w', pady=(18, 0))
 
     def _players_ui(self):
         tab = self.players_tab
         options = ttk.Frame(tab)
         options.pack(fill='x', pady=(0, 10))
-        ttk.Label(options, text='Dostępne miejsca:').pack(side='left')
+        ttk.Label(options, text='Available player slots:').pack(side='left')
         places = ttk.Combobox(options, textvariable=self.places, values=['4', '8'], state='readonly', width=4)
         places.pack(side='left', padx=(8, 20))
         places.bind('<<ComboboxSelected>>', lambda event: self._update_places())
-        ttk.Checkbutton(options, text='Włącz pady XInput', variable=self.gamepads).pack(side='left')
-        ttk.Label(options, text='Impuls (ms):').pack(side='left', padx=(20, 5))
+        ttk.Checkbutton(options, text='Enable XInput controllers', variable=self.gamepads).pack(side='left')
+        ttk.Label(options, text='Pulse (ms):').pack(side='left', padx=(20, 5))
         ttk.Entry(options, textvariable=self.pulse, width=6).pack(side='left')
-        ttk.Label(tab, text='4/8 to dostępne buzzery — liczbę uczestników i tryb solo wybierzesz w grze. Nazwy poniżej są tylko etykietami launchera.', style='Muted.TLabel', wraplength=970).pack(anchor='w', pady=(0, 10))
+        ttk.Label(tab, text='4/8 sets the available buzzers. Choose contestants and solo mode in the game. Names below are launcher labels only.', style='Muted.TLabel', wraplength=970).pack(anchor='w', pady=(0, 10))
         grid = ttk.Frame(tab)
         grid.pack(fill='x')
-        ttk.Label(grid, text='Miejsce / nazwa', width=22).grid(row=0, column=0, sticky='w')
+        ttk.Label(grid, text='Slot / name', width=22).grid(row=0, column=0, sticky='w')
         for b, text in enumerate(model.BUTTONS):
             tk.Label(grid, text=text, bg=BG, fg=COLORS[b], font=('Segoe UI', 10, 'bold')).grid(row=0, column=b + 1, padx=5, pady=(0, 5))
         self.player_widgets = []
@@ -194,20 +196,20 @@ class App:
                 entry = ttk.Entry(grid, textvariable=self.key_vars[p][b], width=11)
                 entry.grid(row=p + 1, column=b + 1, padx=5, pady=3, sticky='ew')
                 widgets.append(entry)
-            button = ttk.Button(grid, text='Nagraj 5 klawiszy', command=lambda n=p: self.capture(n))
+            button = ttk.Button(grid, text='Record 5 keys', command=lambda n=p: self.capture(n))
             button.grid(row=p + 1, column=6, padx=(10, 0))
             widgets.append(button)
             self.player_widgets.append(widgets)
-        ttk.Label(tab, text='Możesz wpisać np. Space, A, F1, 0x60 lub NONE. Kolejność: czerwony → żółty → zielony → pomarańczowy → niebieski.', style='Muted.TLabel', wraplength=970).pack(anchor='w', pady=10)
+        ttk.Label(tab, text='Enter Space, A, F1, 0x60 or NONE. Order: red → yellow → green → orange → blue.', style='Muted.TLabel', wraplength=970).pack(anchor='w', pady=10)
         ttk.Separator(tab).pack(fill='x', pady=(0, 8))
         pads = ttk.Frame(tab)
         pads.pack(fill='x')
-        ttk.Label(pads, text='Pad / przypisanie').grid(row=0, column=0, sticky='w')
+        ttk.Label(pads, text='Controller / assignment').grid(row=0, column=0, sticky='w')
         for b, text in enumerate(model.BUTTONS):
             ttk.Label(pads, text=text).grid(row=0, column=b + 2, padx=6)
-        choices = ['Nieprzypisany', *[f'Gracz {p}' for p in range(1, 9)]]
+        choices = ['Unassigned', *[f'Player {p}' for p in range(1, 9)]]
         for slot in range(4):
-            label = ttk.Label(pads, text=f'Pad {slot + 1} • nie wykryto', width=25)
+            label = ttk.Label(pads, text=f'Controller {slot + 1} • not detected', width=25)
             label.grid(row=slot + 1, column=0, sticky='w', pady=3)
             self.pad_labels.append(label)
             ttk.Combobox(pads, textvariable=self.pad_players[slot], values=choices, state='readonly', width=15).grid(row=slot + 1, column=1, padx=5)
@@ -215,14 +217,14 @@ class App:
                 ttk.Combobox(pads, textvariable=self.pad_buttons[slot][b], values=list(model.PAD_BITS), state='readonly', width=8).grid(row=slot + 1, column=b + 2, padx=5)
 
     def _test_ui(self):
-        ttk.Label(self.test_tab, text='Sprawdź swój buzzer', font=('Segoe UI', 16, 'bold')).pack(anchor='w')
-        ttk.Label(self.test_tab, text='Kliknij tę zakładkę i naciskaj przyciski. Podgląd jest surowym wejściem, bez wydłużania impulsu USB.\nGdy launcher traci fokus, podgląd zostaje wyzerowany. Klawisze nie są wysyłane do żadnej aplikacji.', style='Muted.TLabel', wraplength=970).pack(anchor='w', pady=(6, 15))
+        ttk.Label(self.test_tab, text='Test your buzzer', font=('Segoe UI', 16, 'bold')).pack(anchor='w')
+        ttk.Label(self.test_tab, text='Select this tab and press buttons. The preview shows raw input without extending USB pulses.\nInput is cleared when the launcher loses focus. No keys are sent to other applications.', style='Muted.TLabel', wraplength=970).pack(anchor='w', pady=(6, 15))
         self.preview_canvas = tk.Canvas(self.test_tab, bg=BG, highlightthickness=0, height=400)
         self.preview_canvas.pack(fill='x')
         self.preview_items, self.preview_names = [], []
         for p in range(8):
             y = 25 + p * 47
-            name = self.preview_canvas.create_text(8, y, text=f'Gracz {p + 1}', anchor='w', fill=TEXT, font=('Segoe UI', 11))
+            name = self.preview_canvas.create_text(8, y, text=f'Player {p + 1}', anchor='w', fill=TEXT, font=('Segoe UI', 11))
             self.preview_names.append(name)
             row = []
             for b in range(5):
@@ -233,11 +235,11 @@ class App:
             self.preview_items.append(row)
         row = ttk.Frame(self.test_tab)
         row.pack(fill='x', pady=12)
-        ttk.Label(row, text='Szybkie przypisanie:').pack(side='left')
-        self.assign_choice = tk.StringVar(value='Gracz 1')
-        ttk.Combobox(row, textvariable=self.assign_choice, values=[f'Gracz {p}' for p in range(1, 9)], state='readonly', width=14).pack(side='left', padx=8)
-        ttk.Button(row, text='Naciśnij START na padzie', command=self.arm_pad).pack(side='left')
-        ttk.Label(self.test_tab, text='XInput obsługuje do 4 fizycznych padów. Na osiem miejsc można połączyć pady i klawiaturę.\nPad nie musi być podłączony, żeby zapisać jego mapowanie.', style='Muted.TLabel').pack(anchor='w')
+        ttk.Label(row, text='Quick assignment:').pack(side='left')
+        self.assign_choice = tk.StringVar(value='Player 1')
+        ttk.Combobox(row, textvariable=self.assign_choice, values=[f'Player {p}' for p in range(1, 9)], state='readonly', width=14).pack(side='left', padx=8)
+        ttk.Button(row, text='Press START on a controller', command=self.arm_pad).pack(side='left')
+        ttk.Label(self.test_tab, text='XInput supports up to 4 physical controllers. Combine controllers and a keyboard for 8 players.\nControllers do not need to be connected to save their mappings.', style='Muted.TLabel').pack(anchor='w')
 
     def _update_places(self):
         places = int(self.places.get())
@@ -252,30 +254,30 @@ class App:
             hide_store=self.hide_store.get(), background=self.background.get(),
             gamepads=self.gamepads.get(), pulse_ms=int(self.pulse.get()),
             players=[model.Player(self.names[p].get().strip(), [v.get().strip() for v in self.key_vars[p]]) for p in range(8)],
-            pads=[model.Pad(None if v.get() == 'Nieprzypisany' else int(v.get().split()[-1]) - 1,
+            pads=[model.Pad(None if v.get() == 'Unassigned' else int(v.get().split()[-1]) - 1,
                            [b.get() for b in self.pad_buttons[n]]) for n, v in enumerate(self.pad_players)])
         settings.validate()
         return settings
 
     def browse(self, key):
         if key == 'eboot_elf':
-            chosen = filedialog.askopenfilename(parent=self.root, title='Odszyfrowany EBOOT.elf 1.02', filetypes=[('ELF', '*.elf'), ('Wszystkie pliki', '*')])
+            chosen = filedialog.askopenfilename(parent=self.root, title='Supported decrypted EBOOT.elf', filetypes=[('ELF', '*.elf'), ('All files', '*')])
         else:
-            chosen = filedialog.askdirectory(parent=self.root, title='Folder gry z PS3_GAME' if key == 'game_root' else 'Folder dev_flash')
+            chosen = filedialog.askdirectory(parent=self.root, title='Game folder containing PS3_GAME' if key == 'game_root' else 'dev_flash folder')
         if chosen:
             self.paths[key].set(chosen)
 
     def capture(self, player):
         dialog = tk.Toplevel(self.root)
-        dialog.title(f'Klawisze • {self.names[player].get()}')
+        dialog.title(f'Keyboard • {self.names[player].get()}')
         dialog.configure(bg=BG)
         dialog.transient(self.root)
         label = tk.Label(dialog, text='', bg=BG, fg=TEXT, font=('Segoe UI', 15), padx=35, pady=30)
         label.pack()
-        ttk.Button(dialog, text='Anuluj (Esc)', command=dialog.destroy).pack(pady=(0, 20))
+        ttk.Button(dialog, text='Cancel (Esc)', command=dialog.destroy).pack(pady=(0, 20))
         recorded = []
         def update():
-            label.configure(text=f'Naciśnij: {model.BUTTONS[len(recorded)]}\n{len(recorded) + 1} / 5', fg=COLORS[len(recorded)])
+            label.configure(text=f'Press: {model.BUTTONS[len(recorded)]}\n{len(recorded) + 1} / 5', fg=COLORS[len(recorded)])
         def key(event):
             if event.keysym == 'Escape':
                 dialog.destroy()
@@ -285,7 +287,7 @@ class App:
                     for b, code in enumerate(recorded):
                         self.key_vars[player][b].set(model.key_label(code))
                     dialog.destroy()
-                    self.status.set(f'Zapisano pięć klawiszy dla: {self.names[player].get()} (jeszcze niezapisane na dysku).')
+                    self.status.set(f'Recorded five keys for: {self.names[player].get()} (not yet saved to disk).')
                 else:
                     update()
             return 'break'
@@ -298,7 +300,7 @@ class App:
         self.keys_down.add(event.keycode)
         if event.keysym == 'Escape' and self.assign_player is not None:
             self._cancel_assignment()
-            self.status.set('Przypisywanie pada anulowane.')
+            self.status.set('Controller assignment cancelled.')
 
     def _key_up(self, event):
         self.keys_down.discard(event.keycode)
@@ -317,11 +319,11 @@ class App:
     def arm_pad(self):
         target = int(self.assign_choice.get().split()[-1]) - 1
         if target >= int(self.places.get()):
-            messagebox.showwarning('Miejsce nieaktywne', 'Najpierw włącz 8 miejsc w zakładce graczy.', parent=self.root)
+            messagebox.showwarning('Inactive slot', 'First enable 8 slots in the Players and mapping tab.', parent=self.root)
             return
         self.assign_player = target
         self.preview_canvas.focus_set()
-        self.status.set(f'Naciśnij START na padzie dla {self.names[target].get()}. Esc lub zmiana zakładki anuluje.')
+        self.status.set(f'Press START on a controller for {self.names[target].get()}. Press Esc or change tabs to cancel.')
 
     def poll(self):
         focused = self.active()
@@ -332,24 +334,24 @@ class App:
             for slot, state in enumerate(states):
                 if state & 0x10 and not self.previous_pad_states[slot] & 0x10:
                     player = self.assign_player
-                    assigned = f'Gracz {player + 1}'
+                    assigned = f'Player {player + 1}'
                     owner = self.pad_players[slot].get()
-                    if owner not in ('Nieprzypisany', assigned) and not messagebox.askyesno('Przepisać pad?', f'Pad {slot + 1} jest przypisany do {owner}. Przepisać go do {assigned}?', parent=self.root):
+                    if owner not in ('Unassigned', assigned) and not messagebox.askyesno('Reassign controller?', f'Controller {slot + 1} is assigned to {owner}. Reassign it to {assigned}?', parent=self.root):
                         self._cancel_assignment()
                         break
                     for other in self.pad_players:
                         if other.get() == assigned:
-                            other.set('Nieprzypisany')
+                            other.set('Unassigned')
                     self.pad_players[slot].set(assigned)
                     self.gamepads.set(True)
                     self._cancel_assignment()
-                    self.status.set(f'Pad {slot + 1} → {self.names[player].get()}. Zapisz ustawienia przed grą.')
+                    self.status.set(f'Controller {slot + 1} → {self.names[player].get()}. Save settings before playing.')
                     break
         self.previous_pad_states = states
         for n, label in enumerate(self.pad_labels):
-            state = ('test wstrzymany' if not focused else 'wyłączony' if not self.gamepads.get() and self.assign_player is None
-                     else 'połączony' if self.pad_reader.connected[n] else 'nie wykryto')
-            label.configure(text=f'Pad {n + 1} • {state}')
+            state = ('test paused' if not focused else 'disabled' if not self.gamepads.get() and self.assign_player is None
+                     else 'connected' if self.pad_reader.connected[n] else 'not detected')
+            label.configure(text=f'Controller {n + 1} • {state}')
         try:
             settings = self.collect()
             masks = model.preview(settings, self.keys_down if focused else set(), states)
@@ -373,23 +375,29 @@ class App:
         try:
             settings = self.collect() if settings is None else settings
             if self.load_error:
-                if not messagebox.askyesno('Nowy zestaw ustawień', 'Nie udało się wczytać poprzednich ustawień. Zapisać obecny zestaw? Oryginał zostanie zachowany jako kopia.', parent=self.root):
+                if not messagebox.askyesno('New configuration', 'Previous settings could not be loaded. Save the current configuration? A backup of the original will be kept.', parent=self.root):
                     return False
                 old = self.project / 'runtime/launcher/settings.json'
                 if old.exists():
                     shutil.copy2(old, old.with_name('settings-backup-' + uuid.uuid4().hex[:8] + '.json'))
             model.save(settings, self.project)
             self.load_error = None
-            self.status.set('Ustawienia zapisane. Pliki gry i profile pozostały bez zmian.')
+            self.status.set('Settings saved. Game files and profiles are unchanged.')
             return True
         except (OSError, ValueError) as exc:
-            messagebox.showerror('Nie udało się zapisać', str(exc), parent=self.root)
+            messagebox.showerror('Could not save', str(exc), parent=self.root)
             return False
 
     def set_busy(self, busy):
         self.busy = busy
-        for widget in (self.check_button, self.save_button, self.launch_button):
+        for widget in (self.check_button, self.save_button, self.launch_button, self.prepare_button):
             widget.configure(state='disabled' if busy else 'normal')
+
+    def open_prepare(self):
+        if self.busy:
+            return
+        from .setup_gui import Wizard
+        Wizard(tk.Toplevel(self.root), self.project)
 
     def check_files(self, launch=False):
         if self.busy:
@@ -398,32 +406,32 @@ class App:
             settings = self.collect()
             if launch:
                 warnings = settings.warnings()
-                if warnings and not messagebox.askyesno('Sprawdź przypisania', '\n'.join(warnings) + '\n\nUruchomić mimo to?', parent=self.root):
+                if warnings and not messagebox.askyesno('Check mappings', '\n'.join(warnings) + '\n\nLaunch anyway?', parent=self.root):
                     return
         except ValueError as exc:
-            messagebox.showerror('Sprawdź ustawienia', str(exc), parent=self.root)
+            messagebox.showerror('Check settings', str(exc), parent=self.root)
             return
         self.set_busy(True)
-        self.status.set('Sprawdzam pliki i SHA-256 aktualizacji 1.02…')
+        self.status.set('Identifying the game version and checking prepared builds…')
         def work():
             try:
-                model.validate_files(settings, self.project)
-                self.events.put((self.checked, (settings, launch, None)))
+                selected_project = model.validate_files(settings, self.project)
+                self.events.put((self.checked, (settings, launch, None, selected_project)))
             except (OSError, ValueError) as exc:
                 self.events.put((self.checked, (settings, launch, str(exc))))
         threading.Thread(target=work, daemon=True).start()
 
-    def checked(self, settings, launch, error):
+    def checked(self, settings, launch, error, selected_project=None):
         self.set_busy(False)
         if error:
             self.status.set(error)
-            messagebox.showerror('Nie można uruchomić gry', error, parent=self.root)
+            messagebox.showerror('Cannot launch the game', error, parent=self.root)
             return
-        self.status.set('Pliki prawidłowe: BCES00647, aktualizacja 1.02, firmware i zbudowany EXE.')
+        self.status.set('Game version identified; a matching build and firmware are available.')
         if launch:
             try:
                 if asdict(self.collect()) != asdict(settings):
-                    self.status.set('Ustawienia zmieniły się podczas sprawdzania. Kliknij Uruchom ponownie, aby użyć nowego zestawu.')
+                    self.status.set('Settings changed during validation. Click Play again to use the new configuration.')
                     return
             except ValueError as exc:
                 self.status.set(str(exc))
@@ -431,12 +439,12 @@ class App:
         if not launch or not self.save(settings):
             return
         try:
-            command, env = model.plan_launch(settings, self.project)
+            command, env = model.plan_launch(settings, selected_project or self.project)
         except (OSError, ValueError) as exc:
-            messagebox.showerror('Błąd konfiguracji startowej', str(exc), parent=self.root)
+            messagebox.showerror('Launch configuration error', str(exc), parent=self.root)
             return
         self.set_busy(True)
-        self.status.set('Uruchamiam zapisany zestaw. Zamknięcie launchera nie zamknie gry.')
+        self.status.set('Starting the saved configuration. Closing the launcher will not close the game.')
         def work():
             try:
                 result = subprocess.run(command, cwd=self.project, env=env, capture_output=True,
@@ -451,10 +459,10 @@ class App:
     def started(self, code, output):
         self.set_busy(False)
         if code:
-            self.status.set('Nie udało się uruchomić gry. Szczegóły: runtime/launcher/last-start.log')
-            messagebox.showerror('Start nie powiódł się', output[-1800:], parent=self.root)
+            self.status.set('Could not start the game. Details: runtime/launcher/last-start.log')
+            messagebox.showerror('Launch failed', output[-1800:], parent=self.root)
         else:
-            self.status.set('Gra uruchomiona. Przy starcie w tle kliknij jej okno, aby sterować klawiaturą.')
+            self.status.set('Game started. If launched in the background, click its window to use the keyboard.')
 
     def launch(self):
         self.check_files(launch=True)

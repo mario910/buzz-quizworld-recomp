@@ -1,6 +1,12 @@
 #define main stack_regression_main
 #include "../ps3recomp/runtime/spu/tests/test_spurs_job_stack.c"
 #undef main
+/* This isolated SPU fixture does not link the PPU timer implementation. No
+ * registered PPU waits are active, but DMA's real wakeup hook still links. */
+#ifdef _WIN32
+volatile uint32_t g_ppu_wake_ea[2] = {UINT32_MAX, UINT32_MAX};
+volatile long g_ppu_wake_count_dma;
+#endif
 #include <immintrin.h>
 #include <assert.h>
 #ifdef SPU_NATIVE_RTZ_EXTRA_IMAGE

@@ -33,7 +33,7 @@ try {
         'spurs_policy.c','spurs_job.c','spurs_job_ls.c','spu_tsp_weak.c',
         'spu_vm_pagemap.c','spurs_policy_blob_weak.c','spu_interp.c') |
         ForEach-Object { "ps3recomp/runtime/spu/$_" }
-    & $compiler @common /DSPU_NATIVE_RTZ_IMAGE=41 /DSPU_NATIVE_RTZ_EXTRA_IMAGE=40 /DSPU_NATIVE_RTZ_IMAGE39=39 tests/spurs-rtz-owner-test.c @sources ps3recomp/runtime/platform/win32_compat.c /Feanalysis/image40-owner-test.exe
+    & $compiler @common /DSPU_NATIVE_RTZ_IMAGE=41 /DSPU_NATIVE_RTZ_EXTRA_IMAGE=40 /DSPU_NATIVE_RTZ_IMAGE39=39 tests/spurs-rtz-owner-test.c @sources ps3recomp/runtime/platform/win32_compat.c /Feanalysis/image40-owner-test.exe /link Synchronization.lib
     if ($LASTEXITCODE) { throw 'Owner test build failed' }
     & .\analysis\image40-owner-test.exe
     if ($LASTEXITCODE) { throw 'Owner test failed' }

@@ -14,13 +14,19 @@ Reproducible derived output: never edit port/spu.
 from pathlib import Path
 import re
 import shutil
+import hashlib
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "analysis/native-image39"
 DEST = ROOT / "analysis/native-image39-kernels"
 PREFIX = "buzz_job_c0bc_spu_func_0000"
 # (entry pc, native function, kernel id in native_stagef.cpp)
-KERNELS = (("05D0", "buzz_image39_native_05d0", 3),)
+original = (ROOT / "port/spu/buzz_job_c0bc/spu_recomp.c").read_bytes()
+pc = {"599125db31e1195056c4d176e3344cdd453afaab073ae1794d4bdddf7b976854": "05D0",
+      "c8e0e95c527ac062d019f5385b27fdafba20d08306e32f4977fbdf313ea79611": "05C0"}.get(hashlib.sha256(original).hexdigest())
+if pc is None:
+    raise SystemExit("Unreviewed image39 kernel profile")
+KERNELS = ((pc, "buzz_image39_native_05d0", 3),)
 
 source = (SOURCE / "spu_recomp.c").read_text(encoding="utf-8")
 header = (ROOT / "port/native_image39_kernels.h").as_posix()

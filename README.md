@@ -1,11 +1,15 @@
 # Buzz! Quiz World — experimental native Windows port
 
 An unofficial **PS3Recomp-based static recompilation** of Buzz! Quiz World for
-Windows x64, using Direct3D 12. Startup films, the menu, audio and single-player
-rounds work in our current tests. This is still a research port, not a finished
-remaster: frame pacing, visual issues and multiplayer need more work.
+Windows x64, using Direct3D 12. Version 1.02 has reached startup films, menus,
+audio and single-player rounds in our tests. Original-disc EU 1.00 has its own
+generation/native-adapter profile. Standard two-player gameplay has now been
+tested on Polish assets in both releases, including podium names, avatars and
+question images. Full game validation is still in progress. This is a research
+port, not a finished remaster: frame pacing, visual issues and online play need
+more work.
 
-**Source only. You must supply your own game, update and firmware files.**
+**Source only. You must supply your own game and firmware; a game update is optional.**
 No ISO, EBOOT, firmware, game assets, questions, decryption keys, generated
 game/firmware translations or ready-to-play executable are provided. The
 build generates translations locally; the resulting game is **not** covered
@@ -16,22 +20,27 @@ in its entirety by this repository's MIT license. See
 
 | Input | Requirement |
 |---|---|
-| Disc dump | **Buzz! Quiz World, PS3 title ID `BCES00647`**, tested with Polish game content; a directory containing `PS3_GAME/USRDIR` and `PS3_GAME/PARAM.SFO` |
-| Executable | The **BCES00647 update 1.02**, supplied as a **decrypted `EBOOT.elf`**, separately from the disc dump |
-| ELF SHA-256 | `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241` |
-| Firmware | Your PS3 `dev_flash` directory, including `data/font` and `sys/external/flashATRAC.pic` |
+| Disc input | Your ISO, or a directory containing `PS3_GAME/USRDIR` and `PS3_GAME/PARAM.SFO` |
+| EU original disc 1.00 | `BCES00647`, `BCES00644`, `BCES00645`; ELF SHA-256 `6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8` |
+| Optional update 1.02 | `BCES00647` only; ELF SHA-256 `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241` |
+| Firmware | Your PS3 PUP, or installed `dev_flash` including `data/font` and `sys/external/flashATRAC.pic` |
 | Audio-module compatibility | The `.text` SHA-256 of `flashATRAC.pic` must be `c543ecc87e82beec3159d88fbb73dc4229424d357c0a48be3c4cb55d3fdefadc`; checked by the validator/generator |
 
 The hash, not just the displayed version, identifies the supported executable.
-The disc's original 1.00 executable, another region/title ID, an encrypted
-`EBOOT.BIN`, Quiz TV and Brain Of are **not** interchangeable inputs. Renaming
+The two executable families have different bindings and native-adapter profiles;
+they are not interchangeable. The three listed EU 1.00 executables are byte-identical,
+but only Polish-release assets have been boot-tested so far. USA (`BCUS98209`),
+Quiz TV and Brain Of are not adapted. Renaming
 `EBOOT.BIN` to `.elf` does not decrypt it. Do not remove hash checks to force
 another version to build. DLC is not required for the tested configuration.
 
 An existing RPCS3 installation may be a convenient place to locate your
 installed firmware and your own game/update files. **RPCS3 is not used to run
-this port.** Preparing/dumping/decrypting those files is outside this project;
-no content or keys are downloaded by its scripts. Use files you are legally
+this port.** The preparation wizard can use a separately supplied local RPCS3
+executable as a headless import helper to install your PUP/update and decrypt
+your EBOOT in a private session; it does not modify your normal RPCS3 settings.
+No game, firmware or disc keys are downloaded. Still-encrypted disc images are
+not supported by this importer. Use files you are legally
 entitled to use under the rules in your jurisdiction.
 
 ## Windows prerequisites
@@ -63,6 +72,22 @@ cd buzz-quizworld-recomp
 .\Setup-Buzz.ps1
 ```
 
+For the guided route, double-click **Prepare-Buzz.cmd** (or run
+`Prepare-Buzz.ps1`). Select your ISO/dump, PUP/dev_flash and local `rpcs3.exe`;
+select an update only if you want to use that executable. The wizard identifies
+the exact title/executable, generates its matching translations and builds in
+an isolated `runtime/setup/sessions/` workspace. It supports cancellation and
+resuming an interrupted session. Python, Visual Studio C++ tools and the Windows
+SDK are prerequisites, not silently installed system-wide components.
+
+**Launch-Buzz.cmd** then opens the last verified prepared build. If you change
+game/executable paths in the launcher, it looks for a matching prepared build;
+it does not run a 1.02 ELF on a 1.00 EXE or vice versa. Unsupported identities
+or missing matching builds are rejected with a preparation prompt. No version
+is hard-coded as the runtime default. See [1.00 migration status](docs/disc-100-status.md).
+
+For the manual developer route:
+
 Edit the newly created **`buzz-paths.json`**, using absolute paths to your
 own files. Forward slashes in JSON work on Windows and avoid backslash escaping:
 
@@ -90,9 +115,9 @@ firmware or global Python installation.
 .\Launch-Buzz.ps1
 ```
 
-The GUI lets you validate/select files, configure keyboard/controllers and
-test buttons. Its interface is currently in Polish. It does not build the
-game or download content. A background start is enabled by default: click the
+The gameplay GUI lets you validate/select files, configure keyboard/controllers
+and test buttons. The interface and preparation wizard are in English. The separate preparation
+wizard builds locally; neither downloads game content. A background start is enabled by default: click the
 game window before using keyboard controls. See [launcher guide](docs/pc-launcher.md).
 
 For a direct start using `buzz-paths.json` and the verified runtime defaults:
@@ -139,13 +164,14 @@ Local saves/profiles and caches are under `runtime/`; logs are under `logs/`.
 Launcher settings live in `runtime/launcher/`. They are not committed. Back up
 saves before experimenting; this is not a verified RPCS3 save-transfer workflow.
 
-The native frontend defaults to **offline/no-PSN-account**, hiding the Store
-entry. This is not PSN emulation. Online and MyBuzz are not supported in this
+The native frontend defaults to **offline/no-PSN-account**. The 1.02 frontend
+can hide the Store entry; this Lua hook is not yet migrated to 1.00, so its Store
+item may remain visible. This is not PSN emulation. Online and MyBuzz are not supported in this
 source release; the earlier separate server experiments are not included.
 Developer overrides (`BUZZ_OFFLINE=0`, `BUZZ_HIDE_PSN_STORE=0`) restore the
 original frontend path, not functioning Sony services.
 
-Tested on a Ryzen 7 9800X3D / RTX 2070: the heavy menu scene has reached roughly
+With 1.02 on a Ryzen 7 9800X3D / RTX 2070, the heavy menu scene has reached roughly
 the low-to-mid 30 FPS range. This is a machine/scene-specific observation, **not
 a stable 30 FPS guarantee throughout the game**. Known limitations include
 occasional long frame-time spikes on menu transitions, an intermittent green

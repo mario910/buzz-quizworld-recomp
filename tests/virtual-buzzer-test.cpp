@@ -23,6 +23,9 @@ uint16_t vm_read16(uint64_t a){return uint16_t(vm_read8(a))<<8|vm_read8(a+1);}
 uint32_t vm_read32(uint64_t a){return uint32_t(vm_read16(a))<<16|vm_read16(a+2);}
 }
 static void write32(uint32_t a,uint32_t n){for(int i=3;i>=0;--i){vm_base[a+i]=uint8_t(n);n>>=8;}}
+extern "C" int ppu_tls_copy_template(uint32_t destination,uint32_t capacity){
+    memset(vm_base+destination,0,capacity);write32(destination,0x01234567);return 0;
+}
 static std::map<uint32_t,void(*)(ppu_context*)> hooks;
 extern "C" void ps3_hle_register_ctx(uint32_t nid,const char*,void(*fn)(ppu_context*)){hooks[nid]=fn;}
 extern "C" void rsx_d3d12_set_key_handler(void(*fn)(uint32_t,int)){assert(fn==buzz_input_key);}
@@ -32,7 +35,7 @@ void buzz_input_key(uint32_t,int){}
 uint64_t buzz_input_poll(uint32_t){return buzz_input::bits(0,1)|buzz_input::bits(7,16);}
 static std::atomic<unsigned> completions{0};
 static uint64_t callback_status,callback_size;
-static void completed(ppu_context* c){callback_status=c->gpr[3];callback_size=c->gpr[4];completions.fetch_add(1);}
+static void completed(ppu_context* c){assert(vm_read32(c->gpr[13]-0x7000)==0x01234567);callback_status=c->gpr[3];callback_size=c->gpr[4];completions.fetch_add(1);}
 extern "C" const func_entry function_table[]={{0x123456,completed,"synthetic callback"}};
 extern "C" const uint64_t function_table_count=1;
 void buzz_register_virtual_buzzer();

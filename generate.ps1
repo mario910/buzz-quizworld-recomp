@@ -2,13 +2,23 @@ param([ValidateRange(1,64)][int]$Jobs = 6)
 $ErrorActionPreference = 'Stop'
 $experimentRoot = $PSScriptRoot
 $sdk = Join-Path $experimentRoot 'ps3recomp'
-$python = Join-Path $experimentRoot 'toolenv\Scripts\python.exe'
+$toolEnvironment = if($env:BUZZ_TOOL_ENV){$env:BUZZ_TOOL_ENV}else{Join-Path $experimentRoot 'toolenv'}
+$python = Join-Path $toolEnvironment 'Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) { throw 'Run .\Setup-Buzz.ps1 first.' }
 if (-not (Test-Path -LiteralPath (Join-Path $sdk 'tools\ppu_loader.py'))) { throw 'Initialize the ps3recomp submodule first.' }
 & $python (Join-Path $experimentRoot 'verify-game.py') --elf-only
 if ($LASTEXITCODE) { throw 'Unsupported generation input; no generated files were written.' }
 . (Join-Path $experimentRoot 'buzz-paths.ps1')
 $elf = (Resolve-Path -LiteralPath (Get-BuzzPaths).eboot_elf).Path
+$identity = Get-BuzzFileSha256 -Path $elf
+if($identity -eq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8') {
+    & $python (Join-Path $experimentRoot 'tools\build-disc100-reference.py') --elf $elf --in-place --generate-only --jobs $Jobs
+    if($LASTEXITCODE){throw 'EU 1.00 generation failed'}
+    return
+}
+if(Test-Path -LiteralPath (Join-Path $experimentRoot 'port\spu\spu_0006_at_007FF780')) {
+    throw 'This workspace contains 1.00 translations. Use a separate preparation session; existing translations are preserved.'
+}
 $analysis = Join-Path $experimentRoot 'analysis'
 $recompiled = Join-Path $experimentRoot 'port\recompiled'
 New-Item -ItemType Directory -Force -Path $analysis | Out-Null
@@ -32,3 +42,4 @@ $spu = Join-Path $experimentRoot 'port\spu'
 Run-Python (Join-Path $sdk 'tools\extract_spu_images.py') $elf --output $spuImages
 Run-Python (Join-Path $sdk 'tools\build_spu_workloads.py') --images $spuImages --lifted $spu --out (Join-Path $spu 'spu_workloads.c') --constructor --title BuzzQuizWorld102
 Run-Python (Join-Path $experimentRoot 'generate-raw-jobs.py')
+@{family='quizworld-102-verified';elf_sha256=$identity} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $analysis 'game-generation.json') -Encoding UTF8

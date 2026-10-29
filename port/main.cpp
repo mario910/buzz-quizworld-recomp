@@ -251,7 +251,7 @@ static DWORD WINAPI frame_clock(LPVOID)
 {
     SetThreadDescription(GetCurrentThread(), L"RSX worker (FIFO + D3D12)");
     const char* title = getenv("PS3_TITLE");
-    if (!title || !*title) title = "ps3recomp";
+    if (!title || !*title) title = "Buzz! Quiz World";
 
     int rsx_ok = (rsx_backend_init(WINDOW_WIDTH, WINDOW_HEIGHT, title) == 0);
     fprintf(stderr, "[rsx] %s backend init %s\n", RSX_BACKEND_NAME,
@@ -524,7 +524,7 @@ int main(int argc, char** argv)
     timeBeginPeriod(1);
 #endif
 
-    printf("=== Buzz! Quiz World 1.02 experimental PS3Recomp runner ===\n");
+    printf("=== Buzz! Quiz World experimental PS3Recomp runner ===\n");
     fprintf(stderr, "[boot] diagnostic logs: %s\n",
             live_logs ? "unbuffered (debug override)" : "64 KiB buffers, 5 s flush");
 

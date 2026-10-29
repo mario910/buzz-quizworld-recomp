@@ -1,4 +1,5 @@
 #pragma once
+#include "completion_profile.h"
 #include "../ps3recomp/runtime/spu/spurs_completion_queue.h"
 #include <chrono>
 extern "C" void ppu_gcm_pump(void);
@@ -29,8 +30,8 @@ static bool buzz_wait_completed_slot(ppu_context* c)
             if (!vm_read8(slot+0x790)) continue; // not an in-flight job
             ++probes;
             c->gpr[30]=index;c->gpr[31]=index+1;c->gpr[29]=index*0x800;
-            c->gpr[3]=slot;c->lr=0x26BF94;
-            func_0026A8A0(c);DRAIN_TRAMPOLINE(c);
+            c->gpr[3]=slot;c->lr=buzz_completion_busy_lr2;
+            BUZZ_COMPLETION_FN(c);DRAIN_TRAMPOLINE(c);
             if (!(c->gpr[3]&255)) continue; // stale hint, no completion consumed
             ++selections;
             if ((selections&1023)==0) {

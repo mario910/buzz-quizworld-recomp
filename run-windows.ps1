@@ -15,11 +15,21 @@ if ($PSBoundParameters.ContainsKey('InputConfig')) {
     if (-not (Test-Path -LiteralPath $resolvedInput -PathType Leaf)) { throw 'InputConfig must be a file' }
 }
 $gamePaths = Get-BuzzPaths -ConfigPath $PathsConfig
+$boundBuild=Join-Path $experimentRoot 'build-windows\game-build.json'
+if(Test-Path -LiteralPath $boundBuild) {
+    $binding=Get-Content -LiteralPath $boundBuild -Raw | ConvertFrom-Json
+    if((Get-BuzzFileSha256 -Path $gamePaths.eboot_elf) -ne $binding.elf_sha256) {
+        throw 'This EXE was generated for another game executable. Use the launcher to select a matching prepared build.'
+    }
+    if((Get-BuzzFileSha256 -Path $exe) -ne $binding.exe_sha256) {
+        throw 'The EXE no longer matches its build manifest. Rebuild or verify the prepared session before launching.'
+    }
+}
 $runtime = Join-Path $experimentRoot 'runtime'
 $logDirectory = Join-Path $experimentRoot 'logs'
 $spuDump = Join-Path $experimentRoot 'analysis\raw-jobs\runtime'
-New-Item -ItemType Directory -Force -Path $logDirectory,$runtime,(Join-Path $runtime 'dev_hdd1'),$spuDump | Out-Null
-$env:PS3_TITLE = 'Buzz! Quiz World 1.02 - PS3Recomp experiment'
+New-Item -ItemType Directory -Force -Path $logDirectory,$runtime,(Join-Path $runtime 'dev_hdd0'),(Join-Path $runtime 'dev_hdd1'),$spuDump | Out-Null
+$env:PS3_TITLE = 'Buzz! Quiz World'
 $env:PS3_SPURS_CAPTURE = '1'
 $env:SPU_DUMP_MISS = $spuDump
 if ([string]::IsNullOrEmpty($env:PS3_VERBOSE)) { $env:PS3_VERBOSE = '0' }
@@ -39,6 +49,15 @@ if ($NativeSpurs) {
 }
 if ($MenuBootstrap) {
     $bootstrapEnvironment = @{}
+    $bootstrapEnvironment['BUZZ_NATIVE_COMPLETION'] = [Environment]::GetEnvironmentVariable('BUZZ_NATIVE_COMPLETION','Process')
+    if($binding -and $binding.runtime_defaults) {
+        foreach($option in $binding.runtime_defaults.PSObject.Properties) {
+            if($option.Name -notin @('BUZZ_NATIVE_COMPLETION')) {throw 'Unknown build-bound runtime option'}
+            if([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($option.Name,'Process'))) {
+                [Environment]::SetEnvironmentVariable($option.Name,[string]$option.Value,'Process')
+            }
+        }
+    }
     foreach ($key in @('BUZZ_NO_FMV','GCM_SECOND_V','SPURS_JOB_ABI_MIN_IMAGE','SPURS_JOB_ABI_STAGE_IMAGE','SPURS_JOB_KERNEL_MIRROR','GCM_STRICT_PARK','RSX_VERTEX_CAPACITY','RSX_DRAW_CAPACITY','RSX_TEXTURE_CAPACITY','BUZZ_PULSE_MS','SPURS_JOB_LIST_WORKERS','SPURS_JOB_LIST_IMAGE','SPURS_JOB_LIST_EXTRA_IMAGES','SPURS_JOB_LS_EXCHANGE','SPURS_JOB_LS_PUBLISH','BUZZ_COMPLETION_QUEUE','BUZZ_STAGEF','SPURS_POOL_SEQUENCE','SPU_INTERP_UNLIFTED','PS3_USLEEP_TIMER_TAIL_US','RSX_TRACK_ZETA','RSX_SHADER_CACHE_DIR','RSX_PIPELINE_CAPACITY','SPURS_JOB_CACHE_ENV','RSX_CACHE_ENV','SPURS_GUARD_POLL_ONLY','SPURS_JTS_WAKE','SPURS_JTS_DMA_WAKE','GCM_FIFO_STOP_AT_FLIP','RSX_FLIP_BOUNDARY','SPURS_MERGE_READY_LISTS','SPURS_NATIVE_EXTRA_FP','RSX_GUEST_SAMPLERS','RSX_PIXEL_WINDOW')) {
         $bootstrapEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
     }
@@ -179,7 +198,7 @@ Write-Output "PID=$($process.Id) stdout=$stdout stderr=$stderr"
 if ($Seconds -gt 0) {
     if (-not $process.WaitForExit($Seconds * 1000)) {
         Stop-Process -Id $process.Id -Force
-        Write-Output "Stopped experimental process after $Seconds seconds."
+        Write-Output "Stopped game process after $Seconds seconds."
     } else {
         Write-Output "ExitCode=$($process.ExitCode)"
     }

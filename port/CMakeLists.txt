@@ -66,7 +66,11 @@ endif()
 list(LENGTH RECOMP_SOURCES RECOMP_SOURCE_COUNT)
 set(PORT_COMPLETION_SOURCE "" CACHE FILEPATH "Experimental native completion adapter TU")
 if(PORT_COMPLETION_SOURCE)
-    list(REMOVE_ITEM RECOMP_SOURCES "${RECOMP_DIR}/ppu_recomp_015.cpp")
+    get_filename_component(completion_original "${PORT_COMPLETION_SOURCE}" NAME)
+    if(NOT completion_original MATCHES "^ppu_recomp_(013|015)\\.cpp$")
+        message(FATAL_ERROR "Unknown completion adapter source name")
+    endif()
+    list(REMOVE_ITEM RECOMP_SOURCES "${RECOMP_DIR}/${completion_original}")
     list(APPEND RECOMP_SOURCES "${PORT_COMPLETION_SOURCE}")
 endif()
 set(PORT_PRODUCER_PROBE_DIR "" CACHE PATH "Diagnostic PPU producer scope TUs")
@@ -225,6 +229,7 @@ elseif(PORT_ENABLE_SPU)
             message(FATAL_ERROR "Image 7 kernel requires generate-image7-native.py output and an AVX2/FMA build")
         endif()
         list(REMOVE_ITEM SPU_LIFTED "${SPU_DIR}/spu_0006_at_007E7500/spu_recomp.c")
+        list(REMOVE_ITEM SPU_LIFTED "${SPU_DIR}/spu_0006_at_007FF780/spu_recomp.c")
         list(APPEND SPU_LIFTED "${PORT_IMAGE7_SOURCE}" "${image7_kernel}")
     endif()
     if(PORT_MSTREAM_DIR)
@@ -267,17 +272,27 @@ elseif(PORT_ENABLE_SPU)
     endif()
 endif()
 
+set(PORT_HOST_PROFILE_DIR "" CACHE PATH "Generated, hash-bound host adapters for a reviewed executable family")
+foreach(host_name stubs boot_trace frontend_policy video_queue edge_decompress)
+    set(host_${host_name} "${CMAKE_CURRENT_SOURCE_DIR}/${host_name}.cpp")
+    if(PORT_HOST_PROFILE_DIR)
+        set(host_${host_name} "${PORT_HOST_PROFILE_DIR}/${host_name}.cpp")
+        if(NOT EXISTS "${host_${host_name}}")
+            message(FATAL_ERROR "Missing generated host adapter: ${host_name}")
+        endif()
+    endif()
+endforeach()
 add_executable(${PROJECT_NAME}
     main.cpp
     cpu_isa_gate.cpp
-    stubs.cpp
+    ${host_stubs}
     virtual_buzzer.cpp
     buzzer_input_config.cpp
     buzzer_input_win32.cpp
-    boot_trace.cpp
-    frontend_policy.cpp
+    ${host_boot_trace}
+    ${host_frontend_policy}
     video_probe.cpp
-    video_queue.cpp
+    ${host_video_queue}
     ${PS3RECOMP_SCAFFOLD}
     ${HLE_NID_TABLE}
     ${RECOMP_SOURCES}
@@ -416,7 +431,7 @@ set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(ZLIB_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/zlib"
                  "${CMAKE_BINARY_DIR}/zlib" EXCLUDE_FROM_ALL)
-target_sources(${PROJECT_NAME} PRIVATE edge_decompress.cpp job_corpus.cpp native_stagef.cpp)
+target_sources(${PROJECT_NAME} PRIVATE ${host_edge_decompress} job_corpus.cpp native_stagef.cpp)
 if(PORT_IMAGE36_SOURCE)
     target_sources(${PROJECT_NAME} PRIVATE native_image36.cpp)
     set_property(SOURCE "${image36_kernel}" APPEND PROPERTY COMPILE_DEFINITIONS SPU_NATIVE_RTZ=1 SPU_RTZ_RESULT_GUARD=1)
@@ -441,7 +456,7 @@ if(PORT_IMAGE7_SOURCE)
         set_property(SOURCE "${image7_kernel}" APPEND PROPERTY COMPILE_OPTIONS -frounding-math -ffp-contract=off)
     endif()
 endif()
-set_source_files_properties(edge_decompress.cpp job_corpus.cpp PROPERTIES
+set_source_files_properties(${host_edge_decompress} job_corpus.cpp PROPERTIES
     INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/zlib;${CMAKE_BINARY_DIR}/zlib")
 target_link_libraries(${PROJECT_NAME} PRIVATE $<LINK_ONLY:zlibstatic>)
 
@@ -526,7 +541,12 @@ if(PORT_OPTIMIZE_PPU_HOT_PATHS)
     set_property(SOURCE ${PS3RECOMP_SCAFFOLD} APPEND PROPERTY COMPILE_OPTIONS ${ppu_hot_flag})
     # Native sampling repeatedly finds the job-completion poll/select loops
     # at 0x26A8A0 / 0x26BEEC in this Quiz World 1.02 translation unit.
-    set_property(SOURCE "${RECOMP_DIR}/ppu_recomp_015.cpp"
+    if(PORT_HOST_PROFILE_DIR)
+        set(ppu_hot_chunk ppu_recomp_013.cpp)
+    else()
+        set(ppu_hot_chunk ppu_recomp_015.cpp)
+    endif()
+    set_property(SOURCE "${RECOMP_DIR}/${ppu_hot_chunk}"
                  APPEND PROPERTY COMPILE_OPTIONS ${ppu_hot_flag})
     if(PORT_COMPLETION_SOURCE)
         set_property(SOURCE "${PORT_COMPLETION_SOURCE}" APPEND PROPERTY COMPILE_OPTIONS ${ppu_hot_flag})

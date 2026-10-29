@@ -4,7 +4,7 @@ try {
     $vsRoot=& 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
     $compilerDirectory=& .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
-    foreach($testName in @('buzzer-protocol-test','buzzer-script-test')){
+    foreach($testName in @('buzzer-protocol-test','buzzer-script-test','tls-template-test')){
         & (Join-Path $compilerDirectory 'clang-cl.exe') /nologo /O2 /UNDEBUG /std:c++17 "tests/$testName.cpp" "/Foanalysis/$testName.obj" "/Feanalysis/$testName.exe"
         if($LASTEXITCODE){throw "$testName build failed"}
         & ".\analysis\$testName.exe"

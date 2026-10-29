@@ -26,7 +26,7 @@ struct Init {
         if (const char* value = getenv("BUZZ_IMAGE36_DUMP_EVERY")) dump_every = (unsigned)strtoul(value, nullptr, 10);
         if (const char* value = getenv("BUZZ_IMAGE36_DUMP_MAX")) dump_max = (unsigned)strtoul(value, nullptr, 10);
         if (!dump_every) dump_every = 1;
-        fprintf(stderr, "[image36] loop 0x06D8: mode=%d (0 reference, 1 native RTZ, 2 full compare)\n", buzz_image36_mode);
+        fprintf(stderr, "[image36] profile-bound leaf: mode=%d (0 reference, 1 native RTZ, 2 full compare)\n", buzz_image36_mode);
     }
 } init;
 

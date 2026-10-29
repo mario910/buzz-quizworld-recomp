@@ -44,6 +44,28 @@ class UiTests(unittest.TestCase):
         self.assertFalse(self.app.keys_down)
         self.assertEqual(self.app.last_masks,[0]*8)
 
+    def test_english_interface_and_preparation_wizard(self):
+        from launcher.setup_gui import Wizard
+        self.assertEqual(self.root.title(), 'Buzz! Quiz World • PC Launcher')
+        self.assertEqual([self.app.notebook.tab(tab, 'text') for tab in self.app.notebook.tabs()],
+                         ['Start and game files', 'Players and mapping', 'Button test'])
+        self.assertEqual(self.app.launch_button.cget('text'), 'Play')
+        self.assertEqual(self.app.pad_players[0].get(), 'Player 1')
+        self.assertEqual(self.app.network.get(), 'Offline — no PSN sign-in')
+        self.assertIn('Ready.', self.app.status.get())
+        window = tk.Toplevel(self.root)
+        window.withdraw()
+        wizard = Wizard(window, Path(self.temporary.name))
+        try:
+            self.assertEqual(window.title(), 'Buzz! Quiz World • Prepare for PC')
+            self.assertEqual(wizard.start_button.cget('text'), 'Prepare game')
+            self.assertEqual(wizard.stop_button.cget('text'), 'Cancel')
+            self.assertTrue(wizard.status.get().startswith('Your source files'))
+            self.assertFalse(wizard.busy)
+            self.assertEqual(window.state(), 'withdrawn')
+        finally:
+            wizard.close()
+
     def test_pad_assignment_with_injected_input(self):
         class FakePads:
             connected=[True,False,False,False]
@@ -51,8 +73,8 @@ class UiTests(unittest.TestCase):
         self.app.pad_reader=FakePads();self.app.assign_player=1
         with patch.object(self.app,'active',return_value=True),patch('launcher.gui.messagebox.askyesno',return_value=True):
             self.app.poll()
-        self.assertEqual(self.app.pad_players[0].get(),'Gracz 2')
-        self.assertEqual(self.app.pad_players[1].get(),'Nieprzypisany')
+        self.assertEqual(self.app.pad_players[0].get(),'Player 2')
+        self.assertEqual(self.app.pad_players[1].get(),'Unassigned')
         self.assertTrue(self.app.gamepads.get())
         self.assertEqual(self.app.last_masks[1],1)
         self.assertEqual(self.app.preview_canvas.itemcget(self.app.preview_items[1][0],'fill'),COLORS[0])

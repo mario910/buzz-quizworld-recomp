@@ -13,7 +13,7 @@ from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
 from buzz_paths import EXPECTED_ELF_SHA256 as ELF_SHA256
-BUTTONS = ('Czerwony', 'Żółty', 'Zielony', 'Pomarańczowy', 'Niebieski')
+BUTTONS = ('Red', 'Yellow', 'Green', 'Orange', 'Blue')
 PAD_BITS = {'START': 0x10, 'BACK': 0x20, 'A': 0x1000, 'B': 0x2000,
             'X': 0x4000, 'Y': 0x8000, 'LB': 0x100, 'RB': 0x200,
             'UP': 1, 'DOWN': 2, 'LEFT': 4, 'RIGHT': 8, 'LS': 0x40, 'RS': 0x80}
@@ -33,9 +33,9 @@ def key_code(text: str) -> int:
     try:
         number = int(value, 16) if value.startswith('0X') else int(value, 10)
     except ValueError:
-        raise ValueError(f'Nieznany klawisz: {text!r}') from None
+        raise ValueError(f'Unknown key: {text!r}') from None
     if not 1 <= number <= 255:
-        raise ValueError(f'Kod klawisza musi być w zakresie 1–255: {text!r}')
+        raise ValueError(f'Key code must be in the range 1–255: {text!r}')
     return number
 
 
@@ -73,45 +73,45 @@ class Settings:
     background: bool = True
     pulse_ms: int = 250
     players: list[Player] = field(default_factory=lambda: [
-        Player('Gracz 1', ['Space', '4', '3', '2', '1']),
-        Player('Gracz 2', ['Q', 'W', 'E', 'R', 'T']),
-        Player('Gracz 3', ['A', 'S', 'D', 'F', 'G']),
-        Player('Gracz 4', ['Z', 'X', 'C', 'V', 'B']),
-        *[Player(f'Gracz {n}', ['NONE'] * 5) for n in range(5, 9)]])
+        Player('Player 1', ['Space', '4', '3', '2', '1']),
+        Player('Player 2', ['Q', 'W', 'E', 'R', 'T']),
+        Player('Player 3', ['A', 'S', 'D', 'F', 'G']),
+        Player('Player 4', ['Z', 'X', 'C', 'V', 'B']),
+        *[Player(f'Player {n}', ['NONE'] * 5) for n in range(5, 9)]])
     pads: list[Pad] = field(default_factory=lambda: [Pad(n) for n in range(4)])
 
     def validate(self) -> None:
         if type(self.version) is not int or self.version != 1:
-            raise ValueError('Nieobsługiwana wersja ustawień launchera.')
+            raise ValueError('Unsupported launcher settings version.')
         if self.places not in (4, 8) or type(self.places) is not int:
-            raise ValueError('Liczba miejsc musi wynosić 4 lub 8.')
+            raise ValueError('The number of player slots must be 4 or 8.')
         if type(self.pulse_ms) is not int or not 10 <= self.pulse_ms <= 5000:
-            raise ValueError('Długość impulsu musi wynosić 10–5000 ms.')
+            raise ValueError('Pulse duration must be between 10 and 5000 ms.')
         if any(type(getattr(self, key)) is not bool for key in ('offline', 'hide_store', 'gamepads', 'background')):
-            raise ValueError('Nieprawidłowe ustawienie przełącznika.')
+            raise ValueError('Invalid toggle setting.')
         if set(self.paths) != {'game_root', 'dev_flash', 'eboot_elf'} or any(not isinstance(v, str) or '\0' in v for v in self.paths.values()):
-            raise ValueError('Nieprawidłowe ścieżki do plików gry.')
+            raise ValueError('Invalid game file paths.')
         if len(self.players) != 8 or len(self.pads) != 4:
-            raise ValueError('Ustawienia muszą zawierać 8 miejsc i 4 sloty padów.')
+            raise ValueError('Settings must contain 8 player slots and 4 controller slots.')
         for n, player in enumerate(self.players, 1):
             if not isinstance(player.name, str) or not 1 <= len(player.name.strip()) <= 32 or any(ord(c) < 32 for c in player.name):
-                raise ValueError(f'Gracz {n}: nazwa musi mieć 1–32 znaki bez znaków sterujących.')
+                raise ValueError(f'Player {n}: name must contain 1–32 characters with no control characters.')
             if len(player.keys) != 5 or any(not isinstance(k, str) for k in player.keys):
-                raise ValueError(f'Gracz {n}: potrzebnych jest pięć klawiszy.')
+                raise ValueError(f'Player {n}: five keys are required.')
             keys = [key_code(k) for k in player.keys]
             used = [k for k in keys if k]
             if len(used) != len(set(used)):
-                raise ValueError(f'Gracz {n}: ten sam klawisz przypisano do kilku przycisków.')
+                raise ValueError(f'Player {n}: the same key is assigned to multiple buttons.')
         assigned = set()
         for n, pad in enumerate(self.pads, 1):
             if pad.player is not None:
                 if type(pad.player) is not int or not 0 <= pad.player < 8:
-                    raise ValueError(f'Pad {n}: nieprawidłowy numer gracza.')
+                    raise ValueError(f'Controller {n}: invalid player number.')
                 if pad.player in assigned:
-                    raise ValueError('Do jednego gracza przypisz najwyżej jeden pad w launcherze.')
+                    raise ValueError('Assign at most one controller to each player in the launcher.')
                 assigned.add(pad.player)
             if len(pad.buttons) != 5 or any(b not in PAD_BITS for b in pad.buttons) or len(set(pad.buttons)) != 5:
-                raise ValueError(f'Pad {n}: wybierz pięć różnych przycisków.')
+                raise ValueError(f'Controller {n}: choose five different buttons.')
 
     def warnings(self) -> list[str]:
         self.validate()
@@ -123,10 +123,10 @@ class Settings:
                     owners.setdefault(code, set()).add(n + 1)
             has_pad = self.gamepads and any(p.player == n for p in self.pads)
             if not has_pad and any(not key_code(k) for k in player.keys):
-                messages.append(f'{player.name}: nie wszystkie przyciski mają przypisane wejście.')
+                messages.append(f'{player.name}: some buttons have no input assigned.')
         shared = [key_label(k) for k, players in owners.items() if len(players) > 1]
         if shared:
-            messages.append('Wspólne klawisze kilku graczy: ' + ', '.join(shared))
+            messages.append('Keys shared by multiple players: ' + ', '.join(shared))
         return messages
 
     def input_ini(self) -> str:
@@ -146,23 +146,28 @@ class Settings:
 
 def from_dict(data: dict) -> Settings:
     if not isinstance(data, dict):
-        raise ValueError('Ustawienia nie są obiektem JSON.')
+        raise ValueError('Settings must be a JSON object.')
     try:
         values = dict(data)
         values['players'] = [Player(**p) for p in values['players']]
+        # Translate only the old auto-generated slot labels. Custom names and
+        # mappings remain unchanged, and loading never rewrites the saved file.
+        for n, player in enumerate(values['players'], 1):
+            if player.name == f'Gracz {n}':
+                player.name = f'Player {n}'
         values['pads'] = [Pad(**p) for p in values['pads']]
         settings = Settings(**values)
         settings.validate()
         return settings
     except (KeyError, TypeError, AttributeError) as exc:
-        raise ValueError('Nieprawidłowa struktura ustawień launchera.') from exc
+        raise ValueError('Invalid launcher settings structure.') from exc
 
 
 def load(root: Path = ROOT) -> Settings:
     saved = root / 'runtime/launcher/settings.json'
     if saved.exists():
         if saved.stat().st_size > 65536:
-            raise ValueError('Plik ustawień launchera jest zbyt duży.')
+            raise ValueError('The launcher settings file is too large.')
         return from_dict(json.loads(saved.read_text(encoding='utf-8-sig')))
     result = Settings()
     existing = root / 'buzz-paths.json'
@@ -194,42 +199,53 @@ def save(settings: Settings, root: Path = ROOT) -> None:
 
 def title_id(data: bytes) -> str:
     if len(data) < 20 or data[:4] != b'\0PSF':
-        raise ValueError('Nieprawidłowy PARAM.SFO.')
+        raise ValueError('Invalid PARAM.SFO.')
     keys, values, count = struct.unpack_from('<III', data, 8)
     if count > 256 or 20 + count * 16 > len(data) or keys >= len(data) or values >= len(data):
-        raise ValueError('Uszkodzona tabela PARAM.SFO.')
+        raise ValueError('Corrupt PARAM.SFO table.')
     for n in range(count):
         key, fmt, length, capacity, offset = struct.unpack_from('<HHIII', data, 20 + 16 * n)
         end = data.find(b'\0', keys + key)
         if end < 0 or not keys <= keys + key < values or end >= values or length > capacity or values + offset + length > len(data):
-            raise ValueError('Nieprawidłowe pole PARAM.SFO.')
+            raise ValueError('Invalid PARAM.SFO field.')
         if data[keys + key:end] == b'TITLE_ID':
             if fmt != 0x204 or length > 32:
-                raise ValueError('Nieprawidłowy TITLE_ID.')
+                raise ValueError('Invalid TITLE_ID.')
             return data[values + offset:values + offset + length].rstrip(b'\0').decode('ascii')
-    raise ValueError('Brak TITLE_ID w PARAM.SFO.')
+    raise ValueError('PARAM.SFO does not contain TITLE_ID.')
 
 
 def validate_files(settings: Settings, root: Path = ROOT, expected_hash: str = ELF_SHA256) -> None:
     settings.validate()
     game, flash, elf = (Path(settings.paths[k]) for k in ('game_root', 'dev_flash', 'eboot_elf'))
     if any(not settings.paths[k].strip() or not Path(settings.paths[k]).is_absolute() for k in settings.paths):
-        raise ValueError('Wybierz pełne ścieżki do gry, dev_flash i EBOOT.elf.')
+        raise ValueError('Select absolute paths to the game, dev_flash and EBOOT.elf.')
     sfo = game / 'PS3_GAME/PARAM.SFO'
     if not (game / 'PS3_GAME/USRDIR').is_dir() or not sfo.is_file() or sfo.stat().st_size > 1024 * 1024:
-        raise ValueError('Folder gry musi zawierać PS3_GAME/USRDIR i PARAM.SFO.')
-    if title_id(sfo.read_bytes()) != 'BCES00647':
-        raise ValueError('Ten port obsługuje Buzz! Quiz World BCES00647.')
+        raise ValueError('The game folder must contain PS3_GAME/USRDIR and PARAM.SFO.')
+    disc_title = title_id(sfo.read_bytes())
     if not (flash / 'data/font').is_dir():
-        raise ValueError('Wybierz dev_flash z firmware, zawierający data/font.')
+        raise ValueError('Select a firmware dev_flash folder containing data/font.')
     if not elf.is_file() or elf.stat().st_size > 256 * 1024 * 1024:
-        raise ValueError('Wybierz odszyfrowany plik EBOOT.elf aktualizacji 1.02.')
+        raise ValueError('Select a decrypted EBOOT.elf from a supported game version.')
     with elf.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    if digest != expected_hash:
-        raise ValueError('EBOOT.elf nie odpowiada obsługiwanej aktualizacji 1.02 (SHA-256).')
+    if expected_hash == ELF_SHA256:
+        from .game_profiles import identify
+        profile = identify(disc_title, digest)
+        if not profile.buildable:
+            raise ValueError(profile.note)
+        from .active_build import matching_workspace
+        selected_project = matching_workspace(root, digest, disc_title)
+        if selected_project is None:
+            raise ValueError(f'Detected {profile.title_id} {profile.version}, but no matching unchanged build is available. '
+                             'Use “Import ISO / prepare…”. An executable for another version will not be launched.')
+        return selected_project
+    elif digest != expected_hash or disc_title != 'BCES00647':
+        raise ValueError('Unsupported EBOOT.elf or game title ID (SHA-256).')
     if not (root / 'build-windows/BuzzQuizWorldRecomp.exe').is_file():
-        raise ValueError('Brak zbudowanego BuzzQuizWorldRecomp.exe. Launcher nie buduje gry automatycznie.')
+        raise ValueError('BuzzQuizWorldRecomp.exe has not been built. Use the preparation wizard to build it.')
+    return root
 
 
 def preview(settings: Settings, keys_down: set[int], pad_states: list[int]) -> list[int]:

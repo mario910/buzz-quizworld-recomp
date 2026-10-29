@@ -12,7 +12,10 @@ import shutil
 root = Path(__file__).resolve().parent
 source_dir = root / 'port/spu/buzz_job_c0bc'
 raw = (source_dir / 'spu_recomp.c').read_bytes()
-if hashlib.sha256(raw).hexdigest() != '599125db31e1195056c4d176e3344cdd453afaab073ae1794d4bdddf7b976854':
+if hashlib.sha256(raw).hexdigest() not in {
+    '599125db31e1195056c4d176e3344cdd453afaab073ae1794d4bdddf7b976854',  # 1.02
+    'c8e0e95c527ac062d019f5385b27fdafba20d08306e32f4977fbdf313ea79611',  # EU 1.00
+}:
     raise SystemExit('Image 39 reference changed: re-audit before generating')
 source = raw.decode('utf-8')
 if re.search(r'spu_(?:df|fesd|frds|fscr)', source):

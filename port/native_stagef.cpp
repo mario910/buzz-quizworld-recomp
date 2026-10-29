@@ -28,12 +28,16 @@ int buzz_stagef_width = 8;   /* BUZZ_STAGEF_WIDTH=4: the u128 helper path */
 int buzz_stagef_probe_on = 0;
 void buzz_stagef_probe(spu_context* ctx, unsigned pc);
 void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
-                          int (*native)(spu_context*), void (*exit_fn)(spu_context*));
+                          int (*native)(spu_context*), void (*exit_fn)(spu_context*), unsigned base_reg, unsigned kept_reg);
 int buzz_stagef_last_fallback(void);
 void buzz_stagef_report(void);
 void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
                      int (*native)(spu_context*), int kernel);
 }
+
+// A reference-only build has no Stage-F kernel TU. This diagnostic hook does
+// not execute/complete a job; the real Stage-F TU overrides it when present.
+extern "C" __attribute__((weak)) int buzz_stagef_last_fallback(void) { return 0; }
 
 namespace {
 
@@ -265,7 +269,7 @@ static void run_reference_until(spu_context* ctx, void (*reference)(spu_context*
 }
 
 void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
-                          int (*native)(spu_context*), void (*exit_fn)(spu_context*))
+                          int (*native)(spu_context*), void (*exit_fn)(spu_context*), unsigned base_reg, unsigned kept_reg)
 {
     if (buzz_stagef_mode == 1) {
         if (native(ctx)) { InterlockedIncrement(&g_cull_native); return; }
@@ -275,21 +279,21 @@ void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
     }
     if (buzz_stagef_mode != 2) { reference(ctx); return; }
     spu_context* copy = clone(ctx);
-    const uint32_t base = ctx->gpr[39]._u32[0];
+    const uint32_t base = ctx->gpr[base_reg]._u32[0];
     run_reference_until(ctx, reference, exit_fn);
     void (*after)(spu_context*) = g_spu_trampoline_fn;
     if (!native(copy)) { InterlockedIncrement(&g_cull_fallback); release(copy); return; }
     g_spu_trampoline_fn = after;   /* keep the reference's continuation */
     if (InterlockedIncrement(&g_cull_compared) % 50000 == 0) buzz_stagef_report();
-    const uint32_t kept = ctx->gpr[51]._u32[0];
+    const uint32_t kept = ctx->gpr[kept_reg]._u32[0];
     const uint32_t end = (base + 6u * kept + 15u) & ~15u;
-    bool same = !memcmp(&ctx->gpr[51], &copy->gpr[51], 16) && ctx->pc == copy->pc;
+    bool same = !memcmp(&ctx->gpr[kept_reg], &copy->gpr[kept_reg], 16) && ctx->pc == copy->pc;
     for (uint32_t a = base; a < end && same; a++) same = ctx->ls[a & 0x3FFFF] == copy->ls[a & 0x3FFFF];
     if (!same && InterlockedIncrement(&g_cull_mismatched) <= 16) {
         uint32_t first = base;
         while (first < end && ctx->ls[first & 0x3FFFF] == copy->ls[first & 0x3FFFF]) first++;
         fprintf(stderr, "[stagef] CULL MISMATCH: kept %u/%u, first byte %05X of %05X-%05X\n",
-                kept, copy->gpr[51]._u32[0], first, base, end);
+                kept, copy->gpr[kept_reg]._u32[0], first, base, end);
     }
     release(copy);
 }
