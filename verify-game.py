@@ -18,8 +18,8 @@ def verify(paths, *, elf_only=False, expected_hash=buzz_paths.EXPECTED_ELF_SHA25
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     profile = None
     if expected_hash == buzz_paths.EXPECTED_ELF_SHA256:
-        from launcher.game_profiles import identify
-        profile = identify("BCES00647", digest)
+        from launcher.game_profiles import identify_elf
+        profile = identify_elf(digest)
         if not profile.buildable:
             raise ValueError(profile.note)
     elif digest != expected_hash:  # synthetic harness override, never a CLI option

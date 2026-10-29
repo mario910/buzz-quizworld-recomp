@@ -10,6 +10,8 @@ PROFILES = (
      "0026BEEC", "98e80993997fb4424bb2755b3c8dd3cc4e7d39e4b9cf92dba4b0f57e34d474c1", "0026BF68", "0026BFB8"),
     ("100", "013", "00268108", "3ab70346a51189e6cb35b9959235a26175e33406c0013748859f693e5544862b",
      "002699F4", "c2109892a32d81f5d568829644ea4b6e23425b31e03fcca25938e3f1b9f7a032", "00269A74", "00269AC4"),
+    ("us100", "014", "002689D0", "c5faad1b0203d0e1d3bcf898cb8c987c83236ee187cdffc6b4d1b0372d5d4425",
+     "0026A2BC", "3088f25f37c4a6865be8b5f595bbd89374a597aa333b4dc9cdc5fe53afed6042", "0026A33C", "0026A38C"),
 )
 
 
@@ -30,7 +32,8 @@ def generate(root=ROOT):
         raise ValueError("Expected exactly one reviewed completion profile")
     (version, chunk, entry, pin, selector, selector_pin, wait, ready), original, match, filename = candidates[0]
     reference = match.group().replace(f"func_{entry}(", "buzz_completion_reference(", 1)
-    preamble = "#define BUZZ_COMPLETION_DISC100 1\n" if version == "100" else ""
+    preamble = {"100": "#define BUZZ_COMPLETION_DISC100 1\n",
+                "us100": "#define BUZZ_COMPLETION_US100 1\n"}.get(version, "")
     replacement = preamble + reference + '''
 #include "../../port/native_completion.h"
 #include "../../port/native_slot_queue.h"

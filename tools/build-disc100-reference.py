@@ -1,4 +1,4 @@
-"""Developer probe for the EXACT EU 1.00 ELF, not a supported player build.
+"""Hash-bound EU/US original-disc generation and developer reference probe.
 
 All derived work stays under analysis. Reuses real SPURS jobs; no completion
 is fabricated and no 1.02 native arithmetic/polling kernels are enabled.
@@ -20,8 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "ps3recomp/tools"))
 from launcher.setup_pipeline import copy_sources, process
+from tools.disc100_profiles import EU100_SHA256, US100_SHA256, US_RAW_ROLES, canonicalize_embedded
 from spu_disasm import disassemble_spu
 from build_spu_workloads import debase_includes, fnv1a64
+from extract_spu_images import find_spu_images
 from find_spu_functions import (collect_branch_targets, collect_link_register_targets,
                                collect_computed_branch_targets, collect_jump_table_targets)
 
@@ -35,7 +37,7 @@ def load(name, path):
 
 compare = load("compare_versions", ROOT / "tools/compare-game-versions.py")
 callers_module = load("import_callers", ROOT / "tools/inspect-import-callers.py")
-EXPECTED = "6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8"
+EXPECTED = EU100_SHA256
 
 
 def bindings(elf, name, toc):
@@ -60,7 +62,7 @@ def bindings(elf, name, toc):
     return {item["code"]: item for item in found}
 
 
-def rebind_host(work, elf, imports, toc):
+def rebind_host(work, elf, imports, toc, us=False):
     account = bindings(elf, "HasUserNpAccount", toc)
     if len(account) != 1:
         raise ValueError("Ambiguous offline binding")
@@ -69,7 +71,8 @@ def rebind_host(work, elf, imports, toc):
     source = source.replace('hide_store=option("BUZZ_HIDE_PSN_STORE");', 'hide_store=false; /* not validated on 1.00 */')
     source = re.sub(r"(?ms)^void buzz_frontend_after_include\(.*?^}",
                     "void buzz_frontend_after_include(ppu_context*,uint32_t) {}", source)
-    replacements = {"func_0046B8F8": "func_0047E590", "0x833098": hex(account["reference"]),
+    push_boolean = "func_0047E1B8" if us else "func_0047E590"
+    replacements = {"func_0046B8F8": push_boolean, "0x833098": hex(account["reference"]),
                     "0x6e5980": hex(account["string"]), "0x83f008": hex(account["opd"]), "0x12b760": hex(account["code"])}
     for old, new in replacements.items():
         if old not in source:
@@ -93,7 +96,7 @@ def rebind_host(work, elf, imports, toc):
             raise ValueError("Missing essential no-FMV probe " + name)
         return '{' + hex(code) + ',"' + name + '"}'
     source = re.sub(r'\{0x([0-9a-fA-F]+),"([^"]+)"}', probe, source)
-    source = source.replace("func_0046B8F8", "func_0047E590")
+    source = source.replace("func_0046B8F8", push_boolean)
     (work / "port/boot_trace.cpp").write_text(source)
     calls = callers_module.callers(elf, imports)
     pushes = calls["cellSpurs:0x8a85674d"]
@@ -114,17 +117,16 @@ def rebind_host(work, elf, imports, toc):
     anchor = "sys_timer_register_usleep_wait(0x0028AA8Cu, 30, 0x1A0u);"
     if text.count(anchor) != 1:
         raise ValueError("Polling source changed; review the 1.00 wait-site binding")
-    path.write_text(text.replace(anchor, "sys_timer_register_usleep_wait(0x00288BE0u, 30, 0x1A0u);"))
+    wait_pc = 0x288870 if us else 0x288BE0
+    path.write_text(text.replace(anchor, f"sys_timer_register_usleep_wait(0x{wait_pc:08X}u, 30, 0x1A0u);"))
     return dict(offline=account, boot_probes=evidence, queue_push_return_pcs=pushes, queue_init_return_pcs=initializers)
 
 
-def raw_jobs(work, elf):
+def raw_jobs(work, elf, us=False):
     output = work / "analysis/raw-reference"
     output.mkdir(parents=True, exist_ok=True)
-    embedded = []
-    for path in (work / "analysis/spu-images").glob("*.elf"):
-        start = int(path.stem.rsplit("_", 1)[1], 16)
-        embedded.append((start, start + path.stat().st_size))
+    # Canonical role filenames may intentionally differ from container offsets.
+    embedded = [(start, start + size) for start, size in find_spu_images(elf.data)]
     starts = []
     for offset in range(0x700000, min(len(elf.data) - 16, 0x850000), 128):
         if any(lo <= offset < hi for lo, hi in embedded):
@@ -143,6 +145,10 @@ def raw_jobs(work, elf):
              0x7C2500: ("buzz_job_39d9", 38), 0x7C2F80: ("buzz_job_d2c1", 35),
              0x7DA080: ("buzz_job_d690", 44), 0x7E3700: ("buzz_job_40b5", 37),
              0x7F2100: ("buzz_signal", 32)}
+    if us:
+        roles = US_RAW_ROLES
+        if set(starts) != set(roles):
+            raise ValueError("US raw image layout changed")
     declarations, registrations, report = [], [], []
     fallback_id = 45
     for start in starts:
@@ -204,8 +210,11 @@ def main():
     parser.add_argument("--generate-only", action="store_true", help="Generate without invoking a compiler")
     parser.add_argument("--host-only", action="store_true", help="Refresh host bindings of an already generated in-place 1.00 workspace")
     args = parser.parse_args()
-    if hashlib.sha256(args.elf.read_bytes()).hexdigest() != EXPECTED:
-        raise ValueError("Not the reviewed EU 1.00 ELF")
+    digest = hashlib.sha256(args.elf.read_bytes()).hexdigest()
+    if digest not in (EU100_SHA256, US100_SHA256):
+        raise ValueError("Not a reviewed EU/US original-disc ELF")
+    us = digest == US100_SHA256
+    family = "quizworld-us100" if us else "quizworld-eu100"
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,64}", args.work):
         raise ValueError("Work name must be a single safe directory name")
     work = ROOT if args.in_place else ROOT / "analysis" / args.work / "workspace"
@@ -213,13 +222,21 @@ def main():
         raise ValueError("In-place generation must use --generate-only; build through Build-Buzz.ps1")
     if args.host_only:
         marker = work / "analysis/game-generation.json"
-        if not args.in_place or not marker.is_file() or json.loads(marker.read_text())["elf_sha256"] != EXPECTED:
+        if not args.in_place or not marker.is_file() or json.loads(marker.read_text())["elf_sha256"] != digest:
             raise ValueError("Host-only mode requires an existing hash-bound in-place 1.00 generation")
         args.resume = True
     if not args.generate_only and (args.game is None or args.firmware is None):
         raise ValueError("A probe build requires --game and --firmware")
     if (work / "port/spu/spu_0006_at_007E7500").exists():
         raise ValueError("This workspace contains 1.02 translations. Use a separate preparation session; they will not be deleted.")
+    marker = work / "analysis/game-generation.json"
+    if marker.exists() and json.loads(marker.read_text(encoding="utf-8-sig"))["elf_sha256"] != digest:
+        raise ValueError("Existing generation belongs to a different executable; use a new workspace")
+    receipt = work / "analysis/disc100-input.json"
+    if receipt.exists() and json.loads(receipt.read_text())["elf_sha256"] != digest:
+        raise ValueError("Partial generation belongs to a different executable; use a new workspace")
+    if args.resume and not receipt.exists() and not marker.exists():
+        raise ValueError("Cannot resume an unbound legacy/partial generation; use a new workspace")
     if not args.in_place and work.exists() and not args.resume:
         raise ValueError("Probe workspace exists; do not overwrite it")
     if not args.in_place and not args.resume:
@@ -234,9 +251,11 @@ def main():
             shutil.copy2(ROOT / filename, work / filename)
     analysis = work / "analysis"
     analysis.mkdir(exist_ok=True)
+    receipt.write_text(json.dumps(dict(family=family, elf_sha256=digest)))
     elf = compare.Elf(args.elf)
     def python(tool, *arguments):
         subprocess.run([sys.executable, str(work / "ps3recomp/tools" / tool), *map(str, arguments)], check=True)
+    embedded_aliases = []
     if not args.resume:
         python("ppu_loader.py", args.elf, "-o", analysis)
         python("find_functions.py", args.elf, "--seed-json", analysis / "EBOOT.functions.json", "--output", analysis / "functions-full.json")
@@ -246,6 +265,8 @@ def main():
         python("ppu_lifter.py", args.elf, "--functions", analysis / "functions-full.json", "--hle-stubs", analysis / "EBOOT.imports.json",
                "--output", work / "port/recompiled", "--jobs", args.jobs, "--chunks", 96, "--code-end", hex(code_end))
         python("extract_spu_images.py", args.elf, "--output", analysis / "spu-images")
+        if us:
+            embedded_aliases = canonicalize_embedded(analysis / "spu-images")
         python("build_spu_workloads.py", "--images", analysis / "spu-images", "--lifted", work / "port/spu", "--out", work / "port/spu/spu_workloads.c",
                "--constructor", "--title", "BuzzDisc100Probe")
     loader = json.loads((analysis / "EBOOT.loader.json").read_text())
@@ -254,13 +275,14 @@ def main():
     (host / "port").mkdir(parents=True, exist_ok=True)
     for filename in ("frontend_policy.cpp", "boot_trace.cpp", "edge_decompress.cpp", "video_queue.cpp", "stubs.cpp"):
         shutil.copy2(work / "port" / filename, host / "port" / filename)
-    evidence = rebind_host(host, elf, imports, toc)
+    evidence = rebind_host(host, elf, imports, toc, us)
+    evidence["embedded_aliases"] = embedded_aliases
     evidence["raw_jobs"] = (json.loads((analysis / "disc100-profile-evidence.json").read_text())["raw_jobs"]
-                            if args.host_only else raw_jobs(work, elf))
+                            if args.host_only else raw_jobs(work, elf, us))
     (analysis / "disc100-profile-evidence.json").write_text(json.dumps(evidence, indent=2))
-    (analysis / "game-generation.json").write_text(json.dumps(dict(family="quizworld-eu100", elf_sha256=EXPECTED)))
+    (analysis / "game-generation.json").write_text(json.dumps(dict(family=family, elf_sha256=digest)))
     if args.generate_only:
-        print("GENERATED_EU100=" + str(work))
+        print("GENERATED_DISC100=" + str(work))
         return
     (work / "buzz-paths.json").write_text(json.dumps(dict(game_root=str(args.game.resolve()), dev_flash=str(args.firmware.resolve()),
                                                         eboot_elf=str(args.elf.resolve())), indent=2))

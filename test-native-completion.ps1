@@ -7,6 +7,7 @@ try {
     $profile=Get-Content analysis/native-completion/profile.json -Raw | ConvertFrom-Json
     $flags=@('/nologo','/O2','/UNDEBUG','/std:c++17','/Iport/recompiled')
     if($profile.version -eq '100'){$flags+='/DBUZZ_COMPLETION_DISC100=1'}
+    if($profile.version -eq 'us100'){$flags+='/DBUZZ_COMPLETION_US100=1'}
     $vsRoot=& 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $vsRoot 'Common7/Tools/Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $compilerDirectory=& $toolPython -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'

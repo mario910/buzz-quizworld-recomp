@@ -82,9 +82,11 @@ def main():
     import buzz_paths
     digest = hashlib.sha256(buzz_paths.eboot_elf().read_bytes()).hexdigest()
     modules, pins = MODULES, PINNED
-    if digest == "6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8":
+    if digest in ("6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8",
+                  "fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d"):
         # Actual 1.00 runtime entries, not a PPU address relocation. Dispatch
         # still verifies the complete immutable LS bytes before using a lift.
+        # US extraction uses hash-checked canonical names for identical EU roles.
         modules = (
             ("atrac", "dev_flash:sys/external/flashATRAC.pic", 0x32890, (0x32890, 0x36B58), (0x53C0, 0x53D0)),
             ("compressor", "analysis/spu-images/spu_0003_at_00737100.elf", 0x2FB90, (0x2FB90, 0x30278), (0, 0)),

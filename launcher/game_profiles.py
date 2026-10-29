@@ -37,9 +37,24 @@ PROFILES = (
               build_switches=("NativeCompletion", "NativeImage40", "NativeImage39", "NativeImage36",
                               "ResultGuardFP", "StageF", "NativeImage7", "MStreamModules"))
       for title in ("BCES00647", "BCES00644", "BCES00645")),
+    Profile("bcus98209-disc", "BCUS98209", "1.00 / original disc",
+            "fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d", True,
+            "US original-disc profile: menus, fresh profiles and standard two-player questions/scoring tested. See README for remaining limitations.",
+            adapter_family="quizworld-us100", native_spu_float=True,
+            runtime_defaults=(("BUZZ_NATIVE_COMPLETION", "2"),),
+            build_switches=("NativeCompletion", "NativeImage40", "NativeImage39", "NativeImage36",
+                            "ResultGuardFP", "StageF", "NativeImage7", "MStreamModules")),
 )
 
 KNOWN_TITLE_IDS = frozenset(profile.title_id for profile in PROFILES)
+
+
+def identify_elf(digest):
+    """Identify executable code without inventing a disc region for ELF-only checks."""
+    matches = [profile for profile in PROFILES if profile.elf_sha256 == digest]
+    if not matches or len({profile.adapter_family for profile in matches}) != 1:
+        raise ValueError("Unsupported or ambiguous executable SHA-256: " + digest)
+    return matches[0]
 
 
 def identify(title_id, digest):

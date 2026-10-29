@@ -69,7 +69,7 @@ class Wizard:
         jobs = ttk.Spinbox(row, from_=1, to=64, textvariable=self.jobs, width=5)
         jobs.pack(side="left", padx=8)
         self.entries.append(jobs)
-        ttk.Label(options, text="Profiles: EU 1.00 (BCES00644/645/647) and BCES00647 1.02. Two-player gameplay tested on Polish assets; US releases, other languages and full game compatibility are not yet verified.", wraplength=910).pack(anchor="w", pady=4)
+        ttk.Label(options, text="Profiles: EU 1.00 (BCES00644/645/647), US 1.00 (BCUS98209) and BCES00647 1.02. Compatibility is checked by executable hash; see README for the tested gameplay scope.", wraplength=910).pack(anchor="w", pady=4)
         self.output = tk.Text(frame, wrap="word", height=15, state="disabled")
         self.output.pack(fill="both", expand=True, pady=(5, 10))
         ttk.Label(frame, textvariable=self.status, wraplength=910).pack(anchor="w", fill="x")

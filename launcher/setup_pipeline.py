@@ -103,6 +103,21 @@ def reject_links_below(root, target):
                 raise ValueError("Symlink/reparse point in managed output; operation refused.")
 
 
+def iso_file_size(record):
+    """Sum ISO9660 multi-extent records; UDF's record already has the full size."""
+    total, seen = 0, set()
+    while record is not None:
+        if id(record) in seen or len(seen) >= MAX_FILES:
+            raise ValueError("Cyclic/oversized ISO multi-extent chain.")
+        seen.add(id(record))
+        size = record.get_data_length()
+        if size < 0 or total + size > MAX_GAME_BYTES or record.is_symlink():
+            raise ValueError("Invalid/oversized ISO file extent (safety limits).")
+        total += size
+        record = getattr(record, "data_continuation", None)
+    return total
+
+
 def iso_plan(image):
     mode = "udf_path" if image.has_udf() else "joliet_path" if image.has_joliet() else "iso_path"
     plan, seen, total, directories = [], set(), 0, 0
@@ -127,7 +142,7 @@ def iso_plan(image):
             record = image.get_record(**{mode: source})
             if record.is_symlink():
                 raise ValueError("ISO symlinks are not accepted.")
-            size = record.get_data_length()
+            size = iso_file_size(record)
             if size < 0:
                 raise ValueError("Invalid ISO file size.")
             total += size
@@ -162,13 +177,17 @@ def extract_iso(path, destination, log, cancel):
             raise ValueError("Not enough disk space for extraction plus build headroom (more space may be needed to compile).")
         copied, progress_at = 0, time.monotonic()
         class Writer:
-            def __init__(self, output):
+            def __init__(self, output, size):
                 self.output = output
+                self.remaining = size
             def write(self, chunk):
                 nonlocal copied, progress_at
                 if cancel.is_set():
                     raise Cancelled("ISO extraction cancelled; original ISO is untouched.")
+                if len(chunk) > self.remaining:
+                    raise ValueError("ISO extraction exceeds the planned file size.")
                 count = self.output.write(chunk)
+                self.remaining -= count
                 copied += count
                 if time.monotonic() - progress_at > 2:
                     log(f"ISO: {copied / 1024**2:.0f}/{total / 1024**2:.0f} MiB")
@@ -184,7 +203,7 @@ def extract_iso(path, destination, log, cancel):
             target.parent.mkdir(parents=True, exist_ok=True)
             partial = target.with_name(target.name + ".import-partial-" + uuid.uuid4().hex)
             with partial.open("xb") as output:
-                image.get_file_from_iso_fp(Writer(output), **{mode: source})
+                image.get_file_from_iso_fp(Writer(output, size), **{mode: source})
             if partial.stat().st_size != size:
                 raise ValueError("Truncated ISO extraction.")
             os.replace(partial, target)

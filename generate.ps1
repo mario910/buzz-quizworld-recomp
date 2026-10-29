@@ -11,9 +11,10 @@ if ($LASTEXITCODE) { throw 'Unsupported generation input; no generated files wer
 . (Join-Path $experimentRoot 'buzz-paths.ps1')
 $elf = (Resolve-Path -LiteralPath (Get-BuzzPaths).eboot_elf).Path
 $identity = Get-BuzzFileSha256 -Path $elf
-if($identity -eq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8') {
+if($identity -in @('6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8',
+                   'fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d')) {
     & $python (Join-Path $experimentRoot 'tools\build-disc100-reference.py') --elf $elf --in-place --generate-only --jobs $Jobs
-    if($LASTEXITCODE){throw 'EU 1.00 generation failed'}
+    if($LASTEXITCODE){throw 'Original-disc 1.00 generation failed'}
     return
 }
 if(Test-Path -LiteralPath (Join-Path $experimentRoot 'port\spu\spu_0006_at_007FF780')) {

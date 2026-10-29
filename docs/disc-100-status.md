@@ -11,14 +11,15 @@ to another executable. Existing 1.02 builds remain separate.
 | BCES00647 | Polish-content release | EU 1.00 family |
 | BCES00644 | English, French, German, Italian, Dutch | Same EU executable, byte for byte |
 | BCES00645 | English, Spanish, Portuguese | Same EU executable, byte for byte |
-| BCUS98209 | USA | Different executable; not adapted |
+| BCUS98209 | USA | Separate adapted US 1.00 family; see [US status](us-100-status.md) |
 
 EU 1.00 ELF SHA-256:
 `6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8`.
 
 Identical executable bytes do not prove that every region's assets, languages
-or gameplay have been tested. Only the Polish-content disc assets have been
-boot-tested so far. The displayed disc metadata version alone is insufficient.
+or gameplay have been tested. Among EU discs, only the Polish-content assets have
+been tested so far; the US disc has a separate validation record. The displayed
+disc metadata version alone is insufficient.
 
 ## Verified progress (2026-10-29)
 
@@ -77,8 +78,8 @@ EXE to its source executable and runtime defaults. There is no forced default
 version. Unknown hashes are rejected.
 
 These correctness runs are **not an FPS benchmark** or evidence of stable
-30 FPS. Full solo-round, other-language asset and USA validation remain separate
-work. The 1.02 Store-hiding Lua hook is not yet adapted to 1.00; this is a known
+30 FPS. Full solo-round and other EU-language asset validation remain separate
+work; [US validation](us-100-status.md) is recorded independently. The 1.02 Store-hiding Lua hook is not yet adapted to 1.00; this is a known
 frontend limitation, not an omitted performance optimization.
 
 ## Developer entry point

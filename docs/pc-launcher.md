@@ -26,7 +26,7 @@ installer or a packaged launcher EXE.
 
 - Select the game folder, `dev_flash` and the decrypted `EBOOT.elf`.
 - Checks the dump structure, title ID, font folder and exact EBOOT SHA-256.
-  Profiles cover EU 1.00 (BCES00644/645/647) and BCES00647 1.02. Other language
+  Profiles cover EU 1.00 (BCES00644/645/647), US 1.00 (BCUS98209) and BCES00647 1.02. Other EU language
   assets remain experimental. Changing executable paths selects an existing
   matching prepared build, not a fixed default version. The build's ELF/EXE
   identity and version-specific runtime options are recorded in a manifest.

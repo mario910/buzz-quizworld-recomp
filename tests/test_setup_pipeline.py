@@ -9,6 +9,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import pycdlib
 from launcher import setup_pipeline as pipeline
@@ -93,6 +94,47 @@ class SetupTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "safety limits"):
                 pipeline.extract_iso(image, self.root / "out", self.logs.append, self.cancel)
 
+    def test_multi_extent_lengths_cycles_and_limits(self):
+        def record(size, continuation=None):
+            return SimpleNamespace(get_data_length=lambda: size, is_symlink=lambda: False,
+                                   data_continuation=continuation)
+        tail = record(3)
+        head = record(4, tail)
+        self.assertEqual(pipeline.iso_file_size(head), 7)
+        tail.data_continuation = head
+        with self.assertRaisesRegex(ValueError, "Cyclic"):
+            pipeline.iso_file_size(head)
+        with self.assertRaisesRegex(ValueError, "oversized"):
+            pipeline.iso_file_size(record(pipeline.MAX_GAME_BYTES, record(1)))
+        with self.assertRaises(ValueError):
+            pipeline.iso_file_size(record(-1))
+
+    def test_multi_extent_extraction_and_overrun_are_checked(self):
+        payloads = {"PARAM.SFO": sfo(), "USRDIR/EBOOT.BIN": b"SCE\0fixture", "USRDIR/PACK.PAK": b"partEND"}
+        class Image:
+            fallback_reason = ""
+            def open(self, path): pass
+            def close(self): pass
+            def has_udf(self): return False
+            def has_joliet(self): return False
+            def walk(self, **kwargs):
+                yield "/PS3_GAME", ["USRDIR"], ["PARAM.SFO"]
+                yield "/PS3_GAME/USRDIR", [], ["EBOOT.BIN", "PACK.PAK"]
+            def get_record(self, **kwargs):
+                name = kwargs["iso_path"].removeprefix("/PS3_GAME/")
+                def record(size, continuation=None):
+                    return SimpleNamespace(get_data_length=lambda: size, is_symlink=lambda: False,
+                                           data_continuation=continuation)
+                return record(4, record(3)) if name.endswith("PACK.PAK") else record(len(payloads[name]))
+            def get_file_from_iso_fp(self, out, **kwargs):
+                out.write(payloads[kwargs["iso_path"].removeprefix("/PS3_GAME/")])
+        with patch("launcher.disc_image.DiscImage", Image):
+            destination = self.root / "multi"
+            pipeline.extract_iso(self.root / "fixture.iso", destination, self.logs.append, self.cancel)
+            self.assertEqual((destination / "PS3_GAME/USRDIR/PACK.PAK").read_bytes(), b"partEND")
+            payloads["USRDIR/PACK.PAK"] = b"too-many-bytes"
+            with self.assertRaisesRegex(ValueError, "exceeds the planned"):
+                pipeline.extract_iso(self.root / "fixture.iso", self.root / "overrun", self.logs.append, self.cancel)
     def test_windows_paths(self):
         for name in ("..", "x/y", "x\\y", "NUL", "COM1.dat", "name.", "C:foo", "bad\0name", "line\nname"):
             with self.assertRaises(ValueError):

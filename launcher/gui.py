@@ -150,7 +150,7 @@ class App:
     def _start_ui(self):
         tab = self.start_tab
         ttk.Label(tab, text='Your game copy', font=('Segoe UI', 14, 'bold')).pack(anchor='w')
-        ttk.Label(tab, text='Select your own game dump, firmware and a supported decrypted EBOOT (EU 1.00 or 1.02).', style='Muted.TLabel').pack(anchor='w', pady=(4, 14))
+        ttk.Label(tab, text='Select your own game dump, firmware and a supported decrypted EBOOT (EU/US 1.00 or EU 1.02).', style='Muted.TLabel').pack(anchor='w', pady=(4, 14))
         for key, label in (('game_root', 'Game folder (with PS3_GAME)'), ('dev_flash', 'dev_flash folder'), ('eboot_elf', 'Decrypted EBOOT.elf')):
             row = ttk.Frame(tab)
             row.pack(fill='x', pady=5)

@@ -66,7 +66,7 @@ if(Test-Path -LiteralPath $generationPath) {
     if((Get-BuzzFileSha256 -Path $buildElf) -ne $generation.elf_sha256) {
         throw 'Generated translations belong to another executable. Generate in a separate preparation workspace.'
     }
-    if($generation.family -eq 'quizworld-eu100') {
+    if($generation.family -in @('quizworld-eu100','quizworld-us100')) {
         $hostProfile=Join-Path $experimentRoot 'analysis\host-disc100\port'
     } elseif($generation.family -ne 'quizworld-102-verified') {throw 'Unknown generation family'}
 }
@@ -116,7 +116,7 @@ if ($NativeCompletion) {
     & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'generate-native-completion.py')
     if ($LASTEXITCODE) { throw 'Native completion generation failed' }
     $completionProfile = Get-Content (Join-Path $experimentRoot 'analysis\native-completion\profile.json') -Raw | ConvertFrom-Json
-    if($completionProfile.source -notin @('ppu_recomp_013.cpp','ppu_recomp_015.cpp')) { throw 'Unexpected completion source profile' }
+    if($completionProfile.source -notin @('ppu_recomp_013.cpp','ppu_recomp_014.cpp','ppu_recomp_015.cpp')) { throw 'Unexpected completion source profile' }
     $completionOverride = Join-Path $experimentRoot ('analysis\native-completion\' + $completionProfile.source)
     if($ProducerTrace -and $completionProfile.version -ne '102') { throw 'Producer trace is only validated on 1.02.' }
 }

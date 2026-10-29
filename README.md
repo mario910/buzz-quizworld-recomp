@@ -2,10 +2,11 @@
 
 An unofficial **PS3Recomp-based static recompilation** of Buzz! Quiz World for
 Windows x64, using Direct3D 12. Version 1.02 has reached startup films, menus,
-audio and single-player rounds in our tests. Original-disc EU 1.00 has its own
-generation/native-adapter profile. Standard two-player gameplay has now been
-tested on Polish assets in both releases, including podium names, avatars and
-question images. Full game validation is still in progress. This is a research
+audio and single-player rounds in our tests. Original-disc EU and US 1.00 have
+their own hash-bound generation/PPU-adapter profiles, sharing verified SPU code.
+Standard two-player gameplay has been tested on Polish assets in both EU releases
+and on US 1.00, including podium names, avatars and scoring. Full game validation
+is still in progress. This is a research
 port, not a finished remaster: frame pacing, visual issues and online play need
 more work.
 
@@ -22,6 +23,7 @@ in its entirety by this repository's MIT license. See
 |---|---|
 | Disc input | Your ISO, or a directory containing `PS3_GAME/USRDIR` and `PS3_GAME/PARAM.SFO` |
 | EU original disc 1.00 | `BCES00647`, `BCES00644`, `BCES00645`; ELF SHA-256 `6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8` |
+| US original disc 1.00 | `BCUS98209`; ELF SHA-256 `fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d` |
 | Optional update 1.02 | `BCES00647` only; ELF SHA-256 `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241` |
 | Firmware | Your PS3 PUP, or installed `dev_flash` including `data/font` and `sys/external/flashATRAC.pic` |
 | Audio-module compatibility | The `.text` SHA-256 of `flashATRAC.pic` must be `c543ecc87e82beec3159d88fbb73dc4229424d357c0a48be3c4cb55d3fdefadc`; checked by the validator/generator |
@@ -29,7 +31,9 @@ in its entirety by this repository's MIT license. See
 The hash, not just the displayed version, identifies the supported executable.
 The two executable families have different bindings and native-adapter profiles;
 they are not interchangeable. The three listed EU 1.00 executables are byte-identical,
-but only Polish-release assets have been boot-tested so far. USA (`BCUS98209`),
+but only Polish-release EU assets have been tested so far. The US executable is
+different and has its own reviewed PPU bindings; all 24 SPU images match EU 1.00
+byte for byte. See [US validation scope](docs/us-100-status.md).
 Quiz TV and Brain Of are not adapted. Renaming
 `EBOOT.BIN` to `.elf` does not decrypt it. Do not remove hash checks to force
 another version to build. DLC is not required for the tested configuration.
