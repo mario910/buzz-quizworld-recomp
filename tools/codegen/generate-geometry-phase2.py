@@ -26,16 +26,28 @@ UNIT24 = {
     110: (0x3f800000,) * 4,
     112: (0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f),
 }
+SKIN = {
+    38: (0x00010203,) * 4,
+    39: (0x08090a0b, 0x00010203, 0x04050607, 0x0c0d0e0f),
+    43: (0x04050607, 0x08090a0b, 0x00010203, 0x0c0d0e0f),
+    51: (0xffffffff, 0xffffffff, 0xffffffff, 0), 55: (0x3f800000,) * 4,
+    77: (0x1c1d1e1f, 0x04050607, 0x08090a0b, 0x80808080),
+    81: (0x80808080, 0x0c0d0e0f, 0x1c1d1e1f, 0x80808080),
+    87: (0x0c0d0e0f,) * 4, 88: (0x08090a0b,) * 4, 89: (0x04050607,) * 4,
+    90: (0x3b808080,) * 4,
+    94: (0x80808008, 0x8080800a, 0x8080800c, 0x8080800e),
+    95: (0x80808000, 0x80808002, 0x80808004, 0x80808006),
+}
 
 
-def constant_declarations():
-    return "\n".join(f"    u128 constant{r}; " + " ".join(f"constant{r}._u32[{i}] = {w:#x}u;" for i, w in enumerate(words)) for r, words in UNIT24.items())
+def constant_declarations(values=UNIT24):
+    return "\n".join(f"    u128 constant{r}; " + " ".join(f"constant{r}._u32[{i}] = {w:#x}u;" for i, w in enumerate(words)) for r, words in values.items())
 
 
-def constants_guard():
-    guard = "static int buzz_unit24_constants_match(const spu_context* ctx) {\n" + constant_declarations() + "\n"
+def constants_guard(name="unit24", values=UNIT24):
+    guard = f"static int buzz_{name}_constants_match(const spu_context* ctx) {{\n" + constant_declarations(values) + "\n"
     guard += "    __m128i mismatch = _mm_setzero_si128();\n"
-    guard += "\n".join(f"    mismatch = _mm_or_si128(mismatch, _mm_xor_si128(_mm_loadu_si128((const __m128i*)&ctx->gpr[{r}]), _mm_loadu_si128((const __m128i*)&constant{r})));" for r in UNIT24)
+    guard += "\n".join(f"    mismatch = _mm_or_si128(mismatch, _mm_xor_si128(_mm_loadu_si128((const __m128i*)&ctx->gpr[{r}]), _mm_loadu_si128((const __m128i*)&constant{r})));" for r in values)
     return guard + "\n    return _mm_testz_si128(mismatch, mismatch);\n}\n"
 
 
@@ -49,12 +61,14 @@ def main():
     support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 1\n'
+    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 3\n'
     support += constants_guard()
     support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
+    support += constants_guard("skin", SKIN)
+    support += f'#include "{(ROOT / "port/native_geometry_skin.h").as_posix()}"\n'
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
-    for pc in ("9148", "92A0"):
+    for pc in ("9148", "92A0", "B880", "B934", "B940"):
         name = "buzz_job_6eba_spu_func_0000" + pc
         pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
         match = re.search(pattern, source)
@@ -70,6 +84,13 @@ def main():
                 f"static __attribute__((noinline)) int {name}_native(spu_context* ctx) {{ return buzz_unit24_native(ctx, {name}_setup, {tail}); }}\n")
     wrapper = f"void {name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 1)) {{ {name}_setup(ctx); return; }} buzz_geometry_run(ctx, {name}_reference, {name}_native, 0); }}"
     source = re.sub(rf"(?ms)^void {name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: setup + functions("buzz_job_6eba_spu_func_000092A0") + wrapper, source, count=1)
+    skin_name = "buzz_job_6eba_spu_func_0000B880"
+    skin_setup = f"static void {skin_name}_setup(spu_context* ctx) {{{bodies['B880']}}}\n"
+    def skin_functions(tail, step):
+        return (f"static __attribute__((noinline)) void {skin_name}_reference(spu_context* ctx) {{ {skin_name}_setup(ctx); {tail}(ctx); while (ctx->pc == 0xB934) {{ {step}(ctx); {tail}(ctx); }} }}\n"
+                f"static __attribute__((noinline)) int {skin_name}_native(spu_context* ctx) {{ return buzz_skin_native(ctx, {skin_name}_setup, {tail}); }}\n")
+    skin_wrapper = f"void {skin_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 2)) {{ {skin_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {skin_name}_reference, {skin_name}_native, 1); }}"
+    source = re.sub(rf"(?ms)^void {skin_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: skin_setup + skin_functions("buzz_job_6eba_spu_func_0000B940", "buzz_job_6eba_spu_func_0000B934") + skin_wrapper, source, count=1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
@@ -79,8 +100,15 @@ def main():
     tests = constants_guard() + f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
     tests += f"static void {test_tail}(spu_context* ctx) {{{bodies['92A0']}}}\n" + setup + functions(test_tail)
     (DEST / "test-kernels.inc").write_text(tests + seed)
-    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
-    print(f"Generated phase-2 unit24 group 9148/92A0 -> {DEST}")
+    skin_tests = constants_guard("skin", SKIN) + f'#include "{(ROOT / "port/native_geometry_skin.h").as_posix()}"\n'
+    for pc in ("B934", "B940"):
+        skin_tests += f"static void buzz_job_6eba_spu_func_0000{pc}_reference(spu_context* ctx) {{{bodies[pc]}}}\n"
+    skin_tests += skin_setup + skin_functions("buzz_job_6eba_spu_func_0000B940_reference", "buzz_job_6eba_spu_func_0000B934_reference")
+    skin_tests += "static void skin_seed_constants(spu_context* ctx) {\n" + constant_declarations(SKIN) + "\n"
+    skin_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in SKIN) + "\n}\n"
+    (DEST / "test-skin-kernels.inc").write_text(skin_tests)
+    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
+    print(f"Generated phase-2 unit24 and skin groups -> {DEST}")
 
 
 if __name__ == "__main__":

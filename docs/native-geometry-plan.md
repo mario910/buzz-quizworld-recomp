@@ -175,14 +175,14 @@ subject to the kernel gates before replacement.
 | 0xC518 transform (stage F) | native helper, not separately attributed | on | 1 | yes | yes | (existing) | |
 | 0x2C00 normalize (stage F) | native helper, not separately attributed | on | 2 | yes | yes | (existing) | |
 | cull (stage F) | native helper, not separately attributed | on | | yes | yes | (existing) | |
-| 0x92A0 | 4.60 % | on | `BUZZ_GEOMETRY_KERNELS` 0 | 19,508 exact; 6,628 strict groups | >=600,000 exact | 31.60 -> 31.94 | this step |
-| 0xB940 | 2.48 % | todo | | | | | |
+| 0x92A0 | 4.60 % | on | `BUZZ_GEOMETRY_KERNELS` 0 | 19,508 exact; 6,628 strict groups | >=600,000 exact | 31.60 -> 31.94 | a7ad7b2 |
+| 0xB940 | 2.48 % | gated; default off (mixed FPS) | `BUZZ_GEOMETRY_KERNELS` 1 | 19,508 exact; 5,700 strict groups | >=100,000 exact | 31.98 -> 31.87 | this step |
 | 0x4AB0 | 2.44 % | todo | | | | | |
 | 0x7A90 | 1.89 % | todo | | | | | |
 | 0x51E0 | 1.75 % | todo | | | | | |
 | 0xCB78 | 1.44 % | todo | | | | | |
 | 0x78A8 | 1.15 % | todo | | | | | |
-| 0x9148 | 1.01 % | on | shares bit 0 with 0x92A0 | same coupled unit-vector decoder | same checked group | same measurement | this step |
+| 0x9148 | 1.01 % | on | shares bit 0 with 0x92A0 | same coupled unit-vector decoder | same checked group | same measurement | a7ad7b2 |
 | 0x97A8 | 0.78 % | todo | | | | | |
 | 0x4750 | 0.76 % | todo | | | | | |
 | 0x0988 | 0.75 % | todo | | | | | |
@@ -204,8 +204,10 @@ multi-question-ranking}.json`; each sample has its matching linker map.
 Phase 2 implementation notes and per-kernel evidence are in
 [native-geometry-kernels.md](native-geometry-kernels.md). Bit 0 combines the
 tightly coupled `0x9148/0x92A0` decoder; it is not two independent replacements.
-It is enabled by default in the reviewed adapter after all its gates passed;
-the other phase 2 kernels remain pending.
+It is enabled by default in the reviewed adapter after all its gates passed.
+Bit 1 implements the `0xB880/B934/B940` skinning region and passes the correctness
+gates, but remains default-off: its round gain came with a small menu regression.
+The other phase 2 kernels remain pending.
 
 ### Image 40 and shared routines
 
@@ -224,6 +226,8 @@ the other phase 2 kernels remain pending.
 | 2026-10-30 | Phase 1 formats / LS / DMA map | Entire image 41 corpus | n/a (no optimization) | n/a | 19,508 format inventories and 58,195 DMA transfers checked; includes 19 ring wraps; no new kernel/default |
 | 2026-10-30 | Native 9148/92A0 decoder | Menu 40-98 s | 31.60 -> 31.94 (+1.08%) | mean run medians 34.10 -> 33.41 / mean p90 40.65 -> 40.32 | Same EXE, A/B then B/A; pair gains +1.38%, +0.78%; `p2-unit24-ab` |
 | 2026-10-30 | Native 9148/92A0 decoder | Round 150-220 s | 39.31 -> 40.65 (+3.41%) | mean run medians 25.81 -> 25.14 / mean p90 29.48 -> 29.02 | Same EXE, A/B then B/A; pair gains +5.09%, +1.80%; different session from original baseline |
+| 2026-10-31 | Native B880/B934/B940 skinning | Menu 40-98 s | 31.98 -> 31.87 (-0.36%) | mean run medians 33.46 -> 33.47 / mean p90 40.16 -> 39.93 | Same EXE, masks 1/3, A/B then B/A; pairs -0.44%, -0.28%; `p2-skin-ab2`; default off |
+| 2026-10-31 | Native B880/B934/B940 skinning | Round 150-220 s | 39.50 -> 40.24 (+1.88%) | mean run medians 25.71 -> 25.19 / mean p90 29.30 -> 28.83 | Same EXE, masks 1/3; pairs +2.74%, +1.00%; normal native/reference round introduction dumps |
 
 ## Risks
 

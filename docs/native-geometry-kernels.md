@@ -10,7 +10,9 @@ compares every handled invocation against the lifted reference. The reference
 state is retained in checked mode. `BUZZ_GEOMETRY_KERNELS` is the function bit
 mask; its current default enables bit 0 when that implementation is built.
 Bit 0 selects the coupled unit-vector
-decoder below. Other function IDs are reserved while their implementations
+decoder below; bit 1 selects validated skinning and remains default-off because
+its scene measurements are mixed.
+Other function IDs are reserved while their implementations
 are pending; the build advertises its implemented mask and rejects unavailable
 bits. An unhandled input takes the reference and increments fallback;
 it is never counted as a successful comparison. Mismatches abort with the
@@ -102,3 +104,65 @@ and zero failures. A further 45 s live run using the default mask logged over
 100,000 strict matches. The measured kernel header hash is unchanged; release
 logs are `unit24-release-mode{2,1}.log` and
 `analysis/vk-scene-p2-unit24-release-live.stderr.log`.
+
+## Bit 1: skinning (`0xB880/0xB934/0xB940`)
+
+The entry is `0xB880`; the exits are `0xB4C0` and `0xBB58`. The region blends
+three float4 palette rows using four interleaved byte weight/index pairs per
+vertex, stores the resulting matrix and transforms the position in place.
+There are no DMA, channels or nested calls in this region. The disabled
+wrapper runs only the original setup and preserves its block continuation.
+
+`native_geometry_skin.h` processes two vertices per AVX2 batch, retaining
+ordered SPU FM/FMA arithmetic, the RTZ 1/255 coefficient, cyclic component
+order and the matrix W fields. It leaves the final pair to the original
+pipeline and reconstructs its setup pointers, including speculative loads
+and every temporary register. A pair with both byte weights zero omits that
+influence; the SPU operations produce canonical positive zero for it.
+
+The guarded path requires an even count of at least four vertices, canonical
+constants, aligned positions/weights/matrices/palette and bounded private LS.
+Position and matrix outputs must be separate from each other and from the
+palette/weight sources. It scans all palette indices before writing.
+Debug probes, external LS, pending interrupts and unsupported shapes fall
+back before any mutation. The final reference pair restores exact control
+state and continuation, including both exits.
+
+`tests/scripts/test-geometry-skin.ps1` checks 440 randomized full-state cases,
+counts from 4 to 2048, arbitrary palette bit patterns, all-zero, one-hot,
+sparse and dense influences, both exit continuations, and ten unchanged-state
+rejection cases. The
+optional private `pc_B940.bin` sample measures approximately 236 ns lifted
+versus 157 ns native; it resets the in-place positions each iteration.
+
+Both strict checked replay and separate native execution match all 19,508
+image-41 jobs and 58,195 transfers, with zero input divergences or failures.
+The skin checker compares 5,700 groups exactly; 413 unsupported groups use
+the reference. Private evidence: `phase2/skin-guard-mode{2,1}.log` and
+`phase2/skin-build.json` under `analysis/native-geometry/`. The final build's
+45 s live check logged at least 100,000 strict matches and no differences;
+the earlier 90 s check logged at least 700,000. A/B round introduction dumps
+with native execution enabled and disabled both look normal. Logs are
+`analysis/vk-scene-p2-skin-guard-live.stderr.log`; the kernel header hash
+remained unchanged throughout the final corpus/live/A/B checks.
+The same frozen build also rendered a normal menu in actual native mode
+(mask 3, separate 45 s run); its log is
+`analysis/vk-scene-p2-skin-native-menu.stderr.log` and the private renderer
+image is `phase2/skin-native-menu.png`.
+
+The same frozen EXE ran reference/native/native/reference in both scenes,
+with bit 0 enabled throughout (masks 1 and 3). Menu runs yield
+32.00 / 31.86 / 31.87 / 31.96 FPS: means 31.98 -> 31.87 (-0.36%), with
+pair changes -0.44% and -0.28%. Round runs yield 39.59 / 40.67 / 39.81 /
+39.41 FPS: means 39.50 -> 40.24 (+1.88%), with pair gains +2.74% and
++1.00%. Windows and settings match the earlier decoder methodology; each
+run starts from an identical private save copy. The report is
+`analysis/native-geometry/phase2/skin-ab-report.json` and the source set is
+`phase2/p2-skin-ab2/progress.jsonl`. The earlier `p2-skin-ab` set was aborted
+before completion while adding the weight-alignment guard and is not used.
+
+Bit 1 stays **default-off** because the round improvement is accompanied by
+a small menu regression. `BUZZ_GEOMETRY_KERNELS=3` enables it together with
+the default decoder for experiments; `BUZZ_GEOMETRY=2` checks both strictly.
+This completes the skinning implementation and correctness gates without
+claiming an improvement in both scenes.
