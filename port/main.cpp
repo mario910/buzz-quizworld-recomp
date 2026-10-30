@@ -32,6 +32,7 @@
  * table. It comes first: everything below is written against that struct. */
 #include "ppu_recomp.h"
 #include "ps3emu/ps3_ftrace.h"
+#include "ps3emu/host_controls.h"
 #ifdef BUZZ_SPU_AVX512
 #include "cpu_isa.h"
 #endif
@@ -186,7 +187,9 @@ extern "C" int  rsx_vulkan_backend_init(uint32_t w, uint32_t h, const char* titl
 extern "C" void rsx_vulkan_backend_present(void);
 extern "C" uint64_t rsx_vulkan_backend_presented_frames(void);
 extern "C" int  rsx_vulkan_backend_pump_messages(void);
+extern "C" void rsx_vulkan_backend_redisplay(void);
 #  define rsx_backend_init    rsx_vulkan_backend_init
+#  define rsx_backend_redisplay rsx_vulkan_backend_redisplay
 #  define rsx_backend_present rsx_vulkan_backend_present
 #  define rsx_backend_present_serial rsx_vulkan_backend_presented_frames
 #  define rsx_backend_pump    rsx_vulkan_backend_pump_messages
@@ -334,6 +337,21 @@ static DWORD WINAPI frame_clock(LPVOID)
 
     for (;;) {
         cellGcm_fifo_kick_wait(idle_ms);
+#ifdef rsx_backend_redisplay
+        /* Host pause (PC menu): no vblank, flip or FIFO drain reaches the
+         * guest, so its frame loop waits; the window keeps showing the last
+         * frame under the menu. Ticks are not caught up afterwards. */
+        if (rsx_ok && ps3_host_get_paused()) {
+            if (rsx_backend_pump() != 0) {
+                fprintf(stderr,"[host] Game window closed; exiting experimental process.\n");
+                exit(0);
+            }
+            rsx_backend_redisplay();
+            Sleep(16);
+            next_tick = GetTickCount64();
+            continue;
+        }
+#endif
         ULONGLONG now = GetTickCount64();
         if(trace_trigger && now>=next_trace_check &&
            __atomic_load_n(&g_ps3_ft.on,__ATOMIC_ACQUIRE)==4){

@@ -5,7 +5,6 @@ param([ValidateRange(0,300)][int]$Seconds=30,[string]$PcSettings='',[switch]$Exp
     [switch]$SkipIntro,[string]$UpdateContent='', [string]$GuestButtons='')
 $ErrorActionPreference='Stop'
 if($ExpectMenu -and ($env:BUZZ_PC_MENU_TEST -ne '1' -or $Seconds -lt 17)){throw 'Menu integration requires BUZZ_PC_MENU_TEST=1 and at least 17 test seconds'}
-if($ExpectMenu -and $ExpectVulkan){throw 'The Vulkan experiment does not have the PC overlay yet'}
 if($SkipIntro -and -not $Seconds){throw 'SkipIntro requires a bounded game launch'}
 $buttonEvents=@()
 if($GuestButtons) {

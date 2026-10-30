@@ -230,12 +230,19 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
         std::sort(candidates.rbegin(),candidates.rend());roots.insert(roots.end(),candidates.begin(),candidates.end());
     }
 #ifdef _WIN32
-    const char* exe_name="BuzzQuizWorldRecomp.exe";const char* build_dir="build-windows";
+    // Vulkan is the default renderer; the D3D12 build is the fallback, and
+    // the first choice when the per-build PC settings ask for it.
+    const char* exe_name="BuzzQuizWorldRecomp.exe";
+    const std::vector<const char*> build_dirs=s.pc.renderer==buzz_pc::Renderer::d3d12
+        ?std::vector<const char*>{"build-windows","build-vulkan-windows"}
+        :std::vector<const char*>{"build-vulkan-windows","build-windows"};
 #else
-    const char* exe_name="BuzzQuizWorldRecomp";const char* build_dir="build-linux";
+    const char* exe_name="BuzzQuizWorldRecomp";const std::vector<const char*> build_dirs{"build-linux"};
 #endif
+    std::vector<fs::path> dirs;
     std::string rejection;
-    for(auto& root:roots)for(const fs::path& dir:{root/"game",root/build_dir}) {
+    for(auto& root:roots){dirs.clear();dirs.push_back(root/"game");for(auto d:build_dirs)dirs.push_back(root/d);
+    for(const fs::path& dir:dirs) {
         auto exe=dir/exe_name,manifest=dir/"game-build.json";
         if(!fs::is_regular_file(exe)||!fs::is_regular_file(manifest))continue;
         try {
@@ -251,7 +258,7 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
             validate_prepared_content(profile,root);
             return {root,exe,j,profile};
         } catch(const std::exception& e) { rejection=e.what(); }
-    }
+    }}
     throw std::runtime_error(rejection.empty()?"No matching verified native build. Prepare the game with the developer tools first.":rejection);
 }
 Environment runtime_environment(const Settings& s,const Build& b,const fs::path& session,Environment env) {
@@ -273,6 +280,15 @@ Environment runtime_environment(const Settings& s,const Build& b,const fs::path&
         {"RSX_CACHE_ENV","1"},{"SPURS_GUARD_POLL_ONLY","0"},{"SPURS_JTS_WAKE","1"},{"SPURS_JTS_DMA_WAKE","1"},
         {"SPURS_MERGE_READY_LISTS","1"},{"SPURS_NATIVE_EXTRA_FP","1"},{"RSX_GUEST_SAMPLERS","1"},{"RSX_PIXEL_WINDOW","1"}};
     for(auto& [k,v]:defaults)def(k,v);
+    if(b.executable.parent_path().filename().string().find("vulkan")!=std::string::npos) {
+        // Measured-best Vulkan set (as scripts/run-windows.ps1): without the
+        // batching options the Vulkan build runs a few FPS.
+        const std::pair<const char*,const char*> vulkan[]={
+            {"PS3RECOMP_VK_DRAW_BATCH","512"},{"PS3RECOMP_VK_DRAW_RING","1"},{"PS3RECOMP_VK_DRAW_PASSES","1"},
+            {"PS3RECOMP_VK_DRAW_CLEARS","1"},{"PS3RECOMP_VK_DRAW_ASYNC","1"},{"PS3RECOMP_VK_PRESENT_MODE","mailbox"},
+            {"PS3RECOMP_VK_PRESENT_READBACK","0"},{"PS3RECOMP_VK_TEXTURE_REUSE","1"},{"PS3RECOMP_ENG_TEXTURE_ROWS","1"}};
+        for(auto& [k,v]:vulkan)def(k,v);
+    }
     def("SPURS_JOB_LIST_EXTRA_IMAGES","40",false);def("SPURS_JOB_LS_PUBLISH","mbox",false);
     def("RSX_SHADER_CACHE_DIR",utf8(b.root/"runtime/shader-cache"),false);
     const auto bound_defaults=b.manifest.value("runtime_defaults",Json::object());

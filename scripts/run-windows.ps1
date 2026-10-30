@@ -1,9 +1,13 @@
-param([int]$Seconds = 40, [switch]$NativeSpurs, [switch]$MenuBootstrap, [switch]$OriginalVideo, [switch]$SkipVideo, [switch]$Mute, [switch]$Background, [string]$InputConfig = '', [string]$PathsConfig = '', [string]$BuildDirectory = 'build-windows')
+param([int]$Seconds = 40, [switch]$NativeSpurs, [switch]$MenuBootstrap, [switch]$OriginalVideo, [switch]$SkipVideo, [switch]$Mute, [switch]$Background, [string]$InputConfig = '', [string]$PathsConfig = '', [string]$BuildDirectory = '')
 $projectRoot = (Split-Path -Parent $PSScriptRoot)
 
 $ErrorActionPreference = 'Stop'
 $experimentRoot = $projectRoot
-# -BuildDirectory build-vulkan-windows runs the Vulkan developer build.
+# -BuildDirectory build-windows runs the D3D12 fallback build.
+# Vulkan is the default renderer when its build exists; D3D12 otherwise.
+if (-not $BuildDirectory) {
+    $BuildDirectory = if (Test-Path -LiteralPath (Join-Path $experimentRoot 'build-vulkan-windows\BuzzQuizWorldRecomp.exe')) { 'build-vulkan-windows' } else { 'build-windows' }
+}
 $exe = Join-Path (Join-Path $experimentRoot $BuildDirectory) 'BuzzQuizWorldRecomp.exe'
 $existingGame = @(Get-Process -Name BuzzQuizWorldRecomp -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -eq $exe })

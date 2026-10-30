@@ -3,6 +3,7 @@
 #include "pc_runtime.h"
 #include "buzzer_hid_win32.h"
 #include "ps3emu/host_overlay.h"
+#include "ps3emu/host_controls.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -18,7 +19,16 @@
 #include <imgui.h>
 #include <imgui_impl_win32.h>
 #include <imgui_impl_dx12.h>
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+#include <imgui_impl_vulkan.h>
+#endif
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,UINT,WPARAM,LPARAM);
+// The in-game XMB sends MENU_OPEN, DRAWING_BEGIN on opening and DRAWING_END,
+// MENU_CLOSE on closing, to every registered sysutil callback. Buzz handles
+// only DRAWING_BEGIN/END (it pauses); the menu pair is sent as hardware would.
+extern "C" int cellSysutilBroadcastEvent(unsigned status,unsigned param);
+constexpr unsigned SYSUTIL_DRAWING_BEGIN=0x0121,SYSUTIL_DRAWING_END=0x0122,
+    SYSUTIL_SYSTEM_MENU_OPEN=0x0131,SYSUTIL_SYSTEM_MENU_CLOSE=0x0132;
 
 namespace {
 buzz_pc::MenuModel menu;
@@ -30,9 +40,18 @@ ID3D12DescriptorHeap* descriptors=nullptr;
 std::array<bool,64> used{};
 UINT descriptor_size=0;
 HWND window=nullptr;
-bool initialized=false,failed=false,win32_initialized=false,dx12_initialized=false;
+bool initialized=false,failed=false,win32_initialized=false,dx12_initialized=false,vulkan_initialized=false;
+unsigned overlay_api=PS3_HOST_OVERLAY_D3D12;
+bool pause_guest=true;
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+// The Vulkan frame clock can hold the guest and redraw the last frame.
+constexpr bool host_pause=true;
+#else
+constexpr bool host_pause=false;
+#endif
 buzz_pc::MenuPadNavigation pad_navigation;
-bool test_mode=false;
+bool test_mode=false,pause_test=false;
+ULONGLONG test_delay_ms=0;
 bool menu_ui_enabled=true;
 unsigned test_stage=0;
 ULONGLONG first_frame=0;
@@ -40,14 +59,25 @@ ULONGLONG first_frame=0;
 void capture(){buzz_input_capture(menu.open());}
 void release_resources() {
     if(dx12_initialized){ImGui_ImplDX12_Shutdown();dx12_initialized=false;}
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+    if(vulkan_initialized){ImGui_ImplVulkan_Shutdown();vulkan_initialized=false;}
+#endif
     if(win32_initialized){ImGui_ImplWin32_Shutdown();win32_initialized=false;}
     if(context){ImGui::DestroyContext(context);context=nullptr;}
     if(descriptors){descriptors->Release();descriptors=nullptr;}
     used.fill(false);initialized=false;
 }
+void pause_events(bool open) {
+    if(!pause_guest)return;
+    if(host_pause)ps3_host_set_paused(open);
+    const int slots=open?cellSysutilBroadcastEvent(SYSUTIL_SYSTEM_MENU_OPEN,0)+cellSysutilBroadcastEvent(SYSUTIL_DRAWING_BEGIN,0)
+                        :cellSysutilBroadcastEvent(SYSUTIL_DRAWING_END,0)+cellSysutilBroadcastEvent(SYSUTIL_SYSTEM_MENU_CLOSE,0);
+    fprintf(stderr,"[pc-menu] sysutil %s queued (%d callback event(s))\n",open?"SYSTEM_MENU_OPEN+DRAWING_BEGIN":"DRAWING_END+SYSTEM_MENU_CLOSE",slots);
+}
 void opened() {
     preferences=buzz_pc_requested_preferences();input=buzz_input_current_config();status.clear();
     fprintf(stderr,"[pc-menu] opened\n");
+    pause_events(true);
 }
 void navigate(buzz_pc::MenuAction action) {
     const bool before=menu.open();menu.navigate(action);
@@ -55,6 +85,7 @@ void navigate(buzz_pc::MenuAction action) {
     if(before&&!menu.open()) {
         if(context){ImGui::GetIO().ClearInputKeys();ImGui::GetIO().ClearInputMouse();ImGui::GetIO().ClearEventsQueue();}
         fprintf(stderr,"[pc-menu] closed\n");
+        pause_events(false);
     }
     capture();
 }
@@ -140,11 +171,40 @@ void free_descriptor(ImGui_ImplDX12_InitInfo*,D3D12_CPU_DESCRIPTOR_HANDLE cpu,D3
     const auto first=descriptors->GetCPUDescriptorHandleForHeapStart();const auto slot=(cpu.ptr-first.ptr)/descriptor_size;
     if(slot<used.size())used[slot]=false;
 }
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+PFN_vkVoidFunction vulkan_function(const char* name,void* user) {
+    auto vulkan=static_cast<const ps3_host_overlay_vulkan*>(user);
+    return reinterpret_cast<PFN_vkVoidFunction>(vulkan->get_instance_proc_addr(vulkan->instance,name));
+}
+bool init_vulkan(const ps3_host_overlay_frame& frame) {
+    const auto& vulkan=*frame.vulkan;
+    if(!ImGui_ImplVulkan_LoadFunctions(VK_API_VERSION_1_0,vulkan_function,const_cast<ps3_host_overlay_vulkan*>(&vulkan)))return false;
+    ImGui_ImplVulkan_InitInfo info{};
+    info.ApiVersion=VK_API_VERSION_1_0;info.Instance=static_cast<VkInstance>(vulkan.instance);
+    info.PhysicalDevice=static_cast<VkPhysicalDevice>(vulkan.physical_device);info.Device=static_cast<VkDevice>(frame.device);
+    info.QueueFamily=vulkan.queue_family;info.Queue=static_cast<VkQueue>(frame.queue);
+    info.DescriptorPoolSize=IMGUI_IMPL_VULKAN_MINIMUM_IMAGE_SAMPLER_POOL_SIZE;
+    info.MinImageCount=std::max(2u,vulkan.min_image_count);info.ImageCount=std::max(info.MinImageCount,vulkan.image_count);
+    info.PipelineInfoMain.RenderPass=static_cast<VkRenderPass>(vulkan.render_pass);info.PipelineInfoMain.Subpass=0;
+    info.PipelineInfoMain.MSAASamples=VK_SAMPLE_COUNT_1_BIT;
+    if(!ImGui_ImplVulkan_Init(&info))return false;
+    vulkan_initialized=true;
+    return true;
+}
+#endif
 bool init(const ps3_host_overlay_frame& frame) {
-    window=static_cast<HWND>(frame.window);auto device=static_cast<ID3D12Device*>(frame.device);
-    D3D12_DESCRIPTOR_HEAP_DESC desc{};desc.Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;desc.NumDescriptors=UINT(used.size());desc.Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    if(FAILED(device->CreateDescriptorHeap(&desc,IID_PPV_ARGS(&descriptors))))return false;
-    descriptor_size=device->GetDescriptorHandleIncrementSize(desc.Type);
+    window=static_cast<HWND>(frame.window);overlay_api=frame.api;
+    if(frame.api==PS3_HOST_OVERLAY_D3D12) {
+        auto device=static_cast<ID3D12Device*>(frame.device);
+        D3D12_DESCRIPTOR_HEAP_DESC desc{};desc.Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;desc.NumDescriptors=UINT(used.size());desc.Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+        if(FAILED(device->CreateDescriptorHeap(&desc,IID_PPV_ARGS(&descriptors))))return false;
+        descriptor_size=device->GetDescriptorHandleIncrementSize(desc.Type);
+    }
+#ifndef BUZZ_EXPERIMENTAL_VULKAN
+    else return false;
+#else
+    else if(frame.api!=PS3_HOST_OVERLAY_VULKAN||!frame.vulkan)return false;
+#endif
     IMGUI_CHECKVERSION();context=ImGui::CreateContext();auto& io=ImGui::GetIO();io.IniFilename=nullptr;
     io.ConfigFlags|=ImGuiConfigFlags_NoMouseCursorChange; // never change the RDP user's cursor
     ImGui::StyleColorsDark();auto& style=ImGui::GetStyle();style.FrameRounding=9;style.WindowRounding=14;
@@ -153,7 +213,13 @@ bool init(const ps3_host_overlay_frame& frame) {
     if(std::filesystem::is_regular_file(font))io.Fonts->AddFontFromFileTTF(font,22);
     if(!ImGui_ImplWin32_Init(window))return false;
     win32_initialized=true;
-    ImGui_ImplDX12_InitInfo info{};info.Device=device;info.CommandQueue=static_cast<ID3D12CommandQueue*>(frame.queue);
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+    if(frame.api==PS3_HOST_OVERLAY_VULKAN) {
+        if(!init_vulkan(frame))return false;
+        initialized=true;fprintf(stderr,"[pc-menu] Vulkan overlay initialized\n");return true;
+    }
+#endif
+    ImGui_ImplDX12_InitInfo info{};info.Device=static_cast<ID3D12Device*>(frame.device);info.CommandQueue=static_cast<ID3D12CommandQueue*>(frame.queue);
     info.NumFramesInFlight=int(frame.frames_in_flight);info.RTVFormat=DXGI_FORMAT(frame.format);info.DSVFormat=DXGI_FORMAT_UNKNOWN;
     info.SrvDescriptorHeap=descriptors;info.SrvDescriptorAllocFn=alloc_descriptor;info.SrvDescriptorFreeFn=free_descriptor;
     if(!ImGui_ImplDX12_Init(&info))return false;
@@ -244,17 +310,24 @@ void draw_menu() {
     ImGui::PopStyleVar();
     ImGui::EndChild();
     if(!status.empty())ImGui::TextWrapped("%s",status.c_str());
-    else ImGui::TextDisabled("Game continues running while this menu is open.");
+    else ImGui::TextDisabled(pause_guest&&host_pause?"The game is paused while this menu is open.":"Game continues running while this menu is open.");
     if(buzz_input_physical_connected(0)||buzz_input_physical_connected(1))ImGui::TextDisabled("Buzz: blue/orange up/down, yellow/green adjust, red select");
     else ImGui::TextDisabled("Arrows / D-pad: navigate & adjust   A / R1: select   B: back");
-    ImGui::TextDisabled("ESC / START: return to game    Renderer: D3D12");
+    ImGui::TextDisabled("ESC / START: return to game    Renderer: %s",overlay_api==PS3_HOST_OVERLAY_VULKAN?"Vulkan":"D3D12");
     ImGui::End();ImGui::PopStyleColor();
 }
 void test_actions() {
     // Explicit test mode only; this is internal menu input, never desktop input.
     if(!test_mode)return;
     const auto now=GetTickCount64();if(!first_frame)first_frame=now;
-    const auto elapsed=now-first_frame;
+    if(now-first_frame<test_delay_ms)return;
+    const auto elapsed=now-first_frame-test_delay_ms;
+    if(pause_test) {
+        // Hold the menu over gameplay: the game should pause behind it.
+        if(test_stage==0){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
+        if(test_stage==1&&elapsed>=8000){message(window,WM_KEYDOWN,VK_ESCAPE,0);++test_stage;fprintf(stderr,"[pc-menu] test: pause hold completed\n");}
+        return;
+    }
     if(test_stage==0&&elapsed>=2500){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
     if(test_stage==1&&elapsed>=3500){menu.select(0);act(buzz_pc::MenuAction::left);++test_stage;}
     if(test_stage==2&&elapsed>=4500){menu.select(1);act(buzz_pc::MenuAction::accept);++test_stage;}
@@ -268,7 +341,16 @@ void test_actions() {
 void draw(const ps3_host_overlay_frame* frame) {
     if(failed)return;window=static_cast<HWND>(frame->window);
     test_actions();controller();if(!menu.open())return;
-    if(!initialized&&!init(*frame)){release_resources();failed=true;menu.close();capture();buzz_input_enable_menu(false);fprintf(stderr,"[pc-menu] overlay init FAILED\n");return;}
+    if(!initialized&&!init(*frame)){release_resources();failed=true;menu.close();pause_events(false);capture();buzz_input_enable_menu(false);fprintf(stderr,"[pc-menu] overlay init FAILED\n");return;}
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+    if(frame->api==PS3_HOST_OVERLAY_VULKAN) {
+        ImGui_ImplVulkan_NewFrame();ImGui_ImplWin32_NewFrame();
+        auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
+        ImGui::NewFrame();draw_menu();ImGui::Render();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),static_cast<VkCommandBuffer>(frame->commands));
+        return;
+    }
+#endif
     ImGui_ImplDX12_NewFrame();ImGui_ImplWin32_NewFrame();
     auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
     ImGui::NewFrame();draw_menu();ImGui::Render();
@@ -277,6 +359,7 @@ void draw(const ps3_host_overlay_frame* frame) {
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),commands);
 }
 void shutdown() {
+    ps3_host_set_paused(0);
     buzz_hid_host_shutdown();
     buzz_input_enable_menu(false);
     release_resources();
@@ -284,11 +367,11 @@ void shutdown() {
 }
 void buzz_pc_overlay_register(){
     const char* enabled=getenv("BUZZ_PC_OVERLAY");menu_ui_enabled=!(enabled&&std::string(enabled)=="0");
-#ifdef BUZZ_EXPERIMENTAL_VULKAN
-    menu_ui_enabled=false;
-    fprintf(stderr,"[pc-menu] Vulkan experiment: overlay rendering is not integrated yet; HID/keyboard/XInput remain active\n");
-#endif
-    test_mode=getenv("BUZZ_PC_MENU_TEST")&&std::string(getenv("BUZZ_PC_MENU_TEST"))=="1";
+    // BUZZ_PC_MENU_PAUSE=0: leave the game running behind the menu.
+    const char* pause=getenv("BUZZ_PC_MENU_PAUSE");pause_guest=!(pause&&std::string(pause)=="0");
+    const char* test=getenv("BUZZ_PC_MENU_TEST");
+    test_mode=test&&(std::string(test)=="1"||std::string(test)=="pause");pause_test=test_mode&&std::string(test)=="pause";
+    if(const char* delay=getenv("BUZZ_PC_MENU_TEST_DELAY_MS"))test_delay_ms=strtoull(delay,nullptr,10);
     const ps3_host_overlay_hooks hooks{message,menu_ui_enabled?draw:nullptr,shutdown};ps3_host_set_overlay(&hooks);
     buzz_input_enable_menu(menu_ui_enabled);
 }

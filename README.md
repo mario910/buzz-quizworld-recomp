@@ -1,7 +1,7 @@
 # Buzz! Quiz World — experimental native Windows port
 
 An unofficial **PS3Recomp-based static recompilation** of Buzz! Quiz World for
-Windows x64, using Direct3D 12. Version 1.02 has reached startup films, menus,
+Windows x64, rendering with Vulkan by default and Direct3D 12 as the fallback. Version 1.02 has reached startup films, menus,
 audio and single-player rounds in our tests. Original-disc EU and US 1.00 have
 their own hash-bound generation/PPU-adapter profiles, sharing verified SPU code.
 Standard two-player gameplay has been tested on Polish assets in both EU releases
@@ -54,7 +54,7 @@ been prepared, the native C++ launcher starts it without Python, a venv or
 PowerShell. The launcher also builds on Linux; the game itself is not yet a
 validated Linux port. See [native launcher](docs/pc-launcher.md).
 
-- Windows 10/11 **64-bit** and a GPU/driver supporting Direct3D 12.
+- Windows 10/11 **64-bit** and a GPU/driver supporting Vulkan 1.0 (default renderer) and Direct3D 12 (fallback).
 - An x64 CPU with **AVX2 and FMA** for the supported build. AVX-512 is not required.
 - Git with submodule support.
 - Python **3.11 or newer**, including Tcl/Tk (for the desktop launcher), with
@@ -136,14 +136,17 @@ and test buttons. The interface and preparation wizard are in English. The separ
 wizard builds locally; neither downloads game content. A background start is enabled by default: click the
 game window before using keyboard controls. See [launcher guide](docs/pc-launcher.md).
 
-The D3D12 game also has an **Escape / controller START** PC settings menu for
+The game also has an **Escape / controller START** PC settings menu for
 volume, a 30 FPS lock, fullscreen, controllers and restart-only offline mode.
-It shares per-build settings with the native launcher; the quiz keeps running
-while it is open. R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
+It shares per-build settings with the native launcher. On Vulkan the game is
+paused while the menu is open (guest clock, vblank and audio held); on the
+D3D12 fallback the quiz keeps running. The 30 FPS lock currently has no effect
+and is off by default; see [frame-lock status](docs/frame-limit-status.md).
+R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
 blue/orange/green/yellow. Windows physical Buzz HID is experimental and
-hardware-unverified. A separate [Vulkan developer experiment](docs/vulkan-bringup.md)
-can render initial screens/video and the 3D main menu; it is not a supported
-gameplay backend yet.
+hardware-unverified. `Build-Buzz.ps1` builds both renderers (`-Renderer Vulkan`
+or `D3D12` for one); the launcher prefers Vulkan unless PC settings select
+`renderer=d3d12`. See [Vulkan notes](docs/vulkan-bringup.md).
 
 For a direct native start using saved settings (or `buzz-paths.json`) and the
 verified runtime defaults:
@@ -217,8 +220,8 @@ the low-to-mid 30 FPS range. This is a machine/scene-specific observation, **not
 a stable 30 FPS guarantee throughout the game**. Known limitations include
 occasional long frame-time spikes on menu transitions, an intermittent green
 monitor/white-square state, and limited multiplayer/long-session validation.
-Windows/D3D12 is the tested target; Linux, Vulkan and Steam Deck are not yet a
-supported build of this port. Other game languages/content sets are unverified.
+Windows with Vulkan (default) or D3D12 is the tested target; Linux and Steam Deck
+are not yet a supported build of this port. Other game languages/content sets are unverified.
 
 ## Troubleshooting and development
 
