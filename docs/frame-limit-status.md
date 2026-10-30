@@ -180,9 +180,12 @@ the context/descriptor block); the rest keeps the previous job's bytes, as
 on hardware. A round frame dump renders normally and the logs show no new
 warnings. Mode 2 (context block only) is a diagnostic upper bound.
 
-These runs were taken while the workstation was locked, which lowered
-every number versus the tables above (the same default build gave
-25-26 FPS on the menu instead of 30.5); compare only within this table.
+These runs (and the menu/round tables of section 5) fell in a slower
+period on this PC: the same default build gave 25-26 FPS on the menu
+instead of 30.5, PrintWindow captures came back black and the GPU idled
+in P8 between runs. The cause was not identified (the screen lock was a
+guess; `LockApp.exe` is also present during later, faster runs). Compare
+only within each table.
 
 | Scene, window | Mode | FPS | Median ms | p90 ms | p99 ms | >40 ms |
 |---|---|---:|---:|---:|---:|---:|
@@ -218,7 +221,7 @@ hashes were added beside the old ones. Regenerate the raw jobs (or the
 whole 1.00 workspace) to get the new lift. A round frame dump renders
 normally.
 
-EXE A/B (previous build kept beside the new one), workstation locked:
+EXE A/B (previous build kept beside the new one), same slower period:
 
 | Scene, window | Lift | FPS | Median ms | p90 ms | p99 ms | >40 ms |
 |---|---|---:|---:|---:|---:|---:|
@@ -236,6 +239,33 @@ round on a shifted timeline (its first 10 s slice is the pre-question
 transition at 27.9 FPS, ~45 in the others), so its window is not
 phase-matched; its later slices run 32-33 FPS.
 
+### 6. Direct-table vertex remap
+
+SDK `49847626`. `rsx_vertex_remap_build` hashed every index of every
+rebuilt draw (6.7 % of the RSX thread). When a draw's references share
+one base index and span a compact range, a generation-stamped table
+indexed by vertex id replaces the hash, with the same first-use order and
+occurrence map (randomized check: 20000 cases, both paths). The PC was
+back at full speed for this A/B; menu EXE A/B (new/old/old/new): FIFO
+drain 20.06/19.82 -> 19.30/19.08 ms, FPS 35.99/36.45 -> 36.29/36.67. A
+small render-thread saving, within FPS noise because the frame is not
+render-bound here.
+
+### Overall (all six changes)
+
+Default launch settings after a full rebuild of both renderers
+(`analysis/vk-scene-final2-*`), same scene windows:
+
+| Scene, window | Session start | Now |
+|---|---|---|
+| Vulkan menu 40-98 s | 23.6-24.7 FPS, median ~42 ms, p90 51-56 ms, >40 ms 56-58 % | 36.26 FPS, median 29.55 ms, p90 34.83 ms, p99 39.20 ms, >40 ms 0.8 % |
+| Vulkan round 150-250 s | 29.1 FPS, median 33.6 ms, p90 41.2 ms, >40 ms 12.6 % | 44.23 FPS, median 22.55 ms, p90 27.34 ms, p99 32.08 ms, >40 ms 0.2 % |
+| D3D12 menu 40-98 s | 26.5 FPS, median 40.0 ms, p90 46.9 ms | 33.34 FPS, median 32.50 ms, p90 39.57 ms |
+
+Every 10 s slice of the final round run is at or above 40.8 FPS. Both
+heavy scenes now run above 30 FPS uncapped with headroom; the 30 FPS cap
+itself was not re-measured with these changes.
+
 ### Overall (first three changes)
 
 | Scene, window | Before | After |
@@ -249,7 +279,8 @@ renderers (`analysis/vk-scene-final-*`), except the round, which is the
 JTS A/B's polling arm. The round now holds 30 FPS uncapped in this window
 with headroom, so the 30 FPS cap can keep it at a steady 30. The menu's
 camera tour averages just over 30 but ~20 % of its frames still take more
-than 40 ms. Remaining costs, from the profiles:
+than 40 ms. Remaining costs at that point (sections 4-6 then addressed
+the first two and the remap), from the profiles:
 SPU job setup zeroes each job's 256 KiB local store and copies its binary
 (~15 % of image 41 job time); some pool-lane SPU code still runs in the
 interpreter (~5 % of lane time); and on the RSX thread, per-draw vertex
