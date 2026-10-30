@@ -127,11 +127,12 @@ SDK `0d6154fe`. Inside those pool groups each lane ran ~40 us jobs with
 into ~165 stages of ~14 jobs, and at every stage boundary the lanes slept
 on a condition variable and paid an OS wake-up. With
 `SPURS_POOL_SPIN_US=n` an idle lane polls the queue for up to n us before
-sleeping. The SDK default stays off and the option is ignored below 12
-logical processors (four polling lanes would compete with the guest PPU,
-RSX and audio threads); `scripts/run-windows.ps1` and the native launcher
-now default it to 1000. Polling costs CPU time on those four lanes; on
-this 24-thread machine both scenes still got faster.
+sleeping. Unset, the SDK picks 1000 with 12+ logical processors and 0
+below (four polling lanes would compete with the guest PPU, RSX and audio
+threads); a set value, including 0, is used as given. The startup log
+says which (`[job-pool] idle lanes poll ... (automatic, N logical
+processors)`). Polling costs CPU time on those four lanes; on this
+24-thread machine both scenes still got faster.
 
 | Scene, window | Spin | FPS | Median ms | p90 ms | p99 ms | >40 ms |
 |---|---|---:|---:|---:|---:|---:|
@@ -157,9 +158,8 @@ shares the SPURS runtime and gains as well: menu 26.53 -> 28.77 FPS
 SDK `3badb6a9`. The geometry chain's walker waits ~50 times per frame for
 the other chain to publish its next JOBLIST (a JTS slot replaced by an SPU
 DMA). `SPURS_JTS_SPIN_US=n` polls the slot for up to n us before parking on
-its condition variable, with the same 12-processor guard; the launch script
-and native launcher default it to 1000. Both arms below have pool polling
-at 1000 us.
+its condition variable, with the same automatic default. Both arms below
+have pool polling at 1000 us.
 
 | Scene, window | JTS poll | FPS | Median ms | p90 ms | p99 ms | >40 ms |
 |---|---|---:|---:|---:|---:|---:|
@@ -174,7 +174,7 @@ at 1000 us.
 
 SDK `e47fe54f`. Each SPU job zeroed the whole local store past its binary
 (~200 KiB) before staging, ~15 % of image 41 job time. With
-`SPURS_JOB_LS_ZERO=1` (now the launch default) a reused job context clears
+`SPURS_JOB_LS_ZERO=1` (now the SDK default; 0 restores the full clear) a reused job context clears
 only the regions the job is given (io/out/scratch/stack, cache padding and
 the context/descriptor block); the rest keeps the previous job's bytes, as
 on hardware. A round frame dump renders normally and the logs show no new
@@ -261,6 +261,13 @@ Default launch settings after a full rebuild of both renderers
 | Vulkan menu 40-98 s | 23.6-24.7 FPS, median ~42 ms, p90 51-56 ms, >40 ms 56-58 % | 36.26 FPS, median 29.55 ms, p90 34.83 ms, p99 39.20 ms, >40 ms 0.8 % |
 | Vulkan round 150-250 s | 29.1 FPS, median 33.6 ms, p90 41.2 ms, >40 ms 12.6 % | 44.23 FPS, median 22.55 ms, p90 27.34 ms, p99 32.08 ms, >40 ms 0.2 % |
 | D3D12 menu 40-98 s | 26.5 FPS, median 40.0 ms, p90 46.9 ms | 33.34 FPS, median 32.50 ms, p90 39.57 ms |
+
+All six are on without any environment, including a direct EXE start:
+the depth conversion, remap and lifts always; pool/JTS polling and the LS
+regions mode through the SDK's own defaults above. A menu run with nothing
+set gave 36.85 FPS (median 28.88 ms); setting `SPURS_POOL_SPIN_US=0`,
+`SPURS_JTS_SPIN_US=0` and `SPURS_JOB_LS_ZERO=0` gave 31.93 FPS (median
+32.50 ms) in the same session.
 
 Every 10 s slice of the final round run is at or above 40.8 FPS. Both
 heavy scenes now run above 30 FPS uncapped with headroom; the 30 FPS cap
