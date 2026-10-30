@@ -27,6 +27,7 @@ bool menu_enabled=false;
 std::array<uint16_t,4> previous_pad_buttons{};
 std::array<uint32_t,2> physical_held{};
 std::array<bool,2> physical_connected{};
+std::array<uint8_t,8> remote_held{};
 std::array<buzz_pc::MenuInputGate,buzz_input::provider_count> menu_gates{};
 bool foreground(){DWORD pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);return pid==GetCurrentProcessId();}
 void capture_locked(bool open){
@@ -156,6 +157,12 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
     if(!active){keyboard_held=0;router.release(buzz_input::keyboard,true);}
     router.state(buzz_input::keyboard,menu_gates[buzz_input::keyboard].filter(keyboard_held|polled),now);
     for(unsigned receiver=0;receiver<2;++receiver)route_physical(receiver,active,now);
+    // Phones intentionally work while the host window lacks focus. Menu gates
+    // still suppress all gameplay and require a neutral sample on closing.
+    for(unsigned p=0;p<config.players;++p){
+        const auto source=buzz_input::remote0+p;
+        router.state(source,menu_gates[source].filter(buzz_input::bits(p,remote_held[p])),now);
+    }
     if(!menu_captured)router.pulse(buzz_input::script,scripted_pulses,now);
     if(get_state&&now>=next_pad_poll){
         next_pad_poll=now+8;
@@ -180,4 +187,17 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
         }
     }
     return menu_captured?0:router.sample(now);
+}
+void buzz_input_remote(unsigned player,uint8_t held,uint8_t pressed,bool disconnected){
+    std::lock_guard lock(input_mutex);
+    if(player>=config.players)return;
+    const auto source=buzz_input::remote0+player;
+    remote_held[player]=disconnected?0:uint8_t(held&31);
+    if(disconnected){router.release(source,true);menu_gates[source].require_neutral();return;}
+    const auto now=GetTickCount64();
+    // Include transient presses in the gate, so taps made inside the settings
+    // menu (or before releasing an old hold) cannot escape as retained pulses.
+    const auto allowed=menu_gates[source].filter(buzz_input::bits(player,uint8_t(held|pressed)));
+    router.state(source,buzz_input::bits(player,held)&allowed,now);
+    if(!menu_captured)router.pulse(source,buzz_input::bits(player,pressed)&allowed,now);
 }

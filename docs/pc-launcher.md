@@ -185,7 +185,9 @@ Save settings writes `runtime/pc-settings.ini` and `runtime/input-settings.ini`
 for the selected build. Volume/cap/fullscreen and controller mappings apply live;
 network policy remains restart-only. The native launcher reads and writes these
 same files, including custom controller mappings and offline policy. Its Game
-tab also exposes volume, frame lock and fullscreen. Legacy launcher JSON remains
+tab also exposes volume, frame lock, fullscreen and optional local phone-buzzer
+hosting. The in-game **Phone buzzers** page displays its QR code and player
+sessions; see [phone controllers](phone-buzzers.md). Legacy launcher JSON remains
 compatible and provides paths, player labels and fallback preferences where a
 build has no INI yet; simply opening/checking a copy never writes a migration.
 Unsupported renderer

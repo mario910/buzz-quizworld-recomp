@@ -19,11 +19,12 @@ int main() {
         check(pad.sample(0,565)==0);check(pad.sample(0x1000|0x2000,566)==(0x1000|0x2000));
         pad.reset();check(pad.sample(0x10,567)==0); // START is not an answer/select
         MenuModel menu;check(!menu.open());menu.navigate(MenuAction::toggle);check(menu.open());
-        menu.navigate(MenuAction::up);check(menu.selection()==7);menu.navigate(MenuAction::down);check(menu.selection()==0);
+        menu.navigate(MenuAction::up);check(menu.selection()==8);menu.navigate(MenuAction::down);check(menu.selection()==0);
         menu.show(MenuPage::controllers);check(menu.rows()==10);menu.navigate(MenuAction::up);check(menu.selection()==9);
         menu.navigate(MenuAction::back);check(menu.open()&&menu.page()==MenuPage::settings);
         menu.show(MenuPage::quit_confirm);check(menu.rows()==2&&menu.selection()==0);
         menu.navigate(MenuAction::back);menu.navigate(MenuAction::back);check(!menu.open());
+        menu.show(MenuPage::phones);check(menu.rows()==14);menu.select(99);check(menu.selection()==13);
         auto controls=buzz_input::defaults();std::string controls_text;
         check(buzz_input_format_config(controls,controls_text,error));
         auto loaded_controls=buzz_input::defaults();check(buzz_input::parse_config(controls_text,loaded_controls,error));
@@ -31,16 +32,17 @@ int main() {
         controls.pad_buttons[0][0]=0x1234;const auto old_text=controls_text;check(!buzz_input_format_config(controls,controls_text,error)&&controls_text==old_text);
         check(p.volume_percent==100&&p.fps_limit==30&&p.offline);
         Preferences decoded;check(parse(serialize(p),decoded,error)&&decoded==p);
-        p.volume_percent=42;p.fullscreen=true;p.fps_limit=0;p.offline=false;p.renderer=Renderer::vulkan;
+        p.volume_percent=42;p.fullscreen=true;p.fps_limit=0;p.offline=false;p.renderer=Renderer::vulkan;p.phone_buzzers=true;p.phone_port=65535;
         check(parse(serialize(p),decoded,error)&&decoded==p);
         const auto previous=decoded;
-        for(const char* bad:{"version=2","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","volume=10"}) {
+        for(const char* bad:{"version=2","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));
         State state;auto result=state.apply(p);
         check(result.accepted&&result.restart==(network_restart|renderer_restart));
         check(state.active().volume_percent==42&&state.active().fullscreen&&state.active().fps_limit==0);
+        check(state.active().phone_buzzers&&state.active().phone_port==65535);
         check(state.active().offline&&state.active().renderer==Renderer::automatic);
         check(state.requested()==p);
         const auto revision=result.revision;check(state.apply(p).revision==revision);

@@ -18,6 +18,8 @@ either, or the following separately licensed components.
 | Dear ImGui, Omar Cornut and contributors | MIT; pinned source `LICENSE.txt`, installed as `licenses/ImGui.txt` | Native launcher UI |
 | JSON for Modern C++, Niels Lohmann and contributors | MIT; pinned source `LICENSE.MIT`, installed as `licenses/nlohmann-json.txt` | Native launcher settings/manifest parsing |
 | PicoSHA2, okdshin and contributors | MIT; pinned source `LICENSE`, installed as `licenses/PicoSHA2.txt` | Native launcher's SHA-256 consistency checks |
+| cpp-httplib, Yuji Hirose and contributors, v0.18.7 | MIT; `third_party/cpp-httplib/LICENSE` | Embedded local HTTP phone-controller server |
+| QR Code generator, Project Nayuki, v1.8.0 | MIT notice in each file in `third_party/qrcodegen` | In-game phone pairing QR code |
 
 Other notices in upstream files remain in place. Tool dependencies installed
 by pip have their own licenses; they are not vendored by this repository.

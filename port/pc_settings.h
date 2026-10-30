@@ -13,6 +13,8 @@ struct Preferences {
     bool fullscreen = false;
     bool offline = true;
     Renderer renderer = Renderer::automatic;
+    bool phone_buzzers = false;
+    unsigned phone_port = 8073;
 };
 bool operator==(const Preferences&, const Preferences&);
 inline bool operator!=(const Preferences& a,const Preferences& b){return !(a==b);}

@@ -3,7 +3,7 @@
 #include <cstdint>
 namespace buzz_pc {
 enum class MenuAction {toggle,up,down,left,right,accept,back};
-enum class MenuPage {settings,controllers,quit_confirm};
+enum class MenuPage {settings,controllers,quit_confirm,phones};
 // Raw XInput-style bits only, with no OS polling: shared by the host menu and
 // synthetic tests. START is intercepted before gameplay by the input adapter.
 class MenuPadNavigation {
@@ -29,7 +29,7 @@ public:
     bool open()const{return opened_;}
     MenuPage page()const{return page_;}
     int selection()const{return selection_;}
-    int rows()const{return page_==MenuPage::settings?8:page_==MenuPage::controllers?10:2;}
+    int rows()const{return page_==MenuPage::settings?9:page_==MenuPage::controllers?10:page_==MenuPage::phones?14:2;}
     void select(int row){selection_=std::clamp(row,0,rows()-1);}
     void show(MenuPage page){page_=page;selection_=0;}
     void close(){opened_=false;show(MenuPage::settings);}

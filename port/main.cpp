@@ -646,6 +646,7 @@ int main(int argc, char** argv)
     lv2_init_syscalls();     /* the lv2 syscall table */
     if(!buzz_pc_runtime_init())return 1;
     buzz_register_overrides();
+    buzz_pc_phone_initialize(buzz_input_players(),buzz_input_remote);
     buzz_register_frame_limit();
     buzz_pc_overlay_register();
 

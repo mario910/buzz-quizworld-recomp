@@ -148,6 +148,12 @@ hardware-unverified. `Build-Buzz.ps1` builds both renderers (`-Renderer Vulkan`
 or `D3D12` for one); the launcher prefers Vulkan unless PC settings select
 `renderer=d3d12`. See [Vulkan notes](docs/vulkan-bringup.md).
 
+**Phone buzzers:** enable the optional local HTTP host in **Escape / START →
+Phone buzzers**, then scan its QR code on phones connected to the same Wi-Fi.
+Players get five virtual buttons, reserved player slots and reconnecting
+sessions. The host can lock joining or remove phones. Hosting defaults to off;
+see the [phone controller guide](docs/phone-buzzers.md).
+
 For a direct native start using saved settings (or `buzz-paths.json`) and the
 verified runtime defaults:
 

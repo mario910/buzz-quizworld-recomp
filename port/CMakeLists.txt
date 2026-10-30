@@ -306,6 +306,7 @@ add_executable(${PROJECT_NAME}
     frame_limit.cpp
     pc_settings_file.cpp
     pc_overlay.cpp
+    ../third_party/qrcodegen/qrcodegen.cpp
     ${host_boot_trace}
     ${host_frontend_policy}
     video_probe.cpp
@@ -445,6 +446,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ps3recomp_runtime
 )
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzPhone.cmake")
+target_link_libraries(${PROJECT_NAME} PRIVATE buzz_phone)
 
 set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)

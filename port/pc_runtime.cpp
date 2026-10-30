@@ -19,6 +19,13 @@ namespace fs=std::filesystem;
 std::unique_ptr<buzz_pc::State> state;
 std::mutex apply_mutex;
 fs::path preferences_file;
+unsigned phone_players=4;
+buzz_phone::Server::Input phone_input;
+bool configure_phone(const buzz_pc::Preferences& p,std::string& error) {
+    if(!phone_input)return true;
+    if(!p.phone_buzzers){buzz_phone::host().stop();return true;}
+    return buzz_phone::host().start(p.phone_port,phone_players,phone_input,error);
+}
 bool renderer_available(buzz_pc::Renderer r) {
     if(r==buzz_pc::Renderer::automatic)return true;
 #if defined(BUZZ_EXPERIMENTAL_VULKAN)
@@ -77,18 +84,28 @@ buzz_pc::Preferences buzz_pc_requested_preferences() {
     std::lock_guard lock(apply_mutex);
     return state?state->requested():buzz_pc::Preferences{};
 }
+void buzz_pc_phone_initialize(unsigned players,buzz_phone::Server::Input input) {
+    std::lock_guard lock(apply_mutex);phone_players=players;phone_input=std::move(input);
+    std::string error;
+    if(state&&!configure_phone(state->active(),error))fprintf(stderr,"[phone] %s\n",error.c_str());
+}
 buzz_pc::Change buzz_pc_apply_preferences(const buzz_pc::Preferences& p,bool persist) {
     std::lock_guard lock(apply_mutex);
     if(!state)return {false,0,0,"PC settings are not initialized"};
     std::string error;
     if(!buzz_pc::validate(p,error))return {false,0,0,error};
     if(!renderer_available(p.renderer))return {false,0,0,"Requested renderer is not available in this build"};
+    const auto previous=state->active();
     try {
+        if(!configure_phone(p,error)){
+            std::string ignored;configure_phone(previous,ignored);
+            return {false,0,0,error};
+        }
         if(persist)atomic_save(p);
         auto result=state->apply(p);
         if(result.accepted)apply_live(state->active());
         return result;
-    }catch(const std::exception& e){return {false,0,0,e.what()};}
+    }catch(const std::exception& e){std::string ignored;configure_phone(previous,ignored);return {false,0,0,e.what()};}
 }
 bool buzz_pc_save_input_preferences(const buzz_input::Config& input,std::string& error) {
     std::string text;

@@ -6,12 +6,14 @@
 namespace buzz_pc {
 bool operator==(const Preferences& a,const Preferences& b) {
     return a.volume_percent==b.volume_percent && a.fps_limit==b.fps_limit &&
-        a.fullscreen==b.fullscreen && a.offline==b.offline && a.renderer==b.renderer;
+        a.fullscreen==b.fullscreen && a.offline==b.offline && a.renderer==b.renderer &&
+        a.phone_buzzers==b.phone_buzzers && a.phone_port==b.phone_port;
 }
 bool validate(const Preferences& p,std::string& error) {
     if(p.volume_percent>100)error="Volume must be 0-100 percent";
     else if(p.fps_limit!=0&&p.fps_limit!=30)error="Frame limit must be 0 or 30";
     else if(p.renderer!=Renderer::automatic&&p.renderer!=Renderer::d3d12&&p.renderer!=Renderer::vulkan)error="Invalid renderer preference";
+    else if(p.phone_port<1024||p.phone_port>65535)error="Phone controller port must be 1024-65535";
     else {error.clear();return true;}
     return false;
 }
@@ -21,7 +23,8 @@ std::string serialize(const Preferences& p) {
     const char* renderer=p.renderer==Renderer::automatic?"auto":p.renderer==Renderer::d3d12?"d3d12":"vulkan";
     s<<"# Buzz PC preferences v1. Restart-only options are not live switches.\n"
       <<"version=1\nvolume="<<p.volume_percent<<"\nfps_limit="<<p.fps_limit
-      <<"\nfullscreen="<<p.fullscreen<<"\noffline="<<p.offline<<"\nrenderer="<<renderer<<'\n';
+      <<"\nfullscreen="<<p.fullscreen<<"\noffline="<<p.offline<<"\nrenderer="<<renderer
+      <<"\nphone_buzzers="<<p.phone_buzzers<<"\nphone_port="<<p.phone_port<<'\n';
     return s.str();
 }
 bool parse(const std::string& text,Preferences& output,std::string& error) {
@@ -38,12 +41,14 @@ bool parse(const std::string& text,Preferences& output,std::string& error) {
         auto key=trim(line.substr(0,at)),value=trim(line.substr(at+1));
         if(!seen.insert(key).second)return fail();
         unsigned n=0;
-        auto number=[&] {if(value.empty()||value.size()>3||value.find_first_not_of("0123456789")!=std::string::npos)return false;n=0;for(char c:value)n=n*10+unsigned(c-'0');return true;};
+        auto number=[&] {if(value.empty()||value.size()>5||value.find_first_not_of("0123456789")!=std::string::npos)return false;n=0;for(char c:value)n=n*10+unsigned(c-'0');return true;};
         if(key=="version"){if(value!="1")return fail();}
         else if(key=="volume"){if(!number()||n>100)return fail();p.volume_percent=n;}
         else if(key=="fps_limit"){if(!number()||(n!=0&&n!=30))return fail();p.fps_limit=n;}
         else if(key=="fullscreen"||key=="offline") {if(value!="0"&&value!="1")return fail();(key=="fullscreen"?p.fullscreen:p.offline)=value=="1";}
         else if(key=="renderer") {if(value=="auto")p.renderer=Renderer::automatic;else if(value=="d3d12")p.renderer=Renderer::d3d12;else if(value=="vulkan")p.renderer=Renderer::vulkan;else return fail();}
+        else if(key=="phone_buzzers") {if(value!="0"&&value!="1")return fail();p.phone_buzzers=value=="1";}
+        else if(key=="phone_port") {if(!number()||n<1024||n>65535)return fail();p.phone_port=n;}
         else return fail();
     }
     if(!seen.count("version")){error="PC preferences require version=1";return false;}
@@ -61,6 +66,7 @@ Change State::apply(const Preferences& p) {
     if(requested_!=p)++revision_;
     requested_=p;
     active_.volume_percent=p.volume_percent;active_.fps_limit=p.fps_limit;active_.fullscreen=p.fullscreen;
+    active_.phone_buzzers=p.phone_buzzers;active_.phone_port=p.phone_port;
     uint32_t restart=no_restart;
     if(active_.offline!=p.offline)restart|=network_restart;
     if(active_.renderer!=p.renderer)restart|=renderer_restart;

@@ -90,3 +90,5 @@ bool buzz_input_format_config(const buzz_input::Config&,std::string& ini,std::st
 void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool connected);
 bool buzz_input_physical_connected(unsigned receiver);
 uint8_t buzz_input_host_physical_buttons(); // OR of handsets, focused menu navigation only
+// Independent remote source per player; expiry/kick drops retained pulses too.
+void buzz_input_remote(unsigned player,uint8_t held,uint8_t pressed,bool disconnected);

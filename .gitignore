@@ -13,6 +13,8 @@
 # Build output and local tool environments
 /build-windows/
 /build-launcher/
+/.playwright-cli/
+/output/playwright/
 /build-vulkan-smoke/
 /build-vulkan-windows/
 /dist-launcher/

@@ -235,6 +235,12 @@ void game_tab(App& app,SDL_Window* window) {
     bool cap=app.settings.pc.fps_limit!=0;
     if(ImGui::Checkbox("30 FPS frame lock",&cap)){app.settings.pc.fps_limit=cap?30:0;app.settings.pc_configured=true;}
     if(ImGui::Checkbox("Borderless fullscreen",&app.settings.pc.fullscreen))app.settings.pc_configured=true;
+    if(ImGui::Checkbox("Host phone buzzers over local Wi-Fi",&app.settings.pc.phone_buzzers))app.settings.pc_configured=true;
+    if(app.settings.pc.phone_buzzers) {
+        int port=int(app.settings.pc.phone_port);ImGui::SetNextItemWidth(160);
+        if(ImGui::InputInt("Phone controller port",&port)){app.settings.pc.phone_port=unsigned(std::clamp(port,1024,65535));app.settings.pc_configured=true;}
+        ImGui::TextWrapped("Scan the QR code in the game's Escape > Phone buzzers menu. Phones and PC must share a trusted Wi-Fi network. Allow this game's port on private networks in Windows Firewall if prompted.");
+    }
     ImGui::TextDisabled("Offline mode requires restarting. Fullscreen does not change rendering resolution.");
     ImGui::Spacing();ImGui::TextDisabled("Supported identities: EU 1.00, US 1.00, EU 1.02. ELF and EXE hashes are checked.");
     ImGui::TextWrapped("Configuration root: %s",utf8(app.root).c_str());

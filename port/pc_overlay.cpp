@@ -2,14 +2,18 @@
 #include "pc_menu_model.h"
 #include "pc_runtime.h"
 #include "buzzer_hid_win32.h"
+#include "phone_server.h"
+#include "../third_party/qrcodegen/qrcodegen.hpp"
 #include "ps3emu/host_overlay.h"
 #include "ps3emu/host_controls.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <string>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -34,6 +38,7 @@ namespace {
 buzz_pc::MenuModel menu;
 buzz_pc::Preferences preferences;
 buzz_input::Config input;
+buzz_phone::Status phone_status;
 std::string status;
 ImGuiContext* context=nullptr;
 ID3D12DescriptorHeap* descriptors=nullptr;
@@ -122,15 +127,26 @@ void act(buzz_pc::MenuAction action) {
         if(row==0)menu.show(MenuPage::settings);else PostMessageW(window,WM_CLOSE,0,0);
         return;
     }
+    if(menu.page()==MenuPage::phones) {
+        if(row==0){preferences.phone_buzzers=!preferences.phone_buzzers;apply_live();}
+        else if(row==1&&!accept){preferences.phone_port=unsigned(std::clamp(int(preferences.phone_port)+direction,1024,65535));apply_live();}
+        else if(row==2&&accept)buzz_phone::host().set_locked(!phone_status.locked);
+        else if(row==3&&accept){buzz_phone::host().reset();status="New pairing code created. All phone sessions released.";}
+        else if(row>=4&&row<=11&&accept)buzz_phone::host().kick(unsigned(row-4));
+        else if(row==12&&accept)save_all();
+        else if(row==13&&accept)menu.show(MenuPage::settings);
+        return;
+    }
     if(menu.page()==MenuPage::settings) {
         if(row==0&&!accept){preferences.volume_percent=unsigned(std::clamp(int(preferences.volume_percent)+direction*5,0,100));apply_live();}
         else if(row==1){preferences.fps_limit=preferences.fps_limit?0:30;apply_live();}
         else if(row==2){preferences.fullscreen=!preferences.fullscreen;apply_live();}
         else if(row==3){preferences.offline=!preferences.offline;apply_live();}
         else if(row==4&&accept)menu.show(MenuPage::controllers);
-        else if(row==5&&accept)save_all();
-        else if(row==6&&accept)navigate(MenuAction::toggle);
-        else if(row==7&&accept)menu.show(MenuPage::quit_confirm);
+        else if(row==5&&accept)menu.show(MenuPage::phones);
+        else if(row==6&&accept)save_all();
+        else if(row==7&&accept)navigate(MenuAction::toggle);
+        else if(row==8&&accept)menu.show(MenuPage::quit_confirm);
     }else {
         if(row==0){input.gamepads=!input.gamepads;apply_input();}
         else if(row==1&&accept){input.pad_buttons=buzz_input::defaults().pad_buttons;input.gamepads=true;apply_input();}
@@ -246,13 +262,24 @@ void controller() {
 std::string row_label(int row) {
     using buzz_pc::MenuPage;
     if(menu.page()==MenuPage::quit_confirm)return row==0?"KEEP PLAYING":"QUIT GAME";
+    if(menu.page()==MenuPage::phones) {
+        if(row==0)return std::string("HOST PHONE BUZZERS: ")+(phone_status.running?"ON":preferences.phone_buzzers?"ON [unavailable]":"OFF");
+        if(row==1)return "HTTP PORT: "+std::to_string(preferences.phone_port);
+        if(row==2)return std::string("JOINING: ")+(phone_status.locked?"LOCKED":"OPEN");
+        if(row==3)return "NEW CODE / REMOVE ALL PHONES";
+        if(row==12)return "SAVE SETTINGS";
+        if(row==13)return "BACK";
+        const auto player=unsigned(row-4);const auto& seat=phone_status.seats[player];
+        if(player>=buzz_input_players())return "P"+std::to_string(player+1)+": unavailable (4-slot mode)";
+        return "P"+std::to_string(player+1)+": "+(seat.reserved?seat.name+(seat.online?" [online]":" [away]")+" - REMOVE":"available");
+    }
     if(menu.page()==MenuPage::settings) {
         switch(row) {
             case 0:return "VOLUME                                      "+std::to_string(preferences.volume_percent)+"%";
             case 1:return std::string("30 FPS FRAME LOCK                   ")+(preferences.fps_limit?"ON":"OFF");
             case 2:return std::string("BORDERLESS FULLSCREEN          ")+(preferences.fullscreen?"ON":"OFF");
             case 3:return std::string("OFFLINE MODE [restart]              ")+(preferences.offline?"ON":"OFF");
-            case 4:return "CONTROLLERS  >";case 5:return "SAVE SETTINGS";case 6:return "RETURN TO GAME";default:return "QUIT GAME...";
+            case 4:return "CONTROLLERS  >";case 5:return "PHONE BUZZERS  >";case 6:return "SAVE SETTINGS";case 7:return "RETURN TO GAME";default:return "QUIT GAME...";
         }
     }
     switch(row) {
@@ -264,6 +291,41 @@ std::string row_label(int row) {
         default:{unsigned slot=unsigned(row-2);return "PAD "+std::to_string(slot+1)+(buzz_input_host_pad_connected(slot)?" [connected]":" [not connected]")+"  >  "+(input.pad_player[slot]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[slot]+1));}
     }
 }
+void draw_phone_pairing() {
+    if(!phone_status.running){ImGui::TextWrapped("Enable Host phone buzzers to display the QR code.");return;}
+    static int address=0;
+    address=std::clamp(address,0,std::max(0,int(phone_status.urls.size())-1));
+    if(phone_status.urls.empty())return;
+    const auto& url=phone_status.urls[address];const auto endpoint=url.substr(0,url.find("/#"));
+    ImGui::SetNextItemWidth(-1);
+    if(ImGui::BeginCombo("##phone-address",endpoint.c_str())) {
+        for(unsigned i=0;i<phone_status.urls.size();++i){const auto& u=phone_status.urls[i];if(ImGui::Selectable(u.substr(0,u.find("/#")).c_str(),int(i)==address))address=int(i);}
+        ImGui::EndCombo();
+    }
+    static std::string encoded;
+    static std::unique_ptr<qrcodegen::QrCode> qr;
+    if(encoded!=url) {
+        try {qr=std::make_unique<qrcodegen::QrCode>(qrcodegen::QrCode::encodeText(url.c_str(),qrcodegen::QrCode::Ecc::MEDIUM));encoded=url;}
+        catch(const std::exception& e){qr.reset();status=e.what();}
+    }
+    if(qr) {
+        const int modules=qr->getSize(),border=4;
+        const float scale=std::max(1.0f,std::floor(std::min(ImGui::GetContentRegionAvail().x,260.0f)/(modules+border*2)));
+        const float extent=scale*(modules+border*2);const auto p=ImGui::GetCursorScreenPos();auto* draw=ImGui::GetWindowDrawList();
+        draw->AddRectFilled(p,ImVec2(p.x+extent,p.y+extent),IM_COL32_WHITE);
+        for(int y=0;y<modules;++y)for(int x=0;x<modules;++x)if(qr->getModule(x,y)) {
+            const ImVec2 at(p.x+(x+border)*scale,p.y+(y+border)*scale);
+            draw->AddRectFilled(at,ImVec2(at.x+scale,at.y+scale),IM_COL32_BLACK);
+        }
+        ImGui::Dummy(ImVec2(extent,extent));
+    }
+    ImGui::TextWrapped("Scan with your phone camera. Use the same Wi-Fi as this PC.");
+    if(ImGui::Button("Copy pairing link"))ImGui::SetClipboardText(url.c_str());
+    ImGui::TextWrapped("%s",url.c_str());
+    if(endpoint.find("127.0.0.1")!=std::string::npos)ImGui::TextWrapped("Loopback is for this PC only. Select a LAN address above. If none is listed, connect the PC to Wi-Fi or Ethernet and restart hosting.");
+    ImGui::TextDisabled("Local HTTP / trusted networks only");
+    ImGui::TextWrapped("Allow this game's port on private networks in Windows Firewall if phones cannot connect. Guest Wi-Fi may block devices from reaching the PC.");
+}
 void draw_menu() {
     auto& io=ImGui::GetIO();auto size=io.DisplaySize;
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0,0),size,IM_COL32(4,5,20,200));
@@ -273,12 +335,17 @@ void draw_menu() {
     ImGui::Begin("Buzz PC settings",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoMove);
     auto p=ImGui::GetCursorScreenPos();const auto available=ImGui::GetContentRegionAvail();
     ImGui::GetWindowDrawList()->AddRectFilledMultiColor(p,ImVec2(p.x+available.x,p.y+64),IM_COL32(145,20,255,255),IM_COL32(75,35,180,255),IM_COL32(45,30,120,255),IM_COL32(100,30,210,255));
-    ImGui::SetCursorScreenPos(ImVec2(p.x+18,p.y+14));ImGui::TextUnformatted(menu.page()==buzz_pc::MenuPage::controllers?"BUZZ!  /  CONTROLLERS":"BUZZ!  /  PC SETTINGS");
+    const bool phones=menu.page()==buzz_pc::MenuPage::phones;
+    if(phones)phone_status=buzz_phone::host().status();
+    ImGui::SetCursorScreenPos(ImVec2(p.x+18,p.y+14));ImGui::TextUnformatted(phones?"BUZZ!  /  PHONE BUZZERS":menu.page()==buzz_pc::MenuPage::controllers?"BUZZ!  /  CONTROLLERS":"BUZZ!  /  PC SETTINGS");
     ImGui::SetCursorScreenPos(ImVec2(p.x,p.y+78));
     if(menu.page()==buzz_pc::MenuPage::controllers) {
         const unsigned receivers=unsigned(buzz_input_physical_connected(0))+unsigned(buzz_input_physical_connected(1));
         ImGui::TextDisabled("Buzz USB: %u receiver(s) | hardware-unverified%s",receivers,buzz_hid_host_registered()?"":" | unavailable");
         if(receivers>1&&input.players==4)ImGui::TextWrapped("Receiver 2 needs eight buzzer slots (restart).");
+    }
+    if(phones) {
+        ImGui::BeginChild("pairing",ImVec2(std::max(160.0f,available.x*.36f),-100));draw_phone_pairing();ImGui::EndChild();ImGui::SameLine();
     }
     ImGui::BeginChild("options",ImVec2(0,-100));
     static int last_selection=-1;static buzz_pc::MenuPage last_page=buzz_pc::MenuPage::settings;
@@ -294,7 +361,7 @@ void draw_menu() {
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,ImVec4(.48f,.22f,.78f,1));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,ImVec4(.67f,.28f,.96f,1));
         auto label=row_label(row);
-        const bool adjustable=(menu.page()==buzz_pc::MenuPage::settings&&row==0)||(menu.page()==buzz_pc::MenuPage::controllers&&row==6);
+        const bool adjustable=(menu.page()==buzz_pc::MenuPage::settings&&row==0)||(menu.page()==buzz_pc::MenuPage::controllers&&row==6)||(phones&&row==1);
         const float adjust_width=44,space=ImGui::GetStyle().ItemSpacing.x;
         if(adjustable){
             if(ImGui::Button("-",ImVec2(adjust_width,row_height))){menu.select(row);act(buzz_pc::MenuAction::left);}
@@ -309,6 +376,7 @@ void draw_menu() {
     last_selection=menu.selection();last_page=menu.page();
     ImGui::PopStyleVar();
     ImGui::EndChild();
+    if(phones&&!phone_status.error.empty())ImGui::TextWrapped("%s",phone_status.error.c_str());
     if(!status.empty())ImGui::TextWrapped("%s",status.c_str());
     else ImGui::TextDisabled(pause_guest&&host_pause?"The game is paused while this menu is open.":"Game continues running while this menu is open.");
     if(buzz_input_physical_connected(0)||buzz_input_physical_connected(1))ImGui::TextDisabled("Buzz: blue/orange up/down, yellow/green adjust, red select");
@@ -372,6 +440,7 @@ void draw(const ps3_host_overlay_frame* frame) {
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),commands);
 }
 void shutdown() {
+    buzz_phone::host().stop();
     ps3_host_set_paused(0);
     buzz_hid_host_shutdown();
     buzz_input_enable_menu(false);

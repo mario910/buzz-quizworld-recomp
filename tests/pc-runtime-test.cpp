@@ -33,6 +33,14 @@ int main(){try {
     check(std::string(getenv("BUZZ_OFFLINE"))=="0"); // no fake live PSN switch
     check(read(file)==buzz_pc::serialize(p));
     check(buzz_pc_runtime_init());check(std::string(getenv("BUZZ_OFFLINE"))=="1");
+    buzz_pc_phone_initialize(4,[](unsigned,uint8_t,uint8_t,bool){});
+    check(!buzz_phone::host().status().running);
+    p.phone_buzzers=true;p.phone_port=18751;
+    check(buzz_pc_apply_preferences(p,true).accepted&&buzz_phone::host().status().running);
+    const auto pairing=buzz_phone::host().status().urls;
+    p.volume_percent=21;check(buzz_pc_apply_preferences(p,true).accepted&&buzz_phone::host().status().urls==pairing);
+    p.phone_buzzers=false;check(buzz_pc_apply_preferences(p,true).accepted&&!buzz_phone::host().status().running);
+    p.volume_percent=20;check(buzz_pc_apply_preferences(p,true).accepted);
     const auto before=read(file);auto bad=p;bad.volume_percent=101;
     check(!buzz_pc_apply_preferences(bad,true).accepted&&read(file)==before&&ps3_host_get_volume()==20);
 #ifdef _WIN32
