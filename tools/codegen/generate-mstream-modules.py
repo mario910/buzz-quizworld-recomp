@@ -42,7 +42,7 @@ MODULES = (
     ("compressor", "analysis/spu-images/spu_0003_at_0071F480.elf",
      0x2FE10, (0x2FE10, 0x304F0), (0, 0)),
     ("vumeter", "analysis/spu-images/spu_0005_at_00722680.elf",
-     0x2FA10, (0x2FA10,), (0, 0)),
+     0x2FA10, (0x2FA10, 0x2FA70), (0, 0)),   # 0x2FA70: multi-player games
 )
 PINNED = {
     "atrac": "c543ecc87e82beec3159d88fbb73dc4229424d357c0a48be3c4cb55d3fdefadc",

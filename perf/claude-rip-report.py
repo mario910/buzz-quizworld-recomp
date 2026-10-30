@@ -7,7 +7,8 @@ import bisect, collections, re, sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-mapping = (root / "build-windows/BuzzQuizWorldRecomp.map").read_text(errors="replace")
+import os
+mapping = (root / os.environ.get("BUZZ_BUILD_DIR", "build-windows") / "BuzzQuizWorldRecomp.map").read_text(errors="replace")
 preferred = int(re.search(r"Preferred load address is ([0-9a-fA-F]+)", mapping)[1], 16)
 names = {}
 for m in re.finditer(r"^\s+0001:[0-9a-fA-F]+\s+(\S+)\s+([0-9a-fA-F]{16})\s+(?:f\s+)?(.+)$", mapping, re.M):
