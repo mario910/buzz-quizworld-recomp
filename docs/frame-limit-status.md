@@ -199,6 +199,43 @@ every number versus the tables above (the same default build gave
 
 Run order: menu 2/0/1/0/2/1, round 1/0/0/1.
 
+### 5. Lift the geometry jobs' missed entry points
+
+`SPU_INTERP_STATS=10` showed ~5.7 M SPU instructions per second still
+interpreted on the pool lanes, in images 40 and 41 (LS 0x1000-0x3BFF).
+`SPU_INTERP_ENTRIES=1` names the targets: function pointers and register
+continuations the start heuristics cannot see. The 1.02 generator already
+seeds such addresses (`EXTRA_STARTS`); the EU 1.00 generator had none.
+`tools/codegen/build-disc100-reference.py` now seeds 37 addresses in
+images 34, 35, 40, 41, 43, 45 and 47 (found in the menu and a round), each
+guarded by its instruction word in the reviewed binary. Interpretation
+drops to 0.1-0.3 M instructions/s (image 35 bootstrap only).
+
+The image 40 and stage F native adapters pin their lifted sources by hash.
+Their audited functions (image 40: 0x6DB8; image 41: 0x2C00, 0x63E0,
+0xC518, probe 0x6E08) are byte-identical in the new lift, and the new
+hashes were added beside the old ones. Regenerate the raw jobs (or the
+whole 1.00 workspace) to get the new lift. A round frame dump renders
+normally.
+
+EXE A/B (previous build kept beside the new one), workstation locked:
+
+| Scene, window | Lift | FPS | Median ms | p90 ms | p99 ms | >40 ms |
+|---|---|---:|---:|---:|---:|---:|
+| Menu 40-98 s | old | 27.01 | 40.04 | 47.70 | 51.15 | 50.1 % |
+| Menu 40-98 s | old | 27.06 | 39.70 | 47.66 | 52.42 | 48.9 % |
+| Menu 40-98 s | new | 30.39 | 35.37 | 42.72 | 46.33 | 24.8 % |
+| Menu 40-98 s | new | 30.65 | 34.90 | 42.15 | 45.77 | 21.7 % |
+| Round 150-250 s | old | 32.95 | 30.63 | 34.20 | 37.78 | 0.5 % |
+| Round 150-250 s | old | 33.80 | 30.27 | 34.18 | 37.85 | 0.4 % |
+| Round 150-250 s | new | 36.46 | 27.57 | 31.24 | 35.08 | 0.4 % |
+| Round 150-250 s | new | 32.05 | 30.88 | 37.65 | 52.95 | 4.9 % |
+
+Run order new/old/old/new for both scenes. The last round run reached its
+round on a shifted timeline (its first 10 s slice is the pre-question
+transition at 27.9 FPS, ~45 in the others), so its window is not
+phase-matched; its later slices run 32-33 FPS.
+
 ### Overall (first three changes)
 
 | Scene, window | Before | After |

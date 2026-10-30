@@ -14,6 +14,9 @@ raw = (source_dir / "spu_recomp.c").read_bytes()
 profiles = {
     "29af00779cbaacc132c46947811f43ab2e9ac78564c82952fc6f0e27744b5fed": "6D78",  # 1.02
     "6b4483d57acf7a145d0bf3e4f70c83875f7f67b3dd6931d52a9d980ca65cf7df": "6DB8",  # EU 1.00
+    # EU 1.00 with the extra lifted starts (EU100_EXTRA_STARTS); 6DB8's body
+    # is byte-identical to the entry above.
+    "1b45bc6b4a53d7d4647714475a72e183b9b4e7a79d4e032f2e8925ed728f60ba": "6DB8",
 }
 pc = profiles.get(hashlib.sha256(raw).hexdigest())
 if pc is None:

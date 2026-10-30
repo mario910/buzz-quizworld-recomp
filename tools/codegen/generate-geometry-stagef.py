@@ -36,10 +36,13 @@ KERNELS = (("6338", "buzz_stagef_native_loop", 0),
 
 source = (SOURCE / "spu_recomp.c").read_text()
 digest = hashlib.sha256((SOURCE / "spu_recomp.c").read_bytes()).hexdigest()
-if digest not in {"5ae9232d4f2d47004b687251b479b4515c1f2ea46e9f868332e3305a4a13434e",
-                  "7727abc0b151a75b9d480102192f2aac6b623da117d23e20662b8b7e02b3bd82"}:
+# EU 1.00 twice: the second lift adds EU100_EXTRA_STARTS (build-disc100-
+# reference.py); the kernel and probe bodies below are byte-identical.
+DISC100 = {"5ae9232d4f2d47004b687251b479b4515c1f2ea46e9f868332e3305a4a13434e",
+           "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"}
+if digest not in DISC100 | {"7727abc0b151a75b9d480102192f2aac6b623da117d23e20662b8b7e02b3bd82"}:
     raise SystemExit("Unreviewed geometry image; do not infer the native ABI from addresses")
-disc100 = digest == "5ae9232d4f2d47004b687251b479b4515c1f2ea46e9f868332e3305a4a13434e"
+disc100 = digest in DISC100
 if disc100:
     # The vertex algorithm is shared; its input register allocation is mapped
     # explicitly in the native header. Cull stays reference until reviewed.

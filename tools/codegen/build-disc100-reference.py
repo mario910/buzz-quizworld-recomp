@@ -126,6 +126,30 @@ def rebind_host(work, elf, imports, toc, us=False):
     return dict(offline=account, boot_probes=evidence, queue_push_return_pcs=pushes, queue_init_return_pcs=initializers)
 
 
+# Code addresses the start heuristics cannot see: function pointers and
+# register continuations, found with SPU_INTERP_ENTRIES=1 in the EU 1.00
+# studio menu and a solo round (~5 M interpreted instructions/s, mostly
+# images 40/41). Keyed by raw image offset; each carries the instruction word
+# at that address in the reviewed binary, so a different binary fails loudly
+# instead of mis-splitting. (The probe's "first-word" is where its microstep
+# stopped, not the entry's word.)
+EU100_EXTRA_STARTS = {
+    0x786900: [(0x0D40, 0x40802010), (0x0EA8, 0x40800434), (0x0F18, 0x4080008B), (0x126C, 0x40800427),
+               (0x2968, 0x34000916), (0x2E60, 0x1C01C208), (0x35A8, 0x04002AAE), (0x3650, 0x3400018E),
+               (0x3660, 0x34002A0C), (0x3948, 0x42730060)],                                   # image 41
+    0x73A780: [(0x13B0, 0x4080008F), (0x14C0, 0x408000AA), (0x1F04, 0x408000A7), (0x2140, 0x40BFFF85),
+               (0x2324, 0x40A00032), (0x25EC, 0x408000AF), (0x276C, 0x40800085)],              # image 40
+    0x759280: [(0x1530, 0x4080008F), (0x1640, 0x408000AA), (0x2084, 0x408000A7), (0x22C0, 0x40BFFF85),
+               (0x24A4, 0x40A00032), (0x276C, 0x408000AF), (0x28EC, 0x40800085)],              # image 43
+    0x7F4B80: [(0x1418, 0x4080008F), (0x1528, 0x408000AA), (0x1F6C, 0x408000A7), (0x21A8, 0x40BFFF85),
+               (0x238C, 0x40A00032), (0x2654, 0x408000AF), (0x27D4, 0x40800085)],              # image 47
+    0x7D0980: [(0x0DE0, 0x4080008F), (0x1934, 0x408000A7), (0x1B70, 0x40BFFF85), (0x1D54, 0x40A00032),
+               (0x201C, 0x408000AF), (0x219C, 0x40800085), (0x2448, 0x40A00014)],              # image 45
+    0x76B680: [(0x1490, 0x127D720B), (0x1EC8, 0x04000184)],                                    # image 34
+    0x7C2F80: [(0x04E0, 0x4085800F), (0x0B90, 0x04000184)],                                    # image 35
+}
+
+
 def raw_jobs(work, elf, us=False):
     output = work / "analysis/raw-reference"
     output.mkdir(parents=True, exist_ok=True)
@@ -174,6 +198,10 @@ def raw_jobs(work, elf, us=False):
         entries.update(address for address in (collect_branch_targets(instructions) | collect_link_register_targets(instructions)
                        | collect_computed_branch_targets(instructions) | collect_jump_table_targets(instructions, blob, 0, code_end))
                        if 0x10 <= address < code_end)
+        for address, word in ([] if us else EU100_EXTRA_STARTS.get(start, [])):
+            if address >= code_end or struct.unpack_from(">I", blob, address)[0] != word:
+                raise ValueError(f"Extra SPU start {address:#x} of {name} does not match the reviewed binary")
+            entries.add(address)
         entries = sorted(entries)
         functions = output / (name + ".functions.json")
         functions.write_text(json.dumps([dict(start=hex(a), end=hex(b)) for a, b in zip(entries, entries[1:] + [code_end])]))
