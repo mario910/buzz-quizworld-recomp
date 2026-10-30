@@ -26,8 +26,9 @@ def summarize(path, low, high):
                 mean_drain_ms=statistics.mean(float(r["drain_ms"]) for r in rows))
 
 
-def report(progress, csv_directory, windows):
-    events = [json.loads(line) for line in progress.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
+def report(progress, csv_directory, windows, events=None):
+    if events is None:
+        events = [json.loads(line) for line in progress.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
     starts = {r["tag"]: r for r in events if r["state"] == "start"}
     done = [r for r in events if r["state"] == "done"]
     if len(starts) != 8 or len(done) != 8 or len({r["tag"] for r in done}) != 8:
@@ -62,17 +63,57 @@ def report(progress, csv_directory, windows):
     return result
 
 
+def batch_report(progress, csv_directory, windows):
+    raw = progress.read_bytes()
+    events = [json.loads(line) for line in raw.decode("utf-8-sig").splitlines() if line.strip()]
+    if any(r["state"] not in ("start", "done") for r in events):
+        raise ValueError("Unknown batch event state")
+    done = [r for r in events if r["state"] == "done"]
+    menu = [r["mask"] for r in done if r["scene"] == "Menu"]
+    if len(menu) not in (4, 6, 8):
+        raise ValueError("Need one to three completed independent kernels")
+    arms = len(menu)//2 - 1
+    baseline, targets = menu[0], menu[1:1+arms]
+    bits = [target ^ baseline for target in targets]
+    if len(set(targets)) != arms or any(not bit or bit & (bit-1) or bit & baseline or target != baseline | bit
+                                      for bit, target in zip(bits, targets)):
+        raise ValueError("Batch targets must add one independent bit to baseline")
+    expected = [baseline] + targets + list(reversed(targets)) + [baseline]
+    for scene in ("Menu", "Round"):
+        if [r["mask"] for r in done if r["scene"] == scene] != expected:
+            raise ValueError(f"Need complete symmetric kernel order in {scene}")
+        scene_events = [r for r in events if r["scene"] == scene]
+        if any("dump_every" in r for r in scene_events) and (
+                not all("dump_every" in r for r in scene_events) or len({r["dump_every"] for r in scene_events}) != 1):
+            raise ValueError("Batch renderer dump settings differ")
+    if any("save_sha256" in r for r in events) and (
+            not all("save_sha256" in r for r in events) or len({r["save_sha256"] for r in events}) != 1):
+        raise ValueError("Batch template saves differ")
+    tags = [r["tag"] for r in done]
+    starts = [r["tag"] for r in events if r["state"] == "start"]
+    if len(done) != 2*len(expected) or len(set(tags)) != len(tags) or sorted(starts) != sorted(tags):
+        raise ValueError("Incomplete or duplicate batch runs")
+    results = {}
+    for bit, target in zip(bits, targets):
+        selected = [r for r in events if r["mask"] in (baseline, target)]
+        results[f"0x{bit:X}"] = report(progress, csv_directory, windows, selected)
+    return dict(progress=str(progress), progress_sha256=hashlib.sha256(raw).hexdigest(),
+                baseline_mask=baseline, shared_reference=True, kernels=results)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("progress", type=Path)
     parser.add_argument("--csv-directory", type=Path, default=Path("analysis"))
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--batch", action="store_true", help="Split a symmetric batch into isolated per-kernel A/B reports")
     args = parser.parse_args()
-    result = report(args.progress, args.csv_directory, {"Menu": (40, 98), "Round": (150, 220)})
+    result = (batch_report if args.batch else report)(args.progress, args.csv_directory, {"Menu": (40, 98), "Round": (150, 220)})
     args.output.write_text(json.dumps(result, indent=2) + "\n")
-    for name, scene in result["scenes"].items():
-        print(f"{name}: {scene['baseline_fps']:.2f} -> {scene['native_fps']:.2f} FPS ({scene['change_percent']:+.2f}%), pairs " +
-              ", ".join(f"{p['change_percent']:+.2f}%" for p in scene["pairs"]))
+    for kernel, entry in (result["kernels"].items() if args.batch else [("", result)]):
+        for name, scene in entry["scenes"].items():
+            print(f"{kernel + ' ' if kernel else ''}{name}: {scene['baseline_fps']:.2f} -> {scene['native_fps']:.2f} FPS ({scene['change_percent']:+.2f}%), pairs " +
+                  ", ".join(f"{p['change_percent']:+.2f}%" for p in scene["pairs"]))
 
 
 if __name__ == "__main__":

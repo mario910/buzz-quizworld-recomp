@@ -250,3 +250,30 @@ frozen executable. A 60 s checked live run (mask 33, other experiments off)
 logged at least 200,000 exact decoder comparisons and no differences:
 `analysis/vk-scene-p2-dehalf-live.stderr.log`. Renderer/A/B gates remain
 pending; bit 5 stays default-off at this implementation checkpoint.
+
+## Isolated kernel batches
+
+The measurement runner accepts one to three `-KernelMask` values. A batch
+keeps the baseline fixed and enables only one new bit per arm. For three
+kernels it runs baseline/A/B/C/C/B/A/baseline in each scene. Filtering to
+any one kernel gives reference/native/native/reference, including both
+reversal pairs. The two reference runs are shared and explicitly identified
+in the report; other experimental kernels are off during each arm.
+
+The executable and template save hashes must remain constant. Every launch
+gets a fresh save copy and the runner verifies its hash. `-MenuDumps` takes
+the same occasional GPU readback in every menu arm, including reference;
+round readbacks remain enabled in all arms. The report rejects asymmetric
+orders, combined kernel bits, incomplete runs, changed saves/executables or
+unequal dump settings. These comparisons belong to their own measurement
+set, not to an older session's absolute FPS.
+
+For example, after freezing a validated build containing bits 2 and 5:
+
+```powershell
+.\perf\measure-geometry-kernel.ps1 -BuildDirectory build-vulkan-dehalf -Tag p2-half-codecs -BaselineMask 1 -KernelMask @(4,32) -MenuDumps -SaveTemplate analysis/native-geometry/private-gamedata
+.\toolenv\Scripts\python.exe perf/geometry-ab-report.py analysis/native-geometry/phase2/p2-half-codecs/progress.jsonl --batch --output analysis/native-geometry/phase2/half-codecs-ab-report.json
+```
+
+Single-kernel calls retain the original four-run order and use the report
+without `--batch`.
