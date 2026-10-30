@@ -170,7 +170,36 @@ at 1000 us.
 | Round 150-250 s, run 2 | 0 | 36.49 | 27.77 | 32.13 | 36.97 | 0.4 % |
 | Round 150-250 s, run 1 | 1000 us | 37.94 | 26.59 | 30.99 | 35.76 | 0.3 % |
 
-### Overall (all three changes)
+### 4. Job contexts clear only the job's declared regions
+
+SDK `e47fe54f`. Each SPU job zeroed the whole local store past its binary
+(~200 KiB) before staging, ~15 % of image 41 job time. With
+`SPURS_JOB_LS_ZERO=1` (now the launch default) a reused job context clears
+only the regions the job is given (io/out/scratch/stack, cache padding and
+the context/descriptor block); the rest keeps the previous job's bytes, as
+on hardware. A round frame dump renders normally and the logs show no new
+warnings. Mode 2 (context block only) is a diagnostic upper bound.
+
+These runs were taken while the workstation was locked, which lowered
+every number versus the tables above (the same default build gave
+25-26 FPS on the menu instead of 30.5); compare only within this table.
+
+| Scene, window | Mode | FPS | Median ms | p90 ms | p99 ms | >40 ms |
+|---|---|---:|---:|---:|---:|---:|
+| Menu 40-98 s | 0 | 25.09 | 43.02 | 50.98 | 54.60 | 55.6 % |
+| Menu 40-98 s | 0 | 25.63 | 42.08 | 50.22 | 55.00 | 54.3 % |
+| Menu 40-98 s | 1 | 26.37 | 40.59 | 48.86 | 53.46 | 51.4 % |
+| Menu 40-98 s | 1 | 27.08 | 39.76 | 47.55 | 52.10 | 49.2 % |
+| Menu 40-98 s | 2 | 28.63 | 34.12 | 44.79 | 51.88 | 25.3 % |
+| Menu 40-98 s | 2 | 27.62 | 38.87 | 46.77 | 50.48 | 47.0 % |
+| Round 150-250 s | 0 | 30.56 | 31.83 | 41.13 | 55.01 | 11.5 % |
+| Round 150-250 s | 0 | 34.26 | 29.55 | 33.49 | 37.60 | 0.4 % |
+| Round 150-250 s | 1 | 33.60 | 30.08 | 33.70 | 38.39 | 0.9 % |
+| Round 150-250 s | 1 | 35.53 | 27.72 | 33.27 | 48.23 | 2.4 % |
+
+Run order: menu 2/0/1/0/2/1, round 1/0/0/1.
+
+### Overall (first three changes)
 
 | Scene, window | Before | After |
 |---|---|---|

@@ -52,7 +52,7 @@ int main(int argc,char** argv) {
         Environment inherited={{"SPURS_JOB_LIST_WORKERS","2"},{"RSX_PIXEL_WINDOW","0"},{"SPURS_JOB_LIST_EXTRA_IMAGES",""},{"BUZZ_SCRIPT","stale"},{"BUZZ_PULSE_MS","99"}};
         auto env=runtime_environment(s,b,temp/"snapshot",inherited);
         check(env.at("SPURS_JOB_LIST_WORKERS")=="2"&&env.at("RSX_PIXEL_WINDOW")=="0"&&env.at("SPURS_JOB_LIST_EXTRA_IMAGES").empty(),"Explicit performance overrides");
-        check(env.at("BUZZ_NATIVE_COMPLETION")=="2"&&env.at("RSX_VERTEX_CAPACITY")=="1048576"&&env.at("SPURS_JTS_DMA_WAKE")=="1"&&env.at("SPURS_POOL_SPIN_US")=="1000"&&env.at("SPURS_JTS_SPIN_US")=="1000","Runtime defaults");
+        check(env.at("BUZZ_NATIVE_COMPLETION")=="2"&&env.at("RSX_VERTEX_CAPACITY")=="1048576"&&env.at("SPURS_JTS_DMA_WAKE")=="1"&&env.at("SPURS_POOL_SPIN_US")=="1000"&&env.at("SPURS_JTS_SPIN_US")=="1000"&&env.at("SPURS_JOB_LS_ZERO")=="1","Runtime defaults");
         check(!env.count("BUZZ_SCRIPT")&&!env.count("BUZZ_PULSE_MS"),"Stale input removed");
         check(inherited.at("BUZZ_PULSE_MS")=="99","Parent environment untouched");
         auto one=plan_launch(s,b,{}),two=plan_launch(s,b,{});
