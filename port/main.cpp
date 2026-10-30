@@ -127,6 +127,7 @@ int      ppu_run(uint32_t entry_opd, uint32_t stack_top);
  * a game with no lifted PRX wants. */
 void     ps3_load_prx_modules(void);
 void     buzz_register_overrides(void);
+void     buzz_register_frame_limit(void);
 void     buzz_edge_stats(unsigned*, unsigned long long*);
 int      buzz_job_corpus_replay(const char* where);
 void     buzz_spurs_debug_snapshot(void);
@@ -279,6 +280,11 @@ static void present_guest_frame(void)
 {
     const uint64_t start=g_render_perf_file?ps3_ft_now():0;
     rsx_backend_present();
+    /* Mailbox/unsynchronised presentation already completed this flip. With
+     * host pacing enabled, deliver its completion now instead of adding a
+     * second wait for the next synthetic vblank. TickFlip only completes an
+     * executed FIFO flip; it does not manufacture a completion or skip fences. */
+    if (ps3_host_get_frame_limit() == 30) cellGcmTickFlip();
     /* This thread increments and guest threads read, so interlocked rather
      * than a volatile ++, which on arm64 is neither atomic nor a fence. */
     const auto frame=InterlockedIncrement(&g_frames_presented);
@@ -439,6 +445,10 @@ static DWORD WINAPI frame_clock(LPVOID)
              * present freely, so the window is not blank during boot. */
             unsigned fc = cellGcm_flip_request_count();
             if (fc != last_flip) {
+                /* The drain just reached a flip. Claim its pending flag here
+                 * too, or the next iteration presents this frame a second
+                 * time before draining any new commands. */
+                cellGcm_take_flip_pending();
                 present_guest_frame();
                 last_flip = fc;
             } else if (fc == 0) {
@@ -636,6 +646,7 @@ int main(int argc, char** argv)
     lv2_init_syscalls();     /* the lv2 syscall table */
     if(!buzz_pc_runtime_init())return 1;
     buzz_register_overrides();
+    buzz_register_frame_limit();
     buzz_pc_overlay_register();
 
     /* Install the guest-callback hook, then start the frame clock. It no-ops

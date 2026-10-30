@@ -50,7 +50,7 @@ constexpr bool host_pause=true;
 constexpr bool host_pause=false;
 #endif
 buzz_pc::MenuPadNavigation pad_navigation;
-bool test_mode=false,pause_test=false;
+bool test_mode=false,pause_test=false,frame_limit_test=false;
 ULONGLONG test_delay_ms=0;
 bool menu_ui_enabled=true;
 unsigned test_stage=0;
@@ -322,6 +322,19 @@ void test_actions() {
     const auto now=GetTickCount64();if(!first_frame)first_frame=now;
     if(now-first_frame<test_delay_ms)return;
     const auto elapsed=now-first_frame-test_delay_ms;
+    if(frame_limit_test) {
+        // Repeated live changes through the real menu, with no settings save.
+        const unsigned phase=unsigned(elapsed/15000);
+        if(test_stage<=phase) {
+            const unsigned limit=(phase&1)?30:0;
+            navigate(buzz_pc::MenuAction::toggle);
+            if(preferences.fps_limit!=limit){menu.select(1);act(buzz_pc::MenuAction::accept);}
+            navigate(buzz_pc::MenuAction::toggle);
+            fprintf(stderr,"[pc-menu] test: frame limit=%u elapsed=%llums\n",limit,elapsed);
+            test_stage=phase+1;
+        }
+        return;
+    }
     if(pause_test) {
         // Hold the menu over gameplay: the game should pause behind it.
         if(test_stage==0){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
@@ -370,7 +383,8 @@ void buzz_pc_overlay_register(){
     // BUZZ_PC_MENU_PAUSE=0: leave the game running behind the menu.
     const char* pause=getenv("BUZZ_PC_MENU_PAUSE");pause_guest=!(pause&&std::string(pause)=="0");
     const char* test=getenv("BUZZ_PC_MENU_TEST");
-    test_mode=test&&(std::string(test)=="1"||std::string(test)=="pause");pause_test=test_mode&&std::string(test)=="pause";
+    frame_limit_test=test&&std::string(test)=="frame-limit";
+    test_mode=test&&(std::string(test)=="1"||std::string(test)=="pause"||frame_limit_test);pause_test=test_mode&&std::string(test)=="pause";
     if(const char* delay=getenv("BUZZ_PC_MENU_TEST_DELAY_MS"))test_delay_ms=strtoull(delay,nullptr,10);
     const ps3_host_overlay_hooks hooks{message,menu_ui_enabled?draw:nullptr,shutdown};ps3_host_set_overlay(&hooks);
     buzz_input_enable_menu(menu_ui_enabled);

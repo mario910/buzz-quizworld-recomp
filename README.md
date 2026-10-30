@@ -140,8 +140,8 @@ The game also has an **Escape / controller START** PC settings menu for
 volume, a 30 FPS lock, fullscreen, controllers and restart-only offline mode.
 It shares per-build settings with the native launcher. On Vulkan the game is
 paused while the menu is open (guest clock, vblank and audio held); on the
-D3D12 fallback the quiz keeps running. The 30 FPS lock currently has no effect
-and is off by default; see [frame-lock status](docs/frame-limit-status.md).
+D3D12 fallback the quiz keeps running. The optional 30 FPS lock paces the game's
+CPU thread and is off by default; see [frame-lock details and measurements](docs/frame-limit-status.md).
 R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
 blue/orange/green/yellow. Windows physical Buzz HID is experimental and
 hardware-unverified. `Build-Buzz.ps1` builds both renderers (`-Renderer Vulkan`

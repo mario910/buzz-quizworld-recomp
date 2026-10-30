@@ -303,6 +303,7 @@ add_executable(${PROJECT_NAME}
     buzzer_hid_win32.cpp
     pc_settings.cpp
     pc_runtime.cpp
+    frame_limit.cpp
     pc_settings_file.cpp
     pc_overlay.cpp
     ${host_boot_trace}

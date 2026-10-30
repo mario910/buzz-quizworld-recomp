@@ -31,6 +31,7 @@ ps3recomp/       Pinned SDK submodule (normal fork master, validated v0.17.0 cod
 | Experimental compiler/kernel variants | `scripts/build-windows.ps1` |
 | Isolated Windows Vulkan experiment | `scripts/Build-Buzz.ps1 -VulkanExperimental`; see [bring-up status](vulkan-bringup.md) |
 | Performance experiments | `perf/` and `tools/inspect/` |
+| 30 FPS cap checks | `tests/scripts/test-frame-limit.ps1`; `perf/measure-frame-limit.ps1 -LiveSwitches` |
 
 The supported Build-Buzz configuration expands to:
 
