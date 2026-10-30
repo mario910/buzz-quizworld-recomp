@@ -58,6 +58,68 @@ documents that limitation in its
 [getting-started guide](https://github.com/sp00nznet/ps3recomp/blob/master/docs/GETTING_STARTED.md).
 Vulkan mailbox presentation is retained; it does not itself impose 30 FPS.
 
+## Vulkan frame-time work (2026-10-30)
+
+Measured with corrected presentation counts only (`BUZZ_RENDER_PERF`,
+after the duplicate-present fix). Same machine as below, EU 1.00, 1280x720,
+uncapped, muted, background window, supported build flags. Scenes and
+summaries are reproducible with:
+
+```powershell
+.\perf\measure-vulkan-scene.ps1 -Scene Menu  -Tag <tag> [-Env 'K=V']   # 100 s; window 40-98 s
+.\perf\measure-vulkan-scene.ps1 -Scene Round -Tag <tag> [-Env 'K=V']   # round ~137 s after launch
+.\toolenv\Scripts\python.exe perf\scene-window-stats.py [--per 10] 40:98 analysis\vk-scene-<tag>.csv
+```
+
+A/B pairs use the same EXE with a runtime switch, in reversed order; the
+menu window covers the studio camera tour after warm-up, the round window
+150-250 s covers questions with the full studio, avatars and score display
+(checked with background screenshots). Adjacent menu/round windows have
+different camera load, so compare only matching windows.
+
+### Where the time went
+
+Profile of the studio menu before the change (RIP sampler on the RSX
+worker, `PS3RECOMP_VK_PROFILE=1`, `PS3RECOMP_RSX_ENGINE_PROFILE=1`): about
+1000 draws and 100k FIFO methods per frame, FIFO drain 36 ms of a 46 ms
+frame, i.e. the RSX thread was the bottleneck. Besides vertex fetch
+(~16 % of the thread) and method dispatch (~12 %), one item stood out: the
+depth-of-field pass samples the 2560x704 (2xAA) Z24S8 depth buffer as linear
+A8R8G8B8. The engine handled that through guest memory **every frame**: a
+full GPU wait, a 7 MiB depth readback, a CPU store, a content hash, a texture
+decode and a 7 MiB re-upload with its own fence wait.
+
+### 1. Depth sampled as A8R8G8B8 converted on the GPU
+
+SDK `9f715799`. The Vulkan backend now builds those texels with
+depth -> buffer -> compute -> RGBA8 image, recorded into the draw batch in
+command order (no wait), and binds it through the usual crossbar view. The
+result is bit-identical to the guest-memory bytes:
+`PS3RECOMP_ENG_DEPTH_COLOR_CHECK=12` compared 12 menu frames x 1.8M texels
+with 0 mismatches. `PS3RECOMP_ENG_DEPTH_COLOR=0` restores the old path (used
+for the A/B below). D3D12 does not use the shared engine and is unchanged
+(menu 26.5 FPS, median 40.0 ms, same window).
+
+| Scene, window | Path | FPS | Median ms | p90 ms | p99 ms | Drain ms | >40 ms |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Menu 40-98 s, run 1 | old | 24.68 | 42.06 | 51.51 | 60.23 | 29.89 | 57.9 % |
+| Menu 40-98 s, run 4 | old | 23.64 | 41.53 | 56.33 | 76.45 | 31.57 | 56.1 % |
+| Menu 40-98 s, run 2 | GPU | 26.84 | 39.21 | 47.77 | 55.23 | 20.35 | 46.5 % |
+| Menu 40-98 s, run 3 | GPU | 25.76 | 39.15 | 51.17 | 73.19 | 21.25 | 46.6 % |
+| Round 150-250 s, run 1 | GPU | 35.56 | 28.78 | 33.65 | 39.49 | 9.28 | 0.9 % |
+| Round 150-250 s, run 2 | old | 29.11 | 33.56 | 41.21 | 53.82 | 21.40 | 12.6 % |
+| Round 150-250 s, run 3 | GPU | 32.69 | 30.90 | 35.35 | 41.73 | 10.64 | 1.9 % |
+
+The round's RSX work per frame halves (drain ~21 -> ~10 ms) and it now
+stays above 30 FPS uncapped in this window. The menu's drain drops by
+10 ms but its FPS rises only by ~2: the frame is now bounded by the SPU geometry
+job chain, not the renderer. A 5 s `PS3_FTRACE` of the menu shows the main
+PPU thread busy ~6 ms per frame and waiting on its event flag, four pool
+workers each running ~21 ms of image 40/41 jobs per 39 ms frame at ~66 %
+utilization inside 23 pool groups, and ~7 ms of serial chain work between
+groups. `SPURS_JOB_LIST_WORKERS=5` halves the FPS (12.4) and is not an
+option.
+
 ## Revised pacer validation (2026-10-30)
 
 Both renderers were rebuilt. `test-frame-limit.ps1` passes, including the
