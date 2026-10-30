@@ -176,8 +176,8 @@ subject to the kernel gates before replacement.
 | 0x2C00 normalize (stage F) | native helper, not separately attributed | on | 2 | yes | yes | (existing) | |
 | cull (stage F) | native helper, not separately attributed | on | | yes | yes | (existing) | |
 | 0x92A0 | 4.60 % | on | `BUZZ_GEOMETRY_KERNELS` 0 | 19,508 exact; 6,628 strict groups | >=600,000 exact | 31.60 -> 31.94 | a7ad7b2 |
-| 0xB940 | 2.48 % | gated; default off (mixed FPS) | `BUZZ_GEOMETRY_KERNELS` 1 | 19,508 exact; 5,700 strict groups | >=100,000 exact | 31.98 -> 31.87 | this step |
-| 0x4AB0 | 2.44 % | todo | | | | | |
+| 0xB940 | 2.48 % | gated; default off (mixed FPS) | `BUZZ_GEOMETRY_KERNELS` 1 | 19,508 exact; 5,700 strict groups | >=100,000 exact | 31.98 -> 31.87 | 2416a77 |
+| 0x4AB0 | 2.44 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 2 | 19,508 exact; 18,776 strict groups, no fallback | >=500,000 exact | pending | this step |
 | 0x7A90 | 1.89 % | todo | | | | | |
 | 0x51E0 | 1.75 % | todo | | | | | |
 | 0xCB78 | 1.44 % | todo | | | | | |

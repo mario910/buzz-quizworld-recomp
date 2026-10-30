@@ -38,6 +38,11 @@ SKIN = {
     94: (0x80808008, 0x8080800a, 0x8080800c, 0x8080800e),
     95: (0x80808000, 0x80808002, 0x80808004, 0x80808006),
 }
+HALF = {
+    33: (0x00010405, 0x08090c0d, 0x10111415, 0x18191c1d),
+    37: (0x80008000,) * 4, 38: (0x38000000,) * 4,
+    56: (0x47804780,) * 4, 57: (0x38003800,) * 4, 58: (0x7bff7bff,) * 4,
+}
 
 
 def constant_declarations(values=UNIT24):
@@ -61,14 +66,16 @@ def main():
     support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 3\n'
+    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 7\n'
     support += constants_guard()
     support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
     support += constants_guard("skin", SKIN)
     support += f'#include "{(ROOT / "port/native_geometry_skin.h").as_posix()}"\n'
+    support += constants_guard("half", HALF)
+    support += f'#include "{(ROOT / "port/native_geometry_half.h").as_posix()}"\n'
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
-    for pc in ("9148", "92A0", "B880", "B934", "B940"):
+    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0"):
         name = "buzz_job_6eba_spu_func_0000" + pc
         pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
         match = re.search(pattern, source)
@@ -91,6 +98,11 @@ def main():
                 f"static __attribute__((noinline)) int {skin_name}_native(spu_context* ctx) {{ return buzz_skin_native(ctx, {skin_name}_setup, {tail}); }}\n")
     skin_wrapper = f"void {skin_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 2)) {{ {skin_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {skin_name}_reference, {skin_name}_native, 1); }}"
     source = re.sub(rf"(?ms)^void {skin_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: skin_setup + skin_functions("buzz_job_6eba_spu_func_0000B940", "buzz_job_6eba_spu_func_0000B934") + skin_wrapper, source, count=1)
+    half_name = "buzz_job_6eba_spu_func_00004AB0"
+    half_reference = f"static __attribute__((noinline)) void {half_name}_reference(spu_context* ctx) {{{bodies['4AB0']}}}\n"
+    half_native = f"static __attribute__((noinline)) int {half_name}_native(spu_context* ctx) {{ return buzz_half_native(ctx, {half_name}_reference); }}\n"
+    half_wrapper = f"void {half_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 4)) {{ {half_name}_reference(ctx); return; }} buzz_geometry_run(ctx, {half_name}_reference, {half_name}_native, 2); }}"
+    source = re.sub(rf"(?ms)^void {half_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: half_reference + half_native + half_wrapper, source, count=1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
@@ -107,8 +119,12 @@ def main():
     skin_tests += "static void skin_seed_constants(spu_context* ctx) {\n" + constant_declarations(SKIN) + "\n"
     skin_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in SKIN) + "\n}\n"
     (DEST / "test-skin-kernels.inc").write_text(skin_tests)
-    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
-    print(f"Generated phase-2 unit24 and skin groups -> {DEST}")
+    half_tests = constants_guard("half", HALF) + f'#include "{(ROOT / "port/native_geometry_half.h").as_posix()}"\n' + half_reference + half_native
+    half_tests += "static void half_seed_constants(spu_context* ctx) {\n" + constant_declarations(HALF) + "\n"
+    half_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in HALF) + "\n}\n"
+    (DEST / "test-half-kernels.inc").write_text(half_tests)
+    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
+    print(f"Generated phase-2 unit24, skin and half groups -> {DEST}")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ mask; its current default enables bit 0 when that implementation is built.
 Bit 0 selects the coupled unit-vector
 decoder below; bit 1 selects validated skinning and remains default-off because
 its scene measurements are mixed.
+Bit 2 selects the halfword encoder and remains default-off during validation.
 Other function IDs are reserved while their implementations
 are pending; the build advertises its implemented mask and rejects unavailable
 bits. An unhandled input takes the reference and increments fallback;
@@ -166,3 +167,43 @@ a small menu regression. `BUZZ_GEOMETRY_KERNELS=3` enables it together with
 the default decoder for experiments; `BUZZ_GEOMETRY=2` checks both strictly.
 This completes the skinning implementation and correctness gates without
 claiming an improvement in both scenes.
+
+## Bit 2: halfword encoder (`0x4AB0`)
+
+The entry is `0x4AB0`; the exit is `0x4A9C`. This pure loop writes the pending
+four packed vertices through a byte shuffle mask, prefetches four float4
+records, converts them to halfwords and advances the source and destination
+routes. It also writes a shared sentinel after the useful source range.
+
+`native_geometry_half.h` converts eight components per AVX2 batch using
+integer operations. It preserves SPU truncation, saturation to magnitude
+`0x7BFF`, signed normal values and flushing underflow to positive zero.
+It does not substitute an IEEE half conversion. Pending vectors and all
+pointer words advance exactly; the original final iteration restores every
+temporary register, final speculative loads, sentinel bytes and continuation.
+The destination shuffle retains all 256 selector meanings.
+
+The fast path requires six canonical constant registers, positive aligned
+source stride/record offsets and bounded private LS. It checks every routed
+destination quadword, including sentinels, for bounds and overlap with all
+source streams before writing. Unsupported layouts, debug probes, external
+LS and pending interrupts take the lift without mutation.
+
+`tests/scripts/test-geometry-half.ps1` checks 440 full states with random bit
+patterns, explicit FP boundaries, arbitrary destination masks, 2..512 loop
+iterations and eleven unchanged-state rejection cases. On the private
+`pc_4AB0.bin` menu sample, the local microbenchmark measures approximately
+122 ns lifted versus 85 ns native.
+
+Both checked and actual-native full corpus modes pass all 19,508 image-41
+jobs / 58,195 transfers, with zero divergences or failures. All 18,776 encoder
+groups are handled and match strictly, with no fallback. The checked replay
+also repeats the existing unit-vector and skinning checks with all three
+bits selected. Private logs are `phase2/half-mode{2,1}.log`; `half-build.json`
+binds the frozen executable and source hashes.
+
+The 60 s live run (mask 5, keeping skinning off) logged at least 500,000 exact
+encoder comparisons and no differences:
+`analysis/vk-scene-p2-half-live.stderr.log`. Renderer and reversed-scene FPS
+gates remain pending. Bit 2 stays default-off; this is an experimental
+implementation checkpoint, not a completed performance claim.
