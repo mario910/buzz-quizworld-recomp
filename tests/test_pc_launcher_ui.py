@@ -62,6 +62,7 @@ class UiTests(unittest.TestCase):
             self.assertEqual(wizard.stop_button.cget('text'), 'Cancel')
             self.assertTrue(wizard.status.get().startswith('Your source files'))
             self.assertFalse(wizard.busy)
+            self.assertEqual(set(wizard.fields), {"game", "firmware", "keys", "update"})
             self.assertEqual(window.state(), 'withdrawn')
         finally:
             wizard.close()

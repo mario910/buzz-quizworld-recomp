@@ -19,8 +19,8 @@ window is titled **Buzz! Quiz World** (with the existing FPS statistics).
 Only legacy default labels such as "Gracz 1" are translated to "Player 1";
 custom player names and input mappings are preserved.
 It downloads no game files. The separate **Import ISO / prepare** wizard can
-generate/build from your ISO/dump and firmware, using your local RPCS3 as an
-import helper. A completed prepared build is selected automatically. Python,
+generate/build from your ISO/dump and firmware with the built-in importer
+(see [game import](game-import.md)). A completed prepared build is selected automatically. Python,
 the C++ build tools and Windows SDK are still required; this is not a standalone
 installer or a packaged launcher EXE.
 

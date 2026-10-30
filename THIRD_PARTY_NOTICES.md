@@ -13,7 +13,6 @@ either, or the following separately licensed components.
 | stb_image, Sean Barrett and contributors | license text inside `ps3recomp/libs/codec/stb_image.h` (MIT or public domain) | SDK image decoding |
 | stb_truetype, Sean Barrett and contributors | license text inside `ps3recomp/libs/font/stb_truetype.h` (MIT or public domain) | SDK font support |
 | pycdlib, Chris Lalancette and contributors | LGPL-2.1-only; [upstream license](https://github.com/clalancette/pycdlib/blob/master/COPYING), also installed with the pip distribution | ISO/Joliet/UDF import tool, not vendored source |
-| RPCS3 | GPLv2; [upstream license](https://github.com/RPCS3/rpcs3/blob/master/LICENSE), consult the separately supplied distribution | Optional local preparation helper for PUP/PKG/SELF; not redistributed or linked into this port |
 | SDL3, SDL contributors | zlib; pinned source `LICENSE.txt`, installed as `licenses/SDL3.txt` | Native launcher window, input, dialogs and direct process API; statically linked |
 | Dear ImGui, Omar Cornut and contributors | MIT; pinned source `LICENSE.txt`, installed as `licenses/ImGui.txt` | Native launcher UI |
 | JSON for Modern C++, Niels Lohmann and contributors | MIT; pinned source `LICENSE.MIT`, installed as `licenses/nlohmann-json.txt` | Native launcher settings/manifest parsing |
@@ -23,6 +22,13 @@ either, or the following separately licensed components.
 
 Other notices in upstream files remain in place. Tool dependencies installed
 by pip have their own licenses; they are not vendored by this repository.
+
+The built-in PS3 importer uses PyCryptodome (BSD/public-domain components;
+[upstream license](https://www.pycryptodome.org/src/license)) for AES, Python's
+standard library for hashing/TAR/zlib, and the MIT SDK's existing PKG keystream
+implementation. SELF/PUP parsing is implemented from public file-format
+descriptions linked in `docs/game-import.md`; no RPCS3/scetool code or key
+database is included. Those external programs are not needed for preparation.
 
 The optional Vulkan build additionally fetches pinned Khronos sources:
 Vulkan-Headers (Apache-2.0 OR MIT; see its `LICENSE.md`), glslang (the component
@@ -53,8 +59,8 @@ Owning a disc is not a blanket exception to copyright or anti-circumvention
 law. Use files you are entitled to use, follow the rules in your jurisdiction,
 and obtain legal advice if you need a legal opinion. This project does not
 supply game/update/firmware downloads or fetch per-disc/license keys. The
-preparation wizard can invoke the user's separate RPCS3 installation to import
-their firmware/update and prepare a local executable; this does not change the
+preparation wizard imports locally supplied firmware/update files and prepares
+a local executable in-process; this does not change the
 rights associated with those inputs or the generated output.
 
 Buzz!, PlayStation and other product names belong to their respective owners.

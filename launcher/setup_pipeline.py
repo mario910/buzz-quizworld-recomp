@@ -1,8 +1,4 @@
-"""Private, resumable import/build pipeline. No game downloads or desktop input.
-
-RPCS3 is a separately supplied preparation helper, never the game runtime.
-Its executable, firmware and game files are not copied into public sources.
-"""
+"""Private, resumable in-process import/build pipeline. No game/key downloads."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -40,20 +36,28 @@ class ProcessFailure(RuntimeError):
 class Inputs:
     game: str
     firmware: str
-    helper: str
+    keys: str = ""
     update: str = ""
     jobs: int = 6
 
     def validate(self):
         if type(self.jobs) is not int or not 1 <= self.jobs <= 64:
             raise ValueError("Compiler jobs must be 1–64.")
-        for value in (self.game, self.firmware, self.helper):
+        for value in (self.game, self.firmware):
             if not value or not Path(value).is_absolute() or not Path(value).exists():
-                raise ValueError("Choose full paths to an ISO/dump, PS3UPDAT.PUP/dev_flash and RPCS3 executable.")
+                raise ValueError("Choose full paths to an ISO/dump and PS3UPDAT.PUP/dev_flash.")
         if Path(self.game).is_file() and Path(self.game).suffix.lower() != ".iso":
             raise ValueError("Game input must be an ISO or a directory containing PS3_GAME.")
-        if not Path(self.helper).is_file():
-            raise ValueError("RPCS3 helper must be an executable file.")
+        if self.keys and (not Path(self.keys).is_absolute() or not Path(self.keys).is_file()):
+            raise ValueError("Decryption keys must be a local file with a full path.")
+        if Path(self.firmware).is_file() and Path(self.firmware).suffix.lower() != ".pup":
+            raise ValueError("Firmware must be a PS3UPDAT.PUP file or dev_flash directory.")
+        from .ps3_crypto import KeyStore
+        keys = KeyStore(self.keys)
+        if Path(self.firmware).is_file():
+            keys.named_key("pup_hmac", 64)
+            if not keys.candidates(3, 0, 0):
+                raise ValueError("Private key file is missing the firmware package root (category 3).")
         if self.update and (not Path(self.update).is_absolute() or not Path(self.update).is_file()):
             raise ValueError("Optional game update must be a local PKG, EBOOT.BIN or EBOOT.elf.")
         if self.update and Path(self.update).suffix.lower() not in (".pkg", ".bin", ".elf"):
@@ -249,15 +253,6 @@ def process(command, home, log, cancel, *, env=None, timeout=1800):
                 child.wait(timeout=15)
 
 
-def helper(inputs, arguments, home, log, cancel):
-    home.mkdir(parents=True, exist_ok=True)
-    (home / "log").mkdir(exist_ok=True)
-    env = dict(os.environ)
-    # The trailing separator matters: some builds normalize this as a path's parent.
-    env["RPCS3_CONFIG_DIR"] = str(home.resolve()) + os.sep
-    process([inputs.helper, "--headless", *arguments], home, log, cancel, env=env, timeout=600)
-
-
 def firmware_validator(path):
     import importlib.util
     spec = importlib.util.spec_from_file_location("verify_game", Path(__file__).resolve().parents[1] / "tools/verify-game.py")
@@ -269,23 +264,14 @@ def firmware_validator(path):
 
 
 def install_firmware(inputs, home, log, cancel):
-    try:
-        helper(inputs, ["--installfw", inputs.firmware], home, log, cancel)
-    except ProcessFailure as exc:
-        # RPCS3 0.0.41-19667 finishes installation, then aborts in the headless
-        # fixed_typemap destructor. Accept ONLY this specific teardown failure,
-        # an explicit success record, and independently verified required files.
-        output = exc.logfile.read_text(encoding="utf-8", errors="replace")
-        rpcslog = home / "log/RPCS3.log"
-        success = rpcslog.is_file() and "Successfully installed PS3 firmware version" in rpcslog.read_text(encoding="utf-8", errors="replace")
-        if exc.code != 0xC0000409 or "manual_typemap" not in output or "process teardown" not in output or not success:
-            raise
-        firmware_validator(home / "dev_flash")
-        log("WARNING: RPCS3 completed firmware installation but crashed during its own teardown. "
-            "Required audio-module hash and font files were verified independently; keeping the valid import. "
-            f"The helper failure remains recorded in {exc.logfile}.")
-        return
-    firmware_validator(home / "dev_flash")
+    from .ps3_crypto import KeyStore
+    from .ps3_import import extract_firmware
+    extract_firmware(inputs.firmware, home, KeyStore(inputs.keys), log, lambda: check_cancel(cancel))
+
+
+def check_cancel(cancel):
+    if cancel.is_set():
+        raise Cancelled("Preparation cancelled; source files are unchanged.")
 
 
 UPDATE_102_FILES = tuple(language + suffix for language in ("GLOBAL", "CRO", "CZE", "GRC", "POL", "RUS")
@@ -363,7 +349,9 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
     try:
         log(f"Session: {session}")
         log("Checking input fingerprints (a large ISO can take a while)…")
-        identities = {"game": fingerprint(inputs.game, cancel, log), "helper": fingerprint(inputs.helper, cancel, log),
+        identities = {"game": fingerprint(inputs.game, cancel, log),
+                      "keys": fingerprint(inputs.keys, cancel, log) if inputs.keys else None,
+                      "importer": 1,
                       "firmware": firmware_identity(inputs.firmware),
                       "update": fingerprint(inputs.update, cancel, log) if inputs.update else None}
         state = json.loads(ledger.read_text(encoding="utf-8")) if ledger.exists() else {"inputs": asdict(inputs), "identities": identities, "done": []}
@@ -389,17 +377,22 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         if disc_title not in KNOWN_TITLE_IDS:
             raise ValueError("Unsupported title ID; no files in the source dump were changed.")
         flash = Path(inputs.firmware)
-        home = session / "helper"
+        home = session / "import"
         reject_links_below(session, home)
         if flash.is_file():
             stage("install firmware", lambda: install_firmware(inputs, home, log, cancel))
             flash = home / "dev_flash"
+        firmware_validator(flash)
         executable = game / "PS3_GAME/USRDIR/EBOOT.BIN"
         if inputs.update:
             update = Path(inputs.update)
             if update.suffix.lower() == ".pkg":
-                stage("install game update", lambda: helper(inputs, ["--installpkg", inputs.update], home, log, cancel))
-                executable = home / f"dev_hdd0/game/{disc_title}/USRDIR/EBOOT.BIN"
+                from .ps3_import import extract_update
+                update_home = home / f"dev_hdd0/game/{disc_title}"
+                reject_links_below(session, update_home)
+                stage("install game update", lambda: extract_update(inputs.update, update_home, disc_title, log,
+                                                                    lambda: check_cancel(cancel)))
+                executable = update_home / "USRDIR/EBOOT.BIN"
             else:
                 executable = update
         staged = session / "executable"
@@ -408,18 +401,14 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         elf = staged / "EBOOT.elf"
         reject_links_below(session, elf)
         def decode():
-            with executable.open("rb") as stream:
-                magic = stream.read(4)
-            if magic == b"\x7fELF":
-                shutil.copy2(executable, elf)
-            elif magic == b"SCE\0":
-                binary = staged / "EBOOT.BIN"
-                shutil.copy2(executable, binary)
-                helper(inputs, ["--decrypt", str(binary)], home, log, cancel)
-            else:
-                raise ValueError("Executable is not readable ELF/SELF. The ISO may still be encrypted.")
+            from .ps3_crypto import KeyStore, decrypt_elf
+            from .ps3_import import atomic_bytes
+            plain = decrypt_elf(executable, KeyStore(inputs.keys), lambda: check_cancel(cancel))
+            # Verify identity before publishing plaintext as a completed stage.
+            identify(disc_title, hashlib.sha256(plain).hexdigest())
+            atomic_bytes(elf, plain, session)
             if not elf.is_file() or elf.read_bytes()[:6] != b"\x7fELF\x02\x02":
-                raise ValueError("Helper did not produce a big-endian ELF64. See the private helper log.")
+                raise ValueError("Import did not produce a big-endian ELF64.")
         stage("prepare executable", decode)
         profile = identify(disc_title, fingerprint(elf)["sha256"])
         state["profile"] = asdict(profile)

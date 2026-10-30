@@ -4,7 +4,7 @@ $projectRoot = (Split-Path -Parent $PSScriptRoot)
 $ErrorActionPreference='Stop'
 $python=Join-Path $projectRoot 'toolenv\Scripts\python.exe'
 if(-not(Test-Path -LiteralPath $python)) { & (Join-Path $projectRoot 'scripts/Setup-Buzz.ps1') }
-& $python -c 'import pycdlib, capstone, clang_tool_chain'
+& $python -c 'import pycdlib, capstone, clang_tool_chain; from Crypto.Cipher import AES'
 if($LASTEXITCODE) { & (Join-Path $projectRoot 'scripts/Setup-Buzz.ps1') }
 if($Smoke) {
     Push-Location $projectRoot
