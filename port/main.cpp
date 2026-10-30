@@ -270,14 +270,66 @@ static void render_perf_init(void)
     fprintf(g_render_perf_file,"frame,presented_delta,elapsed_ms,interval_ms,drain_ms,present_ms,drain_calls,guest_present_calls,backend\n");
     fprintf(stderr,"[render-perf] buffered frame timing enabled (%s); disable image captures for comparisons\n",RSX_BACKEND_NAME);
 }
+static uint64_t g_frame_drain_ns;   /* FIFO drain time since the last present */
 static void drain_guest_fifo(void)
 {
-    if(!g_render_perf_file){cellGcm_rsx_process_fifo();return;}
     const uint64_t start=ps3_ft_now();cellGcm_rsx_process_fifo();
-    g_render_perf_drain_ns+=ps3_ft_now()-start;++g_render_perf_drains;
+    const uint64_t spent=ps3_ft_now()-start;
+    g_frame_drain_ns+=spent;
+    if(g_render_perf_file){g_render_perf_drain_ns+=spent;++g_render_perf_drains;}
 }
+/* With the 30 FPS cap the guest thread is paced (port/frame_limit.cpp), but
+ * the SPU/RSX work after it varies, so presents landed 30-38 ms apart: on a
+ * 60 Hz display some frames stayed one refresh, others three. Present on a
+ * 33.3 ms grid instead: an early frame waits for its slot (at most
+ * BUZZ_PRESENT_HOLD_MS: default 8 on Vulkan, 0 on D3D12; 0 disables), a late one presents at once
+ * and moves the grid later by half its lateness, and the grid creeps back
+ * earlier by 1/64 of each hold so the added latency stays small. (Moving it
+ * by the whole lateness let the delay reach the guest's flip wait: 29.6 FPS.)
+ * A whole missed period resynchronizes. The FIFO drain resumes right after. */
+static void present_hold(void)
+{
+    static long long hold_max_ns=-1;
+    if(hold_max_ns<0){
+        const char* e=getenv("BUZZ_PRESENT_HOLD_MS");
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+        constexpr long default_ms=8;
+#else
+        /* D3D12: no measured smoothing (64 -> 66 % within 2 ms), -0.3 FPS. */
+        constexpr long default_ms=0;
+#endif
+        const long ms=e&&*e?strtol(e,nullptr,10):default_ms;
+        hold_max_ns=ms>0&&ms<=16?ms*1000000ll:0;
+    }
+    static uint64_t grid=0;
+    const uint64_t drained=g_frame_drain_ns;g_frame_drain_ns=0;
+    if(!hold_max_ns||ps3_host_get_frame_limit()!=30){grid=0;return;}
+    constexpr uint64_t period=1000000000ull/30,margin=5000000ull;
+    uint64_t now=ps3_ft_now();
+    if(!grid||now>=grid+period){grid=now+period;return;}
+    if(now>=grid){grid+=(now-grid)/2+period;return;}
+    /* The next frame's RSX work starts only after this hold. Take the frame
+     * just drained as its estimate and keep 5 ms spare, so a heavy scene is
+     * never pushed past its slot by the wait. */
+    uint64_t budget=(uint64_t)hold_max_ns;
+    budget=drained+margin>=period?0:(period-drained-margin<budget?period-drained-margin:budget);
+    uint64_t hold=grid-now;
+    if(hold>budget){grid-=hold-budget;hold=budget;}
+    if(!hold){grid+=period;return;}
+    grid-=hold/64;
+    const uint64_t due=now+hold;
+    static HANDLE timer=CreateWaitableTimerExW(nullptr,nullptr,0x00000002,TIMER_ALL_ACCESS);
+    if(timer&&hold>300000){
+        LARGE_INTEGER t;t.QuadPart=-(long long)((hold-200000)/100);
+        if(SetWaitableTimer(timer,&t,0,nullptr,nullptr,FALSE))WaitForSingleObject(timer,INFINITE);
+    }
+    while(ps3_ft_now()<due)YieldProcessor();
+    grid+=period;
+}
+
 static void present_guest_frame(void)
 {
+    present_hold();
     const uint64_t start=g_render_perf_file?ps3_ft_now():0;
     rsx_backend_present();
     /* Mailbox/unsynchronised presentation already completed this flip. With

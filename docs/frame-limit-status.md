@@ -4,6 +4,40 @@
 and Escape menu toggle use the same live setting. A cap limits fast frames;
 it cannot raise a demanding scene to 30 FPS.
 
+## Cap check after the frame-time work (2026-10-30)
+
+With the speedups below, the cap holds 30 wherever the game runs above 30
+uncapped. Vulkan, `perf/measure-vulkan-scene.ps1 -Limit 30`:
+
+| Scene, window | FPS | 10 s / 5 s slices | Median ms | p90 ms | p99 ms | Within 2 ms of 33.3 |
+|---|---:|---|---:|---:|---:|---:|
+| Menu 40-98 s, no present hold | 29.96 | 29.8-30.0 | 33.09 | 37.01 | 41.28 | 58.7 % |
+| Menu 40-98 s, present hold | 30.00 | 29.8-30.2 | 33.30 | 35.07 | 37.78 | 82.4 % |
+| Round 160-250 s, no present hold | 30.00 | 30.0 | 33.19 | 37.25 | 43.30 | 61.3 % |
+| Round 160-250 s, present hold | 29.99 | 30.0 | 33.32 | 35.53 | 40.79 | 86.0 % |
+
+One phase late in the round (a ~10-20 s stretch about 110 s into it) is
+below 30 even uncapped (28.4 FPS, render work ~21 ms/frame), so capped it
+shows 27.4-28.7. That is scene cost, not the limiter. Earlier reports of
+20-25 FPS capped came from scenes that were themselves at 20-26 uncapped.
+
+**Present hold (Vulkan).** The guest thread is paced, but the SPU/RSX
+work after it varies, so presents landed 30-38 ms apart (SD 2.7-3.0 ms):
+on a 60 Hz display some frames stayed one refresh, others three, even at
+an exact 30.0 average. `port/main.cpp` now presents on a 33.3 ms grid
+while capped: an early frame waits for its slot, at most
+`BUZZ_PRESENT_HOLD_MS` (default 8 on Vulkan) and never more than the
+period minus the frame's FIFO drain minus 5 ms; a late frame presents at
+once and moves the grid later by half its lateness; the grid creeps back
+by 1/64 of each hold. Re-phasing by the whole lateness was tried and lost
+frames (29.6 FPS), as did completing the flip before the hold (no gain in
+the one undisturbed run). Spread drops to SD 1.8-2.0 ms. On D3D12 the hold
+did not help (64 -> 66 % within 2 ms, 29.12 -> 28.79 FPS capped), so it
+defaults to 0 there. D3D12's capped menu stays near 29 because its
+heavier render work (23.7 ms/frame) leaves the menu tour little headroom.
+
+`perf/frame-pacing-stats.py` reports these spread figures.
+
 ## Where the wait belongs
 
 `port/frame_limit.cpp` wraps the real `cellGcmResetFlipStatus` import

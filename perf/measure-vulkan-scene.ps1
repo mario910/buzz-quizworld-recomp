@@ -12,7 +12,7 @@
 param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Tag,
       [ValidateRange(30,3600)][int]$Seconds = 100, [ValidateRange(10,3600)][int]$RoundSeconds = 120,
-      [string]$Env = '', [switch]$Shots,
+      [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -29,7 +29,7 @@ $procId = 0
 $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
 try {
     if ($Env) { foreach ($kv in $Env -split ';') { $k, $v = $kv -split '=', 2; [Environment]::SetEnvironmentVariable($k, $v, 'Process') } }
-    [IO.File]::WriteAllText(($prefix + '.ini'), "version=1`nvolume=0`nfps_limit=0`nfullscreen=0`noffline=1`nrenderer=auto`n")
+    [IO.File]::WriteAllText(($prefix + '.ini'), "version=1`nvolume=0`nfps_limit=$Limit`nfullscreen=0`noffline=1`nrenderer=auto`n")
     $env:BUZZ_PC_SETTINGS = $prefix + '.ini'
     $env:BUZZ_RENDER_PERF = $prefix + '.csv'
     $mailbox = $prefix + '.mailbox.txt'
