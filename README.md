@@ -38,12 +38,13 @@ Quiz TV and Brain Of are not adapted. Renaming
 `EBOOT.BIN` to `.elf` does not decrypt it. Do not remove hash checks to force
 another version to build. DLC is not required for the tested configuration.
 
-An existing RPCS3 installation may be a convenient place to locate your
-installed firmware and your own game/update files. **RPCS3 is not used to run
-this port.** The preparation wizard can use a separately supplied local RPCS3
-executable as a headless import helper to install your PUP/update and decrypt
-your EBOOT in a private session; it does not modify your normal RPCS3 settings.
-No game, firmware or disc keys are downloaded. Still-encrypted disc images are
+**RPCS3 is not required for preparation or play.** The preparation wizard
+extracts your firmware PUP and optional update PKG and decrypts your EBOOT
+directly in the app, inside a private session. Encrypted SELF/PUP inputs need
+your private local decryption key file; keys are not bundled or downloaded.
+Already prepared `dev_flash` and `EBOOT.elf` can be used without a key file.
+See [built-in game and firmware import](docs/game-import.md#where-to-find-the-keys) for key sources and formats,
+command-line usage and validation. Still-encrypted disc images are
 not supported by this importer. Use files you are legally
 entitled to use under the rules in your jurisdiction.
 
@@ -82,7 +83,7 @@ cd buzz-quizworld-recomp
 ```
 
 For the guided route, double-click **Prepare-Buzz.cmd** (or run
-`scripts/Prepare-Buzz.ps1`). Select your ISO/dump, PUP/dev_flash and local `rpcs3.exe`;
+`scripts/Prepare-Buzz.ps1`). Select your ISO/dump, PUP/dev_flash and private local key file when needed;
 select an update only if you want to use that executable. The wizard identifies
 the exact title/executable, generates its matching translations and builds in
 an isolated `runtime/setup/sessions/` workspace. It supports cancellation and

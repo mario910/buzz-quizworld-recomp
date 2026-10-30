@@ -25,10 +25,10 @@ class Wizard:
             initial = model.load(self.project).paths
         except (ValueError, OSError):
             initial = {}
-        helper = Path(initial.get("dev_flash", "")).parent / "rpcs3.exe"
+        keys = self.project / "runtime/keys/ps3.keys"
         self.fields = {key: tk.StringVar(value=value) for key, value in dict(
             game=initial.get("game_root", ""), firmware=initial.get("dev_flash", ""),
-            helper=str(helper) if helper.is_file() else "", update="").items()}
+            keys=str(keys.resolve()) if keys.is_file() else "", update="").items()}
         self.jobs = tk.StringVar(value="6")
         self.import_only = tk.BooleanVar(value=False)
         self.no_update = tk.BooleanVar(value=False)
@@ -39,8 +39,8 @@ class Wizard:
         frame = ttk.Frame(root, padding=20)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Prepare your copy of Buzz! Quiz World", font=("Segoe UI", 18, "bold")).pack(anchor="w")
-        ttk.Label(frame, text="ISO or game dump + firmware PUP + optional game update. RPCS3 is used only as an import helper.", wraplength=920).pack(anchor="w", pady=(6, 14))
-        labels = dict(game="Game: ISO / folder", firmware="Firmware: PUP / dev_flash", helper="RPCS3.exe (local helper)", update="Game update: PKG / EBOOT (optional)")
+        ttk.Label(frame, text="Prepare your ISO/dump and firmware directly. No RPCS3 installation is required. Encrypted inputs need a private local key file (see docs/game-import.md).", wraplength=920).pack(anchor="w", pady=(6, 14))
+        labels = dict(game="Game: ISO / folder", firmware="Firmware: PUP / dev_flash", keys="Decryption keys (local file)", update="Game update: PKG / EBOOT (optional)")
         self.entries = []
         for key, variable in self.fields.items():
             row = ttk.Frame(frame)
@@ -92,13 +92,13 @@ class Wizard:
             return
         titles = dict(game="Select your game ISO or dump folder",
                       firmware="Select PS3 firmware or dev_flash",
-                      helper="Select the local RPCS3 executable",
+                      keys="Select your private PS3 decryption key file",
                       update="Select an optional game update")
         if directory:
             value = filedialog.askdirectory(parent=self.root, title=titles[key])
         else:
             types = dict(game=[("PS3 ISO", "*.iso")], firmware=[("PS3 firmware", "*.PUP *.pup")],
-                         helper=[("RPCS3 executable", "*.exe")], update=[("Game update", "*.pkg *.elf *.BIN *.bin")])
+                         keys=[("PS3 key file", "*.keys *.json"), ("All files", "*")], update=[("Game update", "*.pkg *.elf *.BIN *.bin")])
             value = filedialog.askopenfilename(parent=self.root, title=titles[key], filetypes=types[key])
         if value:
             self.fields[key].set(value)
@@ -151,6 +151,8 @@ class Wizard:
             return
         try:
             state = json.loads(Path(statefile).read_text(encoding="utf-8"))
+            if "helper" in state["inputs"]:
+                raise ValueError("This session used the old RPCS3 importer. Start a new session with the built-in importer; the old files are preserved.")
             values = Inputs(**state["inputs"])
             for key, variable in self.fields.items():
                 variable.set(getattr(values, key))

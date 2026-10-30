@@ -175,13 +175,11 @@ class SetupTests(unittest.TestCase):
         flash = self.root / "flash"
         (flash / "sys/external").mkdir(parents=True)
         (flash / "sys/external/flashATRAC.pic").write_bytes(b"synthetic")
-        helper = self.root / "helper.exe"
-        helper.write_bytes(b"not executed")
-        return pipeline.Inputs(str(game), str(flash), str(helper))
+        return pipeline.Inputs(str(game), str(flash))
 
     def test_disc_import_only_retained_without_claiming_a_completed_build(self):
         inputs = self.inputs()
-        with patch.object(pipeline, "identify", return_value=PROFILES[1]):
+        with patch.object(pipeline, "identify", return_value=PROFILES[1]), patch.object(pipeline, "firmware_validator"):
             pipeline.prepare(inputs, self.root, self.logs.append, self.cancel, build=False)
         states = list((self.root / "runtime/setup/sessions").glob("*/state.json"))
         self.assertEqual(len(states), 1)
@@ -193,7 +191,7 @@ class SetupTests(unittest.TestCase):
 
     def test_import_resume_and_changed_input(self):
         inputs = self.inputs()
-        with patch.object(pipeline, "identify", return_value=PROFILES[0]):
+        with patch.object(pipeline, "identify", return_value=PROFILES[0]), patch.object(pipeline, "firmware_validator"):
             session, state = pipeline.prepare(inputs, self.root, self.logs.append, self.cancel, build=False)
             same, again = pipeline.prepare(inputs, self.root, self.logs.append, self.cancel, resume=session, build=False)
             self.assertEqual(same, session)
@@ -207,33 +205,24 @@ class SetupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "own setup sessions"):
             pipeline.prepare(inputs, self.root, self.logs.append, self.cancel, resume=self.root / "unrelated")
 
-    def test_helper_is_headless_isolated_and_has_closed_stdin_runner(self):
+    def test_import_never_launches_an_external_process(self):
         inputs = self.inputs()
-        with patch.object(pipeline, "process") as run:
-            pipeline.helper(inputs, ["--decrypt", "X.elf"], self.root / "private helper", self.logs.append, self.cancel)
-            args, kwargs = run.call_args
-            self.assertEqual(args[0][:2], [inputs.helper, "--headless"])
-            self.assertTrue(kwargs["env"]["RPCS3_CONFIG_DIR"].endswith(("/", "\\")))
-            self.assertEqual(Path(kwargs["env"]["RPCS3_CONFIG_DIR"]), (self.root / "private helper").resolve())
+        with patch.object(pipeline, "process", side_effect=AssertionError("unexpected external process")), \
+             patch.object(pipeline.subprocess, "Popen", side_effect=AssertionError("unexpected subprocess")), \
+             patch.object(pipeline, "identify", return_value=PROFILES[1]), patch.object(pipeline, "firmware_validator"):
+            _, state = pipeline.prepare(inputs, self.root, self.logs.append, self.cancel, build=False)
+        self.assertNotIn("helper", state["inputs"])
+        self.assertEqual(state["identities"]["importer"], 1)
 
-    def test_only_verified_firmware_teardown_failure_is_tolerated(self):
+    def test_firmware_install_uses_in_process_importer(self):
         inputs = self.inputs()
-        home = self.root / "private-helper"
-        (home / "log").mkdir(parents=True)
-        log = home / "failed.log"
-        log.write_text("manual_typemap process teardown")
-        (home / "log/RPCS3.log").write_text("Successfully installed PS3 firmware version 4.93.")
-        failure = pipeline.ProcessFailure(0xC0000409, log)
-        with patch.object(pipeline, "helper", side_effect=failure), patch.object(pipeline, "firmware_validator") as validate:
+        home = self.root / "private-import"
+        with patch("launcher.ps3_import.extract_firmware") as extract:
             pipeline.install_firmware(inputs, home, self.logs.append, self.cancel)
-            validate.assert_called_once_with(home / "dev_flash")
-        self.assertTrue(any("WARNING" in item for item in self.logs))
-        with patch.object(pipeline, "helper", side_effect=failure), patch.object(pipeline, "firmware_validator", side_effect=ValueError("bad firmware")):
-            with self.assertRaisesRegex(ValueError, "bad firmware"):
-                pipeline.install_firmware(inputs, home, self.logs.append, self.cancel)
-        with patch.object(pipeline, "helper", side_effect=pipeline.ProcessFailure(1, log)):
-            with self.assertRaises(pipeline.ProcessFailure):
-                pipeline.install_firmware(inputs, home, self.logs.append, self.cancel)
+            self.assertEqual(extract.call_args.args[:2], (inputs.firmware, home))
+            self.cancel.set()
+            with self.assertRaises(pipeline.Cancelled):
+                extract.call_args.args[-1]()
 
     def test_hash_cancel_is_responsive_and_input_is_unchanged(self):
         source = self.root / "data"

@@ -1,7 +1,7 @@
 """Inspect local Quiz World ISOs without extracting large game assets.
 
 Only PARAM.SFO and EBOOT are copied into the ignored analysis directory.
-The supplied RPCS3 helper prepares a private ELF; no game is booted.
+The built-in decryptor prepares a private ELF; no game is booted.
 """
 
 from pathlib import Path as _Path
@@ -14,13 +14,13 @@ import json
 from pathlib import Path
 import struct
 import sys
-import threading
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from launcher.disc_image import DiscImage
 from launcher import model
-from launcher.setup_pipeline import Inputs, fingerprint, helper, iso_plan
+from launcher.setup_pipeline import fingerprint, iso_plan
+from launcher.ps3_crypto import KeyStore, decrypt_elf
 
 
 def fields(data):
@@ -36,7 +36,7 @@ def fields(data):
     return result
 
 
-def inspect(path, helper_path, output):
+def inspect(path, key_path, output):
     image = DiscImage()
     image.open(str(path))
     try:
@@ -60,8 +60,7 @@ def inspect(path, helper_path, output):
     executable.write_bytes(binary)
     elf = sample / "EBOOT.elf"
     if binary[:4] == b"SCE\0":
-        helper(Inputs(str(path), str(sample), str(helper_path)), ["--decrypt", str(executable)],
-               sample / "helper", lambda text: print(text, file=sys.stderr, flush=True), threading.Event())
+        elf.write_bytes(decrypt_elf(executable, KeyStore(key_path)))
     elif binary[:6] == b"\x7fELF\x02\x02":
         elf.write_bytes(binary)
     else:
@@ -74,7 +73,7 @@ def inspect(path, helper_path, output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--folder", type=Path, required=True)
-    parser.add_argument("--helper", type=Path, required=True)
+    parser.add_argument("--keys", type=Path)
     args = parser.parse_args()
     output = ROOT / "analysis/iso-variant-inventory"
     output.mkdir(parents=True, exist_ok=True)
@@ -82,7 +81,7 @@ if __name__ == "__main__":
     for path in sorted(args.folder.glob("*Quiz World*.iso")):
         print("Inspecting " + path.name, file=sys.stderr, flush=True)
         try:
-            result = inspect(path, args.helper, output)
+            result = inspect(path, args.keys, output)
         except Exception as exc:
             result = dict(iso=str(path), error=str(exc))
         results.append(result)
