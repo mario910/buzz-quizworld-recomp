@@ -62,6 +62,7 @@ __pycache__/
 *.trace
 *.trigger
 /perf/claude-solo-shots/
+/perf/claude-multi-shots/
 # Superseded SDK snapshot (the SDK changes live on the ps3recomp submodule branch)
 /ps3recomp-buzz.patch
 
