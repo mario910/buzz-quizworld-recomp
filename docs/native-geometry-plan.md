@@ -37,6 +37,10 @@ uncapped) above 30, and is the prerequisite for any low-power target.
    zero, flush denormals, no FMA contraction unless the SPU op fuses);
    mirror the stage F build flags (`-mavx2 -mfma -frounding-math
    -ffp-contract=off`, `SPU_NATIVE_RTZ_*`).
+   Existing stage F is an explicitly accepted baseline exception (2026-10-30):
+   reproduce its established volatile-register/cull contract while reporting
+   strict differences separately. New kernels must pass strict full-state
+   comparisons. See [data map and harness](native-geometry-data.md).
 2. **One function per step.** Replace a single lifted function (or a
    tightly coupled group), prove it, measure it, commit it. Never a big-bang
    rewrite.
@@ -92,8 +96,12 @@ DMA the job issues, checked against corpus traces.
 
 ### Phase 2: hot leaves of image 41 (4-8 sessions)
 Replace the hottest self-contained functions first, in ranking order (from
-the 2026-10-30 profile: `func_000092A0`, `4AB0`, `B940`, `51E0`, `7A90`,
-`CB78`, `78A8`, `9148`, `28F0`). One per step, each behind its own bit.
+the phase 0 menu profile: `func_000092A0`, `B940`, `4AB0`, `7A90`, `51E0`,
+`CB78`, `78A8`, `9148`; see the tracker for the remaining sampled blocks).
+`B940` and `4AB0` are effectively tied in the menu; `B940` is hotter in the
+solo and multiplayer samples. Prove entry/exit boundaries before treating
+these internal lifted blocks as independently replaceable functions.
+One per step, each behind its own bit.
 Exit per function: corpus bit-exact, in-game checked mode (compare native
 vs lift live for N calls, as stage F's mode 2) clean, menu A/B recorded.
 
@@ -136,34 +144,62 @@ on), `dropped` (with reason).
 
 | Item | Status | Notes |
 |---|---|---|
-| Corpus image 41 (>= 3000 jobs, 4 scenes) | todo | |
-| Corpus image 40 (>= 1000 jobs) | todo | |
-| Per-function harness | todo | |
-| Hot-function ranking (image 41) | todo | |
-| Call graph + LS region map | todo | |
-| Harness validated on stage F kernels | todo | |
+| Corpus image 41 (>= 3000 jobs, 4 scenes) | exact | 19,508 jobs: full replay exact, 0 input divergences; menu / solo / verified two-player / loads represented |
+| Corpus image 40 (>= 1000 jobs) | exact | 17,714 jobs: full replay exact, 0 input divergences |
+| Per-function harness | exact | Generic paired runner for synchronous DMA-free leaves, strict state diagnostics, fallback not counted; synthetic checks pass |
+| Hot-function ranking (image 41) | exact | 3 x 10 s menu with native stage F, plus 15 s solo and two-player reference samples; build-bound maps and lane denominators saved privately |
+| Call graph + LS region map | exact | Structural map: 534 blocks, 41 direct-call roots, 491 observed transitions (24 indirect); per-block LS access ranges and all 58,195 observed DMAs checked. Semantic ABI/scratch/format work belongs to phase 1 |
+| Harness validated on stage F kernels | exact | 19,508 image 41 jobs: vertex 19,508, transform 27,561, normalize 9,877, cull 19,508; 0 established-contract failures. Strict mode correctly rejects dead-register differences |
+
+### Phase 1
+
+Detailed evidence, reproduction commands and coverage limits live in
+[native-geometry-data.md](native-geometry-data.md). Phases 0 and 1 are complete
+for the audited EU 1.00 lift. Phase 1's deliverable is an annotated map, not
+a native implementation: static-only paths are clearly marked and remain
+subject to the kernel gates before replacement.
+
+| Item | Status | Evidence / remaining work |
+|---|---|---|
+| Descriptor, context and staged input lists | exact | Corpus inspector corrected for 21-entry DMA list and descriptor-size bitfield |
+| Runtime DMA issue map | exact | All 18 lexical issue blocks annotated (one unreachable C tail); 58,195 ordered transfers / 19,508 jobs matched; 10 blocks exercised |
+| LS regions and scratch | exact | Descriptor boundaries, 21 staged slots, globals, dynamic float4 tables, context fields, input reuse, stack and block-attributed read/write spans documented |
+| Output ring and RSX commands | exact | 7,182 linear + 19 wrapped reservations checked; 19,508 command blocks and 16,276 active format bindings checked; unexercised shared fallback statically mapped |
+| Compressed positions, normals, UV, skinning formats | exact | Raw position input, 24-bit unit vectors, half UVs, four interleaved weight/index pairs, output codecs and compressed-index sections mapped; unused fixed-point path documented as static-only |
 
 ### Image 41 functions
 
-| Function | Lane time share | Status | Bit | Corpus | Live check | Menu FPS before -> after | Commit |
+| Function | Menu lane sample share | Status | Bit | Corpus | Live check | Menu FPS before -> after | Commit |
 |---|---|---|---|---|---|---|---|
-| 0x63E0 loop (stage F) | ~2.4 % | on | `BUZZ_STAGEF_KERNELS` 0 | yes | yes | (existing) | |
-| 0xC518 transform (stage F) | ~1.0 % | on | 1 | yes | yes | (existing) | |
-| 0x2C00 normalize (stage F) | ~0.6 % | on | 2 | yes | yes | (existing) | |
-| cull (stage F) | ~3.4 % | on | | yes | yes | (existing) | |
-| 0x92A0 | ~3.4 % | todo | | | | | |
-| 0x4AB0 | ~2.0 % | todo | | | | | |
-| 0xB940 | ~1.7 % | todo | | | | | |
-| 0x51E0 | ~1.5 % | todo | | | | | |
-| 0x7A90 | ~1.4 % | todo | | | | | |
-| 0xCB78 | ~1.0 % | todo | | | | | |
-| 0x78A8 | ~0.9 % | todo | | | | | |
-| 0x9148 | ~0.8 % | todo | | | | | |
-| 0x28F0 | ~0.8 % | todo | | | | | |
+| 0x63E0 loop (stage F) | native helper, not separately attributed | on | `BUZZ_STAGEF_KERNELS` 0 | yes | yes | (existing) | |
+| 0xC518 transform (stage F) | native helper, not separately attributed | on | 1 | yes | yes | (existing) | |
+| 0x2C00 normalize (stage F) | native helper, not separately attributed | on | 2 | yes | yes | (existing) | |
+| cull (stage F) | native helper, not separately attributed | on | | yes | yes | (existing) | |
+| 0x92A0 | 4.60 % | todo | | | | | |
+| 0xB940 | 2.48 % | todo | | | | | |
+| 0x4AB0 | 2.44 % | todo | | | | | |
+| 0x7A90 | 1.89 % | todo | | | | | |
+| 0x51E0 | 1.75 % | todo | | | | | |
+| 0xCB78 | 1.44 % | todo | | | | | |
+| 0x78A8 | 1.15 % | todo | | | | | |
+| 0x9148 | 1.01 % | todo | | | | | |
+| 0x97A8 | 0.78 % | todo | | | | | |
+| 0x4750 | 0.76 % | todo | | | | | |
+| 0x0988 | 0.75 % | todo | | | | | |
+| 0x4808 | 0.73 % | todo | | | | | |
+| 0x28F0 | 0.67 % | todo | | | | | |
 | Whole-job driver | n/a | todo | | | | | |
 
-Shares are of all pool-lane samples (lanes are ~60 % busy), from one
-10 s RIP sample of the menu; phase 0 replaces them with a proper ranking.
+Shares are exclusive block RIP samples divided by 63,969 active sampled
+intervals on four pool lanes (19,499 samples in image-41 block symbols),
+from three consecutive 10 s menu windows, `BUZZ_STAGEF=1`. This replaces
+the earlier one-window estimates. `0x92A0` varies 4.46-4.74 % across windows;
+`B940` varies 2.25-2.62 %, `4AB0` 2.32-2.58 %. Native/shared helper time is
+not attributed to individual lifted blocks; sampling is not an FPS benchmark
+or an exact wall-time measurement. The 15 s native-stage-F solo sample has
+`92A0` 5.00 %, `B940` 1.82 %, `7A90` 1.62 %, `CB78` 1.27 %, `4AB0` 0.75 %.
+Private sources: `analysis/native-geometry/{menu-ranking,solo-verified-ranking,
+multi-question-ranking}.json`; each sample has its matching linker map.
 
 ### Image 40 and shared routines
 
@@ -178,6 +214,8 @@ Shares are of all pool-lane samples (lanes are ~60 % busy), from one
 |---|---|---|---|---|---|
 | 2026-10-30 | Baseline (all session fixes) | Menu 40-98 s | 36.3 | 29.6 / 34.8 | `vk-scene-final2-vk` |
 | 2026-10-30 | Baseline | Round 150-250 s | 44.2 | 22.6 / 27.3 | `vk-scene-final2-rvk` |
+| 2026-10-30 | Phase 0 capture / harness / profile | Menu, solo, two-player, loads | n/a (no optimization) | n/a | 37,222 real jobs replay exactly; native Stage F established contracts reproduced; native defaults unchanged |
+| 2026-10-30 | Phase 1 formats / LS / DMA map | Entire image 41 corpus | n/a (no optimization) | n/a | 19,508 format inventories and 58,195 DMA transfers checked; includes 19 ring wraps; no new kernel/default |
 
 ## Risks
 

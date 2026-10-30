@@ -3,9 +3,10 @@
  * Capture (in the running game):
  *   BUZZ_JOB_CORPUS=<dir>          enable, write job_<image>_<seq>.bjc.gz there
  *   BUZZ_JOB_CORPUS_IMAGE=41       image to capture (default 41)
+ *                                comma-separated list also supported (40,41)
  *   BUZZ_JOB_CORPUS_AFTER_MS=0     start capturing this long after boot
  *   BUZZ_JOB_CORPUS_EVERY=1        capture every Kth job of the image
- *   BUZZ_JOB_CORPUS_MAX=64         stop after N captured jobs
+ *   BUZZ_JOB_CORPUS_MAX=64         stop after N captured jobs per image
  *   BUZZ_JOB_CORPUS_PERIOD_MS=0    at most one capture per period (spreads a
  *                                  corpus over a whole session)
  * Each file holds the staged entry state (registers + the whole LS), every
@@ -27,9 +28,11 @@
 #endif
 
 #include <atomic>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -42,6 +45,8 @@
 #endif
 
 extern "C" uint8_t* vm_base;
+extern "C" __attribute__((weak)) void buzz_geometry_trace_job(const char*) {}
+extern "C" __attribute__((weak)) void buzz_geometry_trace_report(void) {}
 
 namespace {
 
@@ -56,6 +61,7 @@ struct Recording {
     spu_context* ctx = nullptr;
     int image = 0;
     uint32_t job_ea = 0, seq = 0;
+    uint64_t elapsed_ms = 0;
     std::vector<uint8_t> entry;   /* gpr + ls */
     std::vector<uint8_t> records; /* kind, lsa, ea, size, bytes */
     uint32_t count = 0;
@@ -106,12 +112,13 @@ uint64_t now_ms()
 /* ---- capture ------------------------------------------------------------ */
 
 std::string g_dir;
-int g_image = 41;
+uint64_t g_images = 1ull << 41;
+uint64_t g_boot_ms = 0;
 uint64_t g_start_ms = 0;
 uint32_t g_every = 1, g_max = 64;
 uint64_t g_period_ms = 0;
-std::atomic<uint64_t> g_last_ms{0};
-std::atomic<uint32_t> g_seen{0}, g_taken{0};
+std::atomic<uint64_t> g_last_ms[64]{};
+std::atomic<uint32_t> g_seen[64]{}, g_taken[64]{};
 /* DMA may complete on another thread than the one running the job, so the
  * observer finds the recording by context, not by thread. */
 constexpr int kSlots = 8;
@@ -136,21 +143,23 @@ void observe(spu_context* ctx, uint32_t kind, uint32_t lsa, uint32_t ea, uint32_
 
 void capture_begin(spu_context* ctx, int image, uint32_t job_ea)
 {
-    if (image != g_image || now_ms() < g_start_ms) return;
+    if (image < 0 || image >= 64 || !(g_images & (1ull << image)) || now_ms() < g_start_ms) return;
+    if (g_taken[image].load(std::memory_order_relaxed) >= g_max) return;
     if (g_period_ms) {
         const uint64_t now = now_ms();
-        uint64_t last = g_last_ms.load(std::memory_order_relaxed);
-        if (now - last < g_period_ms || !g_last_ms.compare_exchange_strong(last, now)) return;
+        uint64_t last = g_last_ms[image].load(std::memory_order_relaxed);
+        if (now - last < g_period_ms || !g_last_ms[image].compare_exchange_strong(last, now)) return;
     }
-    uint32_t seen = g_seen.fetch_add(1, std::memory_order_relaxed);
+    uint32_t seen = g_seen[image].fetch_add(1, std::memory_order_relaxed);
     if (seen % g_every) return;
-    uint32_t seq = g_taken.fetch_add(1, std::memory_order_relaxed);
+    uint32_t seq = g_taken[image].fetch_add(1, std::memory_order_relaxed);
     if (seq >= g_max) return;
     Recording* r = new Recording;
     r->ctx = ctx;
     r->image = image;
     r->job_ea = job_ea;
     r->seq = seq;
+    r->elapsed_ms = now_ms() - g_boot_ms;
     put_state(r->entry, ctx);
     for (auto& slot : g_slots) {
         Recording* expected = nullptr;
@@ -175,6 +184,7 @@ void capture_end(spu_context* ctx, int, uint32_t)
     snprintf(name, sizeof name, "/job_%d_%04u.bjc.gz", r->image, r->seq);
     std::string path = g_dir + name;
     gzFile f = gzopen(path.c_str(), "wb1");
+    bool written = false;
     if (f) {
         std::vector<uint8_t> head;
         put(head, kMagic);
@@ -183,18 +193,31 @@ void capture_end(spu_context* ctx, int, uint32_t)
         put(head, r->job_ea);
         put(head, r->seq);
         put(head, (uint32_t)SPU_LS_SIZE);
-        gzwrite(f, head.data(), (unsigned)head.size());
-        gzwrite(f, r->entry.data(), (unsigned)r->entry.size());
-        gzwrite(f, &r->count, sizeof r->count);
-        if (!r->records.empty()) gzwrite(f, r->records.data(), (unsigned)r->records.size());
+        bool ok = gzwrite(f, head.data(), (unsigned)head.size()) == (int)head.size();
+        ok = (gzwrite(f, r->entry.data(), (unsigned)r->entry.size()) == (int)r->entry.size()) && ok;
+        ok = (gzwrite(f, &r->count, sizeof r->count) == sizeof r->count) && ok;
+        if (!r->records.empty())
+            ok = (gzwrite(f, r->records.data(), (unsigned)r->records.size()) == (int)r->records.size()) && ok;
         std::vector<uint8_t> tail;
         put_state(tail, ctx);
         put(tail, exit_of(ctx));
-        gzwrite(f, tail.data(), (unsigned)tail.size());
-        gzclose(f);
+        ok = (gzwrite(f, tail.data(), (unsigned)tail.size()) == (int)tail.size()) && ok;
+        written = gzclose(f) == Z_OK && ok;
     }
-    if (r->seq < 4 || r->seq + 1 == g_max)
-        fprintf(stderr, "[job-corpus] wrote %s (%u transfers)\n", path.c_str(), r->count);
+    if (!written)
+        fprintf(stderr, "[job-corpus] ERROR writing %s\n", path.c_str());
+    else {
+        /* One sidecar per job avoids cross-lane append races and keeps the
+         * v1 binary format compatible. Times identify scene transitions. */
+        FILE* meta = fopen((path + ".json").c_str(), "wb");
+        if (meta) {
+            fprintf(meta, "{\"image\":%d,\"seq\":%u,\"elapsed_ms\":%llu,\"transfers\":%u}\n",
+                    r->image, r->seq, (unsigned long long)r->elapsed_ms, r->count);
+            fclose(meta);
+        } else fprintf(stderr, "[job-corpus] ERROR writing metadata %s\n", path.c_str());
+        if (r->seq < 4 || r->seq + 1 == g_max)
+            fprintf(stderr, "[job-corpus] wrote %s (%u transfers)\n", path.c_str(), r->count);
+    }
     delete r;
 }
 
@@ -203,23 +226,50 @@ struct CorpusInit {
     {
         const char* dir = getenv("BUZZ_JOB_CORPUS");
         if (!dir || !dir[0] || getenv("BUZZ_REPLAY_CORPUS")) return;
-        g_dir = dir;
-        if (const char* e = getenv("BUZZ_JOB_CORPUS_IMAGE")) g_image = atoi(e);
+        std::error_code error;
+        g_dir = std::filesystem::absolute(dir, error).string();
+        if (!error) std::filesystem::create_directories(g_dir, error);
+        if (error) {
+            fprintf(stderr, "[job-corpus] ERROR creating %s: %s\n", dir, error.message().c_str());
+            return;
+        }
+        // A new session needs a new directory: sequence numbers start at zero.
+        for (const auto& file : std::filesystem::directory_iterator(g_dir, error)) {
+            if (file.path().filename().string().find(".bjc.gz") != std::string::npos) {
+                fprintf(stderr, "[job-corpus] ERROR directory already contains corpus jobs: %s\n", g_dir.c_str());
+                return;
+            }
+        }
+        if (error) { fprintf(stderr, "[job-corpus] ERROR reading directory %s\n", g_dir.c_str()); return; }
+        if (const char* e = getenv("BUZZ_JOB_CORPUS_IMAGE")) {
+            g_images = 0;
+            while (*e) {
+                char* end = nullptr;
+                long image = strtol(e, &end, 10);
+                if (end == e || image < 0 || image >= 64 || (*end && *end != ',')) {
+                    fprintf(stderr, "[job-corpus] ERROR invalid image list\n");
+                    return;
+                }
+                g_images |= 1ull << image;
+                e = *end ? end + 1 : end;
+            }
+        }
         if (const char* e = getenv("BUZZ_JOB_CORPUS_EVERY")) g_every = (uint32_t)atoi(e);
         if (const char* e = getenv("BUZZ_JOB_CORPUS_MAX")) g_max = (uint32_t)atoi(e);
         if (!g_every) g_every = 1;
         if (const char* e = getenv("BUZZ_JOB_CORPUS_PERIOD_MS")) g_period_ms = strtoull(e, nullptr, 10);
         uint64_t after = 0;
         if (const char* e = getenv("BUZZ_JOB_CORPUS_AFTER_MS")) after = strtoull(e, nullptr, 10);
-        g_start_ms = now_ms() + after;
+        g_boot_ms = now_ms();
+        g_start_ms = g_boot_ms + after;
 #ifdef _WIN32
         CreateDirectoryA(g_dir.c_str(), nullptr);
 #endif
         g_spu_dma_observer = observe;
         g_spurs_job_capture_begin = capture_begin;
         g_spurs_job_capture_end = capture_end;
-        fprintf(stderr, "[job-corpus] capturing image %d every %u max %u after %llu ms -> %s\n",
-                g_image, g_every, g_max, (unsigned long long)after, g_dir.c_str());
+        fprintf(stderr, "[job-corpus] capturing image mask %016llX every %u max %u per image after %llu ms -> %s\n",
+                (unsigned long long)g_images, g_every, g_max, (unsigned long long)after, g_dir.c_str());
     }
 } g_corpus_init;
 
@@ -472,17 +522,25 @@ std::vector<std::string> corpus_files(const std::string& where)
 
 extern "C" int buzz_job_corpus_replay(const char* where);
 extern "C" void buzz_stagef_report(void);
+extern "C" int buzz_stagef_check_failures(void);
 
 /* BUZZ_REPLAY_CORPUS: called from main once guest memory exists. Returns the
  * process exit code: 1 on output/state mismatch; read-input divergence is
  * reported separately and is NOT a claim of fully deterministic replay. */
 extern "C" int buzz_job_corpus_replay(const char* where)
 {
+    auto files = corpus_files(where);
+    std::sort(files.begin(), files.end());
+    if (files.empty()) {
+        fprintf(stderr, "[replay] ERROR no corpus jobs at %s\n", where);
+        return 1;
+    }
 #ifdef _WIN32
     auto* ctx = static_cast<spu_context*>(_aligned_malloc(sizeof(spu_context), 16));
 #else
     auto* ctx = static_cast<spu_context*>(aligned_alloc(16, sizeof(spu_context)));
 #endif
+    if (!ctx) return 1;
     g_spu_dma_observer = replay_observe;
     /* BUZZ_REPLAY_REPEAT=N: run every job N times (each run is compared) and
      * report the mean host time of the lifted job, culled vs drawn. */
@@ -492,7 +550,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     unsigned exact = 0, divergent = 0, failed = 0;
     struct Timing { double seconds = 0; unsigned runs = 0, jobs = 0; } timing[3][2];
     size_t transfers = 0;
-    for (const std::string& path : corpus_files(where)) {
+    for (const std::string& path : files) {
         Job job;
         if (!load_job(path, job)) {
             fprintf(stderr, "[replay] %s: unreadable\n", path.c_str());
@@ -501,6 +559,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
         }
         transfers += job.transfers.size();
         g_trace_steps = getenv("BUZZ_REPLAY_STEPS") != nullptr;
+        buzz_geometry_trace_job(path.c_str());
         const std::vector<Seed> seeds = seeds_of(job);
         const int drawn = job.transfers.size() > 1;
         const double seconds_before = g_run_seconds[drawn];
@@ -516,6 +575,8 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     }
     g_spu_dma_observer = nullptr;
     buzz_stagef_report();
+    buzz_geometry_trace_report();
+    if (buzz_stagef_check_failures()) ++failed;
 #ifdef BUZZ_NATIVE_IMAGE36
     buzz_image36_report();
     if (buzz_image36_mismatches()) ++failed;

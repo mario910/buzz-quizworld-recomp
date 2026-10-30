@@ -11,6 +11,7 @@
  *                  r2..r79 with garbage (proves the caller never reads them)
  */
 #include "spu_context.h"
+#include "native_function_check.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -31,6 +32,7 @@ void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
                           int (*native)(spu_context*), void (*exit_fn)(spu_context*), unsigned base_reg, unsigned kept_reg);
 int buzz_stagef_last_fallback(void);
 void buzz_stagef_report(void);
+int buzz_stagef_check_failures(void);
 void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
                      int (*native)(spu_context*), int kernel);
 }
@@ -54,11 +56,22 @@ unsigned g_kernel_mask = ~0u;
 volatile long g_compared[kKernels], g_mismatched[kKernels], g_native[kKernels], g_fallback[kKernels];
 volatile long g_reasons[4];
 volatile long g_restored = 0;
+volatile long g_full_compared[kKernels], g_full_mismatched[kKernels];
+bool g_function_check = false, g_function_strict = false;
 
 struct StageFInit {
     StageFInit()
     {
         if (const char* e = getenv("BUZZ_STAGEF")) buzz_stagef_mode = atoi(e);
+        if (const char* e = getenv("BUZZ_FUNCTION_CHECK")) {
+            if (strcmp(e, "stagef") && strcmp(e, "strict")) {
+                fprintf(stderr, "[function-check] invalid mode (expected stagef or strict)\n");
+                std::abort();
+            }
+            g_function_check = true;
+            g_function_strict = !strcmp(e, "strict");
+            buzz_stagef_mode = 2;
+        }
         if (const char* e = getenv("BUZZ_STAGEF_WIDTH")) buzz_stagef_width = atoi(e) == 4 ? 4 : 8;
         if (const char* e = getenv("BUZZ_STAGEF_KERNELS")) g_kernel_mask = (unsigned)strtoul(e, nullptr, 0);
         if (const char* e = getenv("BUZZ_STAGEF_DUMP")) g_dump_dir = e;
@@ -83,14 +96,7 @@ void run_reference(spu_context* ctx, void (*reference)(spu_context*))
 
 spu_context* clone(const spu_context* ctx)
 {
-#ifdef _WIN32
-    auto* copy = static_cast<spu_context*>(_aligned_malloc(sizeof(spu_context), 16));
-#else
-    auto* copy = static_cast<spu_context*>(aligned_alloc(16, sizeof(spu_context)));
-#endif
-    memcpy(copy, ctx, sizeof(spu_context));
-    copy->ls = copy->ls_store;
-    return copy;
+    return buzz::clone_function_state(ctx);
 }
 
 void release(spu_context* copy)
@@ -157,14 +163,25 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
         return;
     }
     if (buzz_stagef_mode == 2) {
-        spu_context* copy = clone(ctx);
-        run_reference(ctx, reference);
-        if (run_native(copy)) {
-            compare(ctx, copy, kernel);
+        const bool handled = buzz::check_function(ctx,
+            [reference](spu_context* c) { run_reference(c, reference); }, run_native,
+            [kernel](const spu_context& ref, const spu_context& nat, bool same_continuation) {
+            compare(&ref, &nat, kernel);
+            if (g_function_check) {
+                auto d = buzz::compare_function_state(ref, nat);
+                InterlockedIncrement(&g_full_compared[kernel]);
+                if (!d.exact() || !same_continuation) {
+                    if (InterlockedIncrement(&g_full_mismatched[kernel]) <= 2)
+                        fprintf(stderr, "[function-check] k%d full-state DIFF: r%d byte %d (%u register bytes),"
+                            " LS %05X (%u bytes), state=%s continuation=%s\n", kernel,
+                            d.first_register, d.first_register_byte, d.register_bytes,
+                            d.first_ls, d.ls_bytes, d.first_state ? d.first_state : "equal",
+                            same_continuation ? "equal" : "DIFF");
+                }
+            }
             if (g_compared[kernel] % 50000 == 0) buzz_stagef_report();
-        }
-        else InterlockedIncrement(&g_fallback[kernel]);
-        release(copy);
+        });
+        if (!handled) InterlockedIncrement(&g_fallback[kernel]);
         return;
     }
     if (buzz_stagef_mode == 3) {
@@ -301,6 +318,10 @@ void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
 /* Summary for the replay harness and logs. */
 extern "C" void buzz_stagef_report(void)
 {
+    if (g_function_check)
+        for (int k = 0; k < kKernels; ++k)
+            fprintf(stderr, "[function-check] k%d full-state compared=%ld mismatched=%ld\n",
+                    k, g_full_compared[k], g_full_mismatched[k]);
     if (g_restored) fprintf(stderr, "[stagef] culltest: restored %ld junk bytes\n", g_restored);
     if (buzz_stagef_mode)
         fprintf(stderr, "[stagef] cull: native %ld, fallback %ld, compared %ld, mismatched %ld\n",
@@ -312,4 +333,16 @@ extern "C" void buzz_stagef_report(void)
     if (buzz_stagef_mode)
         fprintf(stderr, "[stagef] vertex fallback reasons: count %ld, empty %ld, overlap %ld\n",
                 g_reasons[1], g_reasons[2], g_reasons[3]);
+}
+
+extern "C" int buzz_stagef_check_failures(void)
+{
+    long failures = g_cull_mismatched;
+    long compared = 0;
+    for (int k = 0; k < kKernels; ++k) {
+        compared += g_full_compared[k];
+        failures += g_mismatched[k];
+        if (g_function_strict) failures += g_full_mismatched[k];
+    }
+    return failures != 0 || (g_function_check && !compared);
 }

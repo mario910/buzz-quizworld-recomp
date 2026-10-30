@@ -11,7 +11,7 @@
 # Saved profiles are picked as the game pre-selects them: 4 players need 4.
 param([ValidateRange(2,4)][int]$Players = 3, [string]$BuildDirectory = 'build-windows',
       [string]$Env = '', [int]$RoundSeconds = 120, [switch]$Shots, [switch]$Keep,
-      [string]$Affinity = '')
+      [string]$Affinity = '', [string]$PhaseLog = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
@@ -29,6 +29,14 @@ $out = .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Bac
 foreach ($k in $set) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
 $procId = [int]([regex]::Match($out, 'PID=(\d+)').Groups[1].Value)
 $log = [regex]::Match($out, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
+$phaseStart = Get-Date
+function Phase([string]$name) {
+    if ($PhaseLog) {
+        @{ phase=$name; elapsed_ms=[int](((Get-Date)-$phaseStart).TotalMilliseconds) } |
+            ConvertTo-Json -Compress | Add-Content -LiteralPath $PhaseLog -Encoding utf8
+    }
+}
+Phase 'boot'
 if ($Affinity) { (Get-Process -Id $procId).ProcessorAffinity = [IntPtr][Convert]::ToInt64($Affinity, 16) }
 function Title { (Get-Process -Id $procId).MainWindowTitle }
 function Draws { if ((Title) -match 'draws: (\d+)') { [int]$Matches[1] } else { -1 } }
@@ -44,9 +52,12 @@ WaitDraws 0 120; Start-Sleep 8
 Press P1r 6                        # language
 Press P1r 25                       # buzzer info
 WaitDraws 1000 120; Start-Sleep 4
+Phase 'menu'
 Press P1r 6                        # Zagraj w gre
 Press P1r 6                        # Standardowa gra
+Phase 'scene-load'
 Press P1r 50                       # Dwie do czterech, then the studio intro
+Phase 'player-setup'
 Shot '1-join'
 Press $all                         # Kto dzis gra: each handset joins
 Start-Sleep 3; Shot '2-profile'
@@ -56,6 +67,7 @@ Press $all                         # Kim jestes: the pre-selected profile
 Start-Sleep 3; Shot '4-gotow'
 Press $all                         # Gotow!
 Start-Sleep 20; Shot '5-studio'
+Phase 'multi-navigation'  # Confirm a rendered question before counting round coverage.
 "PID=$procId log=$log"
 if ($Keep) { return }
 # Answer in turn (red buzzes in a fast round; the colours answer), and sample
@@ -73,4 +85,5 @@ if ($fps.Count) {
         $sorted[[int]($sorted.Count / 2)], $sorted[0]
 }
 "title at end: $(Title)"
+Phase 'end'
 Stop-Process -Id $procId -ErrorAction SilentlyContinue

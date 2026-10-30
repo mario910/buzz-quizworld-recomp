@@ -13,6 +13,7 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Tag,
       [ValidateRange(30,3600)][int]$Seconds = 100, [ValidateRange(10,3600)][int]$RoundSeconds = 120,
       [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
+      [string]$PhaseLog = '',
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -40,6 +41,13 @@ try {
     $procId = [int]([regex]::Match($r, 'PID=(\d+)').Groups[1].Value)
     $log = [regex]::Match($r, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
     $t0 = Get-Date
+    function Phase([string]$name) {
+        if ($PhaseLog) {
+            @{ phase=$name; elapsed_ms=[int](((Get-Date)-$t0).TotalMilliseconds) } |
+                ConvertTo-Json -Compress | Add-Content -LiteralPath $PhaseLog -Encoding utf8
+        }
+    }
+    Phase 'boot'
     $script:seq = 0
     function Key([int]$mask) {
         $script:seq++
@@ -55,10 +63,13 @@ try {
         Key $red; Start-Sleep 6                  # language
         Key $red; Start-Sleep 25                 # buzzer info -> studio menu
         Shot 'menu'
+        Phase 'menu'
         Key $red; Start-Sleep 5                  # Play
         1..9 | ForEach-Object { Key $orange; Start-Sleep 1 }; Start-Sleep 2
         Key $red; Start-Sleep 6                  # single-player challenges
+        Phase 'scene-load'
         Key $red; Start-Sleep 26                 # first challenge
+        Phase 'player-setup'
         Key $red; Start-Sleep 6                  # join
         Key $red; Start-Sleep 5                  # load profile
         Key $red; Start-Sleep 5                  # first profile
@@ -66,11 +77,13 @@ try {
         for ($i = 0; $i -lt 4 -and (Draws) -lt 600; $i++) { Key $red; Start-Sleep 5 }
         $roundStart = ((Get-Date) - $t0).TotalSeconds
         Write-Output ("round_start_s={0:N1}" -f $roundStart)
+        Phase 'solo-round'
         Shot 'round'
         $end = $roundStart + $RoundSeconds
     }
     while (((Get-Date) - $t0).TotalSeconds -lt $end) { Start-Sleep -Milliseconds 500 }
     if ($Scene -eq 'Round') { Shot 'end' }
+    Phase 'end'
 } finally {
     if ($procId) {
         $p = Get-Process -Id $procId -ErrorAction SilentlyContinue

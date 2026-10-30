@@ -48,6 +48,8 @@ def load(path):
     exit_gpr, exit_ls = raw[o:o + GPR], raw[o + GPR:o + GPR + LS]
     o += GPR + LS
     exit_state = struct.unpack_from("<7I", raw, o)
+    if o + 28 != len(raw):
+        raise ValueError(f"{path}: truncated/trailing corpus state")
     return dict(raw=raw, image=image, job_ea=job_ea, seq=seq, entry_gpr=entry_gpr,
                 entry_ls=entry_ls, transfers=transfers, exit_gpr=exit_gpr,
                 exit_ls=exit_ls, exit=exit_state, ls_offset=24 + GPR)
@@ -64,20 +66,25 @@ def layout(job):
     desc = reg_word(job["entry_gpr"], 4)
     io = be32(ls, ctx + 0x00)
     cache = [be32(ls, ctx + 0x04 + 4 * i) for i in range(4)]
-    size_desc = be32(ls, ctx + 0x14)
+    desc_units = be32(ls, ctx + 0x14) >> 28
+    size_desc = desc_units * 128 if desc_units else 64
     n_io, n_cache = be16(ls, ctx + 0x18), be16(ls, ctx + 0x1A)
     out = be32(ls, ctx + 0x1C)
     scratch = be32(ls, ctx + 0x20)
     # CellSpursJob256 header
-    d = ls[desc:desc + 0x400]
+    d = ls[desc:desc + size_desc]
     dma = []
     n_dma = be16(d, 10) // 8
     for i in range(n_dma):
         word = struct.unpack_from(">Q", d, 0x30 + 8 * i)[0]
         dma.append(((word >> 32) & 0x7FFF, word & 0xFFFFFFFF))
+    cache_bytes = be32(d, 0x24)
+    user_offset = 0x30 + 8 * n_dma + cache_bytes
+    if user_offset > size_desc:
+        raise ValueError(f"DMA lists exceed descriptor: {user_offset} > {size_desc}")
     return dict(ctx=ctx, desc=desc, io=io, cache=cache, size_desc=size_desc, n_io=n_io,
                 n_cache=n_cache, out=out, scratch=scratch, dma=dma,
-                user=d[0x30 + 8 * n_dma:0x80])
+                user_offset=user_offset, user=d[user_offset:])
 
 
 def summary(paths):
