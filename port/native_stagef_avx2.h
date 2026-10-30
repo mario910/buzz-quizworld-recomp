@@ -1,3 +1,4 @@
+#pragma once
 /* 8-lane AVX2 forms of the SPU single-precision operations stage F uses.
  *
  * Same contract as spu_native_rtz.h: the job runs with MXCSR RZ+FTZ+DAZ

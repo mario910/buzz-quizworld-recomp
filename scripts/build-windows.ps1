@@ -149,9 +149,13 @@ if ($FusedGeometry) {
     $geometryOverride = Join-Path $experimentRoot 'analysis\fused-geometry\spu_recomp.c'
 }
 if ($StageF) {
-    & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/codegen/generate-geometry-stagef.py')
-    if ($LASTEXITCODE) { throw "Stage F geometry generation failed: $LASTEXITCODE" }
-    $geometryOverride = Join-Path $experimentRoot 'analysis\stagef-geometry\spu_recomp.c'
+    $geometryLift = Join-Path $experimentRoot 'port/spu/buzz_job_6eba/spu_recomp.c'
+    $geometryPhase2 = $NativeSpuFloat.IsPresent -and $SpuIsa -in @('avx2','avx512') -and
+        (Get-FileHash -LiteralPath $geometryLift -Algorithm SHA256).Hash -eq '5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812'
+    $geometryGenerator = if ($geometryPhase2) { 'generate-geometry-phase2.py' } else { 'generate-geometry-stagef.py' }
+    & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot "tools/codegen/$geometryGenerator")
+    if ($LASTEXITCODE) { throw "Stage F/phase 2 geometry generation failed: $LASTEXITCODE" }
+    $geometryOverride = Join-Path $experimentRoot $(if ($geometryPhase2) { 'analysis/native-geometry/phase2/spu_recomp.c' } else { 'analysis/stagef-geometry/spu_recomp.c' })
 }
 if ($MergeGeometry) {
     & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/codegen/generate-geometry-merged.py')

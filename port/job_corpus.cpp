@@ -523,6 +523,8 @@ std::vector<std::string> corpus_files(const std::string& where)
 extern "C" int buzz_job_corpus_replay(const char* where);
 extern "C" void buzz_stagef_report(void);
 extern "C" int buzz_stagef_check_failures(void);
+extern "C" void buzz_geometry_report(void);
+extern "C" int buzz_geometry_check_failures(void);
 
 /* BUZZ_REPLAY_CORPUS: called from main once guest memory exists. Returns the
  * process exit code: 1 on output/state mismatch; read-input divergence is
@@ -577,6 +579,8 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     buzz_stagef_report();
     buzz_geometry_trace_report();
     if (buzz_stagef_check_failures()) ++failed;
+    buzz_geometry_report();
+    if (buzz_geometry_check_failures()) ++failed;
 #ifdef BUZZ_NATIVE_IMAGE36
     buzz_image36_report();
     if (buzz_image36_mismatches()) ++failed;

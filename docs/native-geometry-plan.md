@@ -175,14 +175,14 @@ subject to the kernel gates before replacement.
 | 0xC518 transform (stage F) | native helper, not separately attributed | on | 1 | yes | yes | (existing) | |
 | 0x2C00 normalize (stage F) | native helper, not separately attributed | on | 2 | yes | yes | (existing) | |
 | cull (stage F) | native helper, not separately attributed | on | | yes | yes | (existing) | |
-| 0x92A0 | 4.60 % | todo | | | | | |
+| 0x92A0 | 4.60 % | on | `BUZZ_GEOMETRY_KERNELS` 0 | 19,508 exact; 6,628 strict groups | >=600,000 exact | 31.60 -> 31.94 | this step |
 | 0xB940 | 2.48 % | todo | | | | | |
 | 0x4AB0 | 2.44 % | todo | | | | | |
 | 0x7A90 | 1.89 % | todo | | | | | |
 | 0x51E0 | 1.75 % | todo | | | | | |
 | 0xCB78 | 1.44 % | todo | | | | | |
 | 0x78A8 | 1.15 % | todo | | | | | |
-| 0x9148 | 1.01 % | todo | | | | | |
+| 0x9148 | 1.01 % | on | shares bit 0 with 0x92A0 | same coupled unit-vector decoder | same checked group | same measurement | this step |
 | 0x97A8 | 0.78 % | todo | | | | | |
 | 0x4750 | 0.76 % | todo | | | | | |
 | 0x0988 | 0.75 % | todo | | | | | |
@@ -201,6 +201,12 @@ or an exact wall-time measurement. The 15 s native-stage-F solo sample has
 Private sources: `analysis/native-geometry/{menu-ranking,solo-verified-ranking,
 multi-question-ranking}.json`; each sample has its matching linker map.
 
+Phase 2 implementation notes and per-kernel evidence are in
+[native-geometry-kernels.md](native-geometry-kernels.md). Bit 0 combines the
+tightly coupled `0x9148/0x92A0` decoder; it is not two independent replacements.
+It is enabled by default in the reviewed adapter after all its gates passed;
+the other phase 2 kernels remain pending.
+
 ### Image 40 and shared routines
 
 | Function | Lane time share | Status | Notes |
@@ -216,6 +222,8 @@ multi-question-ranking}.json`; each sample has its matching linker map.
 | 2026-10-30 | Baseline | Round 150-250 s | 44.2 | 22.6 / 27.3 | `vk-scene-final2-rvk` |
 | 2026-10-30 | Phase 0 capture / harness / profile | Menu, solo, two-player, loads | n/a (no optimization) | n/a | 37,222 real jobs replay exactly; native Stage F established contracts reproduced; native defaults unchanged |
 | 2026-10-30 | Phase 1 formats / LS / DMA map | Entire image 41 corpus | n/a (no optimization) | n/a | 19,508 format inventories and 58,195 DMA transfers checked; includes 19 ring wraps; no new kernel/default |
+| 2026-10-30 | Native 9148/92A0 decoder | Menu 40-98 s | 31.60 -> 31.94 (+1.08%) | mean run medians 34.10 -> 33.41 / mean p90 40.65 -> 40.32 | Same EXE, A/B then B/A; pair gains +1.38%, +0.78%; `p2-unit24-ab` |
+| 2026-10-30 | Native 9148/92A0 decoder | Round 150-220 s | 39.31 -> 40.65 (+3.41%) | mean run medians 25.81 -> 25.14 / mean p90 29.48 -> 29.02 | Same EXE, A/B then B/A; pair gains +5.09%, +1.80%; different session from original baseline |
 
 ## Risks
 
