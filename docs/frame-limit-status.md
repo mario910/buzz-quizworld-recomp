@@ -120,6 +120,54 @@ utilization inside 23 pool groups, and ~7 ms of serial chain work between
 groups. `SPURS_JOB_LIST_WORKERS=5` halves the FPS (12.4) and is not an
 option.
 
+### 2. Pool lanes poll briefly before sleeping
+
+SDK `0d6154fe`. Inside those pool groups each lane ran ~40 us jobs with
+~14-25 us idle between them: the guest's SYNC commands split each frame
+into ~165 stages of ~14 jobs, and at every stage boundary the lanes slept
+on a condition variable and paid an OS wake-up. With
+`SPURS_POOL_SPIN_US=n` an idle lane polls the queue for up to n us before
+sleeping. The SDK default stays off and the option is ignored below 12
+logical processors (four polling lanes would compete with the guest PPU,
+RSX and audio threads); `scripts/run-windows.ps1` and the native launcher
+now default it to 1000. Polling costs CPU time on those four lanes; on
+this 24-thread machine both scenes still got faster.
+
+| Scene, window | Spin | FPS | Median ms | p90 ms | p99 ms | >40 ms |
+|---|---|---:|---:|---:|---:|---:|
+| Menu 40-98 s | 0 | 27.51 | 37.91 | 47.04 | 54.02 | 40.6 % |
+| Menu 40-98 s | 0 | 27.25 | 38.28 | 46.24 | 51.44 | 42.6 % |
+| Menu 40-98 s | 200 us | 28.92 | 36.01 | 44.95 | 50.26 | 32.5 % |
+| Menu 40-98 s | 200 us | 27.87 | 37.45 | 45.52 | 52.80 | 37.1 % |
+| Menu 40-98 s | 1000 us | 29.98 | 35.63 | 43.03 | 48.90 | 23.9 % |
+| Menu 40-98 s | 1000 us | 31.61 | 33.49 | 40.60 | 46.79 | 12.5 % |
+| Menu 40-98 s | 3000 us | 30.28 | 34.44 | 43.24 | 49.40 | 23.8 % |
+| Round 150-250 s | 0 | 31.86 | 31.56 | 36.36 | 41.85 | 2.5 % |
+| Round 150-250 s | 0 | 32.67 | 30.92 | 35.63 | 40.86 | 1.4 % |
+| Round 150-250 s | 1000 us | 36.33 | 27.84 | 32.01 | 37.45 | 0.5 % |
+| Round 150-250 s | 1000 us | 35.85 | 28.12 | 32.36 | 37.65 | 0.6 % |
+
+Run order: menu 200/0/0/200/1000/3000/1000, round 1000/0/0/1000. Every
+10 s slice of the 1000 us round runs stayed at or above 33 FPS. D3D12
+shares the SPURS runtime and gains as well: menu 26.53 -> 28.77 FPS
+(median 39.97 -> 37.33 ms, same window).
+
+### Overall (both changes)
+
+| Scene, window | Before | After |
+|---|---|---|
+| Menu 40-98 s | 23.6-24.7 FPS, median ~42 ms, p90 51-56 ms | 30.0-31.6 FPS, median 33.5-35.6 ms, p90 40.6-43.0 ms |
+| Round 150-250 s | 29.1 FPS, median 33.6 ms, p90 41.2 ms | 35.9-36.3 FPS, median 27.8-28.1 ms, p90 32.0-32.4 ms |
+
+The round now holds 30 FPS uncapped in this window, so the 30 FPS cap can
+keep it at a steady 30. The menu's camera tour averages about 30 but its
+heaviest seconds still drop below. Remaining costs, from the profiles:
+SPU job setup zeroes each job's 256 KiB local store and copies its binary
+(~15 % of image 41 job time); some pool-lane SPU code still runs in the
+interpreter (~5 % of lane time); and on the RSX thread, per-draw vertex
+fetch (`rsx_vertex_remap_build`, `rsx_vertex_decode_element`,
+`rsx_vertex_fetch_one`, ~17 %) and FIFO method dispatch (~12 %).
+
 ## Revised pacer validation (2026-10-30)
 
 Both renderers were rebuilt. `test-frame-limit.ps1` passes, including the
