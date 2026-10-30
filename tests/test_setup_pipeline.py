@@ -54,6 +54,32 @@ class SetupTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_update_content_staging_is_complete_and_does_not_copy_saves(self):
+        source, workspace = self.root / "Patched", self.root / "workspace"
+        source.mkdir()
+        workspace.mkdir()
+        for name in pipeline.UPDATE_102_FILES:
+            (source / name).write_bytes(b"synthetic update")
+        (source / "GLOBAL.EDAT.dec").write_bytes(b"stale plaintext cache")
+        (source / "profile.dat").write_bytes(b"not an update asset")
+        pipeline.stage_update_content(source, workspace, self.cancel, self.logs.append)
+        target = workspace / "runtime/dev_hdd0/game/BCES00647/USRDIR/Patched"
+        self.assertEqual(sorted(p.name for p in target.iterdir()), sorted(pipeline.UPDATE_102_FILES))
+        pipeline.stage_update_content(source, workspace, self.cancel, self.logs.append)  # safe resume
+        (target / "GLOBAL.EDAT").write_bytes(b"user modified")
+        with self.assertRaisesRegex(ValueError, "changed"):
+            pipeline.stage_update_content(source, workspace, self.cancel, self.logs.append)
+        self.assertEqual((target / "GLOBAL.EDAT").read_bytes(), b"user modified")
+
+    def test_missing_update_content_is_rejected_before_any_copy(self):
+        source, workspace = self.root / "Patched", self.root / "workspace"
+        source.mkdir()
+        workspace.mkdir()
+        (source / "GLOBAL.EDAT").write_bytes(b"only one asset")
+        with self.assertRaisesRegex(ValueError, "complete Patched assets"):
+            pipeline.stage_update_content(source, workspace, self.cancel, self.logs.append)
+        self.assertEqual(list(workspace.iterdir()), [])
+
     def test_profiles_do_not_confuse_detected_with_buildable(self):
         self.assertTrue(identify("BCES00647", PROFILES[0].elf_sha256).buildable)
         self.assertTrue(identify("BCES00647", PROFILES[1].elf_sha256).buildable)

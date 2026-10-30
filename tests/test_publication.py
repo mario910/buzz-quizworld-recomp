@@ -22,7 +22,7 @@ verify = module("verify_game", ROOT / "tools/verify-game.py")
 
 class PublicationTests(unittest.TestCase):
     def test_paths(self):
-        for path in ("analysis/job.cpp", "port/recompiled/a.cpp", "port/spu/a.c", "runtime/save.dat", "extra/BOOT.ELF", "buzz-paths.json", "x/.env.secret"):
+        for path in ("analysis/job.cpp", "port/recompiled/a.cpp", "port/spu/a.c", "runtime/save.dat", "extra/BOOT.ELF", "buzz-paths.json", "x/.env.secret", "build-vulkan-windows/derived.cpp", "build-vulkan-smoke/capture.ppm"):
             self.assertIsNotNone(audit.path_issue(path, "port"), path)
         self.assertIsNone(audit.path_issue("runtime/spu/spu_context.h", "sdk"))
         self.assertIsNotNone(audit.path_issue("fw_spu/lifted/a.c", "sdk"))

@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 BAD_SUFFIXES = set(".elf .self .prx .sprx .bin .iso .pkg .pup .rap .rif .edat .keys .pem .p12 .pfx .exe .dll .obj .pdb .trace .log .zip .7z .pdf".split())
-BAD_DIRS = {"analysis", "logs", "runtime", "build-windows", "toolenv", "fw_spu", "dev_flash", "dev_hdd0", "dev_hdd1", "ps3_game", ".claude", ".codex"}
+BAD_DIRS = {"analysis", "logs", "runtime", "build-windows", "build-launcher", "build-vulkan-smoke", "build-vulkan-windows", "dist-launcher", "toolenv", "fw_spu", "dev_flash", "dev_hdd0", "dev_hdd1", "ps3_game", ".claude", ".codex"}
 SECRETS = [
     re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"),
     re.compile(rb"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),

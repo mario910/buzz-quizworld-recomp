@@ -26,6 +26,15 @@ int main(){
     assert(bits(8,31)==0&&receiver_bits(valid_mask,2)==0);
     Router invalid;invalid.state(999,UINT64_MAX,0);invalid.release(999,true);assert(!invalid.sample(0));
     auto config=defaults();std::string error;
+    assert(config.gamepads);
+    for(auto& mapping:config.pad_buttons){
+        assert(map_pad(0x200,mapping)==(1u<<red));
+        assert(map_pad(0x4,mapping)==(1u<<yellow));
+        assert(map_pad(0x2,mapping)==(1u<<green));
+        assert(map_pad(0x8,mapping)==(1u<<orange));
+        assert(map_pad(0x1,mapping)==(1u<<blue));
+        assert(map_pad(0x10,mapping)==0); // START must not answer a question.
+    }
     assert(parse_config("players=8\nkeyboard.8=F1,F2,F3,F4,F5\ngamepads=1\ngamepad.2=8,START,Y,A,B,X\npulse_ms=100\n",config,error));
     assert(config.players==8&&config.keys[7][0]==112&&config.pad_player[1]==7&&config.pulse_ms==100);
     assert(map_pad(0xffff,config.pad_buttons[1])==31);

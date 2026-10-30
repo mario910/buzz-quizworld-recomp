@@ -83,7 +83,7 @@ class LauncherTests(unittest.TestCase):
             lambda s:setattr(s,'offline','false'),lambda s:s.players.pop(),
             lambda s:s.players[0].keys.__setitem__(1,'Space'),
             lambda s:s.pads[1].__setattr__('player',0),
-            lambda s:s.pads[0].buttons.__setitem__(1,'START'),
+            lambda s:s.pads[0].buttons.__setitem__(1,'RB'),
             lambda s:s.players[0].__setattr__('name','Bad\nName')):
             settings=model.Settings();mutate(settings)
             with self.assertRaises(ValueError):settings.validate()
@@ -93,7 +93,7 @@ class LauncherTests(unittest.TestCase):
     def test_preview(self):
         s=model.Settings();s.places=8;s.gamepads=True
         s.pads[0].player=7
-        masks=model.preview(s,{32},[0x4000,0,0,0])
+        masks=model.preview(s,{32},[model.PAD_BITS['UP'],0,0,0])
         self.assertEqual(masks[0],1)
         self.assertEqual(masks[7],16)
         self.assertEqual(model.preview(s,set(),[0]*4),[0]*8)

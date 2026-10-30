@@ -14,9 +14,22 @@ either, or the following separately licensed components.
 | stb_truetype, Sean Barrett and contributors | license text inside `ps3recomp/libs/font/stb_truetype.h` (MIT or public domain) | SDK font support |
 | pycdlib, Chris Lalancette and contributors | LGPL-2.1-only; [upstream license](https://github.com/clalancette/pycdlib/blob/master/COPYING), also installed with the pip distribution | ISO/Joliet/UDF import tool, not vendored source |
 | RPCS3 | GPLv2; [upstream license](https://github.com/RPCS3/rpcs3/blob/master/LICENSE), consult the separately supplied distribution | Optional local preparation helper for PUP/PKG/SELF; not redistributed or linked into this port |
+| SDL3, SDL contributors | zlib; pinned source `LICENSE.txt`, installed as `licenses/SDL3.txt` | Native launcher window, input, dialogs and direct process API; statically linked |
+| Dear ImGui, Omar Cornut and contributors | MIT; pinned source `LICENSE.txt`, installed as `licenses/ImGui.txt` | Native launcher UI |
+| JSON for Modern C++, Niels Lohmann and contributors | MIT; pinned source `LICENSE.MIT`, installed as `licenses/nlohmann-json.txt` | Native launcher settings/manifest parsing |
+| PicoSHA2, okdshin and contributors | MIT; pinned source `LICENSE`, installed as `licenses/PicoSHA2.txt` | Native launcher's SHA-256 consistency checks |
 
 Other notices in upstream files remain in place. Tool dependencies installed
 by pip have their own licenses; they are not vendored by this repository.
+
+The optional Vulkan build additionally fetches pinned Khronos sources:
+Vulkan-Headers (Apache-2.0 OR MIT; see its `LICENSE.md`), glslang (the component
+licenses collected in its `LICENSE.txt`), SPIRV-Headers (MIT) and SPIRV-Tools
+(Apache-2.0). Versions/archive hashes are recorded in the SDK's
+`cmake/VulkanDependencies.cmake`; the SPIR-V pair matches glslang's known-good
+revision list. Their shader libraries are linked into experimental binaries,
+not downloaded or launched while playing. Preserve their upstream notices
+when packaging a binary; the native launcher's own dependency set is unchanged.
 
 ## Source publication, not a redistributable game build
 

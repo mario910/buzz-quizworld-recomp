@@ -1,8 +1,15 @@
 @echo off
 setlocal DisableDelayedExpansion
 set "BUZZ_LAUNCH_DIR=%~dp0"
-if not exist "%BUZZ_LAUNCH_DIR%toolenv\Scripts\pythonw.exe" (
-    call "%BUZZ_LAUNCH_DIR%Prepare-Buzz.cmd"
+if exist "%BUZZ_LAUNCH_DIR%BuzzLauncher.exe" (
+    start "" /D "%BUZZ_LAUNCH_DIR%" "%BUZZ_LAUNCH_DIR%BuzzLauncher.exe"
     exit /b
 )
-start "" /D "%BUZZ_LAUNCH_DIR%" "%BUZZ_LAUNCH_DIR%toolenv\Scripts\pythonw.exe" "%BUZZ_LAUNCH_DIR%launcher\start.pyw"
+if exist "%BUZZ_LAUNCH_DIR%build-launcher\BuzzLauncher.exe" (
+    start "" /D "%BUZZ_LAUNCH_DIR%" "%BUZZ_LAUNCH_DIR%build-launcher\BuzzLauncher.exe"
+    exit /b
+)
+echo The native launcher has not been built yet.
+echo Developer setup: see README, then run scripts\build-launcher.ps1.
+echo Importing/building and the legacy Python UI are separate developer tools.
+pause

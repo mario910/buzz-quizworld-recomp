@@ -1,6 +1,7 @@
 param(
     [string]$CompilerDirectory = '',
     [int]$Jobs = 6,
+    [switch]$VulkanExperimental,
     [ValidateSet('sse2','sse41','avx2','avx512')][string]$SpuIsa = 'avx2',
     [switch]$NativeSpuFloat = $true,
     [switch]$HotPpu = $true,
@@ -36,7 +37,8 @@ if ($SpuIsa -notin @('avx2','avx512') -and -not $PSBoundParameters.ContainsKey('
     $NativeSpuFloat = [System.Management.Automation.SwitchParameter]::new($false)
 }
 $experimentRoot = $projectRoot
-$expectedExe = Join-Path $experimentRoot 'build-windows\BuzzQuizWorldRecomp.exe'
+$buildName=if($VulkanExperimental){'build-vulkan-windows'}else{'build-windows'}
+$expectedExe = Join-Path $experimentRoot ($buildName+'\BuzzQuizWorldRecomp.exe')
 if (Get-Process -Name BuzzQuizWorldRecomp -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $expectedExe }) {
     throw 'Close this checkout''s running game before building; it will not be stopped for you.'
 }
@@ -57,7 +59,7 @@ $compiler = Join-Path $CompilerDirectory 'clang-cl.exe'
 if (-not (Test-Path -LiteralPath $compiler)) { throw "clang-cl missing: $compiler" }
 $sdk = Join-Path $experimentRoot 'ps3recomp'
 $port = Join-Path $experimentRoot 'port'
-$build = Join-Path $experimentRoot 'build-windows'
+$build = Join-Path $experimentRoot $buildName
 $geometryOverride = ''
 $hostProfile = ''
 $generationPath=Join-Path $experimentRoot 'analysis\game-generation.json'
@@ -156,7 +158,21 @@ if ($MergeGeometry) {
     if ($LASTEXITCODE) { throw "Merged geometry generation failed: $LASTEXITCODE" }
     $geometryOverride = Join-Path $experimentRoot 'analysis\merged-geometry\spu_recomp.c'
 }
-& cmake -S $port -B $build -G Ninja "-DPS3RECOMP_DIR=$sdk" "-DCMAKE_C_COMPILER=$compiler" "-DCMAKE_CXX_COMPILER=$compiler" "-DPORT_HOST_PROFILE_DIR=$hostProfile" "-DPORT_SPU_ISA=$SpuIsa" "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)" "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)" "-DPORT_SPU_LS_DEBUG_HOOKS=$($SpuLsDebugHooks.IsPresent)" "-DPORT_SPU_OPT=$SpuOpt" "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)" "-DPORT_GEOMETRY_SOURCE=$geometryOverride" "-DPORT_COMPLETION_SOURCE=$completionOverride" "-DPORT_IMAGE40_SOURCE=$image40Override" "-DPORT_IMAGE39_SOURCE=$image39Override" "-DPORT_IMAGE7_SOURCE=$image7Override" "-DPORT_MSTREAM_DIR=$mstreamDir" "-DPORT_IMAGE36_SOURCE=$image36Override" "-DPORT_VIDEO_SOURCE=$videoOverride" "-DPORT_PRODUCER_PROBE_DIR=$producerOverride" -DCMAKE_BUILD_TYPE=Release '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG' '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
+$configureOptions=@(
+    "-DPS3RECOMP_DIR=$sdk", "-DCMAKE_C_COMPILER=$compiler", "-DCMAKE_CXX_COMPILER=$compiler",
+    "-DPython3_EXECUTABLE=$(Join-Path $toolScripts 'python.exe')",
+    "-DBUZZ_EXPERIMENTAL_VULKAN=$($VulkanExperimental.IsPresent)",
+    "-DPORT_HOST_PROFILE_DIR=$hostProfile", "-DPORT_SPU_ISA=$SpuIsa",
+    "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)", "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)",
+    "-DPORT_SPU_LS_DEBUG_HOOKS=$($SpuLsDebugHooks.IsPresent)", "-DPORT_SPU_OPT=$SpuOpt",
+    "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)", "-DPORT_GEOMETRY_SOURCE=$geometryOverride",
+    "-DPORT_COMPLETION_SOURCE=$completionOverride", "-DPORT_IMAGE40_SOURCE=$image40Override",
+    "-DPORT_IMAGE39_SOURCE=$image39Override", "-DPORT_IMAGE7_SOURCE=$image7Override",
+    "-DPORT_MSTREAM_DIR=$mstreamDir", "-DPORT_IMAGE36_SOURCE=$image36Override",
+    "-DPORT_VIDEO_SOURCE=$videoOverride", "-DPORT_PRODUCER_PROBE_DIR=$producerOverride",
+    '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
+)
+& cmake -S $port -B $build -G Ninja @configureOptions
 if ($LASTEXITCODE) { throw "CMake configuration failed: $LASTEXITCODE" }
 & cmake --build $build --parallel $Jobs
 if ($LASTEXITCODE) { throw "Build failed: $LASTEXITCODE" }

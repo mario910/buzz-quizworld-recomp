@@ -288,6 +288,40 @@ def install_firmware(inputs, home, log, cancel):
     firmware_validator(home / "dev_flash")
 
 
+UPDATE_102_FILES = tuple(language + suffix for language in ("GLOBAL", "CRO", "CZE", "GRC", "POL", "RUS")
+                         for suffix in (".EDAT", "SCRIPTS.SDAT"))
+
+
+def stage_update_content(source, workspace, cancel, log):
+    """EU 1.02 code needs its own scripts; never copy profiles or cached plaintext."""
+    source, workspace = Path(source), Path(workspace)
+    destination = workspace / "runtime/dev_hdd0/game/BCES00647/USRDIR/Patched"
+    reject_links_below(workspace, destination)
+    for name in UPDATE_102_FILES:
+        file = source / name
+        if file.is_symlink() or not file.is_file() or not 0 < file.stat().st_size <= 128 * 1024**2:
+            raise ValueError("EU 1.02 requires complete Patched assets, not only EBOOT. "
+                             "Supply your own update PKG or EBOOT with a sibling Patched folder. Missing: " + str(file))
+    # Preflight all inputs before writing; resume never replaces a modified file.
+    for name in UPDATE_102_FILES:
+        if cancel.is_set():
+            raise Cancelled("Update content staging cancelled.")
+        target = destination / name
+        reject_links_below(workspace, target)
+        if target.exists():
+            a, b = fingerprint(target, cancel), fingerprint(source / name, cancel)
+            if (a["size"], a["sha256"]) != (b["size"], b["sha256"]):
+                raise ValueError("Prepared update content changed; start a new session instead of overwriting: " + str(target))
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in UPDATE_102_FILES:
+        if cancel.is_set():
+            raise Cancelled("Update content staging cancelled.")
+        target = destination / name
+        if not target.exists():
+            shutil.copy2(source / name, target)
+    log("Staged EU 1.02 update assets only (no profiles, saves, or plaintext caches).")
+
+
 def copy_sources(project, destination):
     """Copy public working source, not .git, VFS, binaries or private analyses."""
     for source, target in ((project, destination), (project / "ps3recomp", destination / "ps3recomp"),
@@ -302,7 +336,7 @@ def copy_sources(project, destination):
                 raise ValueError("Source symlinks are not supported by the workspace copier.")
             if not original.is_file():
                 continue  # Submodule gitlinks are copied explicitly above.
-            if any(part in {"analysis", "runtime", "logs", "toolenv", ".git", "build-windows"} for part in relative.parts) and source == project:
+            if any(part in {"analysis", "runtime", "logs", "toolenv", ".git", "build-windows", "build-launcher", "build-vulkan-smoke", "build-vulkan-windows", "dist-launcher"} for part in relative.parts) and source == project:
                 continue
             dest = target / relative
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -403,6 +437,8 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
             raise ValueError("Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK, then resume. "
                              "The wizard does not silently install system-wide/admin components.")
         stage("snapshot sources", lambda: copy_sources(project, workspace))
+        if profile.adapter_family == "quizworld-102-verified":
+            stage("stage update content", lambda: stage_update_content(executable.parent / "Patched", workspace, cancel, log))
         model.atomic_text(workspace / "buzz-paths.json", json.dumps(state["paths"], indent=2))
         env = dict(os.environ, BUZZ_TOOL_ENV=str(project / "toolenv"))
         powershell = shutil.which("powershell.exe")

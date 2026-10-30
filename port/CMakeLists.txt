@@ -113,6 +113,17 @@ endif()
 # imported one arrives without SDL2, pthreads, the Metal frameworks or the
 # Winsock/XInput imports -- the link then fails on every platform for a
 # different reason. add_subdirectory hands all of that over with the target.
+option(BUZZ_EXPERIMENTAL_VULKAN "Developer-only Vulkan game build; keep outside build-windows" OFF)
+if(BUZZ_EXPERIMENTAL_VULKAN)
+    if(NOT WIN32)
+        message(FATAL_ERROR "Buzz Vulkan bring-up currently targets Windows; Linux title integration is separate")
+    endif()
+    if(CMAKE_BINARY_DIR MATCHES "[/\\]build-windows$")
+        message(FATAL_ERROR "Use build-vulkan-windows: do not replace the tested D3D12 build")
+    endif()
+    set(PS3RECOMP_RSX_VULKAN ON CACHE BOOL "" FORCE)
+    set(PS3RECOMP_FETCH_VULKAN_DEPS ON CACHE BOOL "" FORCE)
+endif()
 add_subdirectory("${PS3RECOMP_DIR}" "${CMAKE_BINARY_DIR}/ps3recomp_sdk"
                  EXCLUDE_FROM_ALL)
 
@@ -289,6 +300,11 @@ add_executable(${PROJECT_NAME}
     virtual_buzzer.cpp
     buzzer_input_config.cpp
     buzzer_input_win32.cpp
+    buzzer_hid_win32.cpp
+    pc_settings.cpp
+    pc_runtime.cpp
+    pc_settings_file.cpp
+    pc_overlay.cpp
     ${host_boot_trace}
     ${host_frontend_policy}
     video_probe.cpp
@@ -298,6 +314,9 @@ add_executable(${PROJECT_NAME}
     ${RECOMP_SOURCES}
     ${SPU_SOURCES}
 )
+if(BUZZ_EXPERIMENTAL_VULKAN)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE BUZZ_EXPERIMENTAL_VULKAN=1)
+endif()
 
 # The lifted SPU sources use bare #include "spu_context.h". Scope that include
 # directory (and their flags) to those TUs alone: adding it to the whole target
@@ -470,12 +489,15 @@ set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 # anything a POSIX linker can find; the D3D12 backend's own imports come in
 # through the #pragma comment(lib) in libs/video/rsx_d3d12_backend.c.
 if(WIN32)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzImGui.cmake")
+    target_link_libraries(${PROJECT_NAME} PRIVATE buzz_game_imgui)
     # Keep native symbol addresses for resolving sampler RVAs. This changes
     # only the link, not the very large generated translation units.
     target_link_options(${PROJECT_NAME} PRIVATE /MAP)
     target_link_libraries(${PROJECT_NAME} PRIVATE
         dbghelp
         user32
+        hid
         gdi32
         winmm
     )

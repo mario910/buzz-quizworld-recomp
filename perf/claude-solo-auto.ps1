@@ -9,7 +9,7 @@
 #                    default offline frontend boots without it)
 param([string]$Env = '', [int]$RoundSeconds = 60, [switch]$Shots, [string]$Trace = '',
       [int]$Challenge = 0, [int]$AnswerEvery = 0, [double]$Slow = 1.0, [switch]$PsnPrompt,
-      [string]$CapDir = '')
+      [string]$CapDir = '', [string]$BuildDirectory = 'build-windows')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
@@ -34,16 +34,30 @@ if ($CapDir) {
     $env:RSX_CAP = '1:3:1'; $env:RSX_CAP_DIR = $CapDir; $env:RSX_CAP_TRIGGER_FILE = $capTrigger; $env:RSX_CAP_TEXTURES = '1'
     $set += @('RSX_CAP','RSX_CAP_DIR','RSX_CAP_TRIGGER_FILE','RSX_CAP_TEXTURES')
 }
-$out = .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background | Out-String
+# Buzzer presses go through the test mailbox (no focus needed): "seq:mask".
+# Player 1 bits: red 0x01, yellow 0x02, green 0x04, orange 0x08, blue 0x10.
+$mailbox = Join-Path $shotDir 'mailbox.txt'
+[IO.File]::WriteAllText($mailbox, "0:0`n", [Text.UTF8Encoding]::new($false))
+$env:BUZZ_TEST_INPUT_FILE = $mailbox; $set += 'BUZZ_TEST_INPUT_FILE'
+$script:seq = 0
+$out = .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background -BuildDirectory $BuildDirectory | Out-String
 foreach ($k in $set + @('PS3_FTRACE','PS3_FTRACE_WAIT','BUZZ_TRACE_TRIGGER')) { Remove-Item "Env:$k" -ErrorAction SilentlyContinue }
 $procId = [int]([regex]::Match($out, 'PID=(\d+)').Groups[1].Value)
 $log = [regex]::Match($out, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
 function Title { (Get-Process -Id $procId).MainWindowTitle }
-function Key([string]$vk) { & $ctl key $vk -HoldMs 300 | Out-Null }
+$keyMask = @{ '0x20' = 0x01; '0x31' = 0x10; '0x32' = 0x08; '0x33' = 0x04; '0x34' = 0x02 }
+function Key([string]$vk) {
+    $script:seq++
+    [IO.File]::WriteAllText($mailbox, ("{0}:{1:x}`n" -f $script:seq, $keyMask[$vk]), [Text.UTF8Encoding]::new($false))
+    Start-Sleep -Milliseconds 300
+}
 function Wait([double]$s) { Start-Sleep -Milliseconds ([int]($s * 1000 * $Slow)) }
 function WaitDraws([int]$min, [int]$timeout) {
     $deadline = (Get-Date).AddSeconds($timeout)
-    do { Start-Sleep -Milliseconds 500 } until (((Title) -match 'draws: (\d+)' -and [int]$Matches[1] -gt $min) -or (Get-Date) -gt $deadline)
+    # The Vulkan build's title carries no draw count: then a fixed wait.
+    $fallback = (Get-Date).AddSeconds([Math]::Min($timeout, 45))
+    do { Start-Sleep -Milliseconds 500 } until (((Title) -match 'draws: (\d+)' -and [int]$Matches[1] -gt $min) -or (Get-Date) -gt $deadline -or
+        ((Title) -notmatch 'draws:' -and (Get-Date) -gt $fallback))
 }
 WaitDraws 0 (120 * $Slow); Wait 8
 Key 0x20; Wait 6                  # language
@@ -60,7 +74,7 @@ Key 0x20; Wait 6                  # join
 Key 0x20; Wait 5                  # Wczytaj profil
 Key 0x20; Wait 5                  # Adam
 Key 0x20; Wait 5                  # Gotow
-if ((Title) -match 'draws: (\d+)' -and [int]$Matches[1] -lt 600) { Key 0x20 }   # missed press (red is no answer)
+if ((Title) -notmatch 'draws:' -or ((Title) -match 'draws: (\d+)' -and [int]$Matches[1] -lt 600)) { Wait 3; Key 0x20 }   # missed press (red is no answer)
 $t0 = Get-Date
 if ($Shots -or $capTrigger) { Wait 30 }
 if ($Shots) { & $ctl shot (Join-Path $shotDir 'round.png') | Out-Null }

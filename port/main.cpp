@@ -171,20 +171,24 @@ unsigned cellGcm_flip_request_count(void);
  * path anywhere else -- the same selection runtime/host/host_posix.c and the
  * toolkit's boot harness make. All three expose the same three entry points,
  * so the frame clock below is backend-agnostic. */
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(BUZZ_EXPERIMENTAL_VULKAN)
 extern "C" int  rsx_d3d12_backend_init(uint32_t w, uint32_t h, const char* title);
 extern "C" void rsx_d3d12_backend_present(void);
+extern "C" uint64_t rsx_d3d12_backend_presented_frames(void);
 extern "C" int  rsx_d3d12_backend_pump_messages(void);
 #  define rsx_backend_init    rsx_d3d12_backend_init
 #  define rsx_backend_present rsx_d3d12_backend_present
+#  define rsx_backend_present_serial rsx_d3d12_backend_presented_frames
 #  define rsx_backend_pump    rsx_d3d12_backend_pump_messages
 #  define RSX_BACKEND_NAME    "D3D12"
 #elif defined(PS3RECOMP_RSX_VULKAN)
 extern "C" int  rsx_vulkan_backend_init(uint32_t w, uint32_t h, const char* title);
 extern "C" void rsx_vulkan_backend_present(void);
+extern "C" uint64_t rsx_vulkan_backend_presented_frames(void);
 extern "C" int  rsx_vulkan_backend_pump_messages(void);
 #  define rsx_backend_init    rsx_vulkan_backend_init
 #  define rsx_backend_present rsx_vulkan_backend_present
+#  define rsx_backend_present_serial rsx_vulkan_backend_presented_frames
 #  define rsx_backend_pump    rsx_vulkan_backend_pump_messages
 #  define RSX_BACKEND_NAME    "Vulkan"
 #elif defined(__APPLE__)
@@ -239,23 +243,81 @@ extern "C" unsigned ppu_boot_frames_presented(void)
     return (unsigned)g_frames_presented;
 }
 
+/* Opt-in matched-backend measurements. Buffered CSV, no captures or file polling;
+ * all counters belong to this RSX/window thread. Never enabled in normal play. */
+static FILE* g_render_perf_file;
+static uint64_t g_render_perf_epoch,g_render_perf_previous,g_render_perf_flush;
+static uint64_t g_render_perf_drain_ns;
+static uint64_t g_render_perf_present_ns,g_render_perf_serial;
+static unsigned g_render_perf_drains,g_render_perf_calls;
+static void render_perf_init(void)
+{
+#ifdef _WIN32
+    const wchar_t* path=_wgetenv(L"BUZZ_RENDER_PERF");
+    if(path&&*path)g_render_perf_file=_wfopen(path,L"wb");
+#else
+    const char* path=getenv("BUZZ_RENDER_PERF");
+    if(path&&*path)g_render_perf_file=fopen(path,"wb");
+#endif
+    if(!path||!*path)return;
+    if(!g_render_perf_file){fprintf(stderr,"[render-perf] cannot open diagnostic CSV\n");return;}
+    setvbuf(g_render_perf_file,nullptr,_IOFBF,16384);
+    g_render_perf_epoch=g_render_perf_flush=ps3_ft_now();
+    fprintf(g_render_perf_file,"frame,presented_delta,elapsed_ms,interval_ms,drain_ms,present_ms,drain_calls,guest_present_calls,backend\n");
+    fprintf(stderr,"[render-perf] buffered frame timing enabled (%s); disable image captures for comparisons\n",RSX_BACKEND_NAME);
+}
+static void drain_guest_fifo(void)
+{
+    if(!g_render_perf_file){cellGcm_rsx_process_fifo();return;}
+    const uint64_t start=ps3_ft_now();cellGcm_rsx_process_fifo();
+    g_render_perf_drain_ns+=ps3_ft_now()-start;++g_render_perf_drains;
+}
 static void present_guest_frame(void)
 {
+    const uint64_t start=g_render_perf_file?ps3_ft_now():0;
     rsx_backend_present();
     /* This thread increments and guest threads read, so interlocked rather
      * than a volatile ++, which on arm64 is neither atomic nor a fence. */
-    InterlockedIncrement(&g_frames_presented);
+    const auto frame=InterlockedIncrement(&g_frames_presented);
+    if(g_render_perf_file){
+        const uint64_t now=ps3_ft_now();
+        g_render_perf_present_ns+=now-start;++g_render_perf_calls;
+#ifdef rsx_backend_present_serial
+        const auto serial=rsx_backend_present_serial();
+#else
+        const auto serial=(uint64_t)frame; // legacy non-benchmark backends
+#endif
+        if(serial==g_render_perf_serial)return;
+        fprintf(g_render_perf_file,"%llu,%llu,%.3f,%.3f,%.3f,%.3f,%u,%u,%s\n",
+            (unsigned long long)serial,(unsigned long long)(serial-g_render_perf_serial),
+            double(now-g_render_perf_epoch)/1e6,g_render_perf_previous?double(now-g_render_perf_previous)/1e6:0.0,
+            double(g_render_perf_drain_ns)/1e6,double(g_render_perf_present_ns)/1e6,g_render_perf_drains,g_render_perf_calls,RSX_BACKEND_NAME);
+        g_render_perf_serial=serial;g_render_perf_previous=now;g_render_perf_drain_ns=0;
+        g_render_perf_present_ns=0;g_render_perf_drains=0;g_render_perf_calls=0;
+        if(now-g_render_perf_flush>=500000000ull){
+            if(fflush(g_render_perf_file)||ferror(g_render_perf_file)){
+                fprintf(stderr,"[render-perf] CSV write failed; measurements disabled\n");
+                fclose(g_render_perf_file);g_render_perf_file=nullptr;
+            }
+            g_render_perf_flush=now;
+        }
+    }
 }
 
 static DWORD WINAPI frame_clock(LPVOID)
 {
-    SetThreadDescription(GetCurrentThread(), L"RSX worker (FIFO + D3D12)");
+    SetThreadDescription(GetCurrentThread(), L"RSX worker (FIFO + renderer)");
     const char* title = getenv("PS3_TITLE");
     if (!title || !*title) title = "Buzz! Quiz World";
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+    if(!getenv("PS3RECOMP_VK_WINDOW"))_putenv_s("PS3RECOMP_VK_WINDOW","1");
+    if(!getenv("PS3RECOMP_VK_GUEST_PROGRAMS"))_putenv_s("PS3RECOMP_VK_GUEST_PROGRAMS","1");
+#endif
 
     int rsx_ok = (rsx_backend_init(WINDOW_WIDTH, WINDOW_HEIGHT, title) == 0);
     fprintf(stderr, "[rsx] %s backend init %s\n", RSX_BACKEND_NAME,
             rsx_ok ? "OK -- window open" : "FAILED");
+    render_perf_init();
 
     unsigned  last_flip = 0;
     ULONGLONG next_tick = GetTickCount64();
@@ -328,7 +390,7 @@ static DWORD WINAPI frame_clock(LPVOID)
             /* Drain the FIFO every tick. This is what writes the RSX sync-fence
              * labels the game's per-frame logic blocks on, so it has to keep
              * advancing at 60 Hz even while present() throttles. */
-            if (rsx_ok) cellGcm_rsx_process_fifo();
+            if (rsx_ok) drain_guest_fifo();
             next_tick += 16;             /* ~60 Hz */
             fired++;
         }
@@ -343,7 +405,7 @@ static DWORD WINAPI frame_clock(LPVOID)
                 present_guest_frame();
                 last_flip = cellGcm_flip_request_count();
             }
-            cellGcm_rsx_process_fifo();
+            drain_guest_fifo();
 
             if (rsx_backend_pump() != 0) {
                 /* The guest entry runs on another thread and does not return
@@ -447,6 +509,8 @@ static void harness_guest_caller(uint32_t opd, uint64_t a0, uint64_t a1,
     ppu_guest_call(opd, a0, a1, a2, a3, a4, a5, a6, a7);
 }
 
+#include "pc_runtime.h"
+#include "pc_overlay.h"
 int main(int argc, char** argv)
 {
     /* Configure streams before their first use. Buffers must outlive all
@@ -552,7 +616,9 @@ int main(int argc, char** argv)
     ppu_sysprx_register();   /* boot-critical CRT */
     ppu_fs_register();       /* cellFs over the game directory */
     lv2_init_syscalls();     /* the lv2 syscall table */
+    if(!buzz_pc_runtime_init())return 1;
     buzz_register_overrides();
+    buzz_pc_overlay_register();
 
     /* Install the guest-callback hook, then start the frame clock. It no-ops
      * until the title registers its vblank and flip handlers during init. */

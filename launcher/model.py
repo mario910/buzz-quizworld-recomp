@@ -59,7 +59,7 @@ class Player:
 @dataclass
 class Pad:
     player: int | None = None  # Zero-based logical player, not an XInput slot.
-    buttons: list[str] = field(default_factory=lambda: ['START', 'Y', 'A', 'B', 'X'])
+    buttons: list[str] = field(default_factory=lambda: ['RB', 'LEFT', 'DOWN', 'RIGHT', 'UP'])
 
 
 @dataclass
@@ -69,7 +69,7 @@ class Settings:
     places: int = 4
     offline: bool = True
     hide_store: bool = True
-    gamepads: bool = False
+    gamepads: bool = True
     background: bool = True
     pulse_ms: int = 250
     players: list[Player] = field(default_factory=lambda: [

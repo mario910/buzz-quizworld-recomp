@@ -46,6 +46,12 @@ A graphical editor and live input test are now available through
 `Launch-Buzz.cmd` / `scripts/Launch-Buzz.ps1`; see [pc-launcher.md](pc-launcher.md).
 Manual INI configuration below remains supported independently.
 
+The D3D12 game also has an Escape/START PC menu for live controller settings,
+audio/video preferences and persistent saves. See the native launcher's guide
+for the current validation scope and shared per-build settings behavior.
+Original physical Buzz HID now has an experimental Windows provider, separate
+from guest USB emulation; see [hardware-unverified scope](physical-buzzers.md).
+
 The file is deliberately opt-in, so existing automated scripts keep their
 keyboard behavior. From the project directory:
 
@@ -73,10 +79,10 @@ keyboard.3=A,S,D,F,G
 keyboard.4=Z,X,C,V,B
 gamepads=1
 background_gamepads=0
-gamepad.1=1,START,Y,A,B,X
-gamepad.2=2,START,Y,A,B,X
-gamepad.3=3,START,Y,A,B,X
-gamepad.4=4,START,Y,A,B,X
+gamepad.1=1,RB,LEFT,DOWN,RIGHT,UP
+gamepad.2=2,RB,LEFT,DOWN,RIGHT,UP
+gamepad.3=3,RB,LEFT,DOWN,RIGHT,UP
+gamepad.4=4,RB,LEFT,DOWN,RIGHT,UP
 ```
 
 Use `gamepad.N=NONE` to disable an individual XInput slot. The runtime does not
@@ -98,14 +104,16 @@ four players; their historical format has not been silently widened.
 
 ## Controllers
 
-The initial Windows provider uses XInput 1.4. It is opt-in (`gamepads=1`), loaded
+The Windows provider uses XInput 1.4. New defaults enable it (`gamepads=1`), loaded
 from the system directory, not the working directory. Four XInput slots can be
 assigned to any four logical players. Slot N corresponds to `gamepad.N+1` in
 the file. XInput itself supports only four controllers; eight logical players
 do not mean eight physical XInput pads. [Microsoft XInput documentation](https://learn.microsoft.com/en-us/windows/win32/xinput/getting-started-with-xinput).
 
 Mappings support START, BACK, A, B, X, Y, LB, RB, LS, RS and D-pad directions.
-Default red/confirm is START, then Y/A/B/X for yellow/green/orange/blue.
+Default red/confirm is R1/RB. D-pad Up/Right/Down/Left are blue/orange/green/yellow.
+START is unused by the new buzzer preset and reserved for the PC menu. Existing
+saved mappings remain explicit; the native launcher offers an opt-in preset reset.
 Controller state is polled at most every 8 ms; disconnected slots are retried
 once a second. Disconnect releases that provider's held state and pulses.
 By default controllers affect the game only while its window has focus.

@@ -10,7 +10,7 @@ try {
     & (Join-Path $compilerDirectory 'clang-cl.exe') /nologo /O2 /UNDEBUG /std:c++17 tests/launcher-config-oracle.cpp port/buzzer_input_config.cpp /Foanalysis/ /Feanalysis/launcher-config-oracle.exe
     if($LASTEXITCODE){throw 'Native config oracle build failed'}
     $env:BUZZ_CONFIG_ORACLE=Join-Path $projectRoot 'analysis\launcher-config-oracle.exe'
-    & (Join-Path $compilerDirectory 'clang-cl.exe') /nologo /O2 /UNDEBUG /std:c++17 tests/launcher-input-adapter-test.cpp port/buzzer_input_config.cpp port/buzzer_input_win32.cpp /Foanalysis/ /Feanalysis/launcher-input-adapter-test.exe /link user32.lib
+    & (Join-Path $compilerDirectory 'clang-cl.exe') /nologo /O2 /UNDEBUG /EHsc /std:c++17 tests/launcher-input-adapter-test.cpp port/buzzer_input_config.cpp port/buzzer_input_win32.cpp port/pc_settings.cpp /Foanalysis/ /Feanalysis/launcher-input-adapter-test.exe /link user32.lib
     if($LASTEXITCODE){throw 'Native input adapter check build failed'}
     $env:BUZZ_INPUT_ADAPTER_CHECK=Join-Path $projectRoot 'analysis\launcher-input-adapter-test.exe'
     & .\toolenv\Scripts\python.exe -m unittest discover -s tests -p 'test_pc_launcher*.py' -v

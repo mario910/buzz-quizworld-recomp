@@ -1,9 +1,10 @@
-param([int]$Seconds = 40, [switch]$NativeSpurs, [switch]$MenuBootstrap, [switch]$OriginalVideo, [switch]$SkipVideo, [switch]$Mute, [switch]$Background, [string]$InputConfig = '', [string]$PathsConfig = '')
+param([int]$Seconds = 40, [switch]$NativeSpurs, [switch]$MenuBootstrap, [switch]$OriginalVideo, [switch]$SkipVideo, [switch]$Mute, [switch]$Background, [string]$InputConfig = '', [string]$PathsConfig = '', [string]$BuildDirectory = 'build-windows')
 $projectRoot = (Split-Path -Parent $PSScriptRoot)
 
 $ErrorActionPreference = 'Stop'
 $experimentRoot = $projectRoot
-$exe = Join-Path $experimentRoot 'build-windows\BuzzQuizWorldRecomp.exe'
+# -BuildDirectory build-vulkan-windows runs the Vulkan developer build.
+$exe = Join-Path (Join-Path $experimentRoot $BuildDirectory) 'BuzzQuizWorldRecomp.exe'
 $existingGame = @(Get-Process -Name BuzzQuizWorldRecomp -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -eq $exe })
 if ($existingGame.Count) {
@@ -17,7 +18,7 @@ if ($PSBoundParameters.ContainsKey('InputConfig')) {
     if (-not (Test-Path -LiteralPath $resolvedInput -PathType Leaf)) { throw 'InputConfig must be a file' }
 }
 $gamePaths = Get-BuzzPaths -ConfigPath $PathsConfig
-$boundBuild=Join-Path $experimentRoot 'build-windows\game-build.json'
+$boundBuild=Join-Path (Join-Path $experimentRoot $BuildDirectory) 'game-build.json'
 if(Test-Path -LiteralPath $boundBuild) {
     $binding=Get-Content -LiteralPath $boundBuild -Raw | ConvertFrom-Json
     if((Get-BuzzFileSha256 -Path $gamePaths.eboot_elf) -ne $binding.elf_sha256) {
@@ -151,6 +152,19 @@ if ($MenuBootstrap) {
     if ([string]::IsNullOrEmpty($env:SPURS_NATIVE_EXTRA_FP)) { $env:SPURS_NATIVE_EXTRA_FP = '1' }
     if ([string]::IsNullOrEmpty($env:RSX_GUEST_SAMPLERS)) { $env:RSX_GUEST_SAMPLERS = '1' }
     if ([string]::IsNullOrEmpty($env:RSX_PIXEL_WINDOW)) { $env:RSX_PIXEL_WINDOW = '1' }
+}
+# The Vulkan build's speedups are all opt-in (analysis/vulkan-performance-handoff.md);
+# without them it runs a few FPS. Codex's measured-best set, unless already set.
+if ($BuildDirectory -like '*vulkan*') {
+    $vulkanDefaults = [ordered]@{ PS3RECOMP_VK_DRAW_BATCH = '512'; PS3RECOMP_VK_DRAW_RING = '1';
+        PS3RECOMP_VK_DRAW_PASSES = '1'; PS3RECOMP_VK_DRAW_CLEARS = '1'; PS3RECOMP_VK_DRAW_ASYNC = '1';
+        PS3RECOMP_VK_PRESENT_MODE = 'mailbox'; PS3RECOMP_VK_PRESENT_READBACK = '0';
+        PS3RECOMP_VK_TEXTURE_REUSE = '1'; PS3RECOMP_ENG_TEXTURE_ROWS = '1' }
+    foreach ($key in $vulkanDefaults.Keys) {
+        if ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($key))) {
+            [Environment]::SetEnvironmentVariable($key, $vulkanDefaults[$key], 'Process')
+        }
+    }
 }
 $env:PS3_VFS_ROOT = $gamePaths.game_root
 $env:PS3_DISC_ROOT = $env:PS3_VFS_ROOT

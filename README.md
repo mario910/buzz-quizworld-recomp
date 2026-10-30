@@ -47,7 +47,12 @@ No game, firmware or disc keys are downloaded. Still-encrypted disc images are
 not supported by this importer. Use files you are legally
 entitled to use under the rules in your jurisdiction.
 
-## Windows prerequisites
+## Windows build prerequisites
+
+These are **preparation/development** requirements. Once your own copy has
+been prepared, the native C++ launcher starts it without Python, a venv or
+PowerShell. The launcher also builds on Linux; the game itself is not yet a
+validated Linux port. See [native launcher](docs/pc-launcher.md).
 
 - Windows 10/11 **64-bit** and a GPU/driver supporting Direct3D 12.
 - An x64 CPU with **AVX2 and FMA** for the supported build. AVX-512 is not required.
@@ -105,7 +110,11 @@ own files. Forward slashes in JSON work on Windows and avoid backslash escaping:
 
 `game_root` is the **parent of `PS3_GAME`**, not `PS3_GAME` or `USRDIR` itself.
 Do not replace the executable in your disc dump: the update ELF is a separate
-input. Setup preserves an existing paths file and does not modify your dump,
+input. EU 1.02 also needs its matching `Patched` assets, not just the update ELF.
+The preparation wizard stages these from your update PKG, or from a `Patched`
+folder beside a supplied update EBOOT. Missing assets are rejected before play;
+1.00 does not need them. Profiles, saves and plaintext caches are not imported.
+Setup preserves an existing paths file and does not modify your dump,
 firmware or global Python installation.
 
 ```powershell
@@ -115,16 +124,35 @@ firmware or global Python installation.
 # Validate, generate all PPU/SPU translations, then build the supported variant.
 .\scripts\Build-Buzz.ps1 -Jobs 6
 
-# Start the desktop launcher; Launch-Buzz.cmd is the double-click equivalent.
-.\scripts\Launch-Buzz.ps1
+# Start the native desktop launcher (no interpreter at runtime).
+.\Launch-Buzz.cmd
 ```
+
+Build-Buzz also builds the native SDL3/ImGui launcher. Its standalone CMake
+build needs no game files or Python; see [launcher build/package instructions](docs/pc-launcher.md#build-the-launcher-only).
 
 The gameplay GUI lets you validate/select files, configure keyboard/controllers
 and test buttons. The interface and preparation wizard are in English. The separate preparation
 wizard builds locally; neither downloads game content. A background start is enabled by default: click the
 game window before using keyboard controls. See [launcher guide](docs/pc-launcher.md).
 
-For a direct start using `buzz-paths.json` and the verified runtime defaults:
+The D3D12 game also has an **Escape / controller START** PC settings menu for
+volume, a 30 FPS lock, fullscreen, controllers and restart-only offline mode.
+It shares per-build settings with the native launcher; the quiz keeps running
+while it is open. R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
+blue/orange/green/yellow. Windows physical Buzz HID is experimental and
+hardware-unverified. A separate [Vulkan developer experiment](docs/vulkan-bringup.md)
+can render initial screens/video and the 3D main menu; it is not a supported
+gameplay backend yet.
+
+For a direct native start using saved settings (or `buzz-paths.json`) and the
+verified runtime defaults:
+
+```powershell
+.\build-launcher\BuzzLauncher.exe --project . --launch
+```
+
+The older script remains available for developer measurements:
 
 ```powershell
 .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap
@@ -160,17 +188,21 @@ emulates their USB protocol and supplies virtual handsets. Default keys:
 | 4 | Z | X | C | V | B |
 
 Configure mappings in the GUI, or copy `config/buzz-input.example.ini` to
-`buzz-input.ini` and pass `-InputConfig`. XInput controllers are opt-in, with
+`buzz-input.ini` and pass `-InputConfig`. New configurations enable XInput, with
 up to **four physical pads**. Eight logical handsets/two virtual receivers
-are experimental, not proof of a tested eight-player match. Physical USB
-buzzer passthrough, Android/browser handsets and non-XInput controllers are
-not implemented as supported input providers. Keyboard ghosting/rollover can
+are experimental, not proof of a tested eight-player match. Original physical
+Buzz receivers now have a default-enabled Windows HID provider, verified only
+with synthetic inputs; see [hardware scope](docs/physical-buzzers.md). Android/browser
+handsets and other non-XInput controllers are not supported input providers.
+Keyboard ghosting/rollover can
 limit simultaneous players. See [input/offline guide](docs/input-and-offline.md).
 
 ## Saves, offline mode and status
 
 Local saves/profiles and caches are under `runtime/`; logs are under `logs/`.
-Launcher settings live in `runtime/launcher/`. They are not committed. Back up
+Launcher paths/labels live in `runtime/launcher/`; shared gameplay preferences
+are `runtime/pc-settings.ini` and `runtime/input-settings.ini` in the selected
+build. They are not committed. Back up
 saves before experimenting; this is not a verified RPCS3 save-transfer workflow.
 
 The native frontend defaults to **offline/no-PSN-account**. The 1.02 frontend

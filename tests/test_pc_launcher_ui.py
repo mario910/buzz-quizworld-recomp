@@ -69,7 +69,7 @@ class UiTests(unittest.TestCase):
     def test_pad_assignment_with_injected_input(self):
         class FakePads:
             connected=[True,False,False,False]
-            def poll(self,active):return [0x10,0,0,0] if active else [0]*4
+            def poll(self,active):return [0x210,0,0,0] if active else [0]*4  # START identifies, RB buzzes.
         self.app.pad_reader=FakePads();self.app.assign_player=1
         with patch.object(self.app,'active',return_value=True),patch('launcher.gui.messagebox.askyesno',return_value=True):
             self.app.poll()

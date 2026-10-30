@@ -1,6 +1,6 @@
 // Title-scoped cellUsbd adapter. The game's own LDD parses real USB reports.
 // No game/menu state is patched. Descriptor and report layout are compatible
-// with the wired Sony 054c:1000 Buzz receiver (four five-button handsets).
+// with the Sony 054c:1000 Buzz receiver (four five-button handsets).
 #include "ppu_recomp.h"
 #include "../ps3recomp/runtime/ppu/ppu_tls_image.h"
 #include "buzzer_protocol.h"
@@ -24,7 +24,13 @@ void ps3_hle_register_ctx(uint32_t, const char*, void (*)(ppu_context*));
 extern vm_stack_alloc g_vm_stack_alloc;
 extern PPU_THREAD_LOCAL ppu_context* g_active_ctx;
 extern PPU_THREAD_LOCAL void (*g_trampoline_fn)(void*);
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+void rsx_vulkan_set_key_handler(void (*)(uint32_t,int));
+#define buzz_set_host_key_handler rsx_vulkan_set_key_handler
+#else
 void rsx_d3d12_set_key_handler(void (*)(uint32_t,int));
+#define buzz_set_host_key_handler rsx_d3d12_set_key_handler
+#endif
 }
 
 namespace {
@@ -318,6 +324,6 @@ void buzz_register_virtual_buzzer()
     };
     for (const auto& h:hooks) ps3_hle_register_ctx(h.nid,h.name,h.fn);
     fprintf(stderr,"[buzzer] virtual USB 054C:1000 enabled, %u receiver(s); mapping via input router\n",receiver_count);
-    rsx_d3d12_set_key_handler(buzz_input_key);
+    buzz_set_host_key_handler(buzz_input_key);
     std::thread(worker).detach();
 }

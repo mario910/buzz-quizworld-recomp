@@ -1,0 +1,6 @@
+{
+  "_comment": "Native launcher: copy to buzz-paths.json beside BuzzLauncher. Supply your own local files; relative paths are resolved against that folder.",
+  "game_root": "data/disc",
+  "dev_flash": "data/dev_flash",
+  "eboot_elf": "data/EBOOT.elf"
+}

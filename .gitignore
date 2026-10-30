@@ -12,6 +12,10 @@
 /scratch/
 # Build output and local tool environments
 /build-windows/
+/build-launcher/
+/build-vulkan-smoke/
+/build-vulkan-windows/
+/dist-launcher/
 /toolenv/
 __pycache__/
 *.pyc

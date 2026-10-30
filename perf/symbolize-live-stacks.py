@@ -4,13 +4,18 @@ from pathlib import Path as _Path
 import sys as _sys
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 import bisect
+import argparse
 import collections
 from pathlib import Path
 import re
 import sys
 
 root = Path(__file__).resolve().parents[1]
-mapping = (root / "build-windows/BuzzQuizWorldRecomp.map").read_text(errors="replace")
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("samples", type=Path)
+parser.add_argument("--map", dest="map_file", type=Path, default=root / "build-windows/BuzzQuizWorldRecomp.map")
+args = parser.parse_args()
+mapping = args.map_file.read_text(errors="replace")
 preferred = int(re.search(r"Preferred load address is ([0-9a-fA-F]+)", mapping)[1], 16)
 names = {}
 for match in re.finditer(r"^\s+0001:[0-9a-fA-F]+\s+(\S+)\s+([0-9a-fA-F]{16})\s+(?:f\s+)?(.+)$", mapping, re.M):
@@ -27,7 +32,7 @@ def symbol(value):
 
 cycles = collections.Counter()
 stacks = collections.defaultdict(collections.Counter)
-for line in Path(sys.argv[1]).read_text().splitlines():
+for line in args.samples.read_text().splitlines():
     if line.startswith("#"):
         print(line)
     elif line.startswith("S "):

@@ -169,7 +169,14 @@ class Wizard:
     def play(self):
         if self.busy or not self.ready:
             return
-        subprocess.Popen([sys.executable, str(self.project / "launcher/start.pyw"), "--project", str(self.ready)], cwd=self.project,
+        name = "BuzzLauncher.exe" if os.name == "nt" else "BuzzLauncher"
+        native = self.ready / "build-launcher" / name
+        if not native.is_file():
+            native = self.project / "build-launcher" / name
+        if not native.is_file():
+            self.status.set("Build the native launcher first (launcher/native or scripts/build-launcher.ps1).")
+            return
+        subprocess.Popen([str(native), "--project", str(self.ready)], cwd=self.project,
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def poll(self):

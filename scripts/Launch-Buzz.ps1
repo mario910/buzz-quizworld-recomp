@@ -1,7 +1,16 @@
-param([switch]$Smoke)
+param([switch]$Smoke, [switch]$PythonLauncher)
 $projectRoot = (Split-Path -Parent $PSScriptRoot)
 
 $ErrorActionPreference='Stop'
+$native=Join-Path $projectRoot 'build-launcher\BuzzLauncher.exe'
+if(-not $PythonLauncher -and (Test-Path -LiteralPath $native)) {
+    if($Smoke) {
+        $check=Start-Process -FilePath $native -ArgumentList ('--project "'+$projectRoot+'" --smoke') -WindowStyle Hidden -Wait -PassThru
+        if($check.ExitCode){throw 'Native launcher smoke failed'}
+    }
+    else {Start-Process -FilePath $native -WorkingDirectory $projectRoot -WindowStyle Hidden}
+    return
+}
 $python=Join-Path $projectRoot 'toolenv\Scripts\python.exe'
 $pythonWindowed=Join-Path $projectRoot 'toolenv\Scripts\pythonw.exe'
 if(-not $Smoke -and -not(Test-Path -LiteralPath $python)) {
