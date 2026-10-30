@@ -13,6 +13,7 @@ Bit 0 selects the coupled unit-vector
 decoder below; bit 1 selects validated skinning and remains default-off because
 its scene measurements are mixed.
 Bit 2 selects the halfword encoder and remains default-off during validation.
+Bit 5 selects the halfword decoder and also remains default-off during validation.
 Other function IDs are reserved while their implementations
 are pending; the build advertises its implemented mask and rejects unavailable
 bits. An unhandled input takes the reference and increments fallback;
@@ -207,3 +208,45 @@ encoder comparisons and no differences:
 `analysis/vk-scene-p2-half-live.stderr.log`. Renderer and reversed-scene FPS
 gates remain pending. Bit 2 stays default-off; this is an experimental
 implementation checkpoint, not a completed performance claim.
+
+## Bit 5: halfword decoder (`0xCAD8/0xCB78`)
+
+The entry is `0xCAD8`; the region returns through the link register (the
+reviewed call site returns to `0x83C8`). It covers all remaining columns of
+the attribute, not just one pipelined `0xCB78` loop. There are no DMA/channel
+operations or nested calls in the region.
+
+`native_geometry_half_decode.h` decodes pairs of float4 records with AVX2
+integer operations. It preserves the exact table shuffle's repeated first
+quadword byte in the low output bits, arithmetic sign extension, magnitude
+test and bias addition. An IEEE/F16C conversion would lose those bits and
+change zero/subnormal behavior. Stores retain the original 1,2,0,3 order,
+including aliased sentinels. The original final column reconstructs all
+temporary registers, padded reads and the return continuation.
+
+The adapter consumes queued trampolines before directly executing each
+reference block. A host-frame `SPU_RET` intentionally leaves the trampoline
+untouched; the adapter must enter it with an empty queue, just like the
+normal dispatcher. Tests explicitly verify empty host returns and indirect
+returns at depth zero, in addition to comparing the full architectural state.
+
+The guarded path requires seven canonical registers, the reviewed layout of
+at most 16 columns, paired/aligned source quadwords, bounded input/output,
+uniform loop strides/limits and nonoverlapping input/output ranges. It
+rejects wrapped column indices before addition. Unsupported layouts, debug
+probes, external LS and pending interrupts use the lift before any mutation.
+
+`tests/scripts/test-geometry-half-decode.ps1` checks 440 randomized states,
+halfword boundary patterns, both host-return modes and fourteen unchanged-state
+rejection cases. Its optional private snapshot is `pc_CAD8.bin`, not a snapshot
+after setup. On the menu sample, the whole decoder measures roughly 560 ns
+lifted versus 162 ns native.
+
+Both checked and actual-native replay match all 19,508 jobs / 58,195 transfers
+with zero divergences or failures. The decoder compares 9,063 groups exactly;
+3,368 unsupported groups use the reference. Logs are
+`phase2/dehalf-return-mode{2,1}.log`; `dehalf-build.json` binds sources and the
+frozen executable. A 60 s checked live run (mask 33, other experiments off)
+logged at least 200,000 exact decoder comparisons and no differences:
+`analysis/vk-scene-p2-dehalf-live.stderr.log`. Renderer/A/B gates remain
+pending; bit 5 stays default-off at this implementation checkpoint.
