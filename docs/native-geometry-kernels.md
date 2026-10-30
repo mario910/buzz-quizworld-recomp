@@ -14,6 +14,7 @@ decoder below; bit 1 selects validated skinning and remains default-off because
 its scene measurements are mixed.
 Bit 2 selects the halfword encoder and remains default-off during validation.
 Bit 5 selects the halfword decoder and also remains default-off during validation.
+Bit 10 selects staged-list pointer generation and remains default-off during validation.
 Other function IDs are reserved while their implementations
 are pending; the build advertises its implemented mask and rejects unavailable
 bits. An unhandled input takes the reference and increments fallback;
@@ -250,6 +251,43 @@ frozen executable. A 60 s checked live run (mask 33, other experiments off)
 logged at least 200,000 exact decoder comparisons and no differences:
 `analysis/vk-scene-p2-dehalf-live.stderr.log`. Renderer/A/B gates remain
 pending; bit 5 stays default-off at this implementation checkpoint.
+
+## Bit 10: staged-list pointers (`0x0988/0x09E0`)
+
+The entry is `0x0988`; the exit is `0x08F0`. This pure region builds the input
+slot pointer table from staged eight-byte size/EA records. DMA issue happens
+outside it, so function comparison does not repeat external side effects.
+
+`native_geometry_pointers.h` reads the BE size field's low 15 bits and the
+EA alignment nibble, emits one BE pointer word per entry, then advances the
+logical LS pointer by the size rounded to 16. Logical pointer and counter
+arithmetic retain 32-bit wrap. The original final entry reconstructs every
+temporary register and the exact continuation. Direct block calls consume
+their queued trampoline just like normal dispatch.
+
+The guarded path requires three canonical masks, 2..128 remaining entries,
+word-aligned source/output, bounded private LS and no overlap between output
+words and the size/EA records. Output may begin at the documented `0xE500`
+slot table. Bounds use 64-bit arithmetic before pointer construction, so
+wrapped source addresses are rejected. Debug probes, external LS, pending
+interrupts and unsupported layouts fall back before any mutation.
+
+`tests/scripts/test-geometry-pointers.ps1` checks 440 states, randomized flags,
+sizes and EA alignment, zero/max sizes, wrapped logical pointers/counters,
+table starts at all quadword word offsets, and fifteen unchanged-state
+rejection cases. On the private `pc_0988.bin` menu sample, the local whole-list
+benchmark measures roughly 350 ns lifted versus 52 ns native.
+
+Checked and actual-native replay pass all 19,508 image-41 jobs / 58,195
+transfers, with zero divergences or failures. The checker compares all
+19,508 pointer-table groups exactly, with no fallback, alongside the four
+other implemented kernel groups. Private logs are `phase2/pointers-mode{2,1}.log`.
+`pointers-build.json` binds the source hashes and frozen `build-vulkan-batch1`
+executable. A 60 s live run with mask 1025 logged at least 300,000 exact
+pointer-table comparisons and no differences:
+`analysis/vk-scene-p2-pointers-live.stderr.log`.
+Renderer/A/B gates are pending; bit 10 remains default-off at this
+implementation checkpoint.
 
 ## Isolated kernel batches
 

@@ -180,12 +180,12 @@ subject to the kernel gates before replacement.
 | 0x4AB0 | 2.44 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 2 | 19,508 exact; 18,776 strict groups, no fallback | >=500,000 exact | pending | 81dadfb |
 | 0x7A90 | 1.89 % | todo | | | | | |
 | 0x51E0 | 1.75 % | todo | | | | | |
-| 0xCB78 | 1.44 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 5 | 19,508 exact; 9,063 strict groups | >=200,000 exact | pending | this step |
+| 0xCB78 | 1.44 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 5 | 19,508 exact; 9,063 strict groups | >=200,000 exact | pending | eb29523 |
 | 0x78A8 | 1.15 % | todo | | | | | |
 | 0x9148 | 1.01 % | on | shares bit 0 with 0x92A0 | same coupled unit-vector decoder | same checked group | same measurement | a7ad7b2 |
 | 0x97A8 | 0.78 % | todo | | | | | |
 | 0x4750 | 0.76 % | todo | | | | | |
-| 0x0988 | 0.75 % | todo | | | | | |
+| 0x0988 | 0.75 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | pending | this step |
 | 0x4808 | 0.73 % | todo | | | | | |
 | 0x28F0 | 0.67 % | todo | | | | | |
 | Whole-job driver | n/a | todo | | | | | |

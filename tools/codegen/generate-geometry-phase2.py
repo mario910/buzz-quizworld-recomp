@@ -49,6 +49,10 @@ DEHALF = {
     22: (0x03030303,) * 4, 23: (0x00018080, 0x02038080, 0x04058080, 0x06078080),
     45: (0x80000000,) * 4,
 }
+POINTERS = {
+    14: (0, 15, 0, 15), 16: (0, 0x7fff, 0, 0),
+    17: (0x04050607, 0x80808080, 0x0c0d0e0f, 0x80808080),
+}
 
 
 def constant_declarations(values=UNIT24):
@@ -72,7 +76,7 @@ def main():
     support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 39\n'
+    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 1063\n'
     support += constants_guard()
     support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
     support += constants_guard("skin", SKIN)
@@ -81,9 +85,11 @@ def main():
     support += f'#include "{(ROOT / "port/native_geometry_half.h").as_posix()}"\n'
     support += constants_guard("dehalf", DEHALF)
     support += f'#include "{(ROOT / "port/native_geometry_half_decode.h").as_posix()}"\n'
+    support += constants_guard("pointers", POINTERS)
+    support += f'#include "{(ROOT / "port/native_geometry_pointers.h").as_posix()}"\n'
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
-    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78"):
+    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0"):
         name = "buzz_job_6eba_spu_func_0000" + pc
         pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
         match = re.search(pattern, source)
@@ -120,6 +126,13 @@ def main():
                 f"static __attribute__((noinline)) int {dehalf_name}_native(spu_context* ctx) {{ return buzz_dehalf_native(ctx, {dehalf_name}_reference); }}\n")
     dehalf_wrapper = f"void {dehalf_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 32)) {{ {dehalf_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {dehalf_name}_reference, {dehalf_name}_native, 5); }}"
     source = re.sub(rf"(?ms)^void {dehalf_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: dehalf_setup + dehalf_functions("buzz_job_6eba_spu_func_0000CB78") + dehalf_wrapper, source, count=1)
+    pointers_name = "buzz_job_6eba_spu_func_00000988"
+    pointers_setup = f"static void {pointers_name}_setup(spu_context* ctx) {{{bodies['0988']}}}\n"
+    def pointers_functions(step):
+        return (f"static __attribute__((noinline)) void {pointers_name}_reference(spu_context* ctx) {{ do {{ g_spu_trampoline_fn = 0; {pointers_name}_setup(ctx); g_spu_trampoline_fn = 0; {step}(ctx); }} while (ctx->pc == 0x988); }}\n"
+                f"static __attribute__((noinline)) int {pointers_name}_native(spu_context* ctx) {{ return buzz_pointers_native(ctx, {pointers_name}_reference); }}\n")
+    pointers_wrapper = f"void {pointers_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 1024)) {{ {pointers_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {pointers_name}_reference, {pointers_name}_native, 10); }}"
+    source = re.sub(rf"(?ms)^void {pointers_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: pointers_setup + pointers_functions("buzz_job_6eba_spu_func_000009E0") + pointers_wrapper, source, count=1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
@@ -146,8 +159,14 @@ def main():
     dehalf_tests += "static void dehalf_seed_constants(spu_context* ctx) {\n" + constant_declarations(DEHALF) + "\n"
     dehalf_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in DEHALF) + "\n}\n"
     (DEST / "test-dehalf-kernels.inc").write_text(dehalf_tests)
-    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
-    print(f"Generated phase-2 unit24, skin and half codec groups -> {DEST}")
+    pointers_tests = constants_guard("pointers", POINTERS) + f'#include "{(ROOT / "port/native_geometry_pointers.h").as_posix()}"\n'
+    pointers_tests += f"static void buzz_job_6eba_spu_func_000009E0_reference(spu_context* ctx) {{{bodies['09E0']}}}\n"
+    pointers_tests += pointers_setup + pointers_functions("buzz_job_6eba_spu_func_000009E0_reference")
+    pointers_tests += "static void pointers_seed_constants(spu_context* ctx) {\n" + constant_declarations(POINTERS) + "\n"
+    pointers_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in POINTERS) + "\n}\n"
+    (DEST / "test-pointers-kernels.inc").write_text(pointers_tests)
+    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
+    print(f"Generated phase-2 geometry kernels -> {DEST}")
 
 
 if __name__ == "__main__":
