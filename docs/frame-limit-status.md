@@ -152,16 +152,38 @@ Run order: menu 200/0/0/200/1000/3000/1000, round 1000/0/0/1000. Every
 shares the SPURS runtime and gains as well: menu 26.53 -> 28.77 FPS
 (median 39.97 -> 37.33 ms, same window).
 
-### Overall (both changes)
+### 3. Chain walkers poll briefly before parking on a JTS slot
+
+SDK `3badb6a9`. The geometry chain's walker waits ~50 times per frame for
+the other chain to publish its next JOBLIST (a JTS slot replaced by an SPU
+DMA). `SPURS_JTS_SPIN_US=n` polls the slot for up to n us before parking on
+its condition variable, with the same 12-processor guard; the launch script
+and native launcher default it to 1000. Both arms below have pool polling
+at 1000 us.
+
+| Scene, window | JTS poll | FPS | Median ms | p90 ms | p99 ms | >40 ms |
+|---|---|---:|---:|---:|---:|---:|
+| Menu 40-98 s, run 2 | 0 | 30.68 | 34.63 | 41.60 | 45.76 | 18.9 % |
+| Menu 40-98 s, run 3 | 0 | 30.38 | 35.13 | 41.83 | 47.00 | 20.0 % |
+| Menu 40-98 s, run 1 | 1000 us | 31.23 | 33.63 | 41.07 | 45.36 | 14.2 % |
+| Menu 40-98 s, run 4 | 1000 us | 31.39 | 33.59 | 40.91 | 45.37 | 13.7 % |
+| Round 150-250 s, run 2 | 0 | 36.49 | 27.77 | 32.13 | 36.97 | 0.4 % |
+| Round 150-250 s, run 1 | 1000 us | 37.94 | 26.59 | 30.99 | 35.76 | 0.3 % |
+
+### Overall (all three changes)
 
 | Scene, window | Before | After |
 |---|---|---|
-| Menu 40-98 s | 23.6-24.7 FPS, median ~42 ms, p90 51-56 ms | 30.0-31.6 FPS, median 33.5-35.6 ms, p90 40.6-43.0 ms |
-| Round 150-250 s | 29.1 FPS, median 33.6 ms, p90 41.2 ms | 35.9-36.3 FPS, median 27.8-28.1 ms, p90 32.0-32.4 ms |
+| Vulkan menu 40-98 s | 23.6-24.7 FPS, median ~42 ms, p90 51-56 ms | 30.5-31.4 FPS, median 33.6-34.7 ms, p90 40.9-41.7 ms |
+| Vulkan round 150-250 s | 29.1 FPS, median 33.6 ms, p90 41.2 ms | 37.9 FPS, median 26.6 ms, p90 31.0 ms |
+| D3D12 menu 40-98 s | 26.5 FPS, median 40.0 ms, p90 46.9 ms | 30.6 FPS, median 34.7 ms, p90 41.9 ms |
 
-The round now holds 30 FPS uncapped in this window, so the 30 FPS cap can
-keep it at a steady 30. The menu's camera tour averages about 30 but its
-heaviest seconds still drop below. Remaining costs, from the profiles:
+Final rows are the default launch settings after a full rebuild of both
+renderers (`analysis/vk-scene-final-*`), except the round, which is the
+JTS A/B's polling arm. The round now holds 30 FPS uncapped in this window
+with headroom, so the 30 FPS cap can keep it at a steady 30. The menu's
+camera tour averages just over 30 but ~20 % of its frames still take more
+than 40 ms. Remaining costs, from the profiles:
 SPU job setup zeroes each job's 256 KiB local store and copies its binary
 (~15 % of image 41 job time); some pool-lane SPU code still runs in the
 interpreter (~5 % of lane time); and on the RSX thread, per-draw vertex

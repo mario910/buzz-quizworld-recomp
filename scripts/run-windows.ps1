@@ -65,7 +65,7 @@ if ($MenuBootstrap) {
             }
         }
     }
-    foreach ($key in @('BUZZ_NO_FMV','GCM_SECOND_V','SPURS_JOB_ABI_MIN_IMAGE','SPURS_JOB_ABI_STAGE_IMAGE','SPURS_JOB_KERNEL_MIRROR','GCM_STRICT_PARK','RSX_VERTEX_CAPACITY','RSX_DRAW_CAPACITY','RSX_TEXTURE_CAPACITY','BUZZ_PULSE_MS','SPURS_JOB_LIST_WORKERS','SPURS_JOB_LIST_IMAGE','SPURS_JOB_LIST_EXTRA_IMAGES','SPURS_JOB_LS_EXCHANGE','SPURS_JOB_LS_PUBLISH','BUZZ_COMPLETION_QUEUE','BUZZ_STAGEF','SPURS_POOL_SEQUENCE','SPURS_POOL_SPIN_US','SPU_INTERP_UNLIFTED','PS3_USLEEP_TIMER_TAIL_US','RSX_TRACK_ZETA','RSX_SHADER_CACHE_DIR','RSX_PIPELINE_CAPACITY','SPURS_JOB_CACHE_ENV','RSX_CACHE_ENV','SPURS_GUARD_POLL_ONLY','SPURS_JTS_WAKE','SPURS_JTS_DMA_WAKE','GCM_FIFO_STOP_AT_FLIP','RSX_FLIP_BOUNDARY','SPURS_MERGE_READY_LISTS','SPURS_NATIVE_EXTRA_FP','RSX_GUEST_SAMPLERS','RSX_PIXEL_WINDOW')) {
+    foreach ($key in @('BUZZ_NO_FMV','GCM_SECOND_V','SPURS_JOB_ABI_MIN_IMAGE','SPURS_JOB_ABI_STAGE_IMAGE','SPURS_JOB_KERNEL_MIRROR','GCM_STRICT_PARK','RSX_VERTEX_CAPACITY','RSX_DRAW_CAPACITY','RSX_TEXTURE_CAPACITY','BUZZ_PULSE_MS','SPURS_JOB_LIST_WORKERS','SPURS_JOB_LIST_IMAGE','SPURS_JOB_LIST_EXTRA_IMAGES','SPURS_JOB_LS_EXCHANGE','SPURS_JOB_LS_PUBLISH','BUZZ_COMPLETION_QUEUE','BUZZ_STAGEF','SPURS_POOL_SEQUENCE','SPURS_POOL_SPIN_US','SPURS_JTS_SPIN_US','SPU_INTERP_UNLIFTED','PS3_USLEEP_TIMER_TAIL_US','RSX_TRACK_ZETA','RSX_SHADER_CACHE_DIR','RSX_PIPELINE_CAPACITY','SPURS_JOB_CACHE_ENV','RSX_CACHE_ENV','SPURS_GUARD_POLL_ONLY','SPURS_JTS_WAKE','SPURS_JTS_DMA_WAKE','GCM_FIFO_STOP_AT_FLIP','RSX_FLIP_BOUNDARY','SPURS_MERGE_READY_LISTS','SPURS_NATIVE_EXTRA_FP','RSX_GUEST_SAMPLERS','RSX_PIXEL_WINDOW')) {
         $bootstrapEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
     }
     # Startup films (Relentless logo, intro) play: they decode and hand over
@@ -133,6 +133,9 @@ if ($MenuBootstrap) {
     # Idle pool lanes poll ~1 ms for the next SYNC-separated stage instead of an
     # OS wake per stage (menu 27.4 -> 30.0-31.6 FPS). SDK: 12+ logical CPUs only.
     if ([string]::IsNullOrEmpty($env:SPURS_POOL_SPIN_US)) { $env:SPURS_POOL_SPIN_US = '1000' }
+    # Likewise a chain walker parked on a JTS slot polls ~1 ms for the other
+    # chain's publication first (menu 30.5 -> 31.3, round 36.5 -> 37.9 FPS).
+    if ([string]::IsNullOrEmpty($env:SPURS_JTS_SPIN_US)) { $env:SPURS_JTS_SPIN_US = '1000' }
     # Sound: MultiStream (SPU audio mixer) calls ATRAC/DSP modules it loads into
     # local store at runtime; no lift can exist for them, so interpret them.
     # Without this the mixer task ends on its first call and the game is silent.
