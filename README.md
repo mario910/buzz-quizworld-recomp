@@ -43,7 +43,7 @@ extracts your firmware PUP and optional update PKG and decrypts your EBOOT
 directly in the app, inside a private session. Encrypted SELF/PUP inputs need
 your private local decryption key file; keys are not bundled or downloaded.
 Already prepared `dev_flash` and `EBOOT.elf` can be used without a key file.
-See [built-in game and firmware import](docs/game-import.md) for key formats,
+See [built-in game and firmware import](docs/game-import.md#where-to-find-the-keys) for key sources and formats,
 command-line usage and validation. Still-encrypted disc images are
 not supported by this importer. Use files you are legally
 entitled to use under the rules in your jurisdiction.

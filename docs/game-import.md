@@ -26,6 +26,42 @@ to resume. Old sessions prepared with the RPCS3 helper are retained, but must
 be imported into a new session with the built-in importer. Existing prepared
 builds can still be played.
 
+## Where to find the keys
+
+The supported disc EBOOTs and firmware packages use shared PS3 system keysets.
+You do not need a console-specific key for these inputs. Public sources are:
+
+| Source | What to use |
+|---|---|
+| [ArtemisPS3 key database](https://github.com/bucanero/ArtemisPS3/blob/master/ArtemisPS3-PRX/data/keys) | A scetool-format text file containing application SELF, NPDRM and firmware-package keysets. Open **Raw** to save the file contents, rather than the GitHub HTML page. |
+| [PS3 Developer Wiki: Keys](https://www.psdevwiki.com/ps3/Keys) | Key documentation, including the **PS3 PUP HMAC** section needed to verify firmware PUPs. |
+| [Sonyk/ps3keys: pup-hmac](https://github.com/Sonyk/ps3keys/blob/master/pup-hmac) | An alternative source of the PUP HMAC value as a 64-byte binary file. This binary file must be converted to 128 hexadecimal characters before adding it to the text key file. |
+
+To set up the importer manually:
+
+1. Create `runtime/keys/` in your checkout. Save the raw ArtemisPS3 text file
+   there as `ps3.keys`.
+2. For firmware PUP import, check whether the file already has a `[pup_hmac]`
+   section. If it does not, append the following block and replace the
+   placeholder with the 128 hexadecimal characters from the wiki's **PS3 PUP
+   HMAC** section (without spaces or line breaks):
+
+   ```ini
+   [pup_hmac]
+   type=OTHER
+   key=<64-byte PUP HMAC value as 128 hexadecimal characters>
+   ```
+
+3. Open `Prepare-Buzz.cmd`. The wizard selects `runtime/keys/ps3.keys`
+   automatically. If you store the file elsewhere, choose it in **Decryption
+   keys (local file)**, or pass its full path with `--keys` on the command line.
+
+These are manually obtained input files. The app does not contact those sites
+or download keys. Keep the resulting key file in the ignored directory or
+outside the repository; do not commit it. A fresh clone needs its own local
+key-file setup. Disc-sector keys (`.dkey`) and account-license files (`.rap` or
+`.rif`) serve different purposes and cannot replace this key file.
+
 ## Private key-file formats
 
 The repository intentionally contains no real decryption key database. Store
