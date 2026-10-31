@@ -53,6 +53,15 @@ uncapped) above 30, and is the prerequisite for any low-power target.
    the hash, never silently re-infer the ABI.
 5. **Same-EXE A/B** for performance claims (`perf/measure-vulkan-scene.ps1`
    with `-Env`, reversed order, window stats), numbers recorded here.
+6. **CPU savings count even when FPS is unchanged.** A kernel may become
+   default-on after all correctness/render gates if matched reversed runs
+   show a repeatable reduction in geometry-worker CPU time or cycles per
+   completed job/frame, without a material FPS/frame-time regression. Track
+   both worker cost and whole-process cost, with equivalent scene/workload
+   and the same executable/settings. More FPS can mean more work per second,
+   so raw CPU percentage or cycles/second alone is not a fair comparison.
+   Microbenchmark elapsed time is supporting evidence, not a measured cycle
+   reduction; diagnostic RIP sampling that suspends threads is not a benchmark.
 
 ## Tooling (exists)
 
@@ -154,6 +163,7 @@ phase, not an expansion of the currently active phase 2 implementation goal.
 - [ ] Live checked mode: N >= 256 calls compared in-game, PASS logged
 - [ ] Frame dump of menu and round renders normally
 - [ ] Menu A/B (2 pairs, reversed) and round A/B recorded below
+- [ ] For FPS-neutral default-on decisions: matched worker/process CPU-cost evidence recorded, with no material frame-time regression
 - [ ] Runtime bit documented; default flipped only after all of the above
 - [ ] SDK/main commits, docs updated
 
@@ -161,6 +171,14 @@ phase, not an expansion of the currently active phase 2 implementation goal.
 
 Status: `todo`, `wip`, `exact` (bit-exact, off by default), `on` (default
 on), `dropped` (with reason).
+
+Phase 2's separate results document is
+[native-geometry-phase2-results.md](native-geometry-phase2-results.md).
+While implementation or gates remain open it is explicitly an interim report.
+At actual phase completion, finalize that report and commit the results before
+closing the current goal and creating the next phase's goal. Do not advance
+to phase 3 while phase 2 is incomplete. Stage F strict cleanup remains the
+final phase 7.
 
 ### Phase 0
 
