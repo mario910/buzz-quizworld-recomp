@@ -44,6 +44,10 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
        BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23, BUZZ_GEOMETRY_JOB_SKIN_DISPATCH = 24, BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN = 25, BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS = 26, BUZZ_GEOMETRY_JOB_SKIN_FLOW = 27, BUZZ_GEOMETRY_JOB_RIGID_SKIN = 28, BUZZ_GEOMETRY_JOB_SKIN_COFACTOR = 29, BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED = 30 };
 enum { BUZZ_GEOMETRY_JOB_INDEX_DELTAS = 31 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_UNPACK = 32 };
+int buzz_geometry_job_index_unpack_enabled(void);
+void buzz_geometry_job_index_unpack_result(unsigned width, int checked);
+void buzz_geometry_job_index_unpack(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn deltas, buzz_geometry_job_fn expansion);
 int buzz_geometry_job_index_deltas_enabled(void);
 void buzz_geometry_job_index_deltas_result(unsigned groups, int checked, int aliases);
 void buzz_geometry_job_index_deltas(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn tail);

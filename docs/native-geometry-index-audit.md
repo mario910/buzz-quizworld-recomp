@@ -1,6 +1,6 @@
 # Image-41 compressed indices: implementation contract
 
-Status: audited; delta reconstruction implemented separately; **native
+Status: audited; bit unpack and delta reconstruction implemented separately; **native
 whole-decoder implementation and acceptance OPEN**,
 2026-10-31. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
 for the next phase-3 implementation. The continuing objective remains active
@@ -158,11 +158,30 @@ Choose a fresh output filename; preserve the finalized v1 verdict and archive.
 | Region | Current implementation |
 |---|---|
 | AEA0 controller, 7390 frame/setup, 2738 publication | Complete native replacement OPEN |
-| 74F0/7640 and 7C20/7CD0 bit unpack | Complete native replacement OPEN |
+| 74F0/7640 and 7C20/7CD0 bit unpack | Complete native implementation through 7730/77F8, own `INDEX_UNPACK=0/1/2`, default 0; final performance/default gates OPEN |
 | 7730/7770 delta prefix | Complete native implementation, own `INDEX_DELTAS=0/1/2`, default 0; final performance/default gates OPEN |
 | 7838/78A8 flag expansion | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
 | 79A8/79C8 command relocation | Complete native replacement OPEN |
 | 7A90 triangle reconstruction and frame restoration | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
 
-The native delta region calls no original setup, step or final iteration.
-Completing that region does not complete 7390 or the image-41 job flow.
+The native bit-unpack and delta regions call no original setup, step or final
+iteration. Completing those regions does not complete 7390 or the image-41 job flow.
+
+### Width-16 source compatibility
+
+The independent packed-value checks use ordinary MSB-first packing for widths
+1..15, at all 16 byte alignments. At a synthetic width-16 entry with the
+standard tables, the pinned lift has a distinct behavior. Both word shifts
+are zero; selector32 starts every word with byte0 (`00000102`, `00040506`,
+`0008090A`, `000C0D0E`), selector33 starts `00000203`, and SELB takes the
+first pair's upper half. Each even output consequently combines the high byte
+of its eight-value group's first value with its own high byte. Odd outputs
+retain the full original halfword. For packed values `v[i]`, the even result is
+`(v[i & ~7] & 0xFF00) | (v[i] >> 8)`.
+
+The native implementation preserves this pinned-lift behavior, with no new
+checker exception. A separate numeric/control proof covers width16 at all
+16 alignments. The initial ordinary-u16 assumption and diagnostic failures
+are retained privately; strict lifted/native state checks were exact. No
+width-16 real jobs were captured, so this is a synthetic source-contract
+finding, not a claim about the retail format or real coverage of that width.

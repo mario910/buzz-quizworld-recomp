@@ -33,6 +33,8 @@ model matches one complete captured register/LS pair. This is preparation for
 native implementation, with all new decoder acceptance/default gates open.
 The complete `7730/7770` delta region is now native opt-in, independently
 checked and documented below. Other regions of the decoder remain unfinished.
+The full low/high bit-unpack region is now independently native as well;
+its source-compatible width-16 behavior and evidence are recorded below.
 
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
@@ -3241,3 +3243,101 @@ Private evidence uses `phase3/index-deltas-v1-*` and
 `analysis/vk-scene-p3-index-deltas-v1-*`; the finalized private manifest binds
 committed sources/docs/tests, frozen binaries/map/C/native snapshots,
 original entry pin, prior audit, tests, five replays and three scene outputs.
+
+
+## Complete low/high index bit unpack (74F0/7640/7C20/7CD0)
+
+`port/native_geometry_index_unpack.h` replaces the complete five-block region,
+including 77E8, through exact 7730 or 77F8 continuation. Native host vectors
+retain the compressed-input cache, extraction pipeline, both warmups and
+backward output progression. The last block is written three times before
+the ordinary -64 steps; all next raw reads precede the ordered output stores.
+Low/high store orders differ and remain exact even for overlapping bases.
+A native final step materializes all GPR temporaries, counters, cached header
+bias and final lookahead. No original setup, step or final iteration executes.
+
+Preflight simulates every write from the actual D120 table and cached r99
+selector. It supports nonstandard bounded increments, arbitrary extraction
+and shuffle tables, biased/separate bases, aliases and wrapped reads. Physical
+writes stay in private data; unsupported inputs fall back before any mutation
+with no native credit. Full nonpreferred pointer/count lanes are preserved.
+The count derives from the actual truncated packed offset, including large
+synthetic width/count combinations, rather than assuming groups+2 blindly.
+
+`BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2` defaults to 0. Mode 2 or JOB=2 compares
+all 128 GPRs/all LS, architectural/channel/control state, PC/FN and image/depth/
+policy/overlay against the entire original closure. No exclusion, tolerance
+or Stage F waiver is added. Stage 32 / 33 counters / protocol 27 expose low/high
+native and strict totals. The earlier delta flag remains independent.
+
+**5,378 strict full-state/boundary cases** pass: 4,096 randomized entries,
+768 targeted alias/increment-table cases, 256 wrapped lookahead cases, two
+pinned real low/high entry snapshots and 256 independent packed-value cases.
+Counts include 0/1/31/32/33 through 65,535; widths 1..16, arbitrary GPR upper
+lanes, cache/table controls and all byte alignments are covered. The extra
+numeric checks independently pack MSB-first values for widths 1..15 (240 cases)
+and prove the pinned width 16 behavior at 16 alignments. Ten rejects leave state
+unchanged. API routing passes 18 native / 12 strict and 8 counted fallbacks, both
+width paths and both tails, aliases, owner/off/foreign/image/null callbacks,
+invalid fields/LS and post-scope calls. Tail-PC collisions are included.
+The 1,024 outer models / 19,508 real-entry models, 43 runtime controller cases,
+248 production-getter cases and durable first-fallback test also pass.
+
+Strict native/reference state was exact from the first standalone run. The
+additional ordinary-u16 assumption failed at synthetic width 16. Investigation
+of the zero shifts and byte selectors derived the source-compatible rule in
+[the format contract](native-geometry-index-audit.md#width-16-source-compatibility).
+The independent check now explicitly proves that rule; the native algorithm
+and strict checker were unchanged. Diagnostics remain private. Test boundary
+traps also received distinct diagnostics to prevent identical-function folding;
+production PC/FN checks remain strict. Width 1 and 12..16 remain unobserved in
+the real corpus, so synthetic checks are not counted as real calls.
+
+Frozen `build-vulkan-phase3-index-unpack-v1`:
+EXE `f8d9eb7bd9b2af94b8835e7858d56b8e2772a5a6f227b75ba4035e91ad401d15`;
+map `ee32f33c5bc6bfe01a3f190ab808fe869be7f39b4701bd0db1e136ba6b8b30ef`;
+generated C `82492b5c82de931f22a2ec8d511bfe7db213f11aebf3735a2d9bb2f51d495a89`.
+Frozen C and four compiled native/header/controller copies are preserved.
+
+All five arms pass 19,508 exact jobs / 58,195 transfers, zero input changes and
+failures, Stage F=2 / leaf 827/no contract override:
+
+| Arm | JOB | Older flags | INDEX_UNPACK | Unpack native/strict/fallback |
+|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|
+| Independent |2|0|1|9,763/9,763/0|
+| Combined native |1|1|1|9,763/0/0|
+| Combined checked |2|1|1|9,763/9,763/0|
+| Kernel checked |1|1|2|9,763/9,763/0|
+
+Every enabled arm has 7,211 low + 2,552 high native calls, zero fallback. Both
+JOB=2 arms also pass 19,508 whole-job state/I/O checks. Combined arms retain all
+9,763 native delta calls, 1,628 AF18, 6,113 weighted and 5,018 basic direction roots,
+zero fallback. Thus actual unpack+delta composition is covered by full replay.
+Width-zero jobs bypass this root and are not counted as new native work.
+
+Same frozen EXE, fresh private saves, all older flags=1 (including deltas),
+GEOMETRY=1 / Stage F=1 / leaf 827, with no compilation/CPU tests/profiling overlap:
+
+| Functional scene | JOB/INDEX_UNPACK | Frames /last elapsed ms | Unpack evidence (lower bounds) |
+|---|---|---|---|
+| Checked menu, 60s |1/2|2,180 /59588.115|strict low>=545,000;high>=55,000|
+| Native menu, 75s |1/1|3,317 /74692.974|native low>=2,985,000;high>=335,000|
+| Native round, 60s after navigation |1/1|9,592 /196440.496|native low>=5,825,000;high>=1,560,000|
+
+No differences, halts or first unpack fallback were observed. Live counts
+are periodic lower bounds; forced shutdown supplies no final fallback totals.
+Inspected 1280x720 readbacks show normal menu/studio/crowd and an actual green
+round with host/player/score UI. Final interpreter, reversed same-EXE
+A/B and normalized worker/process cycles/time/default gates remain OPEN;
+no FPS/CPU benefit is claimed. Repeatable CPU savings with flat FPS can justify
+enabling after all correctness/render gates. JOB=0 / leaf 827 / new flags=0 are unchanged.
+
+The [remaining index inventory](native-geometry-index-audit.md#native-implementation-inventory)
+keeps 7390 control, full flag expansion, relocation and triangle final ABI
+explicit. Phase 3 and the continuing goal remain active; other enclosing stages,
+builtins and cold/final gates still require work. Strict Stage F cleanup stays
+mandatory last. Private evidence uses `phase3/index-unpack-v1-*` and
+`analysis/vk-scene-p3-index-unpack-v1-*`; the finalized manifest binds committed
+sources/docs/tests, frozen executable/map/C/native copies, original low/high
+fixtures, diagnostics, prior delta proof, tests, five replays and three scenes.

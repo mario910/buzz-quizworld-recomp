@@ -30,6 +30,7 @@
 #include "native_geometry_skin_cofactor.h"
 #include "native_geometry_skin_normalized.h"
 #include "native_geometry_index_deltas.h"
+#include "native_geometry_index_unpack.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -174,6 +175,47 @@ extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
+}
+
+extern "C" void buzz_geometry_job_index_unpack(spu_context* ctx, buzz_geometry_job_fn reference,
+                                               buzz_geometry_job_fn deltas, buzz_geometry_job_fn expansion)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_index_unpack_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryIndexUnpack plan;
+    if (!deltas || !expansion || !buzz::read_geometry_index_unpack(*ctx, plan)) {
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_INDEX_UNPACK, 0, 0); reference(ctx); return;
+    }
+    spu_context* comparison = nullptr; buzz_geometry_job_fn expected = nullptr;
+    if (buzz_geometry_job_mode() == 2 || buzz_geometry_job_index_unpack_enabled() == 2) {
+        comparison = buzz::clone_function_state(ctx); const auto scheduled = g_spu_trampoline_fn;
+        g_spu_trampoline_fn = nullptr; reference(comparison);
+        for (unsigned steps = 0; g_spu_trampoline_fn != deltas && g_spu_trampoline_fn != expansion; ++steps) {
+            const auto next = g_spu_trampoline_fn;
+            if (!next || steps >= 5) buzz_geometry_job_native_fail(ctx, "index unpack reference escaped data boundary");
+            g_spu_trampoline_fn = nullptr; next(comparison);
+        }
+        expected = g_spu_trampoline_fn;
+        if (comparison->pc != (expected == deltas ? 0x7730u : 0x77f8u))
+            buzz_geometry_job_native_fail(ctx, "index unpack reference PC differs");
+        g_spu_trampoline_fn = scheduled;
+    }
+    buzz::unpack_geometry_indices(*ctx, plan, deltas, expansion);
+    if (comparison) {
+        const auto diff = buzz::compare_function_state(*ctx, *comparison);
+        const bool exact = ctx->host_depth == comparison->host_depth && ctx->image_id == comparison->image_id &&
+            ctx->policy_mode == comparison->policy_mode && ctx->resident_ovl == comparison->resident_ovl && g_spu_trampoline_fn == expected;
+        buzz::release_function_state(comparison);
+        if (!diff.exact() || !exact) {
+            std::fprintf(stderr, "[geometry-job/index-unpack] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register, diff.first_register_byte, diff.first_ls, diff.ls_bytes, diff.first_state ? diff.first_state : "equal");
+            buzz_geometry_job_native_fail(ctx, "index unpack strict data/state/boundary differs");
+        }
+        buzz_geometry_job_index_unpack_result(plan.width, 1);
+    }
+    buzz_geometry_job_index_unpack_result(plan.width, 0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_INDEX_UNPACK, 1, 0);
 }
 
 extern "C" void buzz_geometry_job_index_deltas(spu_context* ctx, buzz_geometry_job_fn reference, buzz_geometry_job_fn tail)

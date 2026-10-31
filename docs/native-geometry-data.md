@@ -681,6 +681,13 @@ queues 77F8 without original setup/step/final execution. Its own
 `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2` defaults to 0; full-state synthetic,
 real-corpus and live evidence is in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
 Other index data/control regions remain separate unfinished implementations.
+The full `74F0/7640/7C20/7CD0/77E8` bit-unpack region is also native opt-in
+through `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0. Its two warmup
+iterations, repeated final-block writes, backward output sequence, wrapped
+lookahead and full final register state are preserved. The preflight simulates
+every write using the actual increment table and cached shuffle selector.
+The [width-16 source-contract finding](native-geometry-index-audit.md#width-16-source-compatibility)
+distinguishes ordinary packed-value checks from that unobserved synthetic path.
 
 ## Vertex and index streams
 
