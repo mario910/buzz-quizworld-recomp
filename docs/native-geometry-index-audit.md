@@ -1,6 +1,6 @@
 # Image-41 compressed indices: implementation contract
 
-Status: audited; bit unpack and delta reconstruction implemented separately; **native
+Status: audited; bit unpack, delta reconstruction and flag expansion implemented separately; **native
 whole-decoder implementation and acceptance OPEN**,
 2026-10-31. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
 for the next phase-3 implementation. The continuing objective remains active
@@ -160,12 +160,38 @@ Choose a fresh output filename; preserve the finalized v1 verdict and archive.
 | AEA0 controller, 7390 frame/setup, 2738 publication | Complete native replacement OPEN |
 | 74F0/7640 and 7C20/7CD0 bit unpack | Complete native implementation through 7730/77F8, own `INDEX_UNPACK=0/1/2`, default 0; final performance/default gates OPEN |
 | 7730/7770 delta prefix | Complete native implementation, own `INDEX_DELTAS=0/1/2`, default 0; final performance/default gates OPEN |
-| 7838/78A8 flag expansion | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
+| 7838/78A8 flag expansion | Complete native region including final ABI and 79A8/7DCC handoff, own `INDEX_EXPAND=0/1/2`, default 0; final performance/default gates OPEN |
 | 79A8/79C8 command relocation | Complete native replacement OPEN |
 | 7A90 triangle reconstruction and frame restoration | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
 
-The native bit-unpack and delta regions call no original setup, step or final
+The native bit-unpack, delta and flag-expansion regions call no original setup, step or final
 iteration. Completing those regions does not complete 7390 or the image-41 job flow.
+
+### Flag expansion and post-write capacity
+
+`7838/78A8` merges explicit halfwords (flag1) with incrementing sequential
+indices (flag0). The iteration count is `(incoming_r82 >> 4) + 1`, including
+one warmup. Its initial output increment is zero, then 32 bytes: the first
+destination is overwritten on the following iteration. Each step reads flags
+and all four explicit-input/lookahead quads before writing the high output
+quad followed by the low quad. Native state retains full vectors, including
+the masked popcount carried in r10 rather than the intermediate flag control.
+
+The final manager+170 quad is loaded after every output write. Its +17C
+limit therefore includes any output/manager alias effects. Two independent
+cases prove both reversals: an initially failing capacity becomes valid, and
+an initially valid capacity becomes invalid after decoding. The signed
+comparison and 79A8/7DCC continuation are exact. Selecting 7DCC completes this
+data region; its reporting/assertion code is executed later on the retained
+context, never twice by the pure-function checker.
+
+Scalar merge checks use the caller's aligned compressed header, with the
+flag base at B+2; varying that base arbitrarily would change the pinned source's
+flag-word addressing. All 16 explicit-data byte alignments, MSB flag order,
+mixed flag patterns and flag-quad crossings are checked independently.
+Arbitrary flag bases and extraction/shuffle tables remain covered by strict
+source-state comparisons. The legacy phase-2 bit6 prefix is unchanged and
+independent; the full native region has no original final-iteration callback.
 
 ### Width-16 source compatibility
 

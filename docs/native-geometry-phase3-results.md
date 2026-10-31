@@ -35,6 +35,9 @@ The complete `7730/7770` delta region is now native opt-in, independently
 checked and documented below. Other regions of the decoder remain unfinished.
 The full low/high bit-unpack region is now independently native as well;
 its source-compatible width-16 behavior and evidence are recorded below.
+Full `7838/78A8` flag expansion is also native opt-in through its actual
+post-write capacity decision, with separate evidence below. Whole-index control,
+command relocation and complete triangle final state remain unfinished.
 
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
@@ -3341,3 +3344,104 @@ mandatory last. Private evidence uses `phase3/index-unpack-v1-*` and
 `analysis/vk-scene-p3-index-unpack-v1-*`; the finalized manifest binds committed
 sources/docs/tests, frozen executable/map/C/native copies, original low/high
 fixtures, diagnostics, prior delta proof, tests, five replays and three scenes.
+
+
+## Complete flag expansion (7838/78A8)
+
+`port/native_geometry_index_expand.h` replaces the entire setup, loop and
+final ABI through queued 79A8 or 7DCC. Prepared constant shuffle masks and
+host vectors retain the explicit-input cursor, flag offset, popcounts,
+sequential carry and selection masks. The first destination repeats after
+warmup; all five input/lookahead quads are read before high then low stores.
+The native final step reconstructs every changed temporary and full pointer/
+counter lane. No original setup, step or final iteration executes. The older
+phase-2 bit6 prefix remains independent and unchanged.
+
+The final manager+170 capacity quad is reread after all writes. Output/manager
+aliases therefore affect the same signed comparison and selected continuation.
+A capacity-error handoff completes this pure data region; the error reporter
+runs later on the retained context. The checker never executes its I/O twice.
+Preflight bounds all physical writes before mutation, while input reads retain
+SPU wrap/floor semantics and biased pointers. Unsupported states fall back
+before mutation without native credit.
+
+`BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2` defaults to 0. Mode 2 or JOB=2 compares
+all 128 GPRs/all LS, architectural/channel/control state, PC/FN and image/depth/
+policy/overlay against both original blocks, with distinct endpoint identities.
+No exclusions, tolerance or Stage F exception are added. Stage 33, 34 counters
+and protocol 28 track warmup-only, short, bulk and capacity-exit counts.
+
+**4,691 strict full-state/boundary cases** pass: 4,096 randomized entries,
+512 targeted alias/wrap/signed-capacity/pointer-overflow cases, 16 maximum-span
+cases (6,337 iterations), one pinned real entry, 64 independent scalar merges and
+two independent post-write capacity reversals. Synthetic inputs include
+arbitrary GPR upper lanes, extraction/shuffle tables, pointer biases, count 1/
+2/3 and bulk, flag/input/output overlap, manager aliasing and LS-wrapped reads.
+Both continuations are covered (2,334 synthetic capacity exits); reporting
+code is trapped. Seven rejects preserve state.
+
+The 64 scalar checks cover all 16 explicit-data byte alignments, all-zero/all-one
+and mixed MSB flags, 128 outputs per case and flag-quad crossings. Flag 1 consumes
+the next explicit value; flag 0 emits the next sequential value. The compressed
+header remains 16-byte aligned, as required by 7390. An initial numeric fixture
+incorrectly biased the header together with the explicit data; correcting
+that fixture preserved the native algorithm and strict checker. Its diagnostic
+is archived. Arbitrary flag-base states still pass strict source comparisons.
+Two additional numeric cases prove capacity changing in both directions after
+output overwrites manager metadata; prechecking that limit would be incorrect.
+
+API routing passes 18 native / 12 strict calls and 8 counted fallbacks: warmup/short/
+bulk, both exits and strict modes, aliases, tail-PC collisions, owner/off/foreign/
+image/null callbacks/invalid fields/foreign LS/post-scope. The 1,024 outer models,
+19,508 real-entry models, 43 runtime controller cases, 256 production-getter cases
+and durable first-fallback check also pass. There were no strict native/reference
+state mismatches before freezing.
+
+Frozen `build-vulkan-phase3-index-expand-v1`:
+EXE `2c20ddb10574c78e65b141782ad2de5bdfc20e22615f4e809c123cd97c1324af`;
+map `4df645e7e4b15a6f1368137474372d180dcaa969d168fadf6cec41963fc388f5`;
+generated C `5ac5ac133676dfb659ec6be11355382e3a9b4473e50b089b972821eaaa5da269`.
+Frozen C and four compiled native/header/controller copies are preserved.
+
+All five arms pass 19,508 exact jobs / 58,195 transfers, zero input changes and
+failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | INDEX_EXPAND | Expansion native/strict/fallback |
+|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|
+| Independent |2|0|1|19,508/19,508/0|
+| Combined native |1|1|1|19,508/0/0|
+| Combined checked |2|1|1|19,508/19,508/0|
+| Kernel checked |1|1|2|19,508/19,508/0|
+
+Every enabled arm has 7,123 short + 12,385 bulk calls, zero warmup-only/capacity
+exits or fallback. Both JOB=2 arms pass 19,508 whole-job state/I/O checks. Combined
+arms retain all 9,763 unpack and 9,763 delta roots, 1,628 AF18, 6,113 weighted and
+5,018 basic direction roots, zero fallback. Actual unpack+delta+expansion
+composition is covered; no synthetic case is represented as a real call.
+
+Same frozen EXE, fresh private saves, all older flags=1 (including unpack and
+deltas), GEOMETRY=1 / Stage F=1 / leaf 827, no compilation/CPU tests/profiling overlap:
+
+| Functional scene | JOB/INDEX_EXPAND | Frames / last elapsed ms | Expansion evidence (lower bounds) |
+|---|---|---|---|
+| Checked menu, 60s |1/2|1,367 / 59,137.446|strict short>=130,000; bulk>=330,000|
+| Native menu, 75s |1/1|2,306 / 74,906.059|native short>=970,000; bulk>=2,295,000|
+| Native round, 60s after navigation |1/1|6,192 / 196,179.297|native short>=1,575,000; bulk>=5,385,000|
+
+No differences, halts, first expansion fallback or capacity exits were observed.
+Periodic live counters are lower bounds; forced shutdown provides no final
+fallback totals. Inspected 1280x720 readbacks show normal menu/studio/crowd and
+actual green-round host/player/score UI. Final interpreter, reversed same-EXE
+A/B and normalized worker/process cycles/time/default gates remain OPEN;
+no FPS/CPU benefit is claimed. Repeatable CPU savings can justify enabling
+with flat FPS after all correctness/render gates. JOB=0 / leaf 827 / new flags=0 remain.
+
+Full 7390 control, command relocation and triangle final ABI are still open in
+the [remaining inventory](native-geometry-index-audit.md#native-implementation-inventory).
+Phase 3 and the continuing goal remain active; other enclosing stages/builtins/
+cold/final gates still require work. Strict Stage F reconstruction stays last.
+Private evidence uses `phase3/index-expand-v1-*` and
+`analysis/vk-scene-p3-index-expand-v1-*`; the finalized manifest binds committed
+sources/docs/tests, frozen executable/map/C/native copies, original entry pin,
+diagnostic, prior unpack proof, tests, five replays and three scenes.

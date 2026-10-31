@@ -688,6 +688,13 @@ lookahead and full final register state are preserved. The preflight simulates
 every write using the actual increment table and cached shuffle selector.
 The [width-16 source-contract finding](native-geometry-index-audit.md#width-16-source-compatibility)
 distinguishes ordinary packed-value checks from that unobserved synthetic path.
+`7838/78A8` is now a complete native region under the independent
+`BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0. It preserves the first
+destination overwrite, all explicit/flag lookahead and the complete final ABI.
+The [post-write capacity contract](native-geometry-index-audit.md#flag-expansion-and-post-write-capacity)
+includes output/manager aliases and both signed-capacity handoffs. The original
+phase-2 bit6 prefix remains independent. Whole-index control, command relocation
+and triangle final state still require native replacement.
 
 ## Vertex and index streams
 

@@ -603,7 +603,7 @@ calls are native with zero fallback, comprising 2,999 one-group + 6,764 bulk cal
 Strict live menu checks exceed 235,000 one-group + 315,000 bulk calls. Frozen
 native scene evidence is recorded in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
 The [remaining index inventory](native-geometry-index-audit.md#native-implementation-inventory)
-keeps the controller, full flag expansion, relocation and triangle
+keeps the controller, relocation and triangle
 final ABI explicit. This completes one data region, not 7390 or phase 3.
 Final interpreter/reversed A/B/normalized worker/process CPU/default gates
 remain open. JOB=0 / leaf 827 / all new flags=0 are unchanged; strict Stage F remains last.
@@ -626,10 +626,32 @@ unpack roots are native with zero fallback (7,211 low + 2,552 high). Combined
 arms retain all 9,763 native delta roots. Strict live menu checks exceed
 545,000 low + 55,000 high calls. Frozen native scene evidence is in the
 [phase-3 results](native-geometry-phase3-results.md#complete-lowhigh-index-bit-unpack-74f076407c207cd0).
-7390 control, full flag expansion, relocation and triangle final ABI remain
+7390 control, relocation and triangle final ABI remain
 unfinished, alongside the other enclosing stages/builtins/cold coverage.
 Final interpreter/reversed A/B/normalized worker/process CPU/default gates
 remain open. JOB=0 / leaf 827 / new flags=0 are unchanged; strict Stage F is last.
+
+### Complete native compressed-index flag expansion
+
+`7838/78A8` now has a complete native implementation through 79A8 or 7DCC,
+selected by `BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0. Host vectors
+and prepared shuffle masks retain the explicit/sequential merge, warmup,
+all lookahead, ordered writes and full final ABI. The capacity quad is read
+after writes, preserving manager/output alias effects and signed comparison.
+The older phase-2 bit6 prefix remains independent; no original setup, step or
+final iteration executes in the new native region.
+
+Tests pass 4,691 strict cases including 64 independent scalar merges and
+two post-write capacity reversals, plus seven unchanged rejects and 256
+configuration cases. Both tails are covered without executing reporting I/O
+twice. Five corpus arms each pass 19,508 exact jobs / 58,195 transfers, all
+19,508 expansion roots native with zero fallback (7,123 short + 12,385 bulk).
+Combined arms retain 9,763 unpack and 9,763 delta roots. Strict live menu checks
+reach at least 130,000 short + 330,000 bulk calls; native scene evidence is recorded in
+the [phase-3 results](native-geometry-phase3-results.md#complete-flag-expansion-783878a8).
+7390 control, relocation and triangle final ABI remain unfinished. Final
+interpreter/reversed A/B/normalized worker/process CPU/default gates stay
+open. JOB=0 / leaf 827 / new flags=0 remain unchanged; strict Stage F is last.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -756,7 +778,8 @@ subject to the kernel gates before replacement.
 | 0xB348 data suffix/B3C0/B3C8 rigid skin data | n/a | complete native implementation; real/live gates OPEN | `BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2`, default0 | 7,681strict+3numeric+10rejects;384AF18/data integration;five compatibility arms19,508exact/58,195transfers;zero real calls | Real/live >=256 gate OPEN; native scene compatibility in report | not measured | |
 | 0xBB58/BB68 cofactor normal data | n/a | complete native implementation;real/live gates OPEN | `BUZZ_GEOMETRY_JOB_SKIN_COFACTOR=0/1/2`, default0 | 7,808strict+3geometric+10rejects;768AF18/data integration;five compatibility arms in report;zero real calls | Real/live >=256 gate OPEN; scene compatibility only | not measured | |
 | 0xC14C/C280/B5A0 normalized direction data | n/a | complete native implementations;all real/live gates OPEN | `BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2`, default0 | 9,219strict+9geometric/cache+12rejects;1,152AF18 actual-data integration;five compatibility arms in report;zero real calls | Real/live >=256 gate OPEN in each variant;scene compatibility only | not measured | |
-| 0x74F0/7640/7C20/7CD0/77E8 bit unpack | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0 | 5,378 strict incl256 numeric +10 rejects; five arms19,508 exact/58,195 transfers; 9,763 native/0 fallback | >=545,000 strict low +55,000 strict high; native scenes in report | not measured | |
+| 0x74F0/7640/7C20/7CD0/77E8 bit unpack | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0 | 5,378 strict incl256 numeric +10 rejects; five arms: 19,508 exact / 58,195 transfers; 9,763 native/0 fallback | >=545,000 strict low +55,000 strict high; native scenes in report | not measured | |
+| 0x7838/78A8 complete flag expansion | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0 | 4,691 strict including 64 numeric merges + 2 capacity reversals; seven rejects; five arms: 19,508 exact / 58,195 transfers; 19,508 native/0 fallback | >=130,000 strict short +330,000 strict bulk; native scenes in report | not measured | |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
@@ -808,6 +831,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-10-31 | Complete 7838/78A8 flag expansion | Menu/actual round (functional) | not measured | not measured | 4,691 strict including 64 scalar merges + 2 capacity reversals; seven rejects; 256 configuration cases; each replay: 19,508 exact / 58,195 transfers, all 19,508 native / 0 fallback; >=130,000 strict short +330,000 strict bulk live; own 0/1/2, default 0; final gates OPEN |
 | 2026-10-31 | Complete 74F0/7640/7C20/7CD0/77E8 bit unpack | Menu/actual round (functional) | not measured | not measured | 5,378 strict incl256 independent numeric cases +10 rejects; 248 configuration cases; 9,763 native/0 fallback, each replay19,508 exact/58,195 transfers; >=545,000 strict low +55,000 strict high live; own 0/1/2 default0; width16 source behavior documented; final gates OPEN |
 | 2026-10-31 | Phase 3 complete 7730/7770 index delta reconstruction | Menu/actual round (functional) | not measured | not measured | 5,763 strict +3 numeric +8 rejects; 240 configuration cases; 9,763 native/0 fallback per enabled replay, each 19,508 exact/58,195 transfers; >=235,000 strict one-group +315,000 strict bulk live; normal native frames; own 0/1/2 default 0; remaining index stages and final gates OPEN |
 | 2026-10-30 | Baseline (all session fixes) | Menu 40-98 s | 36.3 | 29.6 / 34.8 | `vk-scene-final2-vk` |
@@ -847,17 +871,17 @@ See the separate
 | 2026-10-31 | Phase 3 complete halfword stream 8378/CAC0/CAD8/CB78 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/crowd/round frames | 8,192 strict cases covering all65,536half encodings +23 rejects; 12,431 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=280,000 strict half +425,000 whole-job/I/O; independent default0, leaf827 unchanged; phase 3 remains open |
 | 2026-10-31 | Phase 3 complete float32 stream 87CC/8800/8878/8910/8928 | Five frozen corpus arms and scene-specific same-EXE live checks | functional evidence; no FPS/CPU claim | normal native menu and actual round | 5,440 strict cases +25 rejects; all12corpus float calls native/0fallback; each replay19,508 exact/58,195 transfers; >=20,000 strict live float32 in round sequence and 70,000 whole-job/I/O in menu; final V3 parser +104 configuration checks; own0/1/2switch default0, leaf827 unchanged; phase3open |
 
-| 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own0/1/2 default0;112 configuration cases; phase3open |
+| 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own 0/1/2, default 0;112 configuration cases; phase3open |
 
 | 2026-10-31 | Phase 3 remaining typed implementations 1/5/6/7 | Strict synthetic/routing and frozen replay/scene checks | functional only; no FPS/CPU claim | normal native menu/round | 30,208 strict +108 rejects;144 configuration cases;5 replay arms each19,508 exact/58,195 transfers;0new corpus dispatches;SNORM16 live gate OPEN; I16 live gate OPEN; CMP live gate OPEN; U8 integer live gate OPEN; own0/1/2 switches default0;phase3open |
 
-| 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own0/1/2 default0;152configuration cases;phase3open |
+| 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own 0/1/2, default 0;152configuration cases;phase3open |
 
 | 2026-10-31 | Phase 3 native BF8 additional-stream orchestration | Strict synthetic, four frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 2,672 strict +15 rejects;328 native roots/0fallback per enabled corpus arm;each19,508exact/58,195transfers;>=40,000 strict BF8 live roots;160 configuration cases;own0/1 default0;7118data dependency and final performance gates open |
 
-| 2026-10-31 | Phase 3 complete 7118/7298 run-list decoder | Strict/numeric tests, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 10,774 strict/numeric cases inclall65,536encodings +17rejects;1,198native/0fallback =895expanded+303empty;each19,508exact/58,195transfers;>=580,000strict nonemptylive+260,000empty;168configcases;own0/1/2 default0;phase3open |
+| 2026-10-31 | Phase 3 complete 7118/7298 run-list decoder | Strict/numeric tests, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 10,774 strict/numeric cases inclall65,536encodings +17rejects;1,198native/0fallback =895expanded+303empty;each19,508exact/58,195transfers;>=580,000strict nonemptylive+260,000empty;168configcases;own 0/1/2, default 0;phase3open |
 
-| 2026-10-31 | Phase 3 native 93F0 custom-descriptor dispatch | Strict synthetic, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 5,000strict state/handoff +13rejects;11,414native/0fallback per enabled arm;each19,508exact/58,195transfers;>=410,000strict live handoffs;176configcases;own0/1/2 default0;built-in1..5 notcovered;phase3open |
+| 2026-10-31 | Phase 3 native 93F0 custom-descriptor dispatch | Strict synthetic, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 5,000strict state/handoff +13rejects;11,414native/0fallback per enabled arm;each19,508exact/58,195transfers;>=410,000strict live handoffs;176configcases;own 0/1/2, default 0;built-in1..5 notcovered;phase3open |
 
 ## Risks
 
@@ -869,14 +893,14 @@ See the separate
   code must too.
 - **Lift changes** (new extra entries, lifter updates) move function
   boundaries: hash pins catch it; re-audit before regenerating.
-| 2026-10-31 | Phase 3 native 9F8 skin/rigid controller | Strict synthetic, five frozen corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,144 strict state/call-trace+8 rejects;each19,508exact/58,195transfers;1,628weighted+17,880rigid native/0fallback;>=300,000strict rigid+135,000strict weighted live;184configcases;own0/1/2 default0;AF18/B880 data stillrequired;phase3open |
-| 2026-10-31 | Phase 3 complete B880/B934/B940 weighted position/matrix data | Strict synthetic, five frozen V3 corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,912strict states+12rejects;each19,508exact/58,195transfers;all6,113native/0fallback incl30actual palette aliases;>=430,000strict data+256strict aliases live;native round>=7,515,000data+40,000aliases;192configcases;own0/1/2 default0;AF18/other data stillrequired;phase3open |
-| 2026-10-31 | Phase 3 basic skin direction data BD4C/BE20/BF7C | Strict synthetic, five frozen corpus arms and same-EXE scene checks | functional only; no FPS/CPU claim | normal native menu, actual round and checked round | 6,912strict states incl640aliases+3numeric+12rejects;all5,018real roots native/0fallback;each19,508exact/58,195transfers;>=1,125,000strict one-stream+680,000strict two-stream live;200configcases;own0/1/2 default0;BF7C real/live0 OPEN;phase3open |
+| 2026-10-31 | Phase 3 native 9F8 skin/rigid controller | Strict synthetic, five frozen corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,144 strict state/call-trace+8 rejects;each19,508exact/58,195transfers;1,628weighted+17,880rigid native/0fallback;>=300,000strict rigid+135,000strict weighted live;184configcases;own 0/1/2, default 0;AF18/B880 data stillrequired;phase3open |
+| 2026-10-31 | Phase 3 complete B880/B934/B940 weighted position/matrix data | Strict synthetic, five frozen V3 corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,912strict states+12rejects;each19,508exact/58,195transfers;all6,113native/0fallback incl30actual palette aliases;>=430,000strict data+256strict aliases live;native round>=7,515,000data+40,000aliases;192configcases;own 0/1/2, default 0;AF18/other data stillrequired;phase3open |
+| 2026-10-31 | Phase 3 basic skin direction data BD4C/BE20/BF7C | Strict synthetic, five frozen corpus arms and same-EXE scene checks | functional only; no FPS/CPU claim | normal native menu, actual round and checked round | 6,912strict states incl640aliases+3numeric+12rejects;all5,018real roots native/0fallback;each19,508exact/58,195transfers;>=1,125,000strict one-stream+680,000strict two-stream live;200configcases;own 0/1/2, default 0;BF7C real/live0 OPEN;phase3open |
 
-| 2026-10-31 | Phase3 native AF18 palette/frame/batch/dispatch/publication | Strict synthetic,five frozen corpus arms,same-EXE live/render | functional only;no FPS/CPU claim | normal native menu and actual round | 6,600strict+3numeric+3early+18rejects;208configcases;all1,628work-native/0fallback per enabled replay;each19,508exact/58,195transfers;>=425,000strict live work;own0/1/2 default0;retained/cold data and final gates OPEN |
+| 2026-10-31 | Phase3 native AF18 palette/frame/batch/dispatch/publication | Strict synthetic,five frozen corpus arms,same-EXE live/render | functional only;no FPS/CPU claim | normal native menu and actual round | 6,600strict+3numeric+3early+18rejects;208configcases;all1,628work-native/0fallback per enabled replay;each19,508exact/58,195transfers;>=425,000strict live work;own 0/1/2, default 0;retained/cold data and final gates OPEN |
 
-| 2026-10-31 | Phase3 rigid skin data suffix/B3C0/B3C8 | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,681strict+3numeric+10rejects;384 AF18/data integration;216config+abrupt-exit fallback logging;each replay19,508exact/58,195transfers;zero real/observed live rigid calls;real/256-live gates OPEN;own0/1/2 default0 |
+| 2026-10-31 | Phase3 rigid skin data suffix/B3C0/B3C8 | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,681strict+3numeric+10rejects;384 AF18/data integration;216config+abrupt-exit fallback logging;each replay19,508exact/58,195transfers;zero real/observed live rigid calls;real/256-live gates OPEN;own 0/1/2, default 0 |
 
-| 2026-10-31 | Phase3 BB58/BB68 cofactor normal data | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,808strict+3geometric+10rejects;768AF18/data integration;224config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live cofactor calls;real/256-live gates OPEN;own0/1/2 default0 |
+| 2026-10-31 | Phase3 BB58/BB68 cofactor normal data | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,808strict+3geometric+10rejects;768AF18/data integration;224config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live cofactor calls;real/256-live gates OPEN;own 0/1/2, default 0 |
 
-| 2026-10-31 | Phase3 C14C/C280/B5A0 normalized skin directions | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 9,219strict+9geometric/cache+12rejects;1,152AF18 actual-data integration;232config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live calls in all3;real/256-live gates OPEN;own0/1/2 default0 |
+| 2026-10-31 | Phase3 C14C/C280/B5A0 normalized skin directions | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 9,219strict+9geometric/cache+12rejects;1,152AF18 actual-data integration;232config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live calls in all3;real/256-live gates OPEN;own 0/1/2, default 0 |
