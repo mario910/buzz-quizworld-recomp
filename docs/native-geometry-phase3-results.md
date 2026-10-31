@@ -4,7 +4,7 @@ Status: **in progress**, 2026-10-31. Phase 2 ended at `ef906be`, with default
 geometry mask 827 (`0x33B`). The continuing objective in
 [native-geometry-plan.md](native-geometry-plan.md) authorizes advancing through
 subsequent phases after their gates, with strict Stage F reconstruction last.
-The driver is partially native; the complete native pipeline remains open.
+The outer driver is native; the complete native data path remains open.
 
 ## Driver boundary audit
 
@@ -221,7 +221,10 @@ all 512 cases; the helper changes no LS, controls or unrelated GPRs. The native
 initializer omits internal dead temporary GPR computation. Its caller must
 still pass the complete strict whole-job check, without any field waiver.
 
-## Experimental native setup in the real driver
+## Native setup milestone (`39ba191`)
+
+The following setup-only configuration is historical evidence. The current
+outer-driver implementation and frozen build are documented below.
 
 `BUZZ_GEOMETRY_JOB` is independent of the leaf-kernel switches:
 
@@ -261,7 +264,7 @@ All keep the default leaf mask 827. Private logs are
 EXE/map, preserved generated C and native source hashes. Stage F checked mode
 retains its established baseline state; its final strict cleanup is unchanged.
 
-The final frozen EXE SHA256 is
+The setup milestone's frozen EXE SHA256 is
 `d1e8731c742137eb95e7435339d7600bebb915b7bf9a5b16f43211fca8f576da`.
 The native `native_geometry_job_flow.cpp` module uses the reviewed SPU
 optimization/ISA flags. The controller and its pre-main constructors remain
@@ -309,32 +312,106 @@ stderr before abort so buffered live logging cannot lose the reason. The
 early-exit reproduction fails as expected; the corrected unlimited live runs
 complete their full duration and continue rendering past the prior failure.
 
-| Remaining driver segment | Current implementation |
-|---|---|
-| Entry/input setup and geometry-context initialization | Native C++ with host input/configuration/table state and explicit call-register materialization |
-| Allocation/setup after `0x2088` (`0x1AD8`) | Retained driver and callee |
-| Attribute decode/secondary path (`0xAC68`, `0x2578`) | Retained orchestration with existing per-kernel replacements |
-| Index/skin/transform/cull flow (`0x20F8`, `0x2390`) | Retained orchestration with existing per-kernel replacements |
-| Output/command flow (`0x2228`, `0x2258`, optional summaries) | Retained orchestration with existing per-kernel replacements |
-| Driver epilogue (`0x22A0`) | Retained |
+## Native outer driver
 
-This is measured correctness coverage of **native setup plus the retained
-pipeline**. Driver blocks after `0x2088` still orchestrate decode, skin,
-transform, cull and output through their original flow and the existing leaf
-switches. Host state across those stages, remaining native control flow and
-final eligibility are still required for phase 3. This increment makes no
-FPS/CPU saving or default-on claim.
+`port/native_geometry_pipeline.h` now owns the main driver's complete outer
+control in C++: output initialization, attribute decode and optional secondary
+stream blend, skin/index/transform calls, visible-count decisions, output
+allocation, vertex/index publication, commands and caller restoration.
+Configuration, palette inputs/counts and output metadata are retained in host
+values across stages. No original main-driver block is dispatched as a native
+continuation. The generated adapter supplies a table of 14 reviewed library
+entry points and retains their public wrappers and per-kernel switches.
+
+This is an outer-control replacement, with the remaining Edge library still
+using its SPU ABI and LS vertex tables. It does not yet provide the complete
+host-buffer data path required to finish phase 3. The current scope is:
+
+| Segment | Current implementation |
+|---|---|
+| Input setup and context initialization | Native C++ with host input/configuration/table state |
+| Output initialization (`0x1AD8`) | Native null-metadata path; metadata GET descriptors rejected before writes |
+| Attribute/secondary-stream decisions | Native control and SPU-exact RTZ weight calculation; library wrappers retained |
+| Palette counts, skin/index/transform sequencing | Host counts/control, exact nonvolatile spill vectors; library wrappers retained |
+| Empty/allocation/output/command decisions | Native control, ring getter and cached metadata; output library retained |
+| Caller restoration | Native full-vector restore and ordinary return |
+| Vertex data between library stages | LS/SPU-ABI boundaries remain; native data-path integration open |
+
+Full u128 nonvolatile values matter even where only one lane controls a
+branch: downstream callees spill complete vectors into observable LS. The
+native flow reconstructs those values without adding checker exceptions.
+The output-allocation branch checks the low byte, matching the original even
+for a result such as `0x100`. Unsupported metadata/STOP/source families keep
+the whole original fallback at entry. The driver switch remains default off.
+
+The adapter's function-table ABI is version 2; CMake rejects stale setup-only
+generated adapters. The native flow translation unit now uses the integer and
+floating-point SPU flags, including RTZ and the configured result guard, for
+the blend-weight calculation. The baseline-ISA controller stays separate.
+
+### Independent outer-control checks
+
+```powershell
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+```
+
+PASS: **1,024 synthetic paths and all 19,508 real entries**. A private,
+source-pinned oracle executes 47 original driver/setup blocks against 14
+explicit library mocks. It compares call order, links, complete argument and
+nonvolatile vectors, legal callee spills and the complete final GPR/LS/control
+state. Mocks clobber volatile registers independently of the native flow.
+Cases cover all six relevant flags, empty/present secondary input, blend
+weights 0/1/32768/65535, palette-byte carry/wrap boundaries, cull results and
+allocation success versus a false low byte. This isolates driver decisions;
+the real-library replay below supplies the separate integration proof.
+Private log: `phase3/driver-flow-test.log`. The 43 controller scenarios also
+pass with the new callback-table ABI.
+
+### Frozen integration evidence
+
+`phase3/outer-build.json` binds `build-vulkan-phase3-outer`, preserved generated
+C, map and source hashes. EXE SHA256:
+`e495626414809acdbbf0b684fbb611a2b910559f7df686c88dbb4043bd43f6c0`.
+
+| Driver / leaf configuration | Complete image-41 corpus |
+|---|---|
+| JOB=0, GEOMETRY=1, STAGEF=2 | 19,508 exact / 58,195 transfers; zero input divergence/failures |
+| JOB=1, GEOMETRY=1, STAGEF=2 | 19,508 actual native outer-flow executions, zero fallback; same exact corpus result |
+| JOB=2, GEOMETRY=2, STAGEF=2 | 19,508 strict whole-job + I/O checks, zero fallback/differences; same exact corpus result |
+
+All retain leaf mask 827 without an override. Logs:
+`phase3/outer-corpus-mode{0,1,2}.log`. Stage F checked mode preserves its
+accepted baseline; strict Stage F reconstruction remains final phase 7.
+
+A 65 s menu run on this same frozen EXE with JOB=2, GEOMETRY=1 and STAGEF=1
+records **at least 445,000 strict full-state + I/O matches**, with rendering
+through CSV elapsed time 64.6 s and no differences or early exit. Externally
+changed reference snapshots are unrecordable before trial and do not count
+as successful checks. Log: `analysis/vk-scene-p3-outer-checked.stderr.log`.
+This is functional evidence, not a performance measurement.
+
+A separate JOB=1 run with actual-native Stage F and geometry completes menu
+navigation and **30 s in the round**, starting the round at 137.4 s and
+retaining rendered CSV output through 167.3 s (7,759 recorded frames), with
+no early exit or driver difference/HALT diagnostic. It uses the same frozen
+EXE and a fresh private save. Logs:
+`analysis/vk-scene-p3-outer-round-actual.{csv,stderr.log}`. PrintWindow captures
+from this run contain black client areas, so they do **not** satisfy the
+visual gate; renderer readback dumps are still required. These functional
+runs supply no FPS/CPU-benefit claim or unchanged-interpreter-count proof.
+Original player-save, private template and original lifted-source hashes
+remain unchanged.
 
 ## Remaining phase-3 gates
 
-- Extend the independent job switch and original-entry eligibility from the
-  experimental setup to the complete supported native pipeline. Preserve
-  per-kernel switches and whole-job fallback.
-- Implement the native descriptor/pipeline flow using the validated routines.
-  Keep host state between stages where all observable LS/GPR/IO effects remain
-  exact. A renamed or merged lift alone does not complete this requirement.
-- Pass the complete 19,508-job / 58,195-transfer image-41 corpus in checked
-  and actual-native execution; expand coverage for newly supported paths.
+- Complete the native data path behind the outer driver using the validated
+  routines, with host buffers/state between stages wherever observable
+  LS/GPR/IO effects remain exact. Preserve per-kernel switches, entry
+  eligibility and whole-job fallback. A renamed or merged lift alone does not
+  complete this requirement.
+- Repeat the complete 19,508-job / 58,195-transfer corpus checks on the
+  completed data path in checked and actual-native execution, expanding
+  coverage for newly supported paths.
 - Record at least 256 strict live job comparisons, normal actual-native menu
   and round frames, and unchanged interpreted-SPU counts.
 - Complete same-EXE reversed menu/round FPS and matched CPU-cost measurements,

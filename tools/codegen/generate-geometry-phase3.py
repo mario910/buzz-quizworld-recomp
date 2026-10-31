@@ -1,4 +1,4 @@
-"""Build the pinned whole-driver audit and incremental native-setup adapter."""
+"""Build the pinned whole-driver audit and native outer-driver adapter."""
 import hashlib
 from pathlib import Path
 import re
@@ -34,19 +34,19 @@ def main():
     source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
                             "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
     name = "buzz_job_6eba_spu_func_00001C18"
-    tail_match = re.search(r"(?ms)^void buzz_job_6eba_spu_func_00002008\(spu_context\* ctx\) \{(.*?)^\}", source)
-    if not tail_match or tail_match[1].count("ctx->gpr[65] = spu_ceqi(ctx->gpr[90], 0);") != 1:
-        raise SystemExit("Unreviewed post-initializer driver boundary")
-    tail = "ctx->gpr[65] = spu_ceqi(ctx->gpr[90], 0);" + tail_match[1].split(
-        "ctx->gpr[65] = spu_ceqi(ctx->gpr[90], 0);", 1)[1]
+    # Retain the public library wrappers and their per-kernel switches. No
+    # original main-driver block is a continuation of the native path.
+    entries = (0xac68, 0xbf8, 0x9f8, 0xaea0, 0x6608, 0x2b80, 0x37c0,
+               0x2dc0, 0x54e8, 0x35f0, 0x12f0, 0x2e8, 0x32c8, 0x27a0)
+    library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in entries)
     pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     matches = list(re.finditer(pattern, source))
     if len(matches) != 1:
         raise SystemExit("Expected one pinned whole-driver root")
     source = re.sub(pattern, lambda m:
-                    f"static void {name}_after_init(spu_context* ctx) {{{tail}}}\n"
+                    f"static const buzz_geometry_job_functions {name}_library = {{{library}}};\n"
                     f"static void {name}_native(spu_context* ctx) {{ "
-                    f"buzz_geometry_job_native_start(ctx, {name}_after_init); }}\n"
+                    f"buzz_geometry_job_native_start(ctx, &{name}_library); }}\n"
                     f"static void {name}_reference(spu_context* ctx) {{{m[1]}}}\n"
                     f"void {name}(spu_context* ctx) {{ "
                     f"buzz_geometry_job_run(ctx, {name}_reference, {name}_native, "
@@ -54,6 +54,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 2\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

@@ -1,5 +1,5 @@
 /* Whole-driver shadow I/O and incremental native flow. Real I/O executes once.
- * The native setup currently joins the retained pipeline after 0x2F80. */
+ * The native outer driver calls the existing SPU-ABI library wrappers. */
 #include "native_geometry_job.h"
 #include "native_geometry_job_io.h"
 #include "spu_dma.h"
@@ -159,7 +159,7 @@ struct Init {
                 std::fprintf(stderr, "[geometry-job] native setup adapter unavailable, or AUDIT conflicts with JOB mode\n");
                 std::abort();
             }
-            std::fprintf(stderr, "[geometry-job] mode=%d: native setup + retained pipeline, experimental/default off\n",
+            std::fprintf(stderr, "[geometry-job] mode=%d: native outer driver + SPU-ABI library, experimental/default off\n",
                          buzz_geometry_job_mode());
         }
         if (!buzz_geometry_job_audit_enabled()) return;
@@ -335,7 +335,7 @@ static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
         const auto n = checked.fetch_add(1) + 1;
         if (n == 256 || n % 5000 == 0)
             std::fprintf(stderr, "[%s] strict full-state + I/O %llu PASS\n",
-                         native_trial ? "geometry-job/setup-native" : "geometry-job-audit", n);
+                         native_trial ? "geometry-job/native-outer" : "geometry-job-audit", n);
         matched = true;
     } else {
         const auto n = skipped.fetch_add(1);
@@ -383,7 +383,7 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
 extern "C" void buzz_geometry_job_audit_report()
 {
     if (buzz_geometry_job_mode())
-        std::fprintf(stderr, "[geometry-job/setup-native] mode=%d attempted=%llu executed=%llu checked=%llu fallback=%llu failed=%llu\n",
+        std::fprintf(stderr, "[geometry-job/native-outer] mode=%d attempted=%llu executed=%llu checked=%llu fallback=%llu failed=%llu\n",
                      buzz_geometry_job_mode(), native_attempted.load(), native_executed.load(),
                      native_compared.load(), native_fallback.load(), failures.load());
     if (buzz_geometry_job_audit_enabled())

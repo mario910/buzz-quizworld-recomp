@@ -44,12 +44,13 @@ CPU tests and profiling separate from performance runs.
 
 At each phase boundary, finalize a separate results document, commit it and
 continue to the next unfinished phase without requiring renewed permission.
-The user also updated the active app goal to include continuing after phase 3:
-complete its gates, mark that phase complete and create the phase-4 goal,
-then continue subsequent phases under the same authorization. Do not mark
-an unfinished phase complete just to advance its goal. The overall objective
-is finished only after the mandatory native-function inventory and final
-strict Stage F gates are complete, with optional-phase decisions recorded.
+The active objective includes phase 3 and the subsequent native-function
+phases; individual phase boundaries are milestones, not a request to stop.
+Keep the continuing objective active while required implementations or gates
+remain open. The overall objective is finished only after the mandatory
+native-function inventory and final strict Stage F gates are complete, with
+optional-phase decisions recorded. Do not mark unfinished work complete just
+to advance to another phase.
 
 ## Why these jobs
 
@@ -178,14 +179,19 @@ rejection checks. It now feeds the experimental native setup flow.
 The native C++ preamble and context initializer also match the entire LS on
 all 19,508 entries. Synthetic checks cover 512 preamble/call combinations and
 1,024 initializer cases. `BUZZ_GEOMETRY_JOB=0/1/2` (default 0) now selects
-retained/native-setup/checked-setup execution. Both checked and actual setup
-flow pass all 19,508 whole jobs / 58,195 transfers, with no setup fallback or
-failure. The flow after `0x2088` remains retained code; host orchestration of
-the remaining stages, final eligibility and live/render/performance gates
-still need completion. The corrected live recorder also passes at least
-450,000 strict native setup-flow comparisons in a complete 65 s menu run;
-changed reference reservations are rejected before trial, without relaxing
-the shadow checker. These results do not complete phase 3.
+retained/native/checked execution. Native C++ owns the complete outer driver,
+including stage decisions, palette counts, output allocation/publication,
+commands and caller restoration; no original main-driver continuation is
+dispatched. The Edge library still uses SPU-ABI wrappers and the existing
+per-kernel switches. Vertex-data integration between those stages remains
+open. All three driver modes pass 19,508 jobs / 58,195 transfers, with zero
+native fallback or failures. A separate pinned model test passes 1,024
+synthetic paths plus all real entries, including exact call arguments and
+nonvolatile spill vectors. The frozen outer driver also passes at least
+445,000 strict whole-job + I/O comparisons in a complete 65 s menu run.
+Changed reference reservations are rejected before trial, without relaxing
+the shadow checker. Final data-path, live/render/interpreter/performance
+gates remain required; these results do not complete phase 3.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -296,7 +302,7 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
-| Whole-job driver | n/a | wip; real shadow-I/O harness validated; native flow/gates open | independent native job switch planned | baseline harness 19,508 exact; native pending | baseline harness >=256; native pending | not measured for native driver | |
+| Whole-job driver | n/a | wip; native outer control, SPU-ABI library/data-path integration and final gates open | `BUZZ_GEOMETRY_JOB=0/1/2`, default 0 | 19,508 exact / 58,195 transfers in all three modes; 1,024 synthetic outer paths | >=445,000 strict outer-flow + I/O matches | not measured for native driver | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),
