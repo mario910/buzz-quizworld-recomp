@@ -21,17 +21,19 @@ void buzz_geometry_job_publish_result(int native);
 enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BUFFER = 2, BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH = 3,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
-       BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6 };
+       BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7 };
 int buzz_geometry_job_layout_enabled(void);
 int buzz_geometry_job_vertex_enabled(void);
 int buzz_geometry_job_commands_enabled(void);
 int buzz_geometry_job_command_publish_enabled(void);
 int buzz_geometry_job_emit_enabled(void);
+int buzz_geometry_job_full_commands_enabled(void);
 void buzz_geometry_job_output_result(unsigned stage, int native, int reused_layout);
 void buzz_geometry_job_prepare_commands(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_publish_commands(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_command_bindings(spu_context*, buzz_geometry_job_fn reference, int reset);
 void buzz_geometry_job_emit_position(spu_context*, buzz_geometry_job_fn reference, const buzz_geometry_command_functions*);
+void buzz_geometry_job_emit_full(spu_context*, buzz_geometry_job_fn reference, const buzz_geometry_command_functions*);
 void buzz_geometry_job_audit_run(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_run(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn native,
                            buzz_geometry_job_eligibility_fn);

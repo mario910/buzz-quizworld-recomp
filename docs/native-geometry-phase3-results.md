@@ -749,8 +749,9 @@ batch words directly and reconstruct only the final iteration's scratch
 vectors, preserving its original RMW snapshot. The native emitter calls the
 existing preparation/publication entries, which retain their separate flags;
 with all output flags enabled, those stages and the shared writers are native.
-The full command emitter `0x12F0` remains original, but its shared binding/reset
-calls can use the new native writers under the same owner scope.
+At this position-emitter checkpoint, `0x12F0` remained original; its shared
+binding/reset calls could use the new native writers under the same owner
+scope. The following increment replaces its body.
 
 A read-only preflight computes the exact packet sizes and 128-byte insertion
 space before preparation can issue a GET. It validates the combined root/
@@ -766,8 +767,9 @@ original emitter before any mutation or I/O, and do not count as native.
 writer group. Public generated entries route only the native pipeline owner;
 the JOB=2 retained reference and foreign contexts stay original, including
 nested library calls. Counters distinguish binding, reset and position
-emission. Adapter protocol **5** is required; older adapters are rejected by
-CMake. The earlier preparation/publication and leaf switches retain their
+emission. This increment introduced adapter protocol **5**; the full-emitter
+increment below advances the requirement to protocol **6**. Older adapters
+are rejected by CMake. The earlier preparation/publication and leaf switches retain their
 behavior. JOB remains default 0 and the leaf default remains 827.
 
 ```powershell
@@ -838,6 +840,112 @@ DIFF/HALT/fallback or early-exit diagnostic occurs. These are functional
 checks, without a performance claim or default-on decision; final interpreter
 counts and reversed same-EXE normalized CPU/FPS gates remain open.
 
+## Native full multipass command emitter (`0x12F0`)
+
+`port/native_geometry_full_commands.h` now owns the full emitter body and
+keeps the pass list, state fields and packet-space calculation in host views.
+It handles all four optional state groups, marker-8 skips, raster/cull
+selection, repeated indexed draws, leading alignment batches, full 8192-byte
+packets, final batches and caller spill/restoration. Large packet words are
+generated directly; only the last loop iteration's surviving ABI/RMW state
+is reconstructed. The shared binding/reset, reservation and publication
+stages retain their independent switches. With all command switches enabled,
+the captured command subsystem executes natively.
+
+The command-template header gives the pass count; records are 64 bytes each
+at header `+16`. Four state-group disable bits are selected from word 1 of
+the full flags vector by the original GB/CGTI sequence, rather than from its
+preferred word. The host plan preserves that selection while reconstructing
+all lanes of the original masks. Repeated passes draw the same index range;
+index-count validation applies per pass. A null template still performs the
+original initial LS-zero quadword load for ABI state and selects one pass
+without optional state fields.
+
+A read-only preflight validates pass count/descriptor spans, the combined
+root/preparation stack footprint, metadata/command aliases and exact packet
+expansion before the first possible synchronization GET. Published streams
+must fit after 128-byte relocation; unpublished zero-destination streams use
+physical LS bounds and retain full-packet emission beyond the logical
+reservation. Unsupported ranges, capacity or interrupt continuations keep
+the original emitter before mutation/I/O, without counting fallback as native.
+
+`BUZZ_GEOMETRY_JOB_FULL_COMMANDS=0/1`, default **0**, selects this function
+independently of the earlier EMIT group and preparation/publication flags.
+Owner-scoped generated routing leaves the retained JOB=2 reference and
+foreign contexts original. Adapter protocol **6** is required; stale
+adapters fail at configure. No default or checker exception changes.
+
+```powershell
+.\tests\scripts\test-geometry-full-commands.ps1
+```
+
+PASS: **8,512 strict full-state/channel cases** with original and native
+callees, plus **32 unchanged-state/no-I/O rejections**. The pinned oracle has
+74 unchanged original blocks including the real callees. The reachable root
+has **22 blocks**: the earlier structural inventory's 24 included two blocks
+from the dead lexical tail after an unconditional transfer. The original
+text remains in the oracle, with an aborting stub at that unreachable
+boundary; no reachable behavior or state comparison is excluded.
+
+Coverage includes all 16 group-mask combinations with independent template
+presence/word offsets, skip markers and both raster orders, varied index
+alignments/counts, full packets, 128 tight reservations, 64 minimum-reservation
+zero destinations and 64 larger 16-pass unpublished streams. Arbitrary upper
+lanes, input fields and physical padding are retained. Tests also independently
+parse each published packet stream and compare its final non-NOP packet end
+with the planned relocated size; unpublished cursors must equal the planned
+raw size. This checks the planner separately from byte/state equivalence.
+Private log: `phase3/full-commands-test.log`.
+
+Owner/reference/foreign/disabled/unsupported/post-scope routing, 1,024 outer
+model paths, all 19,508 real model entries and 43 controller scenarios pass.
+The new root's rejection probe uses a null callback table to ensure no callee
+or I/O is reached before unsupported-entry fallback.
+
+The frozen `build-vulkan-phase3-full-commands` EXE SHA256 is
+`58e5bec3df21b3f2e3843e165b7a5ec6626f83c82e3ef7b140cd44491d5738bf`;
+`phase3/full-commands-build.json` binds its sources, map and protocol-6
+adapter. Four corpus arms each pass **19,508 exact jobs / 58,195 transfers**,
+with zero input divergence/failure:
+
+| Arm | Configuration and native coverage |
+|---|---|
+| Original | JOB=0, FULL_COMMANDS=1: native-owner route inactive; original result unchanged |
+| Independent full emitter | JOB=2, FULL_COMMANDS=1, all older output switches 0: 5,078 native full emissions, zero fallback; all 19,508 strict whole-job/I/O checks pass |
+| Combined actual native | JOB=1, all new output switches 1: 5,078 full and 2,123 position emissions; 7,201 bindings/resets; 19,508 preparations/publications; 7,201 size/index/vertex stages and layout reuses; zero new-stage fallback |
+| Combined checked | JOB=2, same switches: same native counts plus all 19,508 strict whole-job/I/O checks |
+
+Logs: `phase3/full-commands-corpus-{off,independent,native,checked}.log`.
+Leaf mask remains 827 with Stage F's accepted baseline-retaining checked
+contract. Native counts also prove the retained JOB=2 reference is not
+replaced. This closes the captured command-stage implementation inventory;
+it does not finish the remaining geometry data stages or prove a CPU/FPS
+benefit from diagnostic replay timings.
+
+On the same frozen EXE, the 65 s checked menu run passes **at least 445,000
+strict whole-job + I/O comparisons**, including **250,000 native full-emitter
+calls**, 120,000 position-emitter calls and 370,000 binding/reset calls each.
+Preparation/publication each record at least 445,000 executions; size/index/
+vertex stages and layout reuses each record at least 370,000. The CSV has
+2,090 frames through 64.933 s. Actual native Stage F and geometry execution
+are used (`BUZZ_STAGEF=1`, `BUZZ_GEOMETRY=1`); the existing baseline exception
+is not expanded.
+
+Actual-native menu and round runs complete normally: the menu records
+3,153 frames through 74.630 s; the round starts at 136.4 s and continues
+for 30 s, recording 7,734 frames through 166.402 s. Renderer readbacks at
+frames 2,500 and 6,500, inspected as 1280x720 PNGs, show normal menu/UI/TV
+geometry and round-introduction host, instructions and effects. Each run uses
+a fresh private save, muted background window and native buzzer mailbox;
+no compilation, CPU tests or profiling overlap. Logs:
+`analysis/vk-scene-p3-full-commands-{checked,menu,round}.{csv,stderr.log}`.
+Images: `phase3/p3-full-commands-{menu,round}.{ppm,png}`. No driver DIFF/HALT/
+fallback or early-exit diagnostic occurs. Source pins, original save and
+private template remain unchanged. These functional checks do not establish
+FPS or normalized CPU savings. Final interpreter-count, reversed same-EXE
+FPS/CPU and default-selection gates remain open, along with the remaining
+geometry data stages.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -856,7 +964,7 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
 | `0x54E8` | Vertex conversion/packing | Retained library; validated output kernels inside |
 | `0x35F0` | Vertex publication | Native opt-in publication using shared host layout; unsupported families retain library |
-| `0x12F0` | Full command emission | Retained library; its binding/reset callees can use native writers |
+| `0x12F0` | Full multipass command emission | Native opt-in emitter with host pass/state/packet planning; shared stages retain independent flags |
 | `0x02E8` | Position-only command emission | Native opt-in emitter body and writers; preparation/publication retain independent flags |
 | `0x0100`, `0x0020` | Attribute binding and reset packets | Native opt-in shared writers, including calls inside the retained full emitter |
 | `0x32C8` | Command-buffer preparation for empty and drawn output | Native opt-in reservation, scans, fenced GET and command preamble |

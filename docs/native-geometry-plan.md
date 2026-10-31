@@ -271,6 +271,21 @@ actual-native menu/round-introduction frames look normal. `0x12F0` and the
 remaining geometry data stages remain work for phase 3; final interpreter/
 FPS/CPU gates remain open.
 
+Full multipass command emission (`0x12F0`) now has a native host pass/state/
+packet implementation behind independent `BUZZ_GEOMETRY_JOB_FULL_COMMANDS`,
+default 0. It reuses the independently switched writers, preparation and
+publication stages. The preflight validates the full repeated stream before
+any GET, preserving marker skips and the original flags-vector selection.
+Tests pass 8,512 strict state/channel cases and 32 unchanged-state/no-I/O
+rejections, including independent parsing of the final packet size. No new
+checker exception or default is introduced. Four frozen corpus arms pass all
+19,508 jobs / 58,195 transfers, including 5,078 native full emissions and zero
+fallback. With combined switches, both emitters and all command stages are
+native across the captured jobs, without a difference. Live checking passes
+at least 445,000 strict whole jobs, including 250,000 full-emitter calls;
+actual-native menu/round-introduction frames look normal. Remaining geometry
+data stages and final interpreter/FPS/CPU gates still keep phase 3 open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -388,6 +403,7 @@ subject to the kernel gates before replacement.
 | 0x27A0 command relocation/publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH=0/1`, default 0 | 19,508 native publications, zero fallback; 58,195 exact transfers in four corpus arms; 8,256 strict cases and 20 unchanged-state rejects | >=450,000 inside strict whole-job checks; native frame checks in phase-3 report | not measured | |
 | 0x0100/0x0020 command attribute binding/reset | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_EMIT=0/1`, default 0 | 7,201 native each, zero fallback; four 19,508-job/58,195-transfer arms exact; 8,192 strict cases +28 unchanged-state rejects | >=375,000 each inside strict whole-job checks; render proof in phase-3 report | not measured | |
 | 0x02E8 position-only command emission | n/a | native opt-in; full emitter body and shared writers; final gates open | shares `BUZZ_GEOMETRY_JOB_EMIT`, default 0 | 2,123 native, zero fallback; four full-corpus arms exact; 8,320 strict state/channel cases +26 unchanged-state rejects | >=120,000 inside strict whole-job checks; render proof in phase-3 report | not measured | |
+| 0x12F0 full multipass command emission | n/a | native opt-in; remaining phase gates open | `BUZZ_GEOMETRY_JOB_FULL_COMMANDS=0/1`, default 0 | 5,078 native emissions, zero fallback; four full-corpus arms exact; 8,512 strict state/channel/packet-size cases +32 unchanged-state rejects | >=250,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),

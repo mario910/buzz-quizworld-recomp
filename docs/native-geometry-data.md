@@ -498,6 +498,38 @@ metadata are checked before the synchronization GET can occur. These are
 phase-3 native implementation contracts, with results and coverage limits in
 [native-geometry-phase3-results.md](native-geometry-phase3-results.md).
 
+### Full multipass command-template state (`0x12F0`)
+
+A non-null command template has a BE word pass count, followed at `+16` by
+one 64-byte record per pass. A null template selects a single pass without
+optional state fields; its original initial LS-zero quadword read remains
+part of strict ABI reconstruction. Each pass draws the same logical index
+range. The native reader bounds the complete stream before the first GET.
+
+Disable bits come from `_u32[1]` of the full flags argument. The lift masks
+selected bytes, compares four words, gathers their bits and tests the result
+against 11; this selects word 1 rather than the preferred word. A marker of
+8 skips its state packet; other marker values emit the fixed method below.
+
+| Disable bit | Record marker offsets | Methods emitted |
+|---|---|---|
+| `0x2` | `+0`, `+8` | `0x0304`, `0x0308` |
+| `0x1` | `+48`, `+56` | `0x0A74`, `0x0A70` |
+| `0x4` | `+24`, `+32` | `0x0310`, `0x0314` |
+| `0x8` | `+16` | `0x183C`, optionally `0x1830` |
+
+Payloads normally follow the marker by four bytes. Method `0x0308` splits
+its word into low 24 bits and high eight bits. Method `0x0314` duplicates the
+low halfwords from record `+36` and `+44` into both halves of its two
+parameters. The raster value at `+20` selects disabled/normal/reversed cull
+state, with 2305 selecting the reversed order. Reserved words are read or
+preserved exactly as in the lift, without assigning them new meanings.
+
+The phase-3 function oracle independently parses published packet lengths
+and compares their final non-NOP end with the preflight's relocated size.
+Unpublished streams instead check their raw cursor, including the legal
+zero-destination case that assembles beyond the logical reservation.
+
 ## Corpus cross-check and coverage limits
 
 `geometry-format-inventory.py` rejects malformed layouts and checks

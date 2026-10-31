@@ -19,8 +19,8 @@ struct Call {
 static std::vector<Call> calls;
 static unsigned scenario;
 static const char* current_case = "synthetic";
-static bool emit_enabled = false;
-static unsigned emit_references = 0, emit_native[3]{}, emit_fallback[3]{};
+static bool emit_enabled = false, full_enabled = false;
+static unsigned emit_references = 0, emit_native[4]{}, emit_fallback[4]{};
 static bool routing_probe = false, commands_enabled = false, command_publish_enabled = false;
 static unsigned publication_references = 0, publication_native = 0, publication_fallback = 0;
 static unsigned routed_references = 0, routed_native = 0, routed_fallback = 0;
@@ -53,11 +53,12 @@ void buzz_geometry_job_publish_result(int) { abort(); }
 int buzz_geometry_job_layout_enabled() { return 0; }
 int buzz_geometry_job_vertex_enabled() { return 0; }
 int buzz_geometry_job_commands_enabled() { return commands_enabled; }
+int buzz_geometry_job_full_commands_enabled() { return full_enabled; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
     if (stage >= BUZZ_GEOMETRY_JOB_COMMAND_BIND) {
-        assert(routing_probe && stage <= BUZZ_GEOMETRY_JOB_POSITION_COMMANDS);
+        assert(routing_probe && stage <= BUZZ_GEOMETRY_JOB_FULL_COMMANDS);
         if (native) ++emit_native[stage - BUZZ_GEOMETRY_JOB_COMMAND_BIND];
         else ++emit_fallback[stage - BUZZ_GEOMETRY_JOB_COMMAND_BIND];
         return;
@@ -169,14 +170,17 @@ static void routing_inside(spu_context* ctx)
     assert(emit_native[0] == 1 && emit_native[1] == 1);
     buzz_geometry_job_command_bindings(foreign.get(), emit_reference, 0);
     buzz_geometry_job_emit_position(foreign.get(), emit_reference, nullptr);
-    emit_enabled = false;
+    buzz_geometry_job_emit_full(foreign.get(), emit_reference, nullptr);
+    emit_enabled = full_enabled = false;
     buzz_geometry_job_command_bindings(ctx, emit_reference, 0);
     buzz_geometry_job_emit_position(ctx, emit_reference, nullptr);
-    emit_enabled = true;
+    buzz_geometry_job_emit_full(ctx, emit_reference, nullptr);
+    emit_enabled = full_enabled = true;
     ctx->gpr[3]._u32[0] = SPU_LS_SIZE - 1;
     buzz_geometry_job_command_bindings(ctx, emit_reference, 0);
     ctx->gpr[1]._u32[0] = 3;
     buzz_geometry_job_emit_position(ctx, emit_reference, nullptr);
+    buzz_geometry_job_emit_full(ctx, emit_reference, nullptr);
     assert(emit_fallback[0] == 1 && emit_fallback[2] == 1);
     memcpy(ctx->gpr, saved.data(), sizeof ctx->gpr); ctx->pc = pc;
 }
@@ -251,13 +255,14 @@ int main(int argc, char** argv)
     const unsigned previous = _mm_getcsr();
     _mm_setcsr((previous & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
     auto native = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
-    routing_probe = commands_enabled = command_publish_enabled = emit_enabled = true;
+    routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = true;
     synthetic(*native, 0); native->host_depth = 1;
     buzz_geometry_job_prepare_commands(native.get(), routing_reference);
     buzz_geometry_job_publish_commands(native.get(), publication_reference);
     buzz_geometry_job_command_bindings(native.get(), emit_reference, 0);
     buzz_geometry_job_emit_position(native.get(), emit_reference, nullptr);
-    assert(emit_references == 2);
+    buzz_geometry_job_emit_full(native.get(), emit_reference, nullptr);
+    assert(emit_references == 3);
     assert(publication_references == 1 && !publication_native && !publication_fallback);
     assert(routed_references == 1 && !routed_native && !routed_fallback);
     synthetic(*native, 0); g_spu_trampoline_fn = nullptr;
@@ -270,9 +275,11 @@ int main(int argc, char** argv)
     assert(publication_references == 5 && publication_native == 1 && publication_fallback == 1);
     buzz_geometry_job_command_bindings(native.get(), emit_reference, 0);
     buzz_geometry_job_emit_position(native.get(), emit_reference, nullptr);
-    assert(emit_references == 10 && emit_native[0] == 1 && emit_native[1] == 1 && !emit_native[2]);
+    buzz_geometry_job_emit_full(native.get(), emit_reference, nullptr);
+    assert(emit_references == 15 && emit_native[0] == 1 && emit_native[1] == 1 && !emit_native[2]);
     assert(emit_fallback[0] == 1 && !emit_fallback[1] && emit_fallback[2] == 1);
-    routing_probe = commands_enabled = command_publish_enabled = emit_enabled = false;
+    assert(emit_fallback[3] == 1 && !emit_native[3]);
+    routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;
     puts("Command preparation/publication/emission routing: owner native; reference/foreign/disabled/unsupported/post-scope checks PASS");
     for (scenario = 0; scenario < 1024; ++scenario) { synthetic(*native, scenario); compare(*native, *reference); }
     unsigned corpus = 0;
