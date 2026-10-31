@@ -33,14 +33,15 @@ def main():
     source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
     source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
                             "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
-    command_name = "buzz_job_6eba_spu_func_000032C8"
-    command_pattern = rf"(?ms)^void {command_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
-    if len(list(re.finditer(command_pattern, source))) != 1:
-        raise SystemExit("Expected one pinned command-buffer entry")
-    source = re.sub(command_pattern, lambda m:
-        f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
-        f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_prepare_commands(ctx, {command_name}_reference); }}",
-        source, count=1)
+    for command_pc, hook in ((0x32c8, "prepare_commands"), (0x27a0, "publish_commands")):
+        command_name = f"buzz_job_6eba_spu_func_{command_pc:08X}"
+        command_pattern = rf"(?ms)^void {command_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(command_pattern, source))) != 1:
+            raise SystemExit("Expected one pinned command entry")
+        source = re.sub(command_pattern, lambda m:
+            f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_{hook}(ctx, {command_name}_reference); }}",
+            source, count=1)
     name = "buzz_job_6eba_spu_func_00001C18"
     # Retain the public library wrappers and their per-kernel switches. No
     # original main-driver block is a continuation of the native path.
@@ -62,7 +63,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 3\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 4\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

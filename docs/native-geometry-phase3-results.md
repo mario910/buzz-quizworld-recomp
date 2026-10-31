@@ -570,13 +570,14 @@ restriction is imposed. Unsupported ranges/aliases or an enabled-interrupt
 fenced-read continuation retain the original stage before writes or I/O.
 
 `BUZZ_GEOMETRY_JOB_COMMANDS=1`, default **0**, selects this preparation stage
-inside the native job. Final packet encoding, relocation and publication
-remain in the library. The generated public `0x32C8` entry routes nested
+inside the native job. At this preparation checkpoint, final packet encoding, relocation and
+publication remained in the library. The generated public `0x32C8` entry routes nested
 calls as well as the outer empty-output call. Routing is restricted to the
 native pipeline's current context: the retained JOB=2 reference and foreign
 comparison contexts still execute the original function. A scoped owner is
-restored on return. Adapter protocol 3 is required; CMake rejects stale
-generated adapters so a requested feature cannot silently be absent.
+restored on return. This increment introduced adapter protocol 3; the final
+publication increment below advances the requirement to protocol 4. CMake
+rejects stale adapters so a requested feature cannot silently be absent.
 
 ```powershell
 .\tests\scripts\test-geometry-commands.ps1
@@ -635,6 +636,95 @@ diagnostic occurs. Original save, private template and lifted-source hashes
 are unchanged. These are functional checks; final interpreter counts and
 matched reversed FPS/CPU measurements remain open.
 
+## Native final command relocation and publication (`0x27A0`)
+
+`port/native_geometry_command_publish.h` now owns the final command data
+path: append allocation-record semaphores (`0x1D6C`/`0x1D74`), split packets
+at 128-byte boundaries, relocate method offsets for incrementing packets,
+retain offsets for non-incrementing packets, fill unused command words with
+NOPs and issue the fenced PUT (`0x22`). Host packet traversal replaces the
+translated block dispatch. Overlapping physical tail shifts use `memmove`,
+and padding uses bulk zeroing. ABI materialization retains all vector lanes,
+physical padding bytes, controls, return state and channel effects exactly.
+
+A read-only byte plan bounds semaphores, data-dependent insertions and actual
+physical shifts before any mutation or I/O. Unsupported ranges, aliases,
+shift constants or enabled-interrupt publication retain the original stage;
+fallback is reported separately. The zero-destination return needs no LS or
+DMA access. The planner does not require a terminating look-ahead to lie
+inside the logical command allocation: the original loads it unconditionally,
+using wrapped LS addressing, even when traversal has finished. The initial
+bounded-look-ahead implementation passed replay but unnecessarily retained
+1,407 original calls. The source audit identified that restriction, and the
+implementation now reproduces the original load. This changes eligibility,
+not the strict comparison contract.
+
+`BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH=0/1`, default **0**, selects this stage
+independently of preparation, output layout and index/vertex publication.
+The public generated entry uses the existing context-specific native-owner
+scope, including nested command-emitter calls. JOB=0, the retained JOB=2
+reference, foreign contexts and disabled/unsupported calls keep the original
+entry. The original entry retains its leaf switches, including the `0x28F0`
+fill switch; enabling the complete native publication selects its own bulk
+fill. Adapter protocol **4** is required and stale adapters fail at configure.
+No runtime default changes in this increment.
+
+```powershell
+.\tests\scripts\test-geometry-command-publish.ps1
+```
+
+PASS: **8,256 strict full-state/channel/fenced-PUT cases**, using 16 pinned
+original blocks, plus **20 unchanged-state/no-I/O rejections**. Coverage
+includes all word offsets within a 128-byte block, empty and zero-destination
+paths, semaphores present/absent, incrementing and repeated-method packets,
+4,107 cases with splits (3,227 with multiple splits), 1,088 exact-fit cases,
+2,048 zero-destination returns, 64 wrapped terminating look-aheads, random
+non-preferred lanes and physical tail bytes. Full GPRs, LS, controls, return,
+ordered channel arguments and published payloads are compared. Private log:
+`phase3/command-publish-test.log`. The owner/reference/foreign/disabled/
+unsupported/post-scope routing test, all 1,024 outer-flow model scenarios,
+19,508 real model entries and 43 controller scenarios also pass.
+
+The frozen `build-vulkan-phase3-command-publish-v2` EXE SHA256 is
+`17030504151dd10ae7f8a2c1c05243dde3cbf259b4a670f247cc4218615f8fe0`;
+`phase3/command-publish-v2-build.json` binds the source hashes, map and
+protocol-4 adapter. Four corpus arms each pass **19,508 exact jobs / 58,195
+transfers**, with zero input divergence or failure:
+
+| Arm | Configuration and native coverage |
+|---|---|
+| Original | JOB=0, COMMAND_PUBLISH=1: native-owner route inactive; original output exact |
+| Independent publication | JOB=2, COMMAND_PUBLISH=1, preparation/other output switches 0: 19,508 native publications, zero fallback, 19,508 strict whole-job + I/O checks |
+| Combined actual native | JOB=1, all new output switches 1: 19,508 native preparations/publications; 7,201 size/index/vertex stages and layout reuses; zero new-stage fallback |
+| Combined checked | JOB=2, all new output switches 1: same stage counts and all 19,508 strict whole-job + I/O checks |
+
+Logs: `phase3/command-publish-v2-corpus-{off,independent,native,checked}.log`.
+All arms preserve leaf mask 827 and Stage F's baseline-retaining checked
+mode. The exact native count also confirms that the retained JOB=2
+reference is not being replaced by the new stage. Diagnostic replay timings
+are not evidence of FPS or normalized CPU savings.
+
+On this same frozen EXE, the 65 s checked menu run passes **at least 450,000
+strict whole-job + I/O comparisons and native command preparations/
+publications**. Size/index/vertex stages each execute at least 375,000 times,
+with the same number of host-layout reuses. The CSV records 2,094 frames
+through 64.553 s. These runs use actual native Stage F (`BUZZ_STAGEF=1`) and
+geometry execution; the temporary Stage F contract is not widened.
+
+Actual-native menu and round runs complete normally. The menu records 3,193
+frames through 74.708 s. The round starts at 136.5 s and continues for 30 s,
+recording 7,795 frames through 166.495 s. Renderer readbacks at frames 2,500
+and 6,500, inspected as 1280x720 PNGs, show normal menu geometry/text/TVs and
+round-introduction host, instructions and effects. Each run uses its own
+fresh private save, background muted window and native buzzer mailbox;
+no compilation, CPU tests or profiling overlap these runs. Logs:
+`analysis/vk-scene-p3-command-publish-v2-{checked,menu,round}.{csv,stderr.log}`.
+Images: `phase3/p3-command-publish-v2-{menu,round}.{ppm,png}`. No driver
+DIFF/HALT/fallback diagnostic or early exit occurs. Original saves/template
+and pinned lift remain unchanged. These functional checks do not establish
+FPS or CPU savings; final interpreter counts and reversed same-EXE normalized
+CPU/FPS gates remain open.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -655,7 +745,7 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x35F0` | Vertex publication | Native opt-in publication using shared host layout; unsupported families retain library |
 | `0x12F0`, `0x02E8` | Full/position-only command emission | Retained library |
 | `0x32C8` | Command-buffer preparation for empty and drawn output | Native opt-in reservation, scans, fenced GET and command preamble |
-| `0x27A0` | Final command relocation/publication | Retained library |
+| `0x27A0` | Final command relocation/publication | Native opt-in semaphore append, packet split/relocation, NOP fill and fenced PUT; unsupported families retain library |
 
 The host input model, context initialization and complete outer control are
 native. Host-buffer/data-path integration and the retained stage bodies above

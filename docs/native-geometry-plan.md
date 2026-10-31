@@ -231,12 +231,28 @@ also covers nested library callers while keeping the comparison reference
 original. Four corpus arms pass 19,508 exact jobs / 58,195 transfers, including
 19,508 native preparations with zero fallback in each enabled native arm.
 Independent tests pass 4,096 strict state/channel/GET cases, 16 unchanged-state
-rejections and reference/owner routing checks. Final command encoding,
-relocation and publication remain in the library; phase 3 stays in progress.
+rejections and reference/owner routing checks. At this checkpoint, final
+command encoding, relocation and publication remained in the library;
+phase 3 stays in progress.
 The frozen commands build also passes at least 450,000 strict live whole-job
 comparisons and native preparations. Actual-native menu and round-introduction
 renderer readbacks look normal. Interpreter-count and reversed FPS/CPU gates
 still need completion before the phase/default decision.
+
+Final command relocation/publication (`0x27A0`) now has independent
+`BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH=0/1`, default 0. Host packet traversal,
+semaphore construction, bulk tail shifts and NOP fill preserve strict full
+state and fenced PUT effects. The read-only preflight keeps unsupported
+entries on their original stage before mutation or I/O. Independent tests
+pass 8,256 full-state/channel cases, including 64 wrapped look-ahead loads,
+and 20 no-mutation/no-I/O rejections. Command encoding (`0x12F0`/`0x02E8`)
+and the remaining data stages still require implementation; phase 3 remains
+open. Four frozen corpus arms pass 19,508 exact jobs / 58,195 transfers,
+with 19,508 native finalizations and zero fallback in each enabled arm.
+The same frozen build passes at least 450,000 strict live whole-job/I/O
+comparisons and native command finalizations, plus normal actual-native
+menu/round-introduction renderer readbacks. See the separate phase-3 report
+for bindings and remaining performance/interpreter gates.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -295,9 +311,9 @@ default-on after the FPS/CPU decisions; four are exact and opt-in. Final
 default replay, live comparison and native menu/round rendering also pass.
 The finalized separate results document is
 [native-geometry-phase2-results.md](native-geometry-phase2-results.md).
-Commit the phase results before closing its goal and creating the phase 3
-whole-job goal. Phase 3 has not been implemented here. Stage F strict cleanup
-remains the final phase 7.
+Phase-2 results were committed in `ef906be`. Phase 3 is in progress in the
+tracker below and remains incomplete. Stage F strict cleanup remains the
+final phase 7.
 
 ### Phase 0
 
@@ -352,6 +368,7 @@ subject to the kernel gates before replacement.
 | 0x2B80 output sizing | n/a | native opt-in; shared host layout; final gates open | `BUZZ_GEOMETRY_JOB_LAYOUT=0/1`, default 0 | 7,201 native sizes, zero fallback; independent/combined 19,508-job replay exact; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x35F0 vertex publication | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_VERTEX=0/1`, default 0 | 7,201 native publications, zero fallback; 7,201 host-layout reuses in combined runs; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks and layout reuses; normal native menu/round intro dumps | not measured | |
 | 0x32C8 command-buffer preparation | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_COMMANDS=0/1`, default 0 | 19,508 native preparations, zero fallback; 58,195 exact transfers; 4,096 strict synthetic cases | >=450,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
+| 0x27A0 command relocation/publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH=0/1`, default 0 | 19,508 native publications, zero fallback; 58,195 exact transfers in four corpus arms; 8,256 strict cases and 20 unchanged-state rejects | >=450,000 inside strict whole-job checks; native frame checks in phase-3 report | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),

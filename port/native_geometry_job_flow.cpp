@@ -5,6 +5,9 @@
 #include "native_geometry_job_call.h"
 #include "native_geometry_pipeline.h"
 #include "native_geometry_commands.h"
+#include "native_geometry_command_publish.h"
+#include <atomic>
+#include <cstdio>
 
 namespace {
 thread_local spu_context* native_pipeline_context = nullptr;
@@ -27,6 +30,24 @@ extern "C" void buzz_geometry_job_prepare_commands(spu_context* ctx, buzz_geomet
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_COMMAND_BUFFER, supported, 0);
     if (!supported) { reference(ctx); return; }
     buzz::prepare_geometry_command_buffer(*ctx, plan);
+    SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_publish_commands(spu_context* ctx, buzz_geometry_job_fn reference)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_command_publish_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryCommandPublication plan;
+    const char* reason = nullptr;
+    const bool supported = buzz::read_geometry_command_publication(*ctx, plan, &reason);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH, supported, 0);
+    if (!supported) {
+        static std::atomic_flag reported = ATOMIC_FLAG_INIT;
+        if (!reported.test_and_set()) std::fprintf(stderr, "[geometry-job/command-publish] first fallback: %s\n", reason);
+        reference(ctx); return;
+    }
+    buzz::publish_geometry_commands(*ctx, plan);
     SPU_RET(ctx);
 }
 

@@ -424,6 +424,47 @@ The tail disables active vertex formats (size zero), then writes methods
 ring cursor. The 4-byte GETF before the command PUTF orders output publication;
 preserve its command/tag ordering even when its read value is otherwise dead.
 
+### Command-buffer preparation and finalization contract
+
+The phase-3 strict function oracles additionally verify the following
+`0x32C8`/`0x27A0` contract; see the separate phase-3 results document for
+implementation coverage and remaining gates.
+
+| Command record offset | Meaning |
+|---|---|
+| `+0` | Start LSA |
+| `+4` | Logical end LSA, before 128-byte allocator rounding |
+| `+8` | Mutable write cursor |
+| `+12` | Reserved word, initially zero |
+
+Preparation takes its current workspace cursor from geometry context `+0x58`,
+reserves 16 temporary bytes, aligns the new cursor to 128 and adds the command
+EA's low seven bits. The logical limit is start plus `16*config[1]`, or four
+bytes when the byte is zero; the allocator cursor rounds that limit to 128.
+If any allocation record has nonzero word `+16` and byte `+20`, preparation
+emits a 32-byte cache-control preamble (`0x1710`, then three `0x1714` methods,
+each with a zero parameter). This is separate from final semaphore release.
+
+Finalization skips all LS and channel access when its destination EA is zero.
+Otherwise each 32-byte allocation record with nonzero word `+16` contributes
+four command words: header `0x00041D6C`, `word[+16] & 4080`, header
+`0x00041D74`, and word `+12`. It then splits packets crossing 128-byte
+boundaries. Header parameter bytes are `(header >> 16) & 0x1FFC`; mask
+`0xE003FFFF` preserves the method/control bits while replacing that length.
+Incrementing packet continuations add the consumed byte count to the method;
+bit-30 nonincrementing packets retain their method. A split inserts one word
+by moving the physical tail four bytes toward higher addresses, in reverse
+block order, including the full last 128-byte block and its padding. A first fragment with no parameters becomes a NOP.
+
+Traversal performs a final unconditional look-ahead load even after reaching
+the logical end. That load can lie outside the command allocation and uses
+the SPU's wrapped LS address; it still contributes to strict ABI state.
+Finalization zeros remaining logical words, sets the record cursor to its
+limit and submits PUTF with start LSA, destination EA, context `+0x150` tag,
+and the configured byte count (`16*config[1]`, or four). The independent
+oracles compare physical LS bytes and complete state as well as DMA payloads;
+packet-level semantic equivalence alone is insufficient.
+
 ## Corpus cross-check and coverage limits
 
 `geometry-format-inventory.py` rejects malformed layouts and checks
