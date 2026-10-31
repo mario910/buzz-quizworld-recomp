@@ -12,7 +12,7 @@ tracker are in [native-geometry-plan.md](native-geometry-plan.md).
 ## Correctness evidence
 
 The full image-41 corpus contains 19,508 jobs and 58,195 transfers. Both
-checked execution and separate actual-native execution of all five implemented
+checked execution and separate actual-native execution of all eight implemented
 groups pass every job, with zero input divergences or failures. The existing
 Stage F baseline is held in checked mode for these whole-job checks; its
 temporary volatile-register exception is unchanged. Every new kernel is
@@ -25,13 +25,19 @@ checked against the full register, LS, control and continuation state.
 | Halfword encoder `4AB0` | 2 | 18,776 / 0 | >=500,000 | `81dadfb` |
 | Halfword decoder `CAD8/CB78` | 5 | 9,063 / 3,368 | >=200,000 | `eb29523` |
 | Input pointers `0988/09E0` | 10 | 19,508 / 0 | >=300,000 | `635e2f2` |
+| Raw float3 decoder `97A8` | 8 | 18,968 / 540 | >=256 | `cc9c877` |
+| Raw float3 output `46FC/4750/4808/47F0` | 9 | 4,975 / 2,226 | >=256 | `eee46de` |
+| BE word fill `28F0` | 12 | 19,068 / 435 | >=256 | `f23c3c7` |
 
 Group counts are invocations, not unique jobs. Unsupported inputs retain the
 lift and are not counted as successful native comparisons. Synthetic tests
 also cover non-IEEE FP edges, wrapping pointers/counters, padding, sentinels,
 host returns and unchanged-state rejection of unsupported inputs.
 
-Latest private corpus logs: `analysis/native-geometry/phase2/pointers-mode{2,1}.log`.
+Latest private corpus logs: `analysis/native-geometry/phase2/raw-fill-mode{2,1}.log`.
+The new groups' live log is `analysis/vk-scene-p2-raw-fill-live.stderr.log`;
+their source/executable binding is `phase2/raw-fill-build.json`. Renderer
+and A/B gates remain open for these three groups; their defaults are off.
 The original game save remains unchanged; tests use private saves.
 
 ## Completed scene measurements
@@ -43,9 +49,9 @@ sessions should not be compared as an accumulated improvement.
 | Kernel | Menu FPS | Round FPS | Current default |
 |---|---|---|---|
 | Unit vectors | 31.60 -> 31.94 (+1.08%) | 39.31 -> 40.65 (+3.41%) | on |
-| Skinning | 31.98 -> 31.87 (-0.36%) | 39.50 -> 40.24 (+1.88%) | off; mixed FPS, CPU-cost evidence not yet collected |
+| Skinning | 31.98 -> 31.87 (-0.36%) | 39.50 -> 40.24 (+1.88%) | on; repeated worker/process CPU savings, negligible menu frame-time change |
 | Halfword encoder | 31.73 -> 31.93 (+0.65%) | 39.69 -> 40.16 (+1.18%) | off pending CPU evidence; one menu pair negative |
-| Halfword decoder | 31.73 -> 32.10 (+1.18%) | 39.69 -> 40.75 (+2.66%) | off pending final default-build validation |
+| Halfword decoder | 31.73 -> 32.10 (+1.18%) | 39.69 -> 40.75 (+2.66%) | on |
 | Input pointers | 31.73 -> 31.94 (+0.67%) | 39.69 -> 40.26 (+1.44%) | off pending CPU evidence; one round pair negative |
 
 Both groups have normal menu/round native renderer dumps and completed
@@ -67,7 +73,16 @@ The executable and initial save hashes were checked throughout the series.
 
 These small effects have visible run-to-run variation; a positive average
 does not establish a repeatable gain for every kernel. Decoder reversal
-pairs are all positive; its final default-build validation remains open.
+pairs are all positive. The new default mask **35 (0x23)** selects unit
+vectors, skinning and the halfword decoder. Both checked and actual-native
+replay with no explicit mask pass all 19,508 jobs / 58,195 transfers, with
+zero differences or failures (`phase2/defaults35-mode{2,1}.log`). Generated
+geometry C is byte-identical to the eight-kernel validation; only the
+runtime default changed. All other kernel switches remain off.
+A 45 s live run without a mask override reports `kernels=0x23`, at least
+256 strict matches for each selected group and over 100,000 for skinning,
+with no differences (`analysis/vk-scene-p2-defaults35-live.stderr.log`).
+`phase2/defaults35-build.json` binds the final sources and frozen EXE.
 
 ## CPU work as a separate benefit
 
@@ -83,8 +98,7 @@ work; cycles/second or CPU percentage alone can rise when a faster version
 processes more frames. Measure CPU time and cycle counters independently;
 do not convert elapsed microbenchmark time into claimed CPU cycles.
 
-No matched CPU-cycle savings have been established yet. The local kernel
-microbenchmarks are encouraging, but do not by themselves justify defaults.
+The local kernel microbenchmarks do not by themselves justify defaults.
 Existing RIP samplers read cycle counters while suspending threads and are
 explicitly diagnostic; CPU-cost comparisons need counters collected without
 suspending workers. Run them separately from the existing frozen FPS series.
@@ -93,16 +107,34 @@ counters without suspension and has passed unit/API self-tests. Initial
 series `p2-cpu-menu1` was rejected at its first boundary: thread discovery
 ran inside the boundary and exceeded the 50 ms tolerance. It is invalid
 evidence. Discovery now runs before the window; series `p2-cpu-menu2` is
-collecting isolated skinning/encoder/pointer comparisons, with readbacks
-disabled in every arm and the observer source hash held fixed.
-The skinning default may be reconsidered with this evidence; its mixed FPS
-result is not by itself a permanent rejection.
+completed isolated skinning/encoder/pointer comparisons, with readbacks
+disabled in every arm and the observer source hash held fixed. Eight runs
+use masks 1/3/5/1025/1025/5/3/1 in the 40..98 s menu window. Private report:
+`phase2/cpu-menu2-report.json`, same frozen EXE as the FPS batch. Both endpoint
+queries complete in less than a millisecond and satisfy the boundary and
+frame-denominator gates.
+
+| Kernel | Pool cycles/frame | Process cycles/frame | Pool CPU ms/frame | Process CPU ms/frame |
+|---|---|---|---|---|
+| Skinning | -0.95% (-1.23%, -0.66%) | -0.73% (-0.91%, -0.54%) | -0.42% (-1.23%, +0.41%) | -1.20% (-1.64%, -0.75%) |
+| Halfword encoder | +0.78% (+1.70%, -0.14%) | +1.15% (+2.53%, -0.24%) | +1.03% (+1.56%, +0.49%) | +1.21% (+2.73%, -0.33%) |
+| Input pointers | +0.67% (+1.57%, -0.24%) | +0.70% (+1.88%, -0.48%) | +1.76% (+2.79%, +0.71%) | +0.63% (+2.03%, -0.78%) |
+
+Negative means less work; parentheses contain the two reversal pairs. The
+skinning cycle reduction repeats in both pool/process pairs, supported by
+lower process CPU time in both pairs. Pool CPU time alone is mixed. Given
+the small menu FPS change (-0.36%) and round gain (+1.88%), this supports
+enabling skinning. This is a modest
+measured CPU benefit, not an energy claim. Encoder and pointer measurements
+do not show repeatable savings; both remain off. The decoder's all-positive
+FPS pairs support enabling it.
 
 ## Remaining work before phase closure
 
-- Resolve `7A90`, `51E0`, `78A8`, `97A8`, `4750`, `4808` and `28F0`; private
+- Resolve `7A90`, `51E0` and `78A8`; private
   prototypes are not counted as completed replacements.
-- Finish the three groups' default decisions and final default-build validation.
+- Finish raw float3 input/output and fill renderer/A/B gates and default decisions.
+- Validate the final selected defaults again when the remaining phase kernels resolve.
 - Collect matched CPU-cost evidence wherever the default decision relies on
   CPU savings rather than an FPS gain.
 - Validate the final selected defaults, update this report with complete

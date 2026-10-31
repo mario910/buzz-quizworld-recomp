@@ -216,18 +216,18 @@ subject to the kernel gates before replacement.
 | 0x2C00 normalize (stage F) | native helper, not separately attributed | on | 2 | yes | yes | (existing) | |
 | cull (stage F) | native helper, not separately attributed | on | | yes | yes | (existing) | |
 | 0x92A0 | 4.60 % | on | `BUZZ_GEOMETRY_KERNELS` 0 | 19,508 exact; 6,628 strict groups | >=600,000 exact | 31.60 -> 31.94 | a7ad7b2 |
-| 0xB940 | 2.48 % | gated; default off (mixed FPS) | `BUZZ_GEOMETRY_KERNELS` 1 | 19,508 exact; 5,700 strict groups | >=100,000 exact | 31.98 -> 31.87 | 2416a77 |
+| 0xB940 | 2.48 % | on; repeated CPU-cycle benefit | `BUZZ_GEOMETRY_KERNELS` 1 | 19,508 exact; 5,700 strict groups | >=100,000 exact | 31.98 -> 31.87; CPU benefit below | 2416a77 |
 | 0x4AB0 | 2.44 % | gated; default off, CPU decision pending | `BUZZ_GEOMETRY_KERNELS` 2 | 19,508 exact; 18,776 strict groups, no fallback | >=500,000 exact | 31.73 -> 31.93 | 81dadfb |
 | 0x7A90 | 1.89 % | todo | | | | | |
 | 0x51E0 | 1.75 % | todo | | | | | |
-| 0xCB78 | 1.44 % | gated; final default-build validation pending | `BUZZ_GEOMETRY_KERNELS` 5 | 19,508 exact; 9,063 strict groups | >=200,000 exact | 31.73 -> 32.10 | eb29523 |
+| 0xCB78 | 1.44 % | on | `BUZZ_GEOMETRY_KERNELS` 5 | 19,508 exact; 9,063 strict groups | >=200,000 exact | 31.73 -> 32.10 | eb29523 |
 | 0x78A8 | 1.15 % | todo | | | | | |
 | 0x9148 | 1.01 % | on | shares bit 0 with 0x92A0 | same coupled unit-vector decoder | same checked group | same measurement | a7ad7b2 |
-| 0x97A8 | 0.78 % | todo | | | | | |
-| 0x4750 | 0.76 % | todo | | | | | |
+| 0x97A8 | 0.78 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 8 | 19,508 exact; 18,968 strict groups | >=256 exact | pending | cc9c877 |
+| 0x4750 | 0.76 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 9 | 19,508 exact; 4,975 strict groups | >=256 exact | pending | eee46de |
 | 0x0988 | 0.75 % | gated; default off, CPU decision pending | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
-| 0x4808 | 0.73 % | todo | | | | | |
-| 0x28F0 | 0.67 % | todo | | | | | |
+| 0x4808 | 0.73 % | coupled with 4750; render/A-B pending | shares bit 9 | same raw-float3 output group | same checked group | pending | eee46de |
+| 0x28F0 | 0.67 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | pending | f23c3c7 |
 | Whole-job driver | n/a | todo | | | | | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
@@ -245,9 +245,13 @@ Phase 2 implementation notes and per-kernel evidence are in
 [native-geometry-kernels.md](native-geometry-kernels.md). Bit 0 combines the
 tightly coupled `0x9148/0x92A0` decoder; it is not two independent replacements.
 It is enabled by default in the reviewed adapter after all its gates passed.
-Bit 1 implements the `0xB880/B934/B940` skinning region and passes the correctness
-gates, but remains default-off: its round gain came with a small menu regression.
-The other phase 2 kernels remain pending.
+Bit 1 implements `0xB880/B934/B940` and is now on: both CPU reversal pairs
+show less worker/process work, while menu frame times are effectively flat
+and round FPS improves. Bit 5 is on after all four FPS pairs improved.
+The default mask is 35 (0x23); checked/native default replay both pass all
+19,508 jobs. Encoder/pointer switches remain off; the remaining phase 2
+implementations/gates are pending. See the separate
+[phase 2 results](native-geometry-phase2-results.md) for complete evidence.
 
 ### Image 40 and shared routines
 
@@ -283,6 +287,9 @@ The other phase 2 kernels remain pending.
 | 2026-10-31 | Native CAD8/CB78 decoder | Round 150-220 s | 39.69 -> 40.75 (+2.66%) | mean medians 25.61 -> 25.01 / p90 29.49 -> 28.76 | Same EXE; pairs +4.36%, +1.02%; normal native dump; final default validation pending |
 | 2026-10-31 | Native 0988 pointers | Menu 40-98 s | 31.73 -> 31.94 (+0.67%) | mean medians 33.72 -> 33.67 / p90 40.32 -> 39.84 | Same batch, masks 1/1025; pairs +0.25%, +1.09%; normal native dump |
 | 2026-10-31 | Native 0988 pointers | Round 150-220 s | 39.69 -> 40.26 (+1.44%) | mean medians 25.61 -> 25.30 / p90 29.49 -> 29.12 | Same EXE; pairs +3.10%, -0.17%; normal native dump; CPU decision pending |
+| 2026-10-31 | Skinning CPU cost | Menu 40-98 s | n/a; separate CPU series | n/a | `p2-cpu-menu2`; pool cycles/frame -0.95% (pairs -1.23%, -0.66%); process cycles -0.73% (pairs -0.91%, -0.54%); process CPU time -1.20%; supports default-on |
+| 2026-10-31 | Encoder CPU cost | Menu 40-98 s | n/a | n/a | Same reversed series; pool cycles/frame +0.78%, process +1.15%; no repeatable savings; default-off |
+| 2026-10-31 | Pointer CPU cost | Menu 40-98 s | n/a | n/a | Same reversed series; pool cycles/frame +0.67%, process +0.70%; no repeatable savings; default-off |
 
 ## Risks
 

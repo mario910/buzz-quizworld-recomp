@@ -62,4 +62,9 @@ gate because thread discovery ran on the boundary. That incomplete series
 is invalid. Discovery now runs one second before the window; boundary
 queries retain only the four named pool handles and the process. Endpoints
 still require stable live thread identities and the same strict tolerance.
-Matched series `p2-cpu-menu2` is in progress; no savings are claimed yet.
+Matched series `p2-cpu-menu2` completed all eight menu runs. The report finds
+skinning pool cycles/frame -0.95% (pairs -1.23%, -0.66%), process cycles/frame
+-0.73% (pairs -0.91%, -0.54%) and process CPU ms/frame -1.20% (pairs -1.64%,
+-0.75%). Pool CPU time is mixed. Encoder and pointer series show no repeatable
+savings. Full results and default decisions are in
+[the phase 2 report](native-geometry-phase2-results.md).

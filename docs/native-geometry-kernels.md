@@ -8,13 +8,14 @@ use strict state checks; the existing Stage F exception remains unchanged.
 `BUZZ_GEOMETRY=0` forces the lift, `1` runs selected native kernels and `2`
 compares every handled invocation against the lifted reference. The reference
 state is retained in checked mode. `BUZZ_GEOMETRY_KERNELS` is the function bit
-mask; its current default enables bit 0 when that implementation is built.
-Bit 0 selects the coupled unit-vector
-decoder below; bit 1 selects validated skinning and remains default-off because
-its scene measurements are mixed.
-Bit 2 selects the halfword encoder and remains default-off during validation.
-Bit 5 selects the halfword decoder and also remains default-off during validation.
-Bit 10 selects staged-list pointer generation and remains default-off during validation.
+mask; its current default is **35 (0x23)**, intersected with the built mask:
+unit-vector decoder bit 0, skinning bit 1 and halfword decoder bit 5.
+Bits 0/5 passed their scene reversals. Bit 1 also reduces worker/process
+cycles in both CPU reversal pairs, with negligible menu frame-time change.
+Bits 2 (halfword encoder) and 10 (pointer generation) remain off because
+their scene/CPU measurements do not show a repeatable benefit. New bits
+8 (raw float3 input), 9 (raw float3 output) and 12 (word fill) stay off until
+their renderer and A/B gates pass.
 Other function IDs are reserved while their implementations
 are pending; the build advertises its implemented mask and rejects unavailable
 bits. An unhandled input takes the reference and increments fallback;
@@ -164,11 +165,14 @@ run starts from an identical private save copy. The report is
 `phase2/p2-skin-ab2/progress.jsonl`. The earlier `p2-skin-ab` set was aborted
 before completion while adding the weight-alignment guard and is not used.
 
-Bit 1 stays **default-off** because the round improvement is accompanied by
-a small menu regression. `BUZZ_GEOMETRY_KERNELS=3` enables it together with
-the default decoder for experiments; `BUZZ_GEOMETRY=2` checks both strictly.
-This completes the skinning implementation and correctness gates without
-claiming an improvement in both scenes.
+Bit 1 was initially off because of the small menu FPS decline. A separate
+non-suspending CPU series now measures pool cycles/frame -0.95% (pairs -1.23%,
+-0.66%), process cycles/frame -0.73% (pairs -0.91%, -0.54%) and process CPU
+time/frame -1.20% (pairs -1.64%, -0.75%). Pool CPU time alone is mixed. Menu
+median frame time is essentially unchanged (33.46 -> 33.47 ms), with better
+p90 (40.16 -> 39.93 ms). This modest, repeated CPU benefit and the round FPS
+gain justify enabling bit 1; no improvement in menu FPS or energy is claimed.
+Full measurement details are in [the phase report](native-geometry-phase2-results.md).
 
 ## Bit 2: halfword encoder (`0x4AB0`)
 
@@ -206,9 +210,11 @@ binds the frozen executable and source hashes.
 
 The 60 s live run (mask 5, keeping skinning off) logged at least 500,000 exact
 encoder comparisons and no differences:
-`analysis/vk-scene-p2-half-live.stderr.log`. Renderer and reversed-scene FPS
-gates remain pending. Bit 2 stays default-off; this is an experimental
-implementation checkpoint, not a completed performance claim.
+`analysis/vk-scene-p2-half-live.stderr.log`. Actual-native menu/round dumps
+look normal. The completed reversed series measures menu +0.65% (pairs
+-0.45%, +1.75%) and round +1.18% (pairs +1.94%, +0.44%). A separate CPU series
+finds no repeatable savings. Bit 2 stays default-off despite passing the
+correctness/render gates; see the phase report for the complete measurements.
 
 ## Bit 5: halfword decoder (`0xCAD8/0xCB78`)
 
@@ -249,8 +255,9 @@ with zero divergences or failures. The decoder compares 9,063 groups exactly;
 `phase2/dehalf-return-mode{2,1}.log`; `dehalf-build.json` binds sources and the
 frozen executable. A 60 s checked live run (mask 33, other experiments off)
 logged at least 200,000 exact decoder comparisons and no differences:
-`analysis/vk-scene-p2-dehalf-live.stderr.log`. Renderer/A/B gates remain
-pending; bit 5 stays default-off at this implementation checkpoint.
+`analysis/vk-scene-p2-dehalf-live.stderr.log`. Native menu/round dumps are
+normal. The completed series measures menu +1.18% (pairs +0.07%, +2.31%) and
+round +2.66% (pairs +4.36%, +1.02%). Bit 5 is now enabled by default.
 
 ## Bit 10: staged-list pointers (`0x0988/0x09E0`)
 
@@ -286,8 +293,9 @@ other implemented kernel groups. Private logs are `phase2/pointers-mode{2,1}.log
 executable. A 60 s live run with mask 1025 logged at least 300,000 exact
 pointer-table comparisons and no differences:
 `analysis/vk-scene-p2-pointers-live.stderr.log`.
-Renderer/A/B gates are pending; bit 10 remains default-off at this
-implementation checkpoint.
+Native menu/round dumps are normal. The completed series measures menu
++0.67% (pairs +0.25%, +1.09%) and round +1.44% (pairs +3.10%, -0.17%). A
+separate CPU series shows no repeatable savings. Bit 10 remains default-off.
 
 ## Bit 12: BE word fill (`0x28F0`), implementation in validation
 
