@@ -557,6 +557,84 @@ with no driver difference/HALT diagnostic. Original saves, private template
 and source pins remain unchanged. These functional runs make no performance
 benefit claim and do not close the remaining interpreter/performance gates.
 
+## Native command-buffer preparation (`0x32C8`)
+
+`port/native_geometry_commands.h` now owns command-buffer reservation,
+allocation-record scans, the optional fenced 4-byte synchronization GET and
+the 32-byte command preamble (`0x1710`/`0x1714`). A host plan keeps the logical buffer limit
+separate from the 128-byte allocator reservation. The packet condition is
+whether any record is ready; its bytes and complete spill/exit state match
+the original, including packets that extend past the record's logical limit
+while remaining in the physically valid LS span. No new logical-capacity
+restriction is imposed. Unsupported ranges/aliases or an enabled-interrupt
+fenced-read continuation retain the original stage before writes or I/O.
+
+`BUZZ_GEOMETRY_JOB_COMMANDS=1`, default **0**, selects this preparation stage
+inside the native job. Final packet encoding, relocation and publication
+remain in the library. The generated public `0x32C8` entry routes nested
+calls as well as the outer empty-output call. Routing is restricted to the
+native pipeline's current context: the retained JOB=2 reference and foreign
+comparison contexts still execute the original function. A scoped owner is
+restored on return. Adapter protocol 3 is required; CMake rejects stale
+generated adapters so a requested feature cannot silently be absent.
+
+```powershell
+.\tests\scripts\test-geometry-commands.ps1
+```
+
+PASS: **4,096 strict full-state/channel/fenced-GET cases**, against 14 pinned
+original blocks, and **16 no-mutation/no-I/O rejections**. Tests cover empty
+output, lists with up to 1,024 allocation records, the first missing synchronization record,
+ready-record prefixes, no-ready/no-read paths, all word-aligned output-EA low
+offsets, workspace low nibbles, zero and maximum logical command limits,
+packet padding and arbitrary non-preferred lanes. Each GET's arguments,
+controls before/after and received bytes are compared, as are all final
+GPRs, LS bytes, controls and returns. Private log: `phase3/commands-test.log`.
+
+The outer-flow model additionally proves routing: outside the native scope,
+for a foreign context, with the option disabled, after scope exit and for an
+unsupported original entry, the original callback runs exactly once. An
+admitted owner executes the native operation instead. The 1,024 model paths,
+all 19,508 real model entries and 43 controller scenarios also pass. Log:
+`phase3/driver-flow-test.log`.
+
+The frozen `build-vulkan-phase3-commands` EXE SHA256 is
+`cee40b06dd7c8e694fa6e915f5ee7bf52e22865ecb2e88497233621f4e5af667`;
+`phase3/commands-build.json` binds its sources, map and protocol-3 adapter.
+Four complete corpus arms pass **19,508 exact jobs / 58,195 transfers**, with
+zero input divergence/failures:
+
+| Arm | Configuration and coverage |
+|---|---|
+| Original driver with COMMANDS requested | JOB=0: original result unchanged; the native-owner route is inactive |
+| Independently checked preparation | JOB=2, COMMANDS=1, other new output switches 0: 19,508 native command-buffer preparations, zero fallback, 19,508 strict whole-job + I/O checks |
+| Combined actual native | JOB=1, all new output switches 1: 19,508 native preparations; 7,201 each size/index/vertex stages and layout reuses; zero fallback |
+| Combined checked | JOB=2, same switches: same stage counts plus all 19,508 strict whole-job + I/O checks |
+
+Logs: `phase3/commands-corpus-{off,independent,native,checked}.log`. All retain
+leaf mask 827 and Stage F's baseline-preserving checked mode. Preparation is
+native for both empty and drawn output. These checks do not make final
+command encoding/relocation/publication native, and their replay timings do
+not establish FPS or CPU-cycle savings.
+
+On this same frozen EXE, a 65 s checked menu run with all new output switches
+enabled records **at least 450,000 strict whole-job + I/O matches and native
+command-buffer preparations**. The earlier size/index/vertex stages each
+execute at least 375,000 times, with the same number of layout reuses.
+Rendering continues through 64.7 s (2,090 recorded frames). External reference
+input changes are rejected before trial, without counting a native match.
+
+Actual-native menu and round runs also complete normally: the 75 s menu run
+renders through 74.6 s (3,154 frames); the round starts at 136.5 s and runs
+for another 30 s, rendering through 166.6 s (7,747 frames). Renderer readbacks
+at frames 2,500 and 6,500, inspected as 1280x720 PNGs, show normal menu and
+round-introduction geometry, text, character and effects. Logs:
+`analysis/vk-scene-p3-commands-{checked,menu,round}.{csv,stderr.log}`. Images:
+`phase3/p3-commands-{menu,round}.{ppm,png}`. No difference/HALT or early-exit
+diagnostic occurs. Original save, private template and lifted-source hashes
+are unchanged. These are functional checks; final interpreter counts and
+matched reversed FPS/CPU measurements remain open.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -576,7 +654,8 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x54E8` | Vertex conversion/packing | Retained library; validated output kernels inside |
 | `0x35F0` | Vertex publication | Native opt-in publication using shared host layout; unsupported families retain library |
 | `0x12F0`, `0x02E8` | Full/position-only command emission | Retained library |
-| `0x32C8`, `0x27A0` | Empty-output conversion/publication | Retained library |
+| `0x32C8` | Command-buffer preparation for empty and drawn output | Native opt-in reservation, scans, fenced GET and command preamble |
+| `0x27A0` | Final command relocation/publication | Retained library |
 
 The host input model, context initialization and complete outer control are
 native. Host-buffer/data-path integration and the retained stage bodies above

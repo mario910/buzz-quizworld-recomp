@@ -19,6 +19,9 @@ struct Call {
 static std::vector<Call> calls;
 static unsigned scenario;
 static const char* current_case = "synthetic";
+static bool routing_probe = false, commands_enabled = false;
+static unsigned routed_references = 0, routed_native = 0, routed_fallback = 0;
+static void routing_inside(spu_context*);
 static void drain(spu_context* ctx, uint32_t stop)
 {
     unsigned steps = 0;
@@ -46,7 +49,11 @@ int buzz_geometry_job_publish_enabled() { return 0; }
 void buzz_geometry_job_publish_result(int) { abort(); }
 int buzz_geometry_job_layout_enabled() { return 0; }
 int buzz_geometry_job_vertex_enabled() { return 0; }
-void buzz_geometry_job_output_result(unsigned, int, int) { abort(); }
+int buzz_geometry_job_commands_enabled() { return commands_enabled; }
+void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    assert(routing_probe && stage == BUZZ_GEOMETRY_JOB_COMMAND_BUFFER);
+    if (native) ++routed_native; else ++routed_fallback;
+}
 void buzz_geometry_job_native_fail(spu_context*, const char* reason) {
     fprintf(stderr, "%s: native rejection: %s\n", current_case, reason); abort();
 }
@@ -69,6 +76,7 @@ static unsigned arguments_of(unsigned pc)
 static void model_call(spu_context* ctx, unsigned pc)
 {
     assert(ctx->host_depth == 1);
+    if (routing_probe && pc == 0xac68) routing_inside(ctx);
     Call record{}; record.pc = pc; record.link = ctx->gpr[0]._u32[0];
     uint32_t hash = pc ^ uint32_t(calls.size() * 0x173b);
     for (unsigned reg = 3; reg <= arguments_of(pc); ++reg) {
@@ -96,6 +104,33 @@ static void model_call(spu_context* ctx, unsigned pc)
     ctx->pc = record.link;
 }
 #include "../analysis/native-geometry/phase3/test-driver-reference.inc"
+
+static void routing_reference(spu_context* ctx)
+{
+    ++routed_references; ctx->gpr[2] = spu_il(-1); ctx->pc = ctx->gpr[0]._u32[0];
+}
+static void routing_inside(spu_context* ctx)
+{
+    std::array<u128, 128> saved;
+    memcpy(saved.data(), ctx->gpr, sizeof ctx->gpr); const auto pc = ctx->pc;
+    const uint32_t context = ctx->gpr[3]._u32[0];
+    buzz::geometry_job_put32(ctx->ls + context + 0x58, 0x20000);
+    ctx->gpr[4] = spu_ila(0x28000); ctx->gpr[5] = spu_ila(0x10000);
+    ctx->gpr[6] = spu_il(0); ctx->gpr[7] = spu_il(0);
+    buzz_geometry_job_prepare_commands(ctx, routing_reference);
+    assert(routed_native == 1 && routed_references == 1);
+    assert(buzz::geometry_job_be32(ctx->ls + 0x28000) == 0x20080 &&
+           buzz::geometry_job_be32(ctx->ls + 0x28004) == 0x20084);
+    auto foreign = std::make_unique<spu_context>(); memcpy(foreign.get(), ctx, sizeof(*ctx)); foreign->ls = foreign->ls_store;
+    buzz_geometry_job_prepare_commands(foreign.get(), routing_reference);
+    assert(routed_references == 2 && routed_native == 1);
+    commands_enabled = false; buzz_geometry_job_prepare_commands(ctx, routing_reference); commands_enabled = true;
+    assert(routed_references == 3 && routed_native == 1);
+    ctx->gpr[4]._u32[0] = SPU_LS_SIZE - 1;
+    buzz_geometry_job_prepare_commands(ctx, routing_reference);
+    assert(routed_references == 4 && routed_fallback == 1);
+    memcpy(ctx->gpr, saved.data(), sizeof ctx->gpr); ctx->pc = pc;
+}
 
 static uint32_t random_word(uint32_t& value) { value ^= value << 13; value ^= value >> 17; value ^= value << 5; return value; }
 static void synthetic(spu_context& ctx, unsigned trial)
@@ -167,6 +202,18 @@ int main(int argc, char** argv)
     const unsigned previous = _mm_getcsr();
     _mm_setcsr((previous & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
     auto native = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
+    routing_probe = commands_enabled = true;
+    synthetic(*native, 0); native->host_depth = 1;
+    buzz_geometry_job_prepare_commands(native.get(), routing_reference);
+    assert(routed_references == 1 && !routed_native && !routed_fallback);
+    synthetic(*native, 0); g_spu_trampoline_fn = nullptr;
+    const uint32_t routing_link = native->gpr[0]._u32[0];
+    buzz_geometry_job_native_start(native.get(), &model_library); drain(native.get(), routing_link);
+    native->host_depth = 1;
+    buzz_geometry_job_prepare_commands(native.get(), routing_reference);
+    assert(routed_references == 5 && routed_native == 1 && routed_fallback == 1);
+    routing_probe = commands_enabled = false;
+    puts("Command-buffer routing: owner native; reference/foreign/disabled/unsupported/post-scope checks PASS");
     for (scenario = 0; scenario < 1024; ++scenario) { synthetic(*native, scenario); compare(*native, *reference); }
     unsigned corpus = 0;
     if (argc > 1) for (const auto& path : std::filesystem::directory_iterator(argv[1])) {
