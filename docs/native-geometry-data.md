@@ -1088,3 +1088,51 @@ targets, rigid/weighted batching, inline/external scratch, early exits, return
 PC collisions, three host depths and interrupt states. Separate numeric
 checks validate the packed matrix word mapping and untouched padded records.
 Real replay/live/render evidence is recorded in the phase-3 results.
+
+
+### Native rigid skin position/matrix data
+
+`native_geometry_rigid_skin.h` replaces the data suffix of B348 and the
+B3C0/B3C8 pair loop, stopping at the exact B4C0 or BB58 data boundary.
+B348's three clamp/weighted-branch operations remain caller control: native
+AF18 owns them when SKIN_FLOW is enabled; the original caller can also use
+the same independently switched data hook. No original setup, step, data
+iteration or final pair executes on the native data path.
+
+Each vertex uses one unsigned byte palette index. The original packs two
+indices into 16-bit halves, multiplies by 48 and rotates the packed offsets
+for its two gathers. Loads retain quadword-floor/LS-wrap semantics, including
+odd pointer biases where ROTQBY wraps inside the loaded index quad. Three
+row bases can differ. Packed palette rows are reconstructed with the incoming
+masks/shuffle tables; position arithmetic is three ordered FMAs, starting
+from the translation. Matrix row zero receives W=1 and the other rows W=0
+under the standard masks. Arbitrary incoming masks/shuffles remain supported.
+
+The host prefix keeps two positions/Y/Z shuffles and the packed next indices
+cached. Every pair gathers all six palette rows and reads the next position
+and index group before any write. This preserves overlapping position,
+index, palette and matrix-output buffers, including feedback into later
+pairs. Stores complete the six matrix quads before the position pair.
+An explicit final-pair calculation materializes all volatile intermediates,
+raw lookahead, pointer/count upper lanes and the exact queued data tail.
+The index stream advances by the vertex count, not twice that count.
+
+Preflight accepts positive even counts up to 4,096, physical LS data bases
+and bounded actual writes/lookahead. Gather reads can wrap LS as the lift
+does. The potential-alias counter conservatively covers the complete index
+quad footprint, possible palette gathers and written spans; it is not an
+exact count of dynamically aliased palette reads. Unsupported inputs return
+to original data before mutation. The caller's control and cold cofactor or
+normalized data do not become native data coverage through this hook.
+
+`BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2` defaults to zero. Mode 2 or JOB=2 compares
+all GPRs, all LS, architectural/control state, PC and exact queued boundary
+against the original data closure. Runtime job execution establishes RTZ/
+DAZ/FTZ in `spurs_job.c`; isolated numeric/integration tests use that same
+host FP environment. New stage 28 / protocol 23 has 29 stage counters. Every
+stage's first owned fallback is now explicitly logged and flushed immediately,
+so abrupt scene shutdown cannot silently omit the first unsupported call;
+this behavior is tested with `_Exit` before normal final summaries.
+
+Synthetic and real-coverage distinctions, frozen artifacts and current
+validation gates are recorded in the phase-3 results document.

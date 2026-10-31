@@ -130,6 +130,8 @@ def main():
     if not rigid_match or rigid_match[1].count(rigid_marker) != 1:
         raise SystemExit("Unreviewed rigid data suffix")
     rigid_suffix = rigid_match[1][rigid_match[1].index(rigid_marker):]
+    rigid_prefix = rigid_match[1][:rigid_match[1].index(rigid_marker)]
+    source = source[:rigid_match.start()] + f"void {rigid_name}(spu_context* ctx) {{{rigid_prefix}        {rigid_name}_data(ctx);\n}}" + source[rigid_match.end():]
     flow_name = "buzz_job_6eba_spu_func_0000AF18"
     flow_pattern = rf"(?ms)^void {flow_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(flow_pattern, source))) != 1:
@@ -137,7 +139,8 @@ def main():
     flow_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x2750,0x2778,0x2780,0x2790,0x2738,0xb880))
     direction_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0xbd4c,0xbe20,0xbf7c,0xc14c,0xc280,0xb5a0))
     source = re.sub(flow_pattern, lambda m:
-        f"static void {rigid_name}_data(spu_context* ctx) {{{rigid_suffix}}}\n"
+        f"static void {rigid_name}_data_reference(spu_context* ctx) {{{rigid_suffix}}}\n"
+        f"static void {rigid_name}_data(spu_context* ctx) {{ buzz_geometry_job_rigid_skin(ctx, {rigid_name}_data_reference, buzz_job_6eba_spu_func_0000B4C0, buzz_job_6eba_spu_func_0000BB58); }}\n"
         f"static const buzz_geometry_skin_flow_functions {flow_name}_library = {{{flow_library}, {rigid_name}_data, {{{direction_library}}}, buzz_job_6eba_spu_func_0000B4C0, buzz_job_6eba_spu_func_0000B868}};\n"
         f"static void {flow_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {flow_name}(spu_context* ctx) {{ buzz_geometry_job_skin_flow(ctx, {flow_name}_reference, &{flow_name}_library); }}",
@@ -281,7 +284,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 22\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 23\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

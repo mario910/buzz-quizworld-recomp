@@ -19,7 +19,8 @@ exact descriptor tail handoff; built-in input formats 1..5 remain separate.
 The `0x9F8` skin/rigid controller now has native opt-in control through its
 exact weighted-data/normalization tail or return boundary. `0xAF18` now has
 native palette/frame/batch/dispatch/publication control, separately switched.
-Rigid, cofactor and normalized directional data remain explicit library work.
+Rigid data now has a separately switched implementation below, with no
+observed real/live data coverage. Cofactor and normalized data remain original.
 The complete B880 weighted-data replacement passes strict real replay/live
 and native rendering below; final performance/default gates remain open.
 
@@ -29,6 +30,8 @@ Historical statements that no fallback appears in a live log mean none was
 reported, not a measured zero live fallback total. Completed corpus replay
 provides exact native/fallback totals. The final default decision must retain
 this distinction and use suitable instrumentation for live fallback totals.
+The later rigid-skin build adds a flushed first-fallback notification per
+stage; it does not retroactively add instrumentation to older frozen runs.
 
 ## Driver boundary audit
 
@@ -1422,7 +1425,7 @@ The required phase-3 data inventory after this increment is:
 | `0x09F8`, skin/rigid controller | Complete native opt-in control/ABI; strict synthetic/corpus/live and native menu/round checks pass; separate weighted/rigid counters | Final performance/default decision |
 | `0xAF18`, weighted skin orchestration | Native opt-in palette transpose/frame/stream selection/batching/publication; valid path has no DMA; strict tests/replay pass, live evidence below | Cold branch gates and final performance/default decision; explicit retained data libraries do not count as new payload coverage |
 | `0xB880/B934/B940`, weighted position/matrix data | Complete native opt-in; original setup/final pair replaced; strict synthetic/corpus/live and native menu/round gates pass, including actual palette aliases | Final performance/default decision; one-pair API inputs observed only synthetically |
-| `0xB348/B3C8`, rigid skin position/matrix data | Original gathered matrix/position kernel | Native data implementation and validation |
+| `0xB348` data suffix / `B3C0/B3C8`, rigid position/matrix data | Complete native pair pipeline with strict synthetic and AF18 integration checks; separate switch default0 | Real-corpus and >=256 live gates OPEN (zero observed calls); final measurements/default decision |
 | `0xBB58/BB68`, cofactor/normal data | Original data loop | Native data implementation and validation |
 | `0xB4C0`, skin directional dispatch | Native host dispatch within AF18, preserving cached data inputs and all nineteen table entries | Cold target gates and final performance/default decision; each data variant retains its own inventory row |
 | `0xBD4C/BE20`, basic one/two-stream data | Complete native opt-in; strict synthetic/corpus/live and native menu/round checks pass | Final performance/default decision |
@@ -2849,3 +2852,103 @@ JOB=0 / leaf 827 / all new flags=0 remain unchanged. Phase 3 and the continuing 
 remain **active**: rigid/cofactor/normalized kernels, other enclosing stages,
 built-in inputs, cold coverage and final gates still require work. Strict
 Stage F reconstruction remains mandatory final phase 7.
+
+
+## Rigid skin data implementation: real/live gates remain open
+
+`port/native_geometry_rigid_skin.h` replaces the complete B348 data suffix,
+B3C0 step and B3C8 pair loop. The initial clamp/weighted branch is caller
+control; the shared data hook works with either native AF18 or its original
+caller, retaining independent `BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2`, default 0.
+The native data path calls no original setup, data iteration, step or final
+pair. Host AVX2 prefix pairs gather six palette rows and cache the next
+positions/indices before writes; final-pair arithmetic materializes all GPRs,
+lookahead and pointer/count lanes. All position/index/palette/output aliases,
+biased index quads, wrapped gathers and arbitrary masks/shuffles are supported.
+The exact B4C0 or BB58 tail remains queued, without executing its data twice.
+
+Mode 2 or JOB=2 checks every GPR/LS byte, architectural/control state, PC,
+queued function, image/depth/policy/overlay against the original data closure.
+The tail checker validates an allowed (function,PC) pair, including compiler
+folding of otherwise identical private trap stubs. No register exclusion or
+Stage F waiver is added. Protocol 23 / stage 28 has 29 stage counters, with
+bulk/one-pair and potential-alias native/strict categories. Potential aliases
+use complete loaded index quads and possible palette spans; they are not a
+claim about exact dynamically aliased palette reads. Unsupported inputs
+fall back before mutation, with no native credit.
+
+**Synthetic evidence:** 7,681 strict full-state/boundary cases = 6,400 random,
+768 targeted aliases/wrapped gathers,512 arbitrary masks/shuffles and 1 maximum
+4,096-vertex alias case. The targeted set includes 684 potential-alias candidates.
+Three independent translated-identity/padding cases validate position values,
+matrix rows, untouched extra positions and the one-byte-per-vertex index
+advance. Ten invalid inputs preserve state without I/O. The AF18 harness also
+passes 384 strict combined controller/native-rigid cases against actual original
+rigid data, with cofactor/direction data explicitly modeled; its earlier
+6,600 controller/transcript cases,3 numeric palette checks,3 unused-input early
+checks and 18 rejects remain green. Initial integration testing exposed a
+missing RTZ setup in that test harness; setting the same RTZ/DAZ/FTZ as the
+SPU job runtime makes the full comparison pass, without weakening it.
+Owner/off/foreign/image/null-tail/invalid/post-scope routing and both strict
+activation modes pass, including one-pair/bulk/alias/two-tail cases. The
+1,024 outer models and 19,508 real-entry models pass. Runtime 43 controller
+cases,216 configuration cases and a new abrupt-exit first-fallback case pass.
+
+Every owned stage now logs and flushes its first fallback immediately.
+`runtime-first-fallback-flush.log` proves this survives `_Exit` without normal
+summaries. This improves later live/default evidence; it does not add final
+fallback totals to older forced-shutdown runs or turn no-call runs into
+successful native data validation.
+
+Frozen `build-vulkan-phase3-rigid-skin-v1`:
+EXE `781e139f4983e5f2c5c136121bf0fa7ace5458f652fae05b9e9494ecaa6a1f95`;
+map `f3ded77e7ac17d789453a13d1cf7b76d87b78a41d0dfe6de8489cd9aa94a4aa1`;
+generated C `4edbe13da32bdb279b9aaf80c4d150cba3e6e4987d6a3eadf0abc8d36e0162ce`.
+Frozen C and four compiled native header/controller copies are preserved.
+
+All five configurations pass **19,508 exact jobs /58,195 transfers**, zero
+input changes and failures, Stage F=2 / leaf 827/no contract override:
+
+| Compatibility arm | JOB | Older flags | RIGID_SKIN | New native/strict/fallback |
+|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|
+| Independent |2|0|1|0/0/0|
+| Combined native |1|1|1|0/0/0|
+| Combined checked |2|1|1|0/0/0|
+| Kernel checked |1|1|2|0/0/0|
+
+Both JOB=2 arms pass 19,508 whole-job state/I/O checks. Combined arms retain
+1,628 AF18, 6,113 weighted roots including 30 palette aliases and 5,018 basic direction
+roots, with zero fallback. **The new rigid kernel has zero real-corpus calls.**
+The original trace also records B3C8=0. These are compatibility results,
+not real-data coverage of the new implementation. Nonzero native corpus
+coverage and >=256 strict live comparisons for rigid data remain **OPEN**.
+Cofactor BB58/BB68 and normalized C14C/C280/B5A0 are still original work.
+
+Same frozen EXE, fresh private saves, all older flags=1, GEOMETRY=1 / Stage F=1 /
+leaf827, with no compilation/CPU tests/profiling overlap:
+
+| Functional compatibility run | JOB/RIGID_SKIN | Frames /last elapsed ms | Rigid native/strict observed |
+|---|---|---|---|
+| Checked menu,60s |1/2|2,796 /59,864.515|0/0;gate OPEN|
+| Native menu,75s |1/1|3,340 /74,808.865|0/0;gate OPEN|
+| Native round,60s after start136.5s |1/1|9,592 /196,303.358|0/0;gate OPEN|
+
+The logs confirm requested modes, no DIFF/HALT/mismatch and no observed rigid
+native/strict or first-fallback event. Inspected 1280x720 readbacks show normal
+menu/studio/crowd and the actual green round with host/player/score UI.
+**The scene checks do not validate an uncalled data kernel.** The real/live
+rigid gates remain open, regardless of the synthetic cases or normal images.
+No matched FPS/CPU benefit is claimed. Final interpreter/reversed A/B and
+normalized worker/process cycle/time/default decisions remain open; repeatable
+CPU savings may matter even with flat FPS.
+
+Private evidence uses `phase3/rigid-skin-v1-*` and
+`analysis/vk-scene-p3-rigid-skin-v1-{checked-menu,menu,round}.*`.
+`phase3/rigid-skin-v1-build.json` and archived proofs bind the committed code,
+tests/docs, frozen binary/map/C/native snapshots, source trace and scene data.
+All runs are terminal and original source/generator/save/template/fixture pins
+remain unchanged. JOB=0 / leaf 827 / all new flags=0 remain unchanged. Phase 3 and the
+continuing goal remain active; next data work is cofactor and normalized
+skinning, followed by other enclosing stages/built-in inputs/cold coverage
+and final gates. Strict Stage F reconstruction remains final phase 7.

@@ -1,0 +1,40 @@
+"""Pinned complete rigid skin data oracle; all derived code stays private."""
+import hashlib
+import importlib.util
+from pathlib import Path
+import re
+
+ROOT=Path(__file__).resolve().parents[2]
+PIN="5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
+PARENT_PIN="0cb78a3d3170bf81921021199fcd2144272858635224f3135208f76c76113d99"
+PREFIX="buzz_job_6eba_spu_func_"
+
+
+def main():
+    raw=(ROOT/"port/spu/buzz_job_6eba/spu_recomp.c").read_bytes()
+    if hashlib.sha256(raw).hexdigest()!=PIN:raise SystemExit("Unreviewed rigid skin source")
+    parent=ROOT/"tools/codegen/generate-geometry-phase2.py"
+    if hashlib.sha256(parent.read_bytes()).hexdigest()!=PARENT_PIN:raise SystemExit("Unreviewed rigid skin constants")
+    spec=importlib.util.spec_from_file_location("rigid_skin_constants",parent)
+    constants=importlib.util.module_from_spec(spec);spec.loader.exec_module(constants)
+    functions={int(pc,16):body for pc,body in re.findall(r"(?ms)^void buzz_job_6eba_spu_func_([0-9A-F]+)\(spu_context\* ctx\) \{(.*?)^\}",raw.decode())}
+    selected={0xb348,0xb3c0,0xb3c8}
+    marker="        ctx->gpr[27] = spu_ilhu(0x8000);"
+    assert functions[0xb348].count(marker)==1
+    functions[0xb348]=functions[0xb348][functions[0xb348].index(marker):]
+    references={int(pc,16) for start in selected for pc in re.findall(PREFIX+r"([0-9A-F]+)",functions[start])}
+    if references-selected!={0xb4c0,0xbb58}:raise SystemExit("Unreviewed rigid skin boundaries")
+    output="namespace rigid_skin_oracle {\n"
+    output+="\n".join(f"static void {PREFIX}{pc:08X}(spu_context*);" for pc in sorted(references|selected))
+    output+="\n".join(f"static void {PREFIX}{pc:08X}(spu_context*) {{abort();}}" for pc in sorted(references-selected))
+    output+="\n".join(f"static void {PREFIX}{pc:08X}(spu_context* ctx) {{{functions[pc]}}}" for pc in sorted(selected))
+    output+="\nstatic void seed_constants(spu_context& c){\n"
+    for reg,words in constants.SKIN.items():
+        for lane,word in enumerate(words):output+=f"c.gpr[{reg}]._u32[{lane}]={word:#x}u;\n"
+    output+="}\n}\n"
+    out=ROOT/"analysis/native-geometry/phase3";out.mkdir(parents=True,exist_ok=True)
+    (out/"test-rigid-skin-reference.inc").write_text(output,encoding="utf-8")
+    print("Pinned rigid skin oracle:3 complete rigid data blocks (B348 suffix only);two exact data continuations trapped")
+
+
+if __name__=="__main__":main()

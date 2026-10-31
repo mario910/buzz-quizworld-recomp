@@ -26,6 +26,7 @@
 #include "native_geometry_weighted_skin.h"
 #include "native_geometry_skin_directions.h"
 #include "native_geometry_skin_flow.h"
+#include "native_geometry_rigid_skin.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -170,6 +171,46 @@ extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
+}
+
+extern "C" void buzz_geometry_job_rigid_skin(spu_context* ctx,buzz_geometry_job_fn reference,
+                                              buzz_geometry_job_fn directions,buzz_geometry_job_fn normals)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_rigid_skin_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometryRigidSkin plan;
+    if(!directions || !normals || !buzz::read_geometry_rigid_skin(*ctx,plan)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RIGID_SKIN,0,0);reference(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_rigid_skin_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;g_spu_trampoline_fn!=directions && g_spu_trampoline_fn!=normals;++steps){
+            const auto next=g_spu_trampoline_fn;
+            if(!next || steps>=8192)buzz_geometry_job_native_fail(ctx,"rigid skin reference escaped data boundary");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        expected=g_spu_trampoline_fn;
+        if((expected!=directions || comparison->pc!=0xb4c0) && (expected!=normals || comparison->pc!=0xbb58))
+            buzz_geometry_job_native_fail(ctx,"rigid skin reference PC differs");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::transform_geometry_rigid_skin(*ctx,plan,directions,normals);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/rigid-skin] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"rigid skin strict data/state/boundary differs");
+        }
+        buzz_geometry_job_rigid_skin_result(plan.count,1,plan.aliases);
+    }
+    buzz_geometry_job_rigid_skin_result(plan.count,0,plan.aliases);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RIGID_SKIN,1,0);
 }
 
 extern "C" void buzz_geometry_job_weighted_skin(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,

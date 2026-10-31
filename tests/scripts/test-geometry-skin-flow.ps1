@@ -5,6 +5,8 @@ try {
     & (Join-Path $PSScriptRoot 'assert-geometry-build-idle.ps1')
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-skin-flow-test.py
     if ($LASTEXITCODE) { throw 'Skin-flow oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-rigid-skin-test.py
+    if ($LASTEXITCODE) { throw 'Rigid skin integration oracle generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
@@ -13,4 +15,3 @@ try {
     & .\analysis\native-geometry\phase3\skin-flow-test.exe 2>&1 | Tee-Object -FilePath analysis/native-geometry/phase3/skin-flow-test.log
     if ($LASTEXITCODE) { throw 'Native skin-flow test failed' }
 } finally { Pop-Location }
-

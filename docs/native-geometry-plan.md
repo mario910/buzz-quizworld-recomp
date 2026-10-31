@@ -492,9 +492,9 @@ gates remain open in the separate phase-3 results.
 The reproducible AF18 audit (`tools/inspect/inspect-geometry-skin.py`) maps
 38 region blocks and six directional roots. Its valid path has no DMA;
 the job loader already staged palettes/weights. AF18 control/transpose now
-has a separately switched native implementation below. Rigid skin positions,
-cofactor normals and normalized directional variants still require native
-implementations and gates. Basic directional progress is
+has a separately switched native implementation below. Rigid skin positions now have an implementation below, with real/live gates
+OPEN; cofactor normals and normalized directional variants still require
+native implementations and gates. Basic directional progress is
 recorded below. Replacing B880 does not
 close these inventory rows or phase 3. Strict Stage F remains final phase 7.
 
@@ -530,6 +530,22 @@ three comparison arms. Empty roots and rigid/normalized/cofactor data have
 zero real trace coverage; their real/live gates remain OPEN. Live/render
 results and frozen bindings are recorded in the separate phase-3 report.
 Final performance/default gates remain open, with JOB=0/leaf827/newflags0.
+
+The complete rigid skin data suffix `B348/B3C0/B3C8` now has a native pair
+pipeline, independently controlled by `BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2`,
+default 0. Host AVX2 prefix pairs preserve next-position/index reads before
+aliased stores; explicit final-pair reconstruction keeps all state and exact
+B4C0/BB58 tails. The kernel supports arbitrary masks/shuffles, biased and
+wrapped gathers, and position/index/palette/output aliases. Tests pass
+7,681 strict states, three independent numeric/padding cases and ten unchanged
+rejects, plus 384 strict AF18/actual-rigid-data integration cases. Runtime
+configuration passes 216 cases; first-fallback durability is checked with an
+abrupt process exit. Full driver-entry models and five frozen compatibility
+replays pass 19,508 jobs / 58,195 transfers each. **Zero rigid real-data calls**
+are present: real-corpus/native coverage and the >=256 live strict gate remain
+OPEN. Menu/round compatibility of a flagged build cannot close those gates.
+Cold data, final measurements/defaults and phase3 remain open; the separate
+results document records source/binary/test and scene bindings.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -653,6 +669,7 @@ subject to the kernel gates before replacement.
 | 0xB880/B934/B940 complete weighted data | n/a | complete native opt-in; original setup/final pair replaced; final gates open | `BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN=0/1/2`, default 0 | Five arms19,508 exact/58,195 transfers;6,113native/0fallback incl30actual aliases;6,912strict states+12rejects | >=430,000 strict data+256strict actual aliases;normal native menu/round;native round>=40,000aliases | not measured | |
 | 0xBD4C/BE20 basic skin direction data | n/a | complete native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS=0/1/2`, default 0 | Five arms19,508 exact/58,195 transfers;1,158+3,860native/0fallback;family6,912strict states+3numeric+12rejects | >=1,125,000strict one-stream+680,000strict two-stream;normal native menu/actual round | not measured | |
 | 0xAF18/B078/B100/B4C0/B868 skin orchestration | n/a | native opt-in control/palette; cold/final gates open | `BUZZ_GEOMETRY_JOB_SKIN_FLOW=0/1/2`, default 0 | Five arms19,508exact/58,195transfers;1,628work-native/0fallback;6,600strict+3numeric+3early+18rejects | See phase-3 report; empty/cold data gates OPEN | not measured | |
+| 0xB348 data suffix/B3C0/B3C8 rigid skin data | n/a | complete native implementation; real/live gates OPEN | `BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2`, default0 | 7,681strict+3numeric+10rejects;384AF18/data integration;five compatibility arms19,508exact/58,195transfers;zero real calls | Real/live >=256 gate OPEN; native scene compatibility in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
@@ -767,3 +784,5 @@ See the separate
 | 2026-10-31 | Phase 3 basic skin direction data BD4C/BE20/BF7C | Strict synthetic, five frozen corpus arms and same-EXE scene checks | functional only; no FPS/CPU claim | normal native menu, actual round and checked round | 6,912strict states incl640aliases+3numeric+12rejects;all5,018real roots native/0fallback;each19,508exact/58,195transfers;>=1,125,000strict one-stream+680,000strict two-stream live;200configcases;own0/1/2 default0;BF7C real/live0 OPEN;phase3open |
 
 | 2026-10-31 | Phase3 native AF18 palette/frame/batch/dispatch/publication | Strict synthetic,five frozen corpus arms,same-EXE live/render | functional only;no FPS/CPU claim | normal native menu and actual round | 6,600strict+3numeric+3early+18rejects;208configcases;all1,628work-native/0fallback per enabled replay;each19,508exact/58,195transfers;>=425,000strict live work;own0/1/2 default0;retained/cold data and final gates OPEN |
+
+| 2026-10-31 | Phase3 rigid skin data suffix/B3C0/B3C8 | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,681strict+3numeric+10rejects;384 AF18/data integration;216config+abrupt-exit fallback logging;each replay19,508exact/58,195transfers;zero real/observed live rigid calls;real/256-live gates OPEN;own0/1/2 default0 |

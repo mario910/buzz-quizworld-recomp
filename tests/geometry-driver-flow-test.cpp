@@ -54,6 +54,8 @@ static int skin_dispatch_mode=0;
 static int weighted_skin_mode=0;
 static int skin_directions_mode=0;
 static int skin_flow_mode=0;
+static int rigid_skin_mode=0;
+static unsigned rigid_skin_native=0,rigid_skin_fallback=0,rigid_skin_checked=0,rigid_skin_references=0;
 static unsigned skin_flow_native=0,skin_flow_fallback=0,skin_flow_checked=0,skin_flow_references=0;
 static unsigned skin_directions_native=0,skin_directions_fallback=0,skin_directions_checked=0,skin_directions_references=0;
 static unsigned weighted_skin_native=0,weighted_skin_fallback=0,weighted_skin_checked=0,weighted_skin_references=0;
@@ -105,6 +107,8 @@ int buzz_geometry_job_blend_scatter_enabled(){return blend_scatter_enabled;}
 void buzz_geometry_job_blend_scatter_checked_result(){++blend_checked;}
 int buzz_geometry_job_blend_lists_enabled(){return lists_enabled;}
 int buzz_geometry_job_run_lists_enabled(){return run_lists_mode;}
+int buzz_geometry_job_rigid_skin_enabled(){return rigid_skin_mode;}
+void buzz_geometry_job_rigid_skin_result(unsigned,int checked,int){if(checked)++rigid_skin_checked;}
 int buzz_geometry_job_skin_flow_enabled(){return skin_flow_mode;}
 void buzz_geometry_job_skin_flow_result(int,int checked){if(checked)++skin_flow_checked;}
 int buzz_geometry_job_skin_directions_enabled(){return skin_directions_mode;}
@@ -138,6 +142,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_RIGID_SKIN){assert(routing_probe);if(native)++rigid_skin_native;else ++rigid_skin_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_SKIN_FLOW){assert(routing_probe);if(native)++skin_flow_native;else ++skin_flow_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS){assert(routing_probe);if(native)++skin_directions_native;else ++skin_directions_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN){assert(routing_probe);if(native)++weighted_skin_native;else ++weighted_skin_fallback;return;}
@@ -253,10 +258,12 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 }
 #include "../analysis/native-geometry/phase3/test-skin-dispatch-reference.inc"
 #include "../analysis/native-geometry/phase3/test-weighted-skin-reference.inc"
+#include "../analysis/native-geometry/phase3/test-rigid-skin-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-directions-reference.inc"
 static void skin_flow_trace(spu_context*,uint32_t){}
 static void skin_flow_model(spu_context*,uint32_t){abort();}
 #include "../analysis/native-geometry/phase3/test-skin-flow-reference.inc"
+static void rigid_skin_reference(spu_context* ctx){++rigid_skin_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void skin_flow_reference(spu_context* ctx){++skin_flow_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void skin_directions_reference(spu_context* ctx){++skin_directions_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void weighted_skin_fallback_call(spu_context* ctx){++weighted_skin_references;ctx->pc=ctx->gpr[0]._u32[0];}
@@ -550,6 +557,30 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        rigid_skin_oracle::seed_constants(*ctx);ctx->gpr[80]._u32[0]=0x17000;ctx->gpr[85]._u32[0]=0x12000;
+        ctx->gpr[96]._u32[0]=0x23000;ctx->gpr[54]._u32[0]=0xe800;ctx->gpr[53]._u32[0]=0xe810;ctx->gpr[52]._u32[0]=0xe820;ctx->gpr[0]._u32[0]=0xb4c0;
+        auto* entry=buzz::clone_function_state(ctx);const auto directions=rigid_skin_oracle::buzz_job_6eba_spu_func_0000B4C0,normals=rigid_skin_oracle::buzz_job_6eba_spu_func_0000BB58;
+        for(unsigned shape=0;shape<3;++shape)for(unsigned tail=0;tail<2;++tail)for(unsigned mode=0;mode<3;++mode){
+            memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;
+            ctx->gpr[84]._u32[0]=shape?8:2;ctx->gpr[102]._u32[0]=tail?0x10001:0x10000;
+            if(shape==2)ctx->gpr[96]._u32[0]=ctx->gpr[80]._u32[0]+16;
+            flow_mode=mode==1?2:1;rigid_skin_mode=mode==2?2:1;
+            buzz_geometry_job_rigid_skin(ctx,rigid_skin_oracle::buzz_job_6eba_spu_func_0000B348,directions,normals);
+            assert(ctx->pc==(tail?0xb4c0:0xbb58) && g_spu_trampoline_fn==(tail?directions:normals));
+        }
+        assert(rigid_skin_native==18 && rigid_skin_checked==12 && !rigid_skin_fallback && !rigid_skin_references);
+        flow_mode=1;rigid_skin_mode=0;buzz_geometry_job_rigid_skin(ctx,rigid_skin_reference,directions,normals);rigid_skin_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_rigid_skin(foreign,rigid_skin_reference,directions,normals);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_rigid_skin(ctx,rigid_skin_reference,directions,normals);ctx->image_id=41;
+        buzz_geometry_job_rigid_skin(ctx,rigid_skin_reference,nullptr,normals);
+        buzz_geometry_job_rigid_skin(ctx,rigid_skin_reference,directions,nullptr);
+        ctx->gpr[84]._u32[0]=0;buzz_geometry_job_rigid_skin(ctx,rigid_skin_reference,directions,normals);
+        assert(rigid_skin_references==6 && rigid_skin_fallback==3 && rigid_skin_native==18 && rigid_skin_checked==12);
+        rigid_skin_mode=0;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
+
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         ctx->gpr[1]._u32[0]=0x3f000;ctx->gpr[3]._u32[0]=0xe800;ctx->gpr[0]._u32[0]=0xaf18;
@@ -896,6 +927,8 @@ int main(int argc, char** argv)
     weighted_skin_mode=1;buzz_geometry_job_weighted_skin(native.get(),weighted_skin_fallback_call,weighted_skin_reference,weighted_skin_oracle::buzz_job_6eba_spu_func_0000B4C0,weighted_skin_oracle::buzz_job_6eba_spu_func_0000BB58);
     assert(weighted_skin_references==8 && weighted_skin_native==6 && weighted_skin_fallback==4 && weighted_skin_checked==4);weighted_skin_mode=0;
     puts("Complete weighted skin routing: one-pair/bulk; both strict modes; both tails; foreign/disabled/unsupported/post-scope PASS");
+    rigid_skin_mode=1;buzz_geometry_job_rigid_skin(native.get(),rigid_skin_reference,rigid_skin_oracle::buzz_job_6eba_spu_func_0000B4C0,rigid_skin_oracle::buzz_job_6eba_spu_func_0000BB58);
+    assert(rigid_skin_references==7 && rigid_skin_native==18 && rigid_skin_fallback==3 && rigid_skin_checked==12);rigid_skin_mode=0;
     skin_flow_mode=1;buzz_geometry_job_skin_flow(native.get(),skin_flow_reference,&skin_flow_oracle::library);
     assert(skin_flow_references==7 && skin_flow_native==9 && skin_flow_fallback==3 && skin_flow_checked==6);skin_flow_mode=0;
     skin_directions_mode=1;buzz_geometry_job_skin_directions(native.get(),skin_directions_reference,skin_directions_oracle::buzz_job_6eba_spu_func_0000B868,1);
