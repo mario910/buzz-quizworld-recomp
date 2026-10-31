@@ -23,6 +23,12 @@ it is never counted as a successful comparison. Mismatches abort with the
 first register, LS and control-state differences. Offline checked replay also
 fails if a selected kernel makes zero comparisons.
 
+Checked mode verifies LS ownership on the real entry before creating its
+private copy. Otherwise an external LS could become eligible merely because
+the comparison clone owns its memory. The controller test proves that such
+an entry keeps the reference, does not invoke native code and cannot satisfy
+the nonzero-comparison gate; a subsequent private entry compares normally.
+
 Generate/build with `tests/scripts/build-geometry-phase2.ps1`. It retains
 the existing Stage F wrappers, selects the new generated geometry source,
 requires the audited AVX2/FMA image-41 RTZ build, and refreshes the executable

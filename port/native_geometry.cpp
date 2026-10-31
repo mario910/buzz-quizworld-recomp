@@ -70,6 +70,10 @@ extern "C" void buzz_geometry_run(spu_context* ctx, void (*reference)(spu_contex
         else { ++c.fallback; reference(ctx); }
         return;
     }
+    // The comparison clone owns its LS. Check ownership on the real entry
+    // first, or cloning an external LS would turn a required fallback into
+    // a claimed native comparison. All audited geometry kernels require it.
+    if (ctx->ls != ctx->ls_store) { ++c.fallback; reference(ctx); return; }
     bool handled = buzz::check_function(ctx, reference, native,
         [&](const spu_context& ref, const spu_context& nat, bool continuation) {
             auto d = buzz::compare_function_state(ref, nat);
