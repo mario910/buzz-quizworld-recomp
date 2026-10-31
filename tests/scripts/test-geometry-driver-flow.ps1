@@ -18,6 +18,8 @@ try {
     if ($LASTEXITCODE) { throw 'Blend scatter routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-run-lists-test.py
     if ($LASTEXITCODE) { throw 'Run-list routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-custom-stream-test.py
+    if ($LASTEXITCODE) { throw 'Custom-stream routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-snorm-stream-test.py
     if ($LASTEXITCODE) { throw 'SNORM stream routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-fixed-stream-test.py

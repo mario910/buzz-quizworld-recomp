@@ -21,6 +21,7 @@
 #include "native_geometry_blend_scatter.h"
 #include "native_geometry_blend_lists.h"
 #include "native_geometry_run_lists.h"
+#include "native_geometry_custom_stream.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -175,6 +176,41 @@ extern "C" void buzz_geometry_job_decode_stream(spu_context* ctx, buzz_geometry_
     if (!supported) { reference(ctx); return; }
     buzz::decode_geometry_raw_stream(*ctx, plan);
     SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_decode_custom_stream(spu_context* ctx,buzz_geometry_job_fn reference,buzz_geometry_job_fn descriptors)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_custom_stream_enabled() ||
+       (ctx->gpr[6]._u32[0]&255)<6){buzz_geometry_job_decode_stream(ctx,reference);return;}
+    buzz::GeometryCustomStream plan;
+    if(!descriptors || !buzz::read_geometry_custom_stream(*ctx,plan)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_CUSTOM_STREAM,0,0);
+        buzz_geometry_job_decode_stream(ctx,reference);return;
+    }
+    spu_context* comparison=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_custom_stream_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;g_spu_trampoline_fn!=descriptors;++steps){
+            if(!g_spu_trampoline_fn || steps>=128)buzz_geometry_job_native_fail(ctx,"custom stream reference escaped descriptor handoff");
+            auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        if(comparison->pc!=0x7df8)buzz_geometry_job_native_fail(ctx,"custom stream reference descriptor PC differs");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::dispatch_geometry_custom_stream(*ctx,plan,descriptors);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==descriptors;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/custom-stream] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"custom stream strict state/handoff differs");
+        }
+        buzz_geometry_job_custom_stream_checked_result();
+    }
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_CUSTOM_STREAM,1,0);
 }
 
 extern "C" void buzz_geometry_job_decode_color(spu_context* ctx, buzz_geometry_job_fn reference,

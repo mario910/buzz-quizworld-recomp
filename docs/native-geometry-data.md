@@ -329,11 +329,28 @@ without inspecting unused format/source values.
 context+`0x58` value is the lower non-null input pointer. Config byte 0 bit
 16 instead requires no secondary stream and uses the output stride selected
 by config byte 4, times vertex count, aligned to 16. The stride getter stays
-an explicit original callee in this increment. Custom descriptor decoders
-(`0x7DF8`) and built-in formats 1..5 also retain their original complete
-bodies; native leaves inside them do not establish native whole-decoder
-coverage. The `raw-stream` counter reports these retained paths as fallback,
-separately from native `attributes` control coverage.
+an explicit original callee in that increment. Initially, custom descriptor
+decoding (`0x7DF8`) and built-in formats 1..5 retained their original complete
+bodies; subsequent descriptor/data sections record their native increments.
+Native leaves alone do not establish native whole-decoder coverage.
+The `raw-stream` counter reports its retained paths as fallback, separately
+from native `attributes` control coverage.
+
+The subsequent native custom dispatcher covers the other input format seen
+in the corpus: 255. Audited configuration-byte pairs are `(0,255)` in 18,936
+jobs and `(0,0)` in 572; built-in formats 1..5 have no real corpus occurrences.
+The former 11,414 `raw-stream` fallbacks are custom-dispatch calls, not evidence
+for built-in formats 1..5. `BUZZ_GEOMETRY_JOB_CUSTOM_STREAM=0/1/2` independently
+replaces the nonempty custom path when argument r8's callback is zero and r7
+supplies a descriptor. It saves/restores the complete original 448-byte frame
+and all ABI vectors, then queues `0x7DF8` with r6=original descriptor argument,
+r7=vertex count and r8/r9=zero. All state and the exact pending callee are
+checked at that tail handoff, before the descriptor frame can overwrite the
+old spills. Descriptor iteration/data keep their own switches and checks.
+Custom callbacks/error paths and unimplemented built-in formats retain their
+original whole-stage fallback before mutation. With custom dispatch enabled,
+the combined corpus has 19,508 native raw paths and 11,414 native custom
+handoffs, both without fallback. Built-in 1..5 gates remain separate work.
 
 In the static fixed-point
 path, attribute byte 6 selects an extra 8-byte width record relative to

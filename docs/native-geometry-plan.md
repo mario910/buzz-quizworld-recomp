@@ -446,6 +446,19 @@ live data gate passes at least 580,000 nonempty expansions (plus 260,000
 empty calls), with normal native menu/round readbacks. Final performance/
 default gates remain open; full evidence is in the phase-3 results.
 
+The `0x93F0` custom-descriptor path now has independent native dispatch and an
+exact `0x7DF8` handoff. The corpus audit distinguishes its 11,414 former raw
+fallbacks from built-in formats 1..5, which have zero real occurrences:
+configuration pairs are `(0,255)` in 18,936 jobs and `(0,0)` in 572. Synthetic
+tests pass 5,000 strict state/handoff cases and 13 unchanged/no-I/O rejects;
+176 configuration cases and the complete driver-entry models pass. The first
+combined frozen checked replay passes all 19,508 jobs / 58,195 transfers,
+with 11,414 native custom handoffs / 0 fallback and 19,508 native raw paths /
+0 fallback. All five replay configurations pass; live checking reaches at
+least 410,000 strict handoffs, and native menu/round readbacks look normal.
+Final performance/default gates remain open; this does not validate built-in
+formats 1..5 or close phase 3.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -659,6 +672,8 @@ See the separate
 | 2026-10-31 | Phase 3 native BF8 additional-stream orchestration | Strict synthetic, four frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 2,672 strict +15 rejects;328 native roots/0fallback per enabled corpus arm;each19,508exact/58,195transfers;>=40,000 strict BF8 live roots;160 configuration cases;own0/1 default0;7118data dependency and final performance gates open |
 
 | 2026-10-31 | Phase 3 complete 7118/7298 run-list decoder | Strict/numeric tests, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 10,774 strict/numeric cases inclall65,536encodings +17rejects;1,198native/0fallback =895expanded+303empty;each19,508exact/58,195transfers;>=580,000strict nonemptylive+260,000empty;168configcases;own0/1/2 default0;phase3open |
+
+| 2026-10-31 | Phase 3 native 93F0 custom-descriptor dispatch | Strict synthetic, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 5,000strict state/handoff +13rejects;11,414native/0fallback per enabled arm;each19,508exact/58,195transfers;>=410,000strict live handoffs;176configcases;own0/1/2 default0;built-in1..5 notcovered;phase3open |
 
 ## Risks
 

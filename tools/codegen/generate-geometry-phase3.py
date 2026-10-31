@@ -112,7 +112,7 @@ def main():
         raise SystemExit("Expected one pinned attribute stream entry")
     source = re.sub(stream_pattern, lambda m:
         f"static void {stream_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
-        f"void {stream_name}(spu_context* ctx) {{ buzz_geometry_job_decode_stream(ctx, {stream_name}_reference); }}",
+        f"void {stream_name}(spu_context* ctx) {{ buzz_geometry_job_decode_custom_stream(ctx, {stream_name}_reference, buzz_job_6eba_spu_func_00007DF8); }}",
         source, count=1)
     attribute_name = "buzz_job_6eba_spu_func_0000AC68"
     attribute_pattern = rf"(?ms)^void {attribute_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
@@ -235,7 +235,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 17\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 18\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

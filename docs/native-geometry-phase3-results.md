@@ -14,6 +14,8 @@ enclosing pipeline bodies keep phase 3 open.
 Additional-stream BF8 orchestration is also native opt-in with strict
 corpus/live checks. Its `0x7118/7298` run-list data decoder now has a native
 opt-in implementation; its separate validation is recorded below.
+The custom `0x93F0` dispatcher also has a native implementation through its
+exact descriptor tail handoff; built-in input formats 1..5 remain separate.
 
 ## Driver boundary audit
 
@@ -1390,6 +1392,8 @@ The required phase-3 data inventory after this increment is:
 | Region | Native status | Remaining work |
 |---|---|---|
 | `0x93F0`, storage 0 raw float3 | Complete, opt-in | Final aggregate performance/default gates |
+| `0x93F0`, custom descriptor dispatch | Complete native opt-in control/ABI to `0x7DF8`; strict corpus/live and native render gates pass; separate data decoder switches | Final performance/default decision |
+| `0x93F0`, built-in input formats 1..5 | Original bodies; no real corpus occurrences | Native implementations/validation remain separate; custom coverage is not their coverage |
 | `0x89B0..8B90`, storage 4 U8 color | Complete, opt-in | Final aggregate performance/default gates |
 | `0x9114/9148/92A0`, storage 9 unit vectors | Complete data implementation, opt-in | Final aggregate performance/default gates |
 | `0x85E8`, storage 1 SNORM16 | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
@@ -2230,3 +2234,112 @@ default work. Required built-in raw formats 1..5, remaining enclosing stage
 bodies, the four cold typed-family live gates, interpreter counts and
 reversed same-EXE FPS/normalized worker/process CPU measurements keep
 phase 3 unfinished. Strict Stage F cleanup remains final phase 7.
+
+## Native custom input dispatch 93F0 to 7DF8 (2026-10-31)
+
+The phase-1 inventory contains only input-format pairs `(0,255)` in 18,936
+jobs and `(0,0)` in 572. The existing 11,414 `raw-stream` fallbacks therefore
+must not be attributed to built-in formats 1..5. The new increment replaces
+that real custom-descriptor path, while keeping unimplemented built-ins
+explicitly separate in the inventory.
+
+`port/native_geometry_custom_stream.h` owns the complete nonempty custom
+dispatch: context/header reads, original 448-byte frame and GPR spills,
+argument construction, frame restoration and the queued `0x7DF8` tail.
+No original `0x93F0/9408/9518/9580/95DC/9668` control block runs on the native
+path. It preserves all unused vector lanes and dynamic code-table reads,
+even though some values/spills can be overwritten by the descriptor decoder.
+The pending callee and PC are exact before its frame begins.
+
+Eligibility requires a valid physical LS, aligned safe stack/context,
+nonzero vertex count, a format byte >=6, zero preferred callback word in
+input r8 and a nonzero descriptor in r7. Before any writes, other cases
+delegate to the existing raw/native-or-original path. Opaque callbacks,
+error paths and built-in formats are not relabeled as native custom work.
+`BUZZ_GEOMETRY_JOB_CUSTOM_STREAM=0/1/2` selects original/native/strict handoff,
+default **0**, independently of ATTRIBUTES and the descriptor/data switches.
+The adapter requires protocol **18**, with stage counter 23 (24 counters).
+
+JOB=2 or CUSTOM_STREAM=2 replays the complete original dispatcher on a clone,
+stopping by **callee identity** at `0x7DF8` before executing its data body.
+All GPRs, all 256 KiB LS, architectural controls, PC, pending function,
+image/depth/policy/overlay must match at that function boundary. No field or
+dead spill is excluded. Descriptor iteration and payload code keep their
+separate correctness/native coverage; full-job replay additionally checks
+the composed dispatcher/data flow and every transfer. The handoff counter
+does not by itself claim native descriptor payload coverage.
+
+Validation:
+
+```powershell
+.\tests\scripts\test-geometry-custom-stream.ps1
+.\tests\scripts\test-geometry-job-runtime.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+```
+
+PASS: **5,000 strict state/handoff cases and 13 unchanged/no-I/O rejects**.
+The pinned oracle contains all six original dispatch blocks, with the data
+tail and unsupported zero/error paths trapped. Tests cover every custom
+format byte 6..255, odd/even counts through 65,535, arbitrary GPR/LS bits,
+nonzero upper callback lanes, biased descriptor/source arguments, both
+interrupt states, three host depths and a saved return link equal to the
+handoff PC. Native arguments are also checked independently against the
+descriptor/count contract. Rejections cover context/stack aliases and bounds,
+zero counts/descriptors, fixed formats, callbacks and foreign LS.
+
+PASS: owner/off/foreign/null-tail/callback/error/fixed/zero/post-scope routes,
+independent ATTRIBUTES=0 activation, JOB=2/CUSTOM_STREAM=1 and
+JOB=1/CUSTOM_STREAM=2, all earlier routes, 1,024 pipeline models and 19,508
+real entry models. The 43 controller cases and **176 configuration cases**
+pass; mode 2 is explicitly accepted by the production getter.
+
+Frozen `build-vulkan-phase3-custom-stream-v1`:
+EXE SHA-256 `5775a3c6ed644bede11ca54cc4b525759e6c3a3403ba05467231d97aa7711074`;
+map SHA-256 `b0e766c741ef2b5182fa694b3738d3357d2f4b318818fc3eab233eae51dfd738`.
+Private generated source: `phase3/frozen-custom-stream-v1-source.c`.
+
+All five corpus configurations pass **19,508 exact jobs / 58,195 transfers**,
+zero changed inputs and zero failures, with Stage F=2, mask 827 and no
+replay-contract override:
+
+| Configuration | JOB | Other new flags | CUSTOM_STREAM | Native handoffs / fallback | Strict handoffs |
+|---|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline | 0 |
+| Independent | 2 | 0 | 1 | 11,414 / 0 | 11,414 |
+| Combined native | 1 | 1 | 1 | 11,414 / 0 | 0 |
+| Combined checked | 2 | 1 | 1 | 11,414 / 0 | 11,414 |
+| Handoff checked | 1 | 1 | 2 | 11,414 / 0 | 11,414 |
+
+Combined configurations have **19,508 native raw paths / zero fallback**,
+instead of counting these custom handoffs as raw fallback. The 12,309 native
+descriptor controllers and all previous real codec coverage remain unchanged.
+No built-in 1..5 data path was exercised or validated by this change.
+
+Live checks use that same frozen EXE, fresh private saves, all earlier new
+stage flags=1, GEOMETRY=1, Stage F=1 and leaf mask 827:
+
+- JOB=1/CUSTOM_STREAM=2 checked menu, 60 seconds: 1,430 CSV frames through
+  59,310.863 ms and **at least 410,000 strict full-state/handoff matches**.
+  The original data tail is not executed a second time by this checker.
+- JOB=1/CUSTOM_STREAM=1 native menu, 75 seconds: 2,289 frames through
+  74,854.605 ms. The native frame readback shows the normal menu, UI, crowd
+  and studio stage.
+- JOB=1/CUSTOM_STREAM=1 native round, 60 seconds after
+  `round_start_s=136.5`: 6,077 frames through 196,129.321 ms and **at least
+  5,035,000 native custom handoffs**. The final readback shows the actual
+  green round stage, host, player and scoreboard.
+
+All sessions completed without DIFF/HALT/mismatch. No builds, CPU tests or
+profiling overlapped the functional runs. The original save (`54f28fdc...`)
+and canonical private template (`92ed9caf...`) hashes remain unchanged.
+Private CSV/stderr pairs use
+`analysis/vk-scene-p3-custom-stream-v1-{checked-menu,menu,round}.*`;
+native PPM/PNG frames for menu/round use the same tags under `phase3`.
+`phase3/custom-stream-v1-build.json` binds source/test/docs, frozen EXE/map/
+generated C, original saves and archived evidence.
+
+These are correctness/render observations, not matched FPS or CPU-cycle
+measurements. Performance/default decisions, built-in formats 1..5, cold
+typed families, remaining enclosing bodies and final interpreter/reversed
+A/B/normalized CPU gates still keep phase 3 open. All new defaults remain
+off; strict Stage F cleanup remains final phase 7.

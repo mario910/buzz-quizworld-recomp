@@ -49,6 +49,8 @@ static unsigned emit_references = 0, emit_native[4]{}, emit_fallback[4]{};
 static bool routing_probe = false, commands_enabled = false, command_publish_enabled = false;
 static bool lists_enabled=false;
 static int run_lists_mode=0;
+static int custom_stream_mode=0;
+static unsigned custom_stream_native=0,custom_stream_fallback=0,custom_stream_checked=0,custom_stream_references=0;
 static unsigned run_list_native=0,run_list_fallback=0,run_list_reference_count=0,run_list_checked=0,run_list_expanded=0,run_list_empty=0;
 static unsigned list_native=0,list_fallback=0,list_references=0;
 static unsigned publication_references = 0, publication_native = 0, publication_fallback = 0;
@@ -95,6 +97,8 @@ int buzz_geometry_job_blend_scatter_enabled(){return blend_scatter_enabled;}
 void buzz_geometry_job_blend_scatter_checked_result(){++blend_checked;}
 int buzz_geometry_job_blend_lists_enabled(){return lists_enabled;}
 int buzz_geometry_job_run_lists_enabled(){return run_lists_mode;}
+int buzz_geometry_job_custom_stream_enabled(){return custom_stream_mode;}
+void buzz_geometry_job_custom_stream_checked_result(){++custom_stream_checked;}
 void buzz_geometry_job_run_lists_checked_result(int){++run_list_checked;}
 void buzz_geometry_job_run_lists_native_result(int nonempty){if(nonempty)++run_list_expanded;else ++run_list_empty;}
 void buzz_geometry_job_blend_lists_checked_result(){abort();}
@@ -118,6 +122,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_CUSTOM_STREAM){assert(routing_probe);if(native)++custom_stream_native;else ++custom_stream_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_RUN_LISTS){assert(routing_probe);if(native)++run_list_native;else ++run_list_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_BLEND_LISTS){assert(routing_probe);if(native)++list_native;else ++list_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_I16_STREAM){assert(routing_probe);if(native)++i16_native;else ++i16_fallback;return;}
@@ -217,6 +222,7 @@ static void model_call(spu_context* ctx, unsigned pc)
 #include "../analysis/native-geometry/phase3/test-cmp-stream-reference.inc"
 #include "../analysis/native-geometry/phase3/test-i16-stream-reference.inc"
 #include "../analysis/native-geometry/phase3/test-run-lists-reference.inc"
+#include "../analysis/native-geometry/phase3/test-custom-stream-reference.inc"
 
 static void routing_reference(spu_context* ctx)
 {
@@ -236,6 +242,7 @@ static void u8_integer_reference(spu_context* ctx){++u8_integer_references;ctx->
 static void blend_reference(spu_context* ctx){++blend_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void list_reference(spu_context* ctx){++list_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void run_list_reference(spu_context* ctx){++run_list_reference_count;ctx->pc=ctx->gpr[0]._u32[0];}
+static void custom_stream_reference(spu_context* ctx){++custom_stream_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void snorm_reference(spu_context* ctx){++snorm_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void fixed_reference(spu_context* ctx){++fixed_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void float32_reference(spu_context* ctx){++float32_references;ctx->pc=ctx->gpr[0]._u32[0];}
@@ -502,6 +509,31 @@ static void routing_inside(spu_context* ctx)
 {
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        ctx->gpr[0]._u32[0]=0x7df8;ctx->gpr[1]._u32[0]=0x3f000;ctx->gpr[3]._u32[0]=0xe800;ctx->gpr[4]._u32[0]=0x20000;
+        ctx->gpr[6]._u32[0]=255;ctx->gpr[7]._u32[0]=0x24000;ctx->gpr[8]._u32[0]=0;ctx->pc=0xacd0;
+        ctx->ls[0xe808]=0;ctx->ls[0xe809]=5;
+        auto* entry=buzz::clone_function_state(ctx);g_spu_trampoline_fn=nullptr;custom_stream_mode=1;
+        assert(!attributes_enabled); // The new switch is independent of AC68/raw.
+        buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
+        assert(custom_stream_native==1 && !custom_stream_checked && !custom_stream_references && ctx->pc==0x7df8 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_00007DF8);
+        memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;flow_mode=2;
+        buzz_geometry_job_decode_custom_stream(ctx,buzz_job_6eba_spu_func_000093F0,buzz_job_6eba_spu_func_00007DF8);
+        memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;flow_mode=1;custom_stream_mode=2;
+        buzz_geometry_job_decode_custom_stream(ctx,buzz_job_6eba_spu_func_000093F0,buzz_job_6eba_spu_func_00007DF8);
+        assert(custom_stream_native==3 && custom_stream_checked==2 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_00007DF8);
+        g_spu_trampoline_fn=nullptr;custom_stream_mode=0;buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);custom_stream_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_decode_custom_stream(foreign,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);buzz::release_function_state(foreign);
+        memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;
+        buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,nullptr);
+        ctx->gpr[8]._u32[0]=0x1230;buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
+        ctx->gpr[8]._u32[0]=0;ctx->gpr[7]._u32[0]=0;buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
+        ctx->gpr[7]._u32[0]=0x24000;ctx->gpr[6]._u32[0]=5;buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
+        ctx->gpr[6]._u32[0]=255;ctx->ls[0xe808]=ctx->ls[0xe809]=0;buzz_geometry_job_decode_custom_stream(ctx,custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
+        assert(custom_stream_references==7 && custom_stream_fallback==4);custom_stream_mode=0;
+        buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         auto put16=[&](unsigned at,unsigned v){ctx->ls[at]=uint8_t(v>>8);ctx->ls[at+1]=uint8_t(v);};
         for(unsigned table=0;table<9;++table)for(unsigned i=0;i<8;++i)
             put16(0xd080+table*16+i*2,table<4?(table*8+i)*16:((table-4)*8+i)*2+1);
@@ -718,6 +750,8 @@ int main(int argc, char** argv)
     assert(blend_references==5 && blend_native==3 && blend_fallback==2 && blend_checked==2);blend_scatter_enabled=0;
     run_lists_mode=1;buzz_geometry_job_run_lists(native.get(),run_list_reference,buzz_job_6eba_spu_func_00007298);
     assert(run_list_reference_count==5 && run_list_native==4 && run_list_fallback==2 && run_list_checked==3);run_lists_mode=0;
+    custom_stream_mode=1;buzz_geometry_job_decode_custom_stream(native.get(),custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
+    assert(custom_stream_references==8 && custom_stream_native==3 && custom_stream_fallback==4 && custom_stream_checked==2);custom_stream_mode=0;
     attributes_enabled = false;
     puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;
