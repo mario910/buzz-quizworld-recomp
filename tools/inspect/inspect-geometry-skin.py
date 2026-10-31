@@ -1,5 +1,7 @@
 """Reproduce the pinned image-41 skin controller/data dependency inventory."""
 import hashlib
+import csv
+import io
 import json
 from pathlib import Path
 import re
@@ -43,10 +45,18 @@ def main():
     getters=external-{0xcc70}
     library={pc:functions[pc].split("SPU_RET(ctx);")[0] for pc in getters}
     if any(channel.search(body) or re.search(PREFIX+r"[0-9A-F]+",body) for body in library.values()):raise SystemExit("New skin library side effect")
+    entry_bytes=(ROOT/"analysis/native-geometry/p1-all.entries.csv").read_bytes()
+    entries={int(row["pc"],16):int(row["entries"]) for row in csv.DictReader(io.StringIO(entry_bytes.decode()))}
+    verdict=json.loads((ROOT/"analysis/native-geometry/p1-all-verdict.json").read_text())
+    if verdict["jobs"]!=19508 or verdict["transfers"]!=58195 or verdict["failures"] or entries.get(0x1c18)!=19508:
+        raise SystemExit("Expected validated complete image-41 trace")
+    data_roots=(0xb880,0xbb58,0xbd4c,0xbe20,0xbf7c,0xc14c,0xc280,0xb5a0)
+    real_entries={f"{pc:X}":entries.get(pc,0) for pc in data_roots}
     report={"source_sha256":SOURCE_PIN,"fixture_sha256":FIXTURE_PIN,"entry":"AF18",
             "region_blocks":len(selected),"reachable_region_blocks":len(reached),
             "channel_sites_on_valid_paths":0,"ordinary_library":[f"{pc:X}" for pc in sorted(getters)],
             "error_library":"CC70","directional_table":[f"{pc:X}" for pc in table],
+            "trace_entries_sha256":hashlib.sha256(entry_bytes).hexdigest(),"real_data_entries":real_entries,
             "edges":{f"{pc:X}":[f"{target:X}" for target in sorted(edges[pc])] for pc in sorted(reached)},
             "required_regions":{"controller":"AF18/AFF8/B250/B318/B4C0/B868/C488/C500",
                                 "palette_transpose":"B078/B100","rigid_position":"B348/B3C8",
@@ -56,6 +66,7 @@ def main():
     destination.parent.mkdir(parents=True,exist_ok=True)
     destination.write_text(json.dumps(report,indent=2)+"\n")
     print(f"Pinned skin inventory: {len(reached)}/{len(selected)} region blocks; 5 pure LS library calls; 6 directional roots; zero valid-path channel sites -> {destination}")
+    print("Validated 19,508-job data-root entries:",real_entries)
 
 
 if __name__=="__main__":main()

@@ -1416,7 +1416,10 @@ The required phase-3 data inventory after this increment is:
 | `0xB880/B934/B940`, weighted position/matrix data | Complete native opt-in; original setup/final pair replaced; strict synthetic/corpus/live and native menu/round gates pass, including actual palette aliases | Final performance/default decision; one-pair API inputs observed only synthetically |
 | `0xB348/B3C8`, rigid skin position/matrix data | Original gathered matrix/position kernel | Native data implementation and validation |
 | `0xBB58/BB68`, cofactor/normal data | Original data loop | Native data implementation and validation |
-| `0xB4C0` and directional roots BD4C/BE20/BF7C/C14C/C280/B5A0 | Original LS-table dispatch and six data variants | Native dispatch/data implementations and validation |
+| `0xB4C0`, skin directional dispatch | Original LS-table dispatch | Native control and validation |
+| `0xBD4C/BE20`, basic one/two-stream data | Complete native opt-in; strict synthetic/corpus/live and native menu/round checks pass | Final performance/default decision |
+| `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
+| `0xC14C/C280/B5A0`, normalized directional data | Original three variants | Native data implementations and validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
 | `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
@@ -2607,3 +2610,140 @@ remaining directional kernels, other enclosing stages, built-in formats
 worker/process CPU/default decisions keep phase 3 open. Continue with these
 explicit data/controller dependencies; strict Stage F cleanup stays final
 phase 7.
+
+
+## Complete basic skin direction data BD4C/BE20/BF7C (2026-10-31)
+
+The real phase-1 trace contains **1,158 BD4C roots and 3,860 BE20 roots**;
+BF7C and the normalized/cofactor families have zero real entries. The
+reproducible skin audit now emits these per-root counts and their source
+trace hash alongside its source/fixture-pinned 38-block map. The validated
+trace denominator remains 19,508 jobs and 58,195 transfers.
+
+`port/native_geometry_skin_directions.h` implements complete one/two/three-
+stream unnormalized data kernels. Each uses a host group loop and AVX2 pairs
+for FM/two-FMA matrix arithmetic. First-group matrix/primary vectors come
+from the input GPR cache, even if LS contains different values. Following
+primary/matrix groups are prefetched before stores; secondary/tertiary inputs
+are gathered before the current outputs. Stream/matrix aliases retain these
+dependencies and the original stream store order. The final native state
+materializes every variant-specific intermediate and unused register lane,
+including the speculative next group, pointer/count arithmetic and pending
+B868 continuation. No original data/setup/step/final block runs natively.
+
+`BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS=0/1/2` selects original/native/full-state
+comparison, default **0**. JOB=2 also enforces the independent boundary check.
+A reference clone runs the nine pinned original blocks, stopping by callee
+identity at B868 before the batch continuation. All GPR/LS/architectural
+control/PC/pending-function/image/depth/policy/overlay fields must match;
+there are no state exclusions or new Stage F exceptions. Counters distinguish
+1/2/3 streams and aliases; fallback is separate. Adapter protocol **21**,
+stage **26** (27 counters), is required by CMake.
+
+Eligibility is established before any write: physical LS, 1..3 streams,
+positive multiple-of-four count <=4,096, and all actual writes/lookahead
+reads within the supported LS data range. It supports all quadword pointer
+biases and distinct first/nominal-primary bases. Unsupported shapes or missing
+tails retain the original. It does not impose a first-group LS/GPR equality
+assumption or require disjoint streams/matrix scratch.
+
+```powershell
+.\tests\scripts\test-geometry-skin-directions.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+.\tests\scripts\test-geometry-job-runtime.ps1
+.\toolenv\Scripts\python.exe tools/inspect/inspect-geometry-skin.py
+```
+
+PASS: **6,912 strict full-state/boundary cases, three independent numeric
+identity/cache cases and 12 unchanged/no-I/O rejects**. Each stream-count
+variant has 2,048 random cases and 256 targeted overlap/pointer cases; 640
+of the latter actually overlap streams or matrix inputs. Counts span 4..2,048
+vertices, with arbitrary FP payloads, selector bytes, upper lanes, prefetched
+GPR inputs, all pointer biases, three host depths and both interrupt states.
+Independent numeric cases verify identity transforms and deliberately differ
+the primary GPR cache from LS. The complete original oracle is source-pinned
+and its B868 tail is trapped.
+
+PASS: all three variants' owner/native, both strict activation modes, exact
+tail identity (including r0 collisions), disabled/foreign-image/foreign-context/
+missing-tail/invalid-shape/post-scope routing, previous routes, 1,024 pipeline
+models and 19,508 real entry models. **43 runtime cases and 200 production
+configuration-getter cases** pass.
+
+The first frozen combined checked replay passes **19,508 exact jobs / 58,195
+transfers**, zero input changes or failures, with **5,018 native data roots /
+zero fallback**. All 1,158 single-stream and 3,860 two-stream roots pass strict
+state/boundary checks, alongside 19,508 complete job state/I/O comparisons.
+Three-stream real/native/strict counts remain zero; its real/live gates are
+OPEN. The source trace records 15,364 BD58 and 143,551 BE30 group entries;
+the new host loops replace those original group/step trampolines. These are
+execution counts, not a timing or FPS claim.
+
+Frozen `build-vulkan-phase3-skin-directions-v1`:
+EXE SHA-256 `d30c408a05e8fab2c33775209391f823dd4ba3e6a3f97e1ed6dc78f7aae162de`;
+map SHA-256 `97e57c2f7508c8fa5424eb9a59fd80d6d6798ea04d65ae2c5a233aa7522e5f4d`;
+generated C SHA-256
+`4f1359dc961afd25cfaf46da8b6216b5900fcfe9a6e7fb82497457f4074bec34`,
+preserved as `phase3/frozen-skin-directions-v1-source.c` with frozen copies
+of the four compiled native header/controller sources.
+
+All five frozen configurations pass **19,508 exact jobs / 58,195 transfers**,
+zero input changes and zero failures, Stage F=2 / leaf mask 827 / no contract
+override:
+
+| Configuration | JOB | Other new flags | SKIN_DIRECTIONS | Native 1 / 2 / 3 streams | Strict 1 / 2 / 3 streams | Fallback |
+|---|---|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline | 0 / 0 / 0 | n/a |
+| Independent | 2 | 0 | 1 | 1,158 / 3,860 / 0 | 1,158 / 3,860 / 0 | 0 |
+| Combined native | 1 | 1 | 1 | 1,158 / 3,860 / 0 | 0 / 0 / 0 | 0 |
+| Combined checked | 2 | 1 | 1 | 1,158 / 3,860 / 0 | 1,158 / 3,860 / 0 | 0 |
+| Kernel checked | 1 | 1 | 2 | 1,158 / 3,860 / 0 | 1,158 / 3,860 / 0 | 0 |
+
+Both JOB=2 arms additionally pass 19,508 whole-job state/I/O comparisons.
+Existing weighted, descriptor, stream, scatter, list and publication counts
+are retained. All real directional alias counts are zero in this corpus;
+the overlapping cases remain synthetic coverage.
+
+Live checking uses that same frozen EXE, fresh private saves, all older flags=1,
+GEOMETRY=1, Stage F=1 and leaf mask 827. JOB=1/SKIN_DIRECTIONS=2 checked menu,
+60 seconds, completes 2,213 frames through 59,642.454 ms and **at least
+525,000 strict single-stream checks**, with no DIFF/HALT/mismatch or fallback.
+Two/three-stream calls are zero in the menu; this run does not satisfy their
+live gates. JOB=1/SKIN_DIRECTIONS=1 native menu, 75 seconds, completes 3,356
+frames through 74,772.473 ms with **at least 2,565,000 native single-stream
+calls**, no two/three-stream calls, no DIFF/HALT/mismatch and no fallback.
+The inspected 1280x720 readback shows normal menu UI, studio and crowd.
+
+JOB=1/SKIN_DIRECTIONS=1 native round completes 60 seconds after
+`round_start_s=136.5`: 9,695 frames through 196,256.476 ms, **at least
+3,470,000 native single-stream calls and 1,805,000 two-stream calls**.
+The inspected 1280x720 readback shows the actual green round stage, host,
+player and score display. No DIFF/HALT/mismatch or fallback appears;
+three-stream calls remain zero.
+
+A separate JOB=1/SKIN_DIRECTIONS=2 checked round completes 60 seconds after
+`round_start_s=136.5`: 6,130 frames through 196,449.823 ms, **at least 1,125,000
+strict single-stream and 680,000 strict two-stream comparisons**. Both
+observed functions independently exceed 256 live calls. Its inspected
+1280x720 readback shows the actual green question/round stage, host, player,
+answer panels and score display. No DIFF/HALT/mismatch or fallback appears.
+Three-stream counts remain zero in every real/live run.
+
+All build/test/corpus/live sessions are terminal. No compilation, CPU test
+or profiling overlapped the functional live runs. Original lift/generator,
+original save, canonical private template and LS-table fixture pins remain
+unchanged. Private CSV/stderr pairs use
+`analysis/vk-scene-p3-skin-directions-v1-{checked-menu,menu,round,checked-round}.*`;
+menu/round/checked-round PPM/PNG readbacks use the same tags under `phase3`.
+`phase3/skin-directions-v1-build.json` and archived proofs bind committed
+code/tests/docs, frozen EXE/map/generated C/native sources, static/real trace
+audit, test binaries/logs and frames.
+
+These functional runs establish no matched FPS or CPU-cycle benefit. JOB=0,
+leaf mask 827 and all new flags=0 remain unchanged. BF7C's real/live gates
+stay OPEN; a common-switch default decision must retain that distinction.
+Normalized C14C/C280/B5A0 and cofactor/normal BB58/BB68 are still original,
+as are AF18 palette/batch/publication control and the other remaining phase-3
+inventory rows. Built-in formats, cold typed gates, final interpreter counts,
+reversed A/B and normalized worker/process CPU/default decisions also remain
+open. Strict Stage F reconstruction stays final phase 7.

@@ -106,6 +106,15 @@ def main():
             f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
             f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_{hook}(ctx, {command_name}_reference, &{command_name}_library); }}",
             source, count=1)
+    for streams, pc in enumerate((0xbd4c, 0xbe20, 0xbf7c), 1):
+        direction_name = f"buzz_job_6eba_spu_func_{pc:08X}"
+        direction_pattern = rf"(?ms)^void {direction_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(direction_pattern, source))) != 1:
+            raise SystemExit("Expected one pinned skin direction entry")
+        source = re.sub(direction_pattern, lambda m:
+            f"static void {direction_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {direction_name}(spu_context* ctx) {{ buzz_geometry_job_skin_directions(ctx, {direction_name}_reference, buzz_job_6eba_spu_func_0000B868, {streams}); }}",
+            source, count=1)
     weighted_name = "buzz_job_6eba_spu_func_0000B880"
     weighted_pattern = rf"(?ms)^void {weighted_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(weighted_pattern, source))) != 1:
@@ -253,7 +262,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 20\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 21\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

@@ -491,9 +491,27 @@ gates remain open in the separate phase-3 results.
 The reproducible AF18 audit (`tools/inspect/inspect-geometry-skin.py`) maps
 38 region blocks and six directional roots. Its valid path has no DMA;
 the job loader already staged palettes/weights. AF18 control/transpose,
-rigid skin positions, cofactor normals, and the six directional data variants
-still require native implementations and gates. Replacing B880 does not
+rigid skin positions, cofactor normals and the normalized directional variants
+still require native implementations and gates. Basic directional progress is
+recorded below. Replacing B880 does not
 close these inventory rows or phase 3. Strict Stage F remains final phase 7.
+
+Basic directional kernels `0xBD4C/BE20/BF7C` now have a shared native host
+loop, AVX2 arithmetic and exact per-variant final ABI, independently switched
+by `BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS=0/1/2`, default off. The first primary
+vectors and matrix group are consumed from their GPR cache; following-group
+reads precede stores, including supported stream/matrix aliases. No original
+data/setup/final block executes on this path. Tests pass 6,912 strict states,
+three independent identity/cache checks and 12 unchanged-state rejects;
+200 production configuration cases and the full driver-entry models pass.
+All five frozen configurations pass 19,508 jobs / 58,195 transfers each,
+with all 5,018 enabled data roots native / zero fallback: 1,158 single-stream
+and 3,860 two-stream calls, all strictly checked in the comparison arms.
+BF7C has zero real calls; its real/live gates remain open despite synthetic
+success. Live checking passes at least 1,125,000 single-stream and 680,000
+two-stream comparisons, with normal actual-native menu and round readbacks. Final
+performance/default gates remain open in the separate phase-3 results. Native B4C0 dispatch, normalized C14C/C280/B5A0 and
+cofactor/normal BB58/BB68 remain required, separate work.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -615,6 +633,8 @@ subject to the kernel gates before replacement.
 | 0x12F0 full multipass command emission | n/a | native opt-in; remaining phase gates open | `BUZZ_GEOMETRY_JOB_FULL_COMMANDS=0/1`, default 0 | 5,078 native emissions, zero fallback; four full-corpus arms exact; 8,512 strict state/channel/packet-size cases +32 unchanged-state rejects | >=250,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x09F8 skin/rigid dispatch | n/a | complete native opt-in control/ABI; final gates open | `BUZZ_GEOMETRY_JOB_SKIN_DISPATCH=0/1/2`, default 0 | Five arms19,508 exact/58,195 transfers;1,628 weighted+17,880 rigid native/0fallback;6,144 strict synthetic+8 rejects | >=300,000 strict rigid+135,000 strict weighted;normal native menu/actual round | not measured | |
 | 0xB880/B934/B940 complete weighted data | n/a | complete native opt-in; original setup/final pair replaced; final gates open | `BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN=0/1/2`, default 0 | Five arms19,508 exact/58,195 transfers;6,113native/0fallback incl30actual aliases;6,912strict states+12rejects | >=430,000 strict data+256strict actual aliases;normal native menu/round;native round>=40,000aliases | not measured | |
+| 0xBD4C/BE20 basic skin direction data | n/a | complete native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS=0/1/2`, default 0 | Five arms19,508 exact/58,195 transfers;1,158+3,860native/0fallback;family6,912strict states+3numeric+12rejects | >=1,125,000strict one-stream+680,000strict two-stream;normal native menu/actual round | not measured | |
+| 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),
@@ -725,3 +745,4 @@ See the separate
   boundaries: hash pins catch it; re-audit before regenerating.
 | 2026-10-31 | Phase 3 native 9F8 skin/rigid controller | Strict synthetic, five frozen corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,144 strict state/call-trace+8 rejects;each19,508exact/58,195transfers;1,628weighted+17,880rigid native/0fallback;>=300,000strict rigid+135,000strict weighted live;184configcases;own0/1/2 default0;AF18/B880 data stillrequired;phase3open |
 | 2026-10-31 | Phase 3 complete B880/B934/B940 weighted position/matrix data | Strict synthetic, five frozen V3 corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,912strict states+12rejects;each19,508exact/58,195transfers;all6,113native/0fallback incl30actual palette aliases;>=430,000strict data+256strict aliases live;native round>=7,515,000data+40,000aliases;192configcases;own0/1/2 default0;AF18/other data stillrequired;phase3open |
+| 2026-10-31 | Phase 3 basic skin direction data BD4C/BE20/BF7C | Strict synthetic, five frozen corpus arms and same-EXE scene checks | functional only; no FPS/CPU claim | normal native menu, actual round and checked round | 6,912strict states incl640aliases+3numeric+12rejects;all5,018real roots native/0fallback;each19,508exact/58,195transfers;>=1,125,000strict one-stream+680,000strict two-stream live;200configcases;own0/1/2 default0;BF7C real/live0 OPEN;phase3open |

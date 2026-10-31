@@ -24,6 +24,7 @@
 #include "native_geometry_custom_stream.h"
 #include "native_geometry_skin_dispatch.h"
 #include "native_geometry_weighted_skin.h"
+#include "native_geometry_skin_directions.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -161,6 +162,45 @@ extern "C" void buzz_geometry_job_weighted_skin(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_weighted_skin_result(plan.count,0,plan.palette_alias);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN,1,0);
+}
+
+extern "C" void buzz_geometry_job_skin_directions(spu_context* ctx,buzz_geometry_job_fn reference,buzz_geometry_job_fn tail,unsigned streams)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_skin_directions_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometrySkinDirections plan;const char* reason=nullptr;
+    if(!tail || !buzz::read_geometry_skin_directions(*ctx,streams,plan,&reason)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/skin-directions] first fallback: %s streams=%u count=%u\n",reason?reason:"missing tail",streams,ctx->gpr[84]._u32[0]);
+        reference(ctx);return;
+    }
+    spu_context* comparison=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_skin_directions_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;g_spu_trampoline_fn!=tail;++steps){
+            if(!g_spu_trampoline_fn || steps>=16384)buzz_geometry_job_native_fail(ctx,"skin directions reference escaped data boundary");
+            auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        if(comparison->pc!=0xb868)buzz_geometry_job_native_fail(ctx,"skin directions reference tail PC differs");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::transform_geometry_skin_directions(*ctx,plan,tail);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==tail;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/skin-directions] DIFF streams%u r%d byte%d LS=%X/%u state=%s\n",streams,diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"skin directions strict data/state/boundary differs");
+        }
+        buzz_geometry_job_skin_directions_result(streams,1,plan.aliases);
+    }
+    buzz_geometry_job_skin_directions_result(streams,0,plan.aliases);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS,1,0);
 }
 
 extern "C" void buzz_geometry_job_prepare_commands(spu_context* ctx, buzz_geometry_job_fn reference)

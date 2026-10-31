@@ -958,10 +958,11 @@ AF18 saves a 672-byte frame, transposes each 48-byte palette matrix in place,
 chooses output streams and a scratch capacity, then batches vertices through
 position/matrix kernels and directional kernels. B4C0's 19-entry relative
 LS table at B554 maps selectors 0/1/2 to BD4C/BE20/BF7C, selectors 3..15 to
-B868 (batch continuation), and selectors 16/17/18 to C14C/C280/B5A0. These
-six directional data roots and BB58/BB68's cofactor/normal data remain
-explicit required implementations; replacing the outer controller or B880
-alone does not replace them.
+B868 (batch continuation), and selectors 16/17/18 to C14C/C280/B5A0.
+The six directional roots remain separate data regions. Basic BD4C/BE20/
+BF7C now have native implementations (coverage below); normalized C14C/C280/
+B5A0 and BB58/BB68 cofactor/normal data remain original. Replacing the outer
+controller or B880 alone does not replace these dependencies.
 
 The complete opt-in B880/B934/B940 native kernel uses a host AVX2 prefix
 and a native final-pair calculation with explicit full GPR reconstruction.
@@ -984,6 +985,33 @@ with position/weight inputs before mutation. Palette/output aliases are
 supported: all six rows for a pair are gathered before any write, and the
 following pair sees the previous stores. Correctness/render and remaining gates
 are tracked in the separate phase-3 results.
+
+### Basic skin direction data
+
+The checked phase-1 trace has BD4C=1,158 entries, BE20=3,860 entries, and zero
+entries to BF7C, BB58, C14C, C280 or B5A0. The skin audit now records these
+counts, their trace-entry CSV hash and the validated 19,508-job/58,195-transfer
+trace denominator. The single/two/three-stream native family keeps distinct
+counters; zero real BF7C calls do not satisfy its real/live gates.
+
+BD4C/BE20/BF7C transform four vertices per group through three matrix rows,
+using FM then two FMAs, without normalization. The first primary stream's
+raw and shuffled vectors and first matrix group are **already in GPRs**.
+r40 points to the next matrix group, not the first. Reloading these initial
+values from LS would change the function contract. Secondary/tertiary streams
+are read from r71/r93. Each iteration loads four following primary vectors
+and twelve following matrix quads before any stores. These lookahead values
+survive in registers even after the final group.
+
+The native host loop caches these values explicitly, gathers secondary
+streams before writes, uses AVX2 pairs for the arithmetic, and writes streams
+in the original stream order. It supports aliases between streams/matrix
+scratch and a following group's inputs, quadword-floor pointer biases,
+arbitrary selector bytes and different first-write/nominal-primary pointers.
+Each variant materializes its distinct FM/FMA intermediates, raw secondary
+vectors, final pointers/count lanes, and the exact queued B868 continuation.
+No original setup, data iteration, step or final group is called. The B868
+batch continuation and AF18 caller are separate remaining control work.
 
 ## Reproduction
 
