@@ -2,6 +2,7 @@
 #include "../port/native_geometry_skin_flow.h"
 #include "../port/native_geometry_rigid_skin.h"
 #include "../port/native_geometry_skin_cofactor.h"
+#include "../port/native_geometry_skin_normalized.h"
 #include "../port/native_function_check.h"
 #include <cassert>
 #include <cstdio>
@@ -19,7 +20,9 @@ void spu_img_restore(spu_context* c,int32_t image){assert(c->image_id==image);}
 struct SkinFlowCall {uint32_t callee,pc,depth;u128 registers[128];};
 static std::vector<SkinFlowCall> calls;
 static unsigned trial;
-static bool real_rigid=false,real_cofactor=false;
+static bool real_rigid=false,real_cofactor=false,real_normalized=false,native_normalized_backend=false;
+static unsigned normalized_integration_calls[3]{};
+static void actual_normalized_model(spu_context*,uint32_t);
 static unsigned cofactor_integration_calls=0;
 static void original_rigid_model(spu_context*);
 static uint32_t random_word(uint32_t& s){s^=s<<13;s^=s>>17;s^=s<<5;return s;}
@@ -31,6 +34,7 @@ static void skin_flow_model(spu_context* c,uint32_t pc)
 {
     skin_flow_trace(c,pc);
     if(real_rigid && pc==0xb348){original_rigid_model(c);return;}
+    if(real_normalized && (pc==0xc14c || pc==0xc280 || pc==0xb5a0)){actual_normalized_model(c,pc);return;}
     uint32_t state=pc^c->pc^c->host_depth;
     for(const auto& reg:c->gpr)for(auto word:reg._u32)state=(state^word)*16777619;
     const unsigned count=c->gpr[84]._u32[0];assert(count && !(count&3) && count<=4096);
@@ -46,6 +50,15 @@ static void skin_flow_model(spu_context* c,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-skin-flow-reference.inc"
 #include "../analysis/native-geometry/phase3/test-rigid-skin-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-cofactor-reference.inc"
+#include "../analysis/native-geometry/phase3/test-skin-normalized-reference.inc"
+static void actual_normalized_model(spu_context* c,uint32_t pc)
+{
+    const unsigned streams=pc==0xc14c?1:pc==0xc280?2:3;++normalized_integration_calls[streams-1];
+    const auto tail=skin_normalized_oracle::buzz_job_6eba_spu_func_0000B868;g_spu_trampoline_fn=nullptr;
+    if(native_normalized_backend){GeometrySkinNormalized plan;assert(read_geometry_skin_normalized(*c,streams,plan));transform_geometry_skin_normalized(*c,plan,tail);}
+    else{skin_normalized_oracle::roots[streams-1](c);for(unsigned steps=0;g_spu_trampoline_fn!=tail;++steps){assert(steps<4096 && g_spu_trampoline_fn);auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(c);}}
+    assert(c->pc==0xb868 && g_spu_trampoline_fn==tail);g_spu_trampoline_fn=nullptr;
+}
 static void finish_rigid_model(spu_context* c,bool native_cofactor)
 {
     assert(c->pc==0xb4c0 || c->pc==0xbb58);g_spu_trampoline_fn=nullptr;
@@ -75,6 +88,10 @@ static void original_rigid_native_cofactor_model(spu_context* c)
     skin_flow_trace(c,0xb348);g_spu_trampoline_fn=nullptr;rigid_skin_oracle::buzz_job_6eba_spu_func_0000B348(c);
     for(unsigned steps=0;c->pc!=0xb4c0 && c->pc!=0xbb58;++steps){assert(steps<4096 && g_spu_trampoline_fn);auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(c);}
     finish_rigid_model(c,true);c->pc=0xb4c0;g_spu_trampoline_fn=skin_flow_oracle::buzz_job_6eba_spu_func_0000B4C0;
+}
+static void original_rigid_cofactor_as_library(spu_context* c)
+{
+    skin_flow_trace(c,0xb348);original_rigid_model(c);c->pc=0xb4c0;g_spu_trampoline_fn=skin_flow_oracle::buzz_job_6eba_spu_func_0000B4C0;
 }
 static void skin_flow_dispatch(spu_context* c){skin_flow_oracle::dispatch(c);}
 static void seed(spu_context& c)
@@ -156,6 +173,22 @@ int main()
         assert(g_spu_trampoline_fn==expected && native->host_depth==reference->host_depth && native->image_id==reference->image_id && native->policy_mode==reference->policy_mode && native->resident_ovl==reference->resident_ovl);
         assert(calls.size()==trace.size() && !memcmp(calls.data(),trace.data(),calls.size()*sizeof(SkinFlowCall)));
     }
+    real_normalized=true;
+    for(unsigned backend=0;backend<3;++backend)for(trial=0;trial<384;++trial){
+        seed(*native);native->ls[0xe806]=trial&1?6:5;const unsigned n=4*(1+trial%32);native->ls[0xe808]=n>>8;native->ls[0xe809]=n;
+        const unsigned presence=1+trial%7;
+        for(unsigned stream=1;stream<4;++stream)geometry_job_put32(native->ls+0xe85c+stream*4,(presence&(1<<(stream-1)))?(0x1b000+stream*0x5000+(trial+stream*3)%16):0);
+        if((trial&4) && (presence&1))geometry_job_put32(native->ls+0xe860,0x30000+(trial&15));
+        memcpy(reference.get(),native.get(),sizeof(*native));reference->ls=reference->ls_store;GeometrySkinFlow plan;assert(read_geometry_skin_flow(*native,plan) && plan.work);
+        auto library=skin_flow_oracle::library;library.rigid=backend==0?original_rigid_cofactor_as_library:backend==1?original_rigid_native_cofactor_model:native_rigid_model;
+        calls.clear();g_spu_trampoline_fn=nullptr;native_normalized_backend=false;reference_run(*reference);const auto expected=g_spu_trampoline_fn;const auto trace=calls;
+        calls.clear();g_spu_trampoline_fn=nullptr;native_normalized_backend=true;execute_geometry_skin_flow(*native,plan,library);
+        const auto diff=compare_function_state(*native,*reference);
+        if(!diff.exact()){fprintf(stderr,"skin_flow_real_normalized%u backend%u r%d byte%d LS%X/%u state%s\n",trial,backend,diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");abort();}
+        assert(g_spu_trampoline_fn==expected && native->host_depth==reference->host_depth && native->image_id==reference->image_id && native->policy_mode==reference->policy_mode && native->resident_ovl==reference->resident_ovl);
+        assert(calls.size()==trace.size() && !memcmp(calls.data(),trace.data(),calls.size()*sizeof(SkinFlowCall)));
+    }
+    real_normalized=false;native_normalized_backend=false;for(auto count:normalized_integration_calls)assert(count);
     real_cofactor=false;assert(cofactor_integration_calls>=1536);
     real_rigid=false;
     // Independent packed matrix mapping with the real format's two tables.
@@ -200,5 +233,5 @@ int main()
         assert(!read_geometry_skin_flow(*native,p) && compare_function_state(*native,*before).exact() && !g_spu_trampoline_fn && calls.empty());release_function_state(before);native->ls=native->ls_store;
     }
     assert(work && empty && weighted && rigid);for(auto n:directions)assert(n);
-    printf("Native skin flow:6600 strict full-state/all-GPR call trace cases (work%u empty%u weighted%u rigid%u directions%u/%u/%u/%u/%u/%u);384 strict AF18/native-rigid integration cases (original rigid data oracle;cofactor/direction still models);768 strict AF18/actual-cofactor integration cases (original/native rigid backends,direction still models);3 independent numeric palette/padding cases;3 unused-input early exits;18 unchanged rejects PASS\n",work,empty,weighted,rigid,directions[0],directions[1],directions[2],directions[3],directions[4],directions[5]);
+    printf("Native skin flow:6600 strict full-state/all-GPR call trace cases (work%u empty%u weighted%u rigid%u directions%u/%u/%u/%u/%u/%u);384 strict AF18/native-rigid integration cases (original rigid data oracle;cofactor/direction still models);768 strict AF18/actual-cofactor integration cases (original/native rigid backends,direction still models);1152 strict AF18/actual-normalized integration cases (3 rigid/cofactor backends,all3 direction variants);3 independent numeric palette/padding cases;3 unused-input early exits;18 unchanged rejects PASS\n",work,empty,weighted,rigid,directions[0],directions[1],directions[2],directions[3],directions[4],directions[5]);
 }

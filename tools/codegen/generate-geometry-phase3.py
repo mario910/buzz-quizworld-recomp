@@ -123,6 +123,15 @@ def main():
         f"static void {weighted_name}_phase2(spu_context* ctx) {{{m[1]}}}\n"
         f"void {weighted_name}(spu_context* ctx) {{ buzz_geometry_job_weighted_skin(ctx, {weighted_name}_phase2, {weighted_name}_reference, buzz_job_6eba_spu_func_0000B4C0, buzz_job_6eba_spu_func_0000BB58); }}",
         source, count=1)
+    for streams, pc in enumerate((0xc14c,0xc280,0xb5a0),1):
+        normalized_name = f"buzz_job_6eba_spu_func_{pc:08X}"
+        normalized_pattern = rf"(?ms)^void {normalized_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(normalized_pattern, source))) != 1:
+            raise SystemExit("Expected one pinned normalized direction root")
+        source = re.sub(normalized_pattern, lambda m:
+            f"static void {normalized_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {normalized_name}(spu_context* ctx) {{ buzz_geometry_job_skin_normalized(ctx, {normalized_name}_reference, buzz_job_6eba_spu_func_0000B868, {streams}); }}",
+            source,count=1)
     cofactor_name = "buzz_job_6eba_spu_func_0000BB58"
     cofactor_pattern = rf"(?ms)^void {cofactor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(cofactor_pattern, source))) != 1:
@@ -292,7 +301,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 24\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 25\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

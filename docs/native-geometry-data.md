@@ -1187,3 +1187,42 @@ The real BB58 trace is empty. A compatible corpus replay or normal scene
 with no new data calls cannot satisfy this kernel's nonzero real-corpus or
 >=256 strict live gate. Frozen evidence and open gates are recorded in the
 separate phase-3 results.
+
+
+### Native normalized skin direction streams
+
+`native_geometry_skin_normalized.h` replaces C14C/C154/C158 (one stream),
+C280/C288/C290 (two) and B5A0/B5A8/B5B0 (three), through exact queued B868.
+The first primary raw/Y/Z values and twelve matrix quads are already in GPRs;
+these caches are consumed as supplied, even when different from LS. r40 points
+to the next matrix group. The initial primary write base r33 can also differ
+from nominal r67. Following steps reset r33 to the advanced r67; native host
+loops preserve both addresses and all unused pointer/count lanes.
+
+Each group reads secondary/tertiary inputs and the next four primary values
+and twelve matrix quads before any store. Primary, secondary and tertiary
+streams are written in that order, preserving stream/matrix aliases and
+feedback. Next primary/matrix reads can wrap LS; actual stream writes remain
+bounded physical data writes. Arbitrary incoming masks/shuffles are supported.
+The host prefix uses AVX2 FM+two FMAs per transformed vector, then packs four
+lengths with the original tables and applies exact SPU FRSQEST/FI and scale
+broadcasts. The final group explicitly materializes each variant's distinct
+full ABI, including raw lookahead and result-valued scratch registers.
+No original setup, step, body or final group runs on the native data path.
+
+`BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2` defaults to zero; mode 2 or JOB=2
+compares all GPR/LS bytes, architectural/control state, PC, queued function,
+image/depth/policy/overlay against the complete original region. No Stage F
+exception or tolerance is added. Stage 30 / protocol 25 has 31 stage counters,
+plus per-stream native/strict/alias categories. Unsupported inputs fall back
+before mutation without native credit.
+
+Strict tests cover arbitrary cached values, FP bits/tables, stream/matrix
+aliases, wrapped lookahead and maximum 4,096 vertices in each variant. Separate
+geometric checks verify normalized diag(2,3,4) transforms and deliberately
+different first-group caches, with unchanged padded values. Their 5e-4 tolerance
+is only an additional geometric sanity check; every strict checker remains
+byte-exact. AF18 integration uses actual normalized data and three combinations
+of original/native rigid and cofactor kernels, including scratch feedback.
+The original real trace has zero calls to all three normalized roots; real
+native-corpus and >=256 live gates remain OPEN until actual coverage exists.

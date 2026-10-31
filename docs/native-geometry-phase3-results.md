@@ -19,9 +19,10 @@ exact descriptor tail handoff; built-in input formats 1..5 remain separate.
 The `0x9F8` skin/rigid controller now has native opt-in control through its
 exact weighted-data/normalization tail or return boundary. `0xAF18` now has
 native palette/frame/batch/dispatch/publication control, separately switched.
-Rigid data now has a separately switched implementation below, with no
-observed real/live data coverage. Cofactor data now has an independently switched implementation below, also
-without real/live coverage. Normalized directional data remains original.
+Rigid, cofactor and all three normalized direction variants now have native
+implementations, independently switched below, with no observed real/live
+coverage of those cold data paths. The AF18 data implementation inventory is
+complete; cold coverage and final validation/default gates remain open.
 The complete B880 weighted-data replacement passes strict real replay/live
 and native rendering below; final performance/default gates remain open.
 
@@ -1431,7 +1432,7 @@ The required phase-3 data inventory after this increment is:
 | `0xB4C0`, skin directional dispatch | Native host dispatch within AF18, preserving cached data inputs and all nineteen table entries | Cold target gates and final performance/default decision; each data variant retains its own inventory row |
 | `0xBD4C/BE20`, basic one/two-stream data | Complete native opt-in; strict synthetic/corpus/live and native menu/round checks pass | Final performance/default decision |
 | `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
-| `0xC14C/C280/B5A0`, normalized directional data | Original three variants | Native data implementations and validation |
+| `0xC14C/C280/B5A0`, normalized direction data | Complete native one/two/three-stream implementations with strict synthetic/composed checks; own switch default0 | Nonzero real/native corpus and >=256 live gates OPEN in all variants; final performance/default decision |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
 | `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
@@ -3050,3 +3051,105 @@ remain unchanged. JOB=0 / leaf 827 / all new flags=0 remain unchanged. Phase 3 a
 continuing goal remain active. Next data work is normalized directional
 skinning, followed by other enclosing stages/built-in inputs/cold coverage
 and final gates. Strict Stage F reconstruction remains mandatory final phase 7.
+
+
+## Normalized skin directions: three implementations with open real/live gates
+
+`port/native_geometry_skin_normalized.h` replaces C14C/C154/C158 (one stream),
+C280/C288/C290 (two) and B5A0/B5A8/B5B0 (three), through exact queued B868.
+Host AVX2 prefix groups use FM+two FMAs and the original four-vector packing,
+SPU FRSQEST/FI and scale broadcasts. Explicit final-group calculation preserves
+each variant's distinct full GPR ABI, raw lookahead and pointer/count lanes.
+No original setup, step, body or final group executes on the native path.
+
+The first primary raw/Y/Z vectors and matrix group come from the caller's
+GPR caches, including deliberately different cache/LS values. Initial r33 can
+differ from nominal r67; subsequent steps use the advanced nominal pointer.
+All secondary/tertiary and next primary/matrix inputs are read before stores.
+Primary then secondary then tertiary stores preserve aliases and feedback;
+next input/matrix reads can wrap LS while actual writes remain bounded.
+Arbitrary incoming masks/shuffles are supported. Preflight occurs before
+mutation; unsupported paths return to the original without native credit.
+
+`BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2` defaults to 0; mode 2 or JOB=2 compares
+all GPR/LS bytes, architectural/control state, PC, queued function and image/
+depth/policy/overlay against the original data closure. No Stage F exception,
+register exclusion or strict-check tolerance is added. Protocol 25 / stage 30
+has 31 stage counters and per-stream native/strict/alias counters.
+
+**Strict evidence:** 9,219 full-state/boundary cases = 6,144 random across all
+three variants, 2,304 targeted alias/wrap cases (1,088 overlaps),768 special-FP
+cases and 3 maximum 4,096-vertex cases. Inputs include arbitrary first caches,
+different initial/nominal pointers, standard/arbitrary tables, all pointer
+biases, signed zeros/denormals and maximum/extended SPU values. Twelve rejects
+preserve state and perform no I/O. Nine independent geometric/cache/padding
+checks cover diag(2,3,4) normalization at 4/8/64 vertices in each variant,
+including first-cache values different from LS and unchanged extra records.
+Their 5e-4 geometric tolerance is an additional approximate-root sanity check;
+all strict state/corpus/live comparisons remain byte-exact.
+
+AF18 composition adds 1,152 strict actual-normalized cases using three rigid/
+cofactor library combinations (original/original,original/native,native/native),
+all three normalized targets, formats 5/6, stream selections and scratch
+feedback. Original control uses original data; native control consumes the
+native normalized implementation. Full 128 GPR call transcripts and all exit
+state/LS match. This cohort uses actual rigid/cofactor/normalized data rather
+than directional models. Earlier 6,600 control, 384 actual-rigid, 768 actual-cofactor,
+3 numeric palette, 3 unused-input early and 18 reject cases remain green.
+Owner/off/foreign/image/null-tail/invalid/post-scope routing and both strict
+activation modes pass for every stream variant and one-group/bulk/alias shapes.
+The 1,024 outer models and 19,508 real-entry models pass, along with runtime 43
+controller cases, 232 production-getter cases and abrupt-exit fallback logging.
+There was no pre-freeze arithmetic/state mismatch.
+
+Frozen `build-vulkan-phase3-skin-normalized-v1`:
+EXE `e6e95de8cd0a3dc5ac3b0e28930e76d153086eeef928cec9ed368a854cfee84a`;
+map `3358c4b1d48093c4f8de3c8cdb304b2795b227104b753f30466ad4a3ef388610`;
+generated C `ee0849213b7b715f9be2976d5454f00dec7cb9e592ae8bf307b44877961bcacd`.
+Frozen C and four compiled native header/controller sources are preserved.
+
+All five compatibility arms pass **19,508 exact jobs /58,195 transfers**,
+zero input changes and failures, Stage F=2 / leaf 827/no contract override:
+
+| Compatibility arm | JOB | Older flags | SKIN_NORMALIZED | Native/strict/fallback |
+|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|
+| Independent |2|0|1|0/0/0|
+| Combined native |1|1|1|0/0/0|
+| Combined checked |2|1|1|0/0/0|
+| Kernel checked |1|1|2|0/0/0|
+
+Both JOB=2 arms pass 19,508 whole-job state/I/O comparisons. Combined arms retain
+1,628 AF18, 6,113 weighted roots including 30 palette aliases and 5,018 basic direction
+roots, with zero fallback. **All three normalized variants have zero real
+calls**, matching the original trace. These are compatibility results, not
+real validation of an uncalled kernel. Nonzero native corpus coverage and
+>=256 strict live checks remain **OPEN separately for all three variants**.
+
+Same frozen EXE, fresh private saves, all older flags=1, GEOMETRY=1 / Stage F=1 /
+leaf827, without compilation/CPU tests/profiling overlap:
+
+| Functional compatibility run | JOB/SKIN_NORMALIZED | Frames /last elapsed ms | New native/strict observed |
+|---|---|---|---|
+| Checked menu,60s |1/2|2,788 /59,780.299|0/0 in all3;gate OPEN|
+| Native menu,75s |1/1|3,292 /74,648.948|0/0 in all3;gate OPEN|
+| Native round,60s after start136.5s |1/1|9,337 /196,273.486|0/0 in all3;gate OPEN|
+
+Logs confirm requested modes, no DIFF/HALT/mismatch and no observed new
+native/strict/first-fallback event. Inspected 1280x720 readbacks show normal
+menu/studio/crowd and the actual green round/host/player/score UI. The absence
+of calls leaves the new data gates OPEN; normal rendering cannot close them.
+No matched FPS/CPU benefit is claimed. Final interpreter/reversed A/B and
+normalized worker/process cycle/time/default decisions remain open; repeatable
+CPU savings may matter even with flat FPS.
+
+Private evidence uses `phase3/skin-normalized-v1-*` and
+`analysis/vk-scene-p3-skin-normalized-v1-{checked-menu,menu,round}.*`.
+`phase3/skin-normalized-v1-build.json` and archived proofs bind committed
+sources/tests/docs, frozen binary/map/C/native snapshots, source trace and
+scene data. All sessions are terminal; source/generator/save/template/fixture
+pins remain unchanged. JOB=0 / leaf 827 / all new flags=0 remain unchanged. All AF18
+data families now have native implementations, with cold coverage and final
+gates still open. Phase 3 and the continuing goal remain active: remaining
+index/transform/ring/conversion stages, built-in inputs and final gates still
+require work. Strict Stage F reconstruction remains mandatory final phase 7.
