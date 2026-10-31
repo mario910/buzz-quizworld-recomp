@@ -125,3 +125,51 @@ For each question in sec1 order: question, topic, then 4 answers (6 strings). Mi
 4. Write the .qak little-endian and the .kaq by swapping only the multi-byte fields (`swap_qak`).
 5. Unknowns that a writer should copy from an existing record: textNo, the 0x7FFE word, the flags26 word (8 = no media), reveal byte, and the sec0 constants.
 6. New categories also require `questioncategories.clu` counts. Speech, music and video files are looked up by id.
+
+## 5. `.sdi` video and picture sheets
+
+Header (big-endian u32 words; `SDIVIDEO` at 0x40):
+
+| word | meaning |
+|---|---|
+| 0 | 1 = picture sheet (no audio), 0 = video |
+| 1, 2 | audio rate (48000) and channels (2); 0 for sheets |
+| 4, 5 | width 640, height 368 |
+| 6 | width × height |
+| 7 | fps × 1000 (29970 video, 25000 sheets) |
+| 8 | bitrate |
+| 9 | index offset (0x50) |
+| 10, 11 | stream offset (0x800), twice |
+| 12 | file size |
+| 13 | entry count (frames for sheets) |
+| 14, 15 | video only; unknown |
+| 0x4C | **checksum**: `crc32(h[0:0x4C] with words 14 and 15 swapped) ^ 0xFFFFFFFF ^ 0xFABCDEF7`, stored BE. The loader (`func_00306C00` → `func_0024BDB8`) rejects a mismatch. [C: all 4 shipped files] |
+
+Index: `count` absolute u32 offsets of the 2048-byte pack where each frame's first
+PES (the one carrying PTS/DTS) starts.
+
+Stream: a CRI Sofdec MPEG-1 system stream, 2048-byte packs (mux rate 0x040F39).
+- Pack 0: system header + padding.
+- Pack 1: `SofdecStream` header. LE fields at +0xBC: duration ms, frames, max frame size, average frame size.
+- Pack 2: `@CRITAGS` text tags with frame counts.
+- Then one 2030-byte video PES per pack. A picture's first PES has STD + PTS + DTS = i×3600
+  (25 fps). Following packets have 9 stuffing bytes + STD.
+- MPEG-1 video 640×368, pel-aspect code 0xC, VBV 608. One sequence header + GOP + I-picture per picture.
+
+Picture questions: slot = frame index; **frame 0 is a "Missing Picture" placeholder** [C:
+slot 1 decodes to the printing-press photo used by the printing questions]. The index area
+0x50..0x800 limits a sheet to 428 frames.
+
+## 6. `.rsf` speech
+
+A 32-byte header (see `rsf.py`) followed by ATRAC3 frames. Wrapping the frames as
+WAVE_FORMAT_ATRAC3 (0x270, 14-byte extradata) lets FFmpeg decode them. A silent ATRAC3 frame
+is `0xA0` + zero bytes: sound unit 0x28, 1 band, no gain, no tonal components, no coded subbands.
+
+ATRAC3 bitstream (mono sound unit, as decoded by FFmpeg `atrac3.c`):
+`id 0x28 (6) | bands_coded (2) | per band: gain points (3) [+ level(4) loc(5) each] |
+tonal components (5) [...] | num_subbands (5) | coding mode (1: CLC) | selector (3) per
+subband 0..num_subbands | scale-factor index (6) per coded subband | mantissas`.
+In CLC mode, selector 1 packs 2 coefficients per 4-bit code from {0, 1, −2, −1}, and selectors 2..7
+use signed 3,3,4,4,5,6-bit values. Value = mantissa × 2^((sf−15)/3) × inv_max_quant[selector]
+(1/1.5, 1/2.5, 1/3.5, 1/4.5, 1/7.5, 1/15.5, 1/31.5). `tools/questions/at3enc.py` encodes this.

@@ -149,6 +149,61 @@ Packs and plays one round from a custom pack.
 5. NAMEDTEXT hash, for real pack titles and category names.
 6. Knowledge Is Power import after unpacking.
 
+## Pack builder prototype (`tools/questions/buzzpack.py`)
+
+Builds `<LANG>PACKnnnn.PAK` from a JSON source, or from a KiP export. Not yet
+tested in game. Everything is checked by re-parsing the output.
+
+```
+python -I tools/questions/buzzpack.py from-kip kip_questions.json kip_pl.json --lang pl --images <KiP JPEG dir>
+python -I tools/questions/buzzpack.py build kip_pl.json <USRDIR>/PACK0100/POLPACK0100.PAK <out> --pack 102
+```
+
+Pieces, each verified independently:
+- `buzzround.py`: round writer. Rebuilding all 11 shipped rounds from their parsed form
+  is byte-exact for `.qak`, `.kaq`, `.hdr` and `.hst` (`buzzround.py selftest`).
+- `sdi.py`: picture sheets. FFmpeg encodes MPEG-1 intra pictures, and the tool writes the CRI
+  Sofdec mux, header packs, index and loader checksum. The checksum formula is verified on all
+  shipped SDIs, and the output decodes in FFmpeg.
+- `rsf.py`: ATRAC3 `.rsf` info and decode to WAV via FFmpeg. It can also generate a
+  digitally silent clip (−91 dB), used as placeholder speech.
+- `clu.py`: generated scripts (categories, round packages, register) plus the patched
+  `AddPackInfo`.
+
+KiP Polish result (pack 102): 4,562 questions in 10 subject rounds, 304 pictures, 30 categories,
+15.4 MB. Spot check: the Einstein question's slot 1 frame decodes to the Einstein picture.
+
+Design choices to confirm in game:
+- Categories are re-registered with this pack's own ids (`pack*100+n`), the pack id and
+  existing `CAT_*` keys. There's no `ClearAll`, because the disc pack's script clears
+  everything first, and the load order is unknown.
+- Round numbers are `pack*100 + subject round no` (e.g. 10207), and file names are `p<pack>_<subject>`.
+- Question ids are `pack*100000+n`, and the topic line is a fixed pack string.
+- `AddPackInfo` reuses pack 100's title, description and game-plan names (`p100PackGame*`).
+- Speech: `.rsf` sources are copied, and any other audio (wav/mp3/ogg, KiP `.wem`) is encoded
+  by our own ATRAC3 encoder. Questions without speech share one silent clip.
+
+### ATRAC3 encoder (`tools/questions/at3enc.py`, needs numpy)
+
+This is our own implementation, so no third-party encoder is needed. It produces mono 48 kHz,
+152-byte frames: the format of the game's question speech.
+- **Synthesis model:** mirrors FFmpeg's decoder exactly (QMF tree with band order 0/1 and 3/2,
+  odd-band reversal, 512-point IMDCT, the decoder window, overlap-add). The analysis is its inverse:
+  the transform round trip is 75.5 dB.
+- **Coding:**
+  - CLC mantissas (selectors 1/3/5/6/7) and scale factors `2^((i−15)/3)`.
+  - Allocation binary-searches a per-frame noise threshold to fit 1,216 bits, vectorised across frames.
+  - No gain control or tonal components.
+- **Decoder conventions it follows:**
+  - IMDCT polarity is inverted vs the textbook basis.
+  - FFmpeg derives the band count from the *start* of the last listed subband. When that
+    subband begins a QMF band (0/18/26/30), one uncoded subband is appended.
+- **Verified with FFmpeg's decoder** on Polish KiP speech: gain 0.994, SNR 20.1 dB, segmental
+  21.6 dB, 1,162-sample (24 ms) latency.
+- KiP voice gets +4.5 dB to match Buzz's speech loudness (peak stays below −4 dBFS).
+- In-game decoding goes through the firmware ATRAC decoder lifted in the port. That is the
+  remaining check.
+
 ## Milestone 1: second pack discovery (static work done; run pending)
 
 ### DLC discovery, from the recompiled EBOOT

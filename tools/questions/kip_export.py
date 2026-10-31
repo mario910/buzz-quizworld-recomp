@@ -29,6 +29,31 @@ VOICE_DIRS = {"en": "English(UK)", "pl": "Polish", "ru": "Russian"}
 C_ID, C_KEY, C_ANS, C_CAT, C_IMAGE, C_FRAME, C_TAGS, C_DIFF, C_LINK = 0, 1, 2, 6, 15, 16, 17, 18, 20
 
 
+AT9_GUID = bytes.fromhex("d242e147ba368d4d88fc61654f8c836c")   # 47E142D2-36BA-4D8D-88FC-61654F8C836C
+
+
+def wem_to_at9(d):
+    """Rewrap a Wwise ATRAC9 .wem (fmt tag 0xFFFC) as a standard AT9 WAV that
+    FFmpeg decodes (WAVE_FORMAT_EXTENSIBLE + ATRAC9 GUID, version 1 + config)."""
+    p, ch = 12, {}
+    while p < len(d) - 8:
+        cid, n = d[p:p + 4], struct.unpack_from("<I", d, p + 4)[0]
+        ch[cid] = d[p + 8:p + 8 + n]
+        p += 8 + n + (n & 1)
+    f = ch[b"fmt "]
+    tag, chn, rate, bps, align = struct.unpack_from("<HHIIH", f, 0)
+    if tag != 0xFFFC:
+        raise ValueError(f"not Wwise ATRAC9 (fmt tag {tag:#x})")
+    spb, mask = struct.unpack_from("<HI", f, 18)
+    config, (nsamp,) = f[24:28], struct.unpack_from("<I", f, 28)
+    fmt = struct.pack("<HHIIHHH", 0xFFFE, chn, rate, bps, align, 0, 34) + struct.pack("<HI", spb, mask) \
+        + AT9_GUID + struct.pack("<I", 1) + config + bytes(4)
+    fact = struct.pack("<III", nsamp, 0, 0)
+    body = b"WAVE" + b"fmt " + struct.pack("<I", len(fmt)) + fmt + b"fact" + struct.pack("<I", len(fact)) + fact \
+        + b"data" + struct.pack("<I", len(ch[b"data"])) + ch[b"data"]
+    return b"RIFF" + struct.pack("<I", len(body)) + body
+
+
 def text_assets(assets):
     """Name -> bytes for TextAssets whose names start with KIP_ (Unity
     serialized: u32 len + name, align 4, u32 len + data)."""
