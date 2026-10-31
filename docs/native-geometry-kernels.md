@@ -1,6 +1,6 @@
 # Native image-41 kernels
 
-Phase 2 is in progress. The phase 0/1 base is commit `719f325`. New kernels
+Phase 2 is complete. The phase 0/1 base is commit `719f325`. New kernels
 use strict state checks; the existing Stage F exception remains unchanged.
 
 ## Runtime controls
@@ -8,17 +8,17 @@ use strict state checks; the existing Stage F exception remains unchanged.
 `BUZZ_GEOMETRY=0` forces the lift, `1` runs selected native kernels and `2`
 compares every handled invocation against the lifted reference. The reference
 state is retained in checked mode. `BUZZ_GEOMETRY_KERNELS` is the function bit
-mask; its current default is **803 (0x323)**, intersected with the built mask:
-unit-vector decoder bit 0, skinning bit 1, halfword decoder bit 5, raw float3
-input bit 8 and raw float3 output bit 9. Bits 0/5/8/9 passed their scene
-reversals. Bits 1/8 also reduce worker/process cycles in both CPU reversal
-pairs, with no material frame-time regression.
-Bits 2 (halfword encoder), 10 (pointer generation) and 12 (word fill) remain
+mask; its current default is **827 (0x33B)**, intersected with the built mask:
+unit-vector decoder bit 0, skinning bit 1, triangles bit 3, packed output bit 4,
+halfword decoder bit 5, raw float3 input bit 8 and raw float3 output bit 9.
+Bits 0/5/8/9 passed their scene reversals. Bits 1/3/4/8 also reduce
+worker/process cycles in both CPU reversal pairs, with no material
+frame-time regression. Bits 3/4 improve round FPS in both pairs.
+Bits 2 (halfword encoder), 6 (indices), 10 (pointer generation) and 12 (word fill) remain
 off because their combined scene/CPU results do not justify enabling them.
-Bits 3/4/6 remain off pending scene gates.
-Other function IDs are reserved while their implementations
-are pending; the build advertises its implemented mask and rejects unavailable
-bits. An unhandled input takes the reference and increments fallback;
+Bits 7 and 11 are reserved: their ranked blocks share groups 0 and 9,
+respectively. The build advertises implemented mask 6015 (0x177F) and rejects
+unavailable bits. An unhandled input takes the reference and increments fallback;
 it is never counted as a successful comparison. Mismatches abort with the
 first register, LS and control-state differences. Offline checked replay also
 fails if a selected kernel makes zero comparisons.
@@ -381,7 +381,7 @@ round +2.09% (+2.85%, +1.33%). Bit 9 is now enabled by default. CPU cycles
 fall slightly but CPU time rises, so its default is justified by FPS rather
 than a CPU-time claim. See the phase report for all measurements.
 
-## Bit 3: triangle stitching (`0x7A90`), implementation in validation
+## Bit 3: triangle stitching (`0x7A90`)
 
 This pure loop exits at `0x2738`, including its original stack-register
 restores. The prefix retains eighteen loop-carried GPRs in locals, prepares
@@ -397,8 +397,8 @@ After the first input step, `6*population + 2*(8-population)` is at most 48,
 so one conservative interval check bounds all speculative reads. This
 replaces an expensive second scan of the code stream. Initial table indices,
 population/adjustment, output step and iteration count are checked before
-mutation. Unsupported/debug/interrupt shapes retain the lift. Bit 3 stays
-default-off while scene gates are pending. Public tests pass 440 full states
+mutation. Unsupported/debug/interrupt shapes retain the lift. Bit 3 is now
+on after all scene gates and repeated cycle/CPU-time savings. Public tests pass 440 full states
 (4..256 iterations, random selectors and in-place overlap) and 23
 unchanged-state rejections, with explicit `0x2738` continuation checks.
 Checked and actual-native replay pass all 19,508 jobs / 58,195 transfers:
@@ -406,7 +406,7 @@ Checked and actual-native replay pass all 19,508 jobs / 58,195 transfers:
 A 60 s live run selecting all eleven groups records at least 256 strict
 triangle matches and no differences.
 
-## Bit 6: index expansion (`0x78A8`), implementation in validation
+## Bit 6: index expansion (`0x78A8`)
 
 The prefix keeps thirteen live GPRs in locals and predecodes fixed shuffle
 controls once. All control-byte values and logical input-address wrap are
@@ -423,9 +423,10 @@ with arbitrary selectors and wrapping input, plus eleven unchanged-state
 rejections. Both continuations are explicitly checked. Checked and
 actual-native replay pass all 19,508 jobs: 12,385 exact groups and 7,123
 fallback, zero divergences or failures. The same 60 s live run records at
-least 256 strict index matches. Bit 6 remains default-off pending scene gates.
+least 256 strict index matches. Bit 6 remains default-off: both menu FPS
+pairs decline, with no repeated CPU savings and higher CPU time in both pairs.
 
-## Bit 4: packed 11/11/10 output (`0x5008/51E0/51C8`), in validation
+## Bit 4: packed 11/11/10 output (`0x5008/51E0/51C8`)
 
 The replacement covers remaining columns, entered at `0x5008` and exiting
 at `0x4610`. AVX2 pairs preserve SPU RTZ FMA followed by CFLTS scale 31 and
@@ -446,12 +447,19 @@ for all 440 cases and three straddled fallback shapes; 22 rejection cases
 leave state/continuation unchanged. Checked and actual-native replay pass
 all 19,508 jobs: 2,665 exact groups and 1,759 fallback, zero divergences or
 failures. The same 60 s live run records at least 256 strict packed-output
-matches. Bit 4 stays default-off pending scene gates.
+matches. Bit 4 is now on: repeated pool/process cycle savings and round FPS
+gains accompany effectively flat menu frame times. CPU-time pairs are mixed,
+so no CPU-time saving is claimed.
 
 Private eleven-kernel logs: `phase2/final11-mode{2,1}.log` and
 `analysis/vk-scene-p2-final11-live.stderr.log`. The frozen executable and
 all source hashes are bound by `phase2/final11-build.json`; the original
-game save is unchanged. Renderer and isolated scene reversals remain open.
+game save is unchanged. All native menu/round frames look normal and the
+isolated scene reversals are complete (`phase2/last3-ab-report.json`).
+Triangles/packed output improve round FPS by 2.91%/2.42%, with flat menu
+frame times; indices have two negative menu FPS pairs. Separate non-suspending
+CPU series `p2-cpu-last3-menu` supports enabling bits 3/4 and leaving bit 6
+off. Measurements and final default validation are tracked in the phase 2 report.
 
 ## Isolated kernel batches
 

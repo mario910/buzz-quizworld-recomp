@@ -1,9 +1,10 @@
-# Native geometry phase 2: results and open gates
+# Native geometry phase 2: results
 
-Status: **in progress**, as of 2026-10-31. This is an interim results report,
-not a declaration that phase 2 is complete. The active goal remains phase 2;
-the next goal will be created after its remaining implementations and gates
-are resolved and this report is finalized and committed.
+Status: **complete**, 2026-10-31. All 13 ranked image-41 blocks are implemented
+as eleven independently selectable groups. Every group passed its correctness,
+live, renderer and reversed scene gates. Seven groups are enabled by default;
+four remain opt-in because their measurements do not justify enabling them.
+The next phase is the native whole-job flow, phase 3.
 
 The phase 0/1 base is `719f325`. Contracts and reproduction details are in
 [native-geometry-kernels.md](native-geometry-kernels.md); the roadmap and
@@ -41,7 +42,9 @@ Latest private corpus logs: `analysis/native-geometry/phase2/final11-mode{2,1}.l
 The final three groups' live log is `analysis/vk-scene-p2-final11-live.stderr.log`;
 their source/executable binding is `phase2/final11-build.json`. All 13 ranked
 blocks are now covered by eleven groups, without counting `9148/92A0` or
-`4750/4808` twice. Final-three renderer/A/B gates remain open.
+`4750/4808` twice. All eleven groups have normal native menu/round renderer
+dumps and completed reversed scene measurements. CPU measurements, default
+decisions and final selected-default validation are complete.
 
 Series `p2-batch2-ab` has normal native menu/round dumps for raw float3 input,
 raw float3 output and word fill, plus the default mask. Its bit-8 menu reverse run
@@ -72,9 +75,12 @@ sessions should not be compared as an accumulated improvement.
 | Raw float3 input | 32.52 -> 32.62 (+0.28%) | 41.19 -> 41.29 (+0.23%) | on; repeated cycle/process-CPU-time savings |
 | Raw float3 output | 32.32 -> 32.73 (+1.25%) | 41.19 -> 42.06 (+2.09%) | on; all FPS pairs positive |
 | BE word fill | 32.32 -> 32.44 (+0.36%) | 41.19 -> 40.91 (-0.69%) | off; mixed process indicators and round decline |
+| Triangle stitching | 32.82 -> 32.86 (+0.13%) | 40.50 -> 41.68 (+2.91%) | on; repeated worker/process cycle and CPU-time savings |
+| Packed 11/11/10 output | 32.82 -> 32.74 (-0.23%) | 40.50 -> 41.48 (+2.42%) | on; repeated cycle savings, flat menu frame times |
+| Index expansion | 32.82 -> 32.47 (-1.05%) | 40.50 -> 40.76 (+0.63%) | off; menu decline and no CPU saving |
 
-Both groups have normal menu/round native renderer dumps and completed
-reversed pairs. Private reports are `phase2/unit24-ab-report.json` and
+Unit vectors and skinning have normal menu/round native renderer dumps and
+completed reversed pairs. Private reports are `phase2/unit24-ab-report.json` and
 `phase2/skin-ab-report.json` under `analysis/native-geometry/`.
 
 The shared-reference series `p2-batch1-ab` completed all sixteen runs. The
@@ -92,6 +98,23 @@ The executable and initial save hashes were checked throughout the series.
 | Raw float3 input | +0.30%, +0.26% | +0.09%, +0.37% |
 | Raw float3 output | +0.97%, +1.55% | +2.85%, +1.33% |
 | BE word fill | -0.55%, +1.28% | -0.04%, -1.33% |
+| Triangle stitching | +0.66%, -0.40% | +4.09%, +1.71% |
+| Packed 11/11/10 output | -0.84%, +0.37% | +2.63%, +2.20% |
+| Index expansion | -0.61%, -1.50% | -0.20%, +1.47% |
+
+The final three groups' series `p2-last3-ab` completed all sixteen runs on
+frozen EXE SHA256
+`08c6fe0c65f3c9f787e8b17cb2541d10d126a55365cdd2943648fb7f7d7f7ad1`.
+Each scene uses masks 803/811/819/867/867/819/811/803. All menu/round dumps
+for the three native arms and baseline were visually checked; host/camera,
+monitor and scroller animation phases can differ. Private evidence:
+`phase2/last3-ab-report.json` and `phase2/last3-visual-audit.json`.
+Menu median/p90 milliseconds are 32.69/38.99 at baseline, 32.67/39.01 for
+triangles, 32.66/39.08 for packed output and 33.04/39.35 for indices.
+Round median/p90 are 24.87/28.45 at baseline, 24.26/27.99, 24.52/28.21 and
+24.81/28.28 respectively. Menu is effectively flat for triangles/packed
+output; indices regress in both menu reversal pairs. The separate CPU series
+below completes the default decisions.
 
 These small effects have visible run-to-run variation; a positive average
 does not establish a repeatable gain for every kernel. Decoder reversal
@@ -178,13 +201,48 @@ for every selected group, with no differences (`vk-scene-p2-defaults803-live.std
 three groups' scene gates. Its generated geometry C is identical to the
 eleven-kernel validation; only the default changed.
 
-## Remaining work before phase closure
+The final CPU series `p2-cpu-last3-menu` completed all eight menu runs on
+the same frozen EXE as the FPS series, with masks
+803/811/819/867/867/819/811/803 and all readbacks disabled. Private report:
+`phase2/cpu-last3-menu-report.json`; exact map binding:
+`phase2/cpu-last3-binding.json`.
 
-- Finish `7A90`, `51E0` and `78A8` renderer/A/B gates and default decisions.
-- Validate the final selected defaults again when the remaining phase kernels resolve.
-- Collect matched CPU-cost evidence wherever the default decision relies on
-  CPU savings rather than an FPS gain.
-- Validate the final selected defaults, update this report with complete
-  measurements and commit the phase results.
-- Only then close phase 2 and set the next goal to phase 3. Keep the planned
-  strict Stage F correction as the final roadmap phase 7.
+| Kernel | Pool cycles/frame | Process cycles/frame | Pool CPU ms/frame | Process CPU ms/frame |
+|---|---|---|---|---|
+| Triangle stitching | -0.64% (-0.54%, -0.74%) | -0.50% (-0.54%, -0.46%) | -0.83% (-0.97%, -0.70%) | -0.63% (-1.20%, -0.07%) |
+| Packed 11/11/10 output | -0.25% (-0.09%, -0.40%) | -0.24% (-0.36%, -0.12%) | -0.02% (-0.17%, +0.13%) | -0.09% (-0.23%, +0.04%) |
+| Index expansion | +0.11% (+0.44%, -0.23%) | +0.17% (+0.35%, -0.00%) | +0.12% (+0.09%, +0.15%) | +0.34% (+0.16%, +0.53%) |
+
+Triangles save cycles and CPU time in every pair. Packed output saves pool
+and process cycles in both pairs, while CPU time is effectively flat/mixed;
+no CPU-time saving is claimed for it. Both groups improve round FPS in both
+pairs without a material menu frame-time regression, supporting default-on.
+Indices remain off: both menu FPS pairs decline, neither cycle metric shows
+repeatable savings and both CPU-time metrics increase in both pairs.
+Final selected mask **827 (0x33B)** adds bits 3/4 to 803. It enables seven of
+the eleven implemented groups; bits 2/6/10/12 remain opt-in.
+
+## Phase closure and next phase
+
+Final default **827 (0x33B)** passes all 19,508 jobs / 58,195 transfers in
+both checked and separate native geometry execution, without a mask override
+(`phase2/defaults827-mode{2,1}.log`). Stage F retains its established baseline
+contract as described above. A 45 s live run without a mask override records
+`0x33B`, at least 256 strict full-state matches for each of the seven selected
+groups and no differences (`vk-scene-p2-defaults827-live.stderr.log`). Separate
+actual-native default menu and round runs completed normally; both frame
+dumps were visually checked and look normal (`phase2/defaults827-{menu,round}.png`).
+
+`phase2/defaults827-build.json` binds the final sources and frozen EXE SHA256
+`09e235b563b99830a020984e3cfcd5f6a2c6595a7fb48fcdb97a6a205ab99efa`.
+Generated geometry C is byte-identical to the eleven-kernel validation;
+only the runtime default changed. `phase2/phase2-closure-audit.json` records
+the source/EXE, corpus, live, native-renderer and report hashes. The pinned
+original lift and original game save hashes remain unchanged. Captured game
+data and derived artifacts remain private.
+
+The per-group commits are listed above; this report and the final default
+selection close phase 2. Phase 3 will replace the whole image-41 job flow,
+reuse these routines and retain the lift for unsupported descriptors. It
+has not been implemented in phase 2. Strict Stage F reconstruction remains
+the mandatory final phase 7; its temporary baseline exception is unchanged.

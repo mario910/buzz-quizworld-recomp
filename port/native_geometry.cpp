@@ -17,9 +17,9 @@ constexpr unsigned count = sizeof(pcs) / sizeof(*pcs);
 constexpr unsigned available = BUZZ_GEOMETRY_AVAILABLE;
 struct Counters { std::atomic<unsigned long long> native{0}, fallback{0}, checked{0}, failed{0}; } counters[count];
 int mode = 1;
-// Bits 0/5/8/9 passed both scene reversals. Bits 1/8 also save pool/process
+// Bits 0/5/8/9 passed both scene reversals. Bits 1/3/4/8 also save pool/process
 // cycles in both CPU reversal pairs; all correctness/render gates passed.
-unsigned kernels = 803u & available;
+unsigned kernels = 827u & available;
 
 struct Init {
     Init() {
