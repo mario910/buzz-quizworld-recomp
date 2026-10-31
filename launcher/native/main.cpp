@@ -50,7 +50,7 @@ int main(int argc,char** argv) {
             Json diagnostic=Json::object();
             // Never dump the inherited environment (which may contain tokens).
             for(const auto* key:{"SPURS_JOB_LIST_WORKERS","SPURS_JOB_LIST_IMAGE","SPURS_JOB_LIST_EXTRA_IMAGES","SPURS_JOB_LS_EXCHANGE","SPURS_JOB_LS_PUBLISH","SPURS_JOB_CACHE_ENV","RSX_CACHE_ENV","SPURS_MERGE_READY_LISTS","SPURS_NATIVE_EXTRA_FP","RSX_GUEST_SAMPLERS","RSX_PIXEL_WINDOW","SPURS_JTS_WAKE","SPURS_JTS_DMA_WAKE","SPURS_GUARD_POLL_ONLY","BUZZ_STAGEF","SPURS_POOL_SPIN_US","SPURS_JTS_SPIN_US","SPURS_JOB_LS_ZERO","BUZZ_COMPLETION_QUEUE","BUZZ_NATIVE_COMPLETION","GCM_SECOND_V","RSX_TRACK_ZETA","RSX_VERTEX_CAPACITY","RSX_DRAW_CAPACITY","RSX_TEXTURE_CAPACITY","PS3_USLEEP_TIMER_TAIL_US","BUZZ_NO_FMV"})if(env.count(key))diagnostic[key]=env.at(key);
-            Json preferences={{"configured",s.pc_configured},{"volume",s.pc.volume_percent},{"fps_limit",s.pc.fps_limit},{"fullscreen",s.pc.fullscreen},{"offline",s.offline}};
+            Json preferences={{"configured",s.pc_configured},{"volume",s.pc.volume_percent},{"fps_limit",s.pc.fps_limit},{"fullscreen",s.pc.fullscreen},{"window_width",s.pc.window_width},{"window_height",s.pc.window_height},{"render_scale",s.pc.render_scale},{"offline",s.offline}};
             std::cout<<Json{{"executable",utf8(b.executable)},{"elf",s.paths.at("eboot_elf")},{"cwd",utf8(b.root/"runtime")},{"runtime_options",diagnostic},{"input_ini",input_ini(s)},{"preferences",preferences}}.dump(2)<<'\n';return 0;
         }
         if(executable_running(b.executable))throw std::runtime_error("This game build is already running");

@@ -45,6 +45,7 @@ void apply_live(const buzz_pc::Preferences& p) {
     ps3_host_set_volume(p.volume_percent);
     ps3_host_set_frame_limit(p.fps_limit);
     ps3_host_set_fullscreen(p.fullscreen);
+    ps3_host_set_window_size(p.window_width,p.window_height);
 }
 }
 bool buzz_pc_runtime_init() {
@@ -66,7 +67,9 @@ bool buzz_pc_runtime_init() {
             if(!fs::is_regular_file(preferences_file)||fs::file_size(preferences_file)>4096)throw std::runtime_error("Invalid/oversized pc-settings.ini");
             std::ifstream in(preferences_file,std::ios::binary);if(!in)throw std::runtime_error("Cannot read pc-settings.ini");
             std::string text{std::istreambuf_iterator<char>(in),{}},error;
-            if(!buzz_pc::parse(text,p,error))throw std::runtime_error(error);
+            bool display_reset=false;
+            if(!buzz_pc::parse_with_display_fallback(text,p,error,display_reset))throw std::runtime_error(error);
+            if(display_reset)fprintf(stderr,"[pc-settings] %s; using the default window size and internal resolution\n",error.c_str());
             if(!renderer_available(p.renderer))throw std::runtime_error("Requested renderer is not available in this build");
 #ifdef _WIN32
             if(_putenv_s("BUZZ_OFFLINE",p.offline?"1":"0"))throw std::runtime_error("Cannot select offline policy");
@@ -74,15 +77,21 @@ bool buzz_pc_runtime_init() {
             if(setenv("BUZZ_OFFLINE",p.offline?"1":"0",1))throw std::runtime_error("Cannot select offline policy");
 #endif
             apply_live(p);
+            // Read once by the renderer when it creates its targets.
+            ps3_host_set_render_scale(p.render_scale);
         }
         state=std::make_unique<buzz_pc::State>(p);
-        fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline);
+        fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%%\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale);
         return true;
     }catch(const std::exception& e){fprintf(stderr,"[pc-settings] %s\n",e.what());return false;}
 }
 buzz_pc::Preferences buzz_pc_requested_preferences() {
     std::lock_guard lock(apply_mutex);
     return state?state->requested():buzz_pc::Preferences{};
+}
+unsigned buzz_pc_active_render_scale() {
+    std::lock_guard lock(apply_mutex);
+    return state?state->active().render_scale:100;
 }
 void buzz_pc_phone_initialize(unsigned players,buzz_phone::Server::Input input) {
     std::lock_guard lock(apply_mutex);phone_players=players;phone_input=std::move(input);

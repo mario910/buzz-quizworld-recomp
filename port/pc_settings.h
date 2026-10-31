@@ -10,7 +10,13 @@ enum class Renderer { automatic, d3d12, vulkan };
 struct Preferences {
     unsigned volume_percent = 100;
     unsigned fps_limit = 30; // Only 0 (uncapped) or 30, not a simulation-speed knob.
-    bool fullscreen = false;
+    bool fullscreen = false; // Borderless at the desktop resolution of the window's monitor.
+    // Windowed client size in physical pixels. 0x0 keeps the backend's own
+    // default size; the backend shrinks it to fit the monitor's work area.
+    unsigned window_width = 0, window_height = 0;
+    // Internal rendering resolution, in percent of the guest's own surfaces
+    // (1280x720 at 100). Independent of the window/swapchain size above.
+    unsigned render_scale = 100;
     bool offline = true;
     Renderer renderer = Renderer::automatic;
     bool phone_buzzers = false;
@@ -21,7 +27,19 @@ inline bool operator!=(const Preferences& a,const Preferences& b){return !(a==b)
 bool validate(const Preferences&,std::string& error);
 std::string serialize(const Preferences&);
 bool parse(const std::string&,Preferences&,std::string& error);
-enum Restart : uint32_t { no_restart = 0, network_restart = 1, renderer_restart = 2 };
+// The game's startup read. A file whose only problem is its display keys
+// (window size / internal resolution) still loads, with those keys at their
+// defaults; display_reset reports it. Anything else fails as parse() does.
+bool parse_with_display_fallback(const std::string&,Preferences&,std::string& error,bool& display_reset);
+enum Restart : uint32_t { no_restart = 0, network_restart = 1, renderer_restart = 2, resolution_restart = 4 };
+struct Size {unsigned width,height;};
+// Window size presets offered by the UIs; any other valid size is "custom".
+inline constexpr Size window_presets[] = {{1280,720},{1920,1080},{2560,1440},{3840,2160}};
+inline constexpr unsigned min_window_width = 640, min_window_height = 360, max_window_extent = 7680;
+// Internal resolution presets, as render_scale percentages of 1280x720.
+inline constexpr unsigned render_scale_presets[] = {100,150,200,300};
+inline constexpr unsigned min_render_scale = 100, max_render_scale = 300;
+bool valid_window_size(unsigned width,unsigned height);
 struct Change {
     bool accepted = false;
     uint32_t restart = no_restart;

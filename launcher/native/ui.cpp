@@ -217,6 +217,64 @@ void synthetic_input_check(App& app) {
     check(virtual_key(SDLK_F24)==135&&virtual_key(SDLK_RSHIFT)==161&&virtual_key(SDLK_KP_1)==0x61);
     app.settings=saved;app.status=saved_status;app.record_count=0;
 }
+// Display (window/swapchain) size and internal render resolution: two
+// separate settings, shown in two separate groups.
+void display_settings(App& app) {
+    auto& pc=app.settings.pc;
+    int mode=pc.fullscreen?1:0;ImGui::SetNextItemWidth(260);
+    if(ImGui::Combo("Display mode",&mode,"Windowed\0Borderless fullscreen (desktop resolution)\0")){pc.fullscreen=mode==1;app.settings.pc_configured=true;}
+    constexpr int presets=int(sizeof(buzz_pc::window_presets)/sizeof(buzz_pc::window_presets[0]));
+    static bool custom_chosen=false;
+    int choice=pc.window_width?presets+1:0;
+    for(int i=0;i<presets;++i)if(buzz_pc::window_presets[i].width==pc.window_width&&buzz_pc::window_presets[i].height==pc.window_height)choice=i+1;
+    if(custom_chosen&&pc.window_width)choice=presets+1;
+    auto label=[&](int i)->std::string{
+        if(i==0)return "Default (1280x720)";
+        if(i<=presets)return std::to_string(buzz_pc::window_presets[i-1].width)+"x"+std::to_string(buzz_pc::window_presets[i-1].height);
+        return "Custom...";
+    };
+    ImGui::BeginDisabled(pc.fullscreen);
+    ImGui::SetNextItemWidth(260);
+    if(ImGui::BeginCombo("Window size",label(choice).c_str())) {
+        for(int i=0;i<=presets+1;++i)if(ImGui::Selectable(label(i).c_str(),i==choice)) {
+            custom_chosen=i==presets+1;
+            if(i==0){pc.window_width=pc.window_height=0;}
+            else if(i<=presets){pc.window_width=buzz_pc::window_presets[i-1].width;pc.window_height=buzz_pc::window_presets[i-1].height;}
+            else if(!pc.window_width){pc.window_width=1600;pc.window_height=900;}
+            app.settings.pc_configured=true;
+        }
+        ImGui::EndCombo();
+    }
+    if(choice==presets+1) {
+        int w=int(pc.window_width),h=int(pc.window_height);
+        ImGui::SetNextItemWidth(125);const bool cw=ImGui::InputInt("##custom-width",&w,0,0);ImGui::SameLine();ImGui::TextUnformatted("x");ImGui::SameLine();
+        ImGui::SetNextItemWidth(125);const bool ch=ImGui::InputInt("Custom width x height",&h,0,0);
+        if(cw||ch) {
+            // Always a valid size: the INI never receives an unloadable value.
+            pc.window_width=unsigned(std::clamp(w,int(buzz_pc::min_window_width),int(buzz_pc::max_window_extent)));
+            pc.window_height=unsigned(std::clamp(h,int(buzz_pc::min_window_height),int(buzz_pc::max_window_extent)));
+            app.settings.pc_configured=true;
+        }
+        ImGui::TextDisabled("%u-%u x %u-%u pixels.",buzz_pc::min_window_width,buzz_pc::max_window_extent,buzz_pc::min_window_height,buzz_pc::max_window_extent);
+    }
+    ImGui::EndDisabled();
+    SDL_Rect usable{};
+    if(!pc.fullscreen&&pc.window_width&&SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(),&usable)&&
+       (int(pc.window_width)>usable.w||int(pc.window_height)>usable.h))
+        ImGui::TextColored(ImVec4(1,.65f,.25f,1),"Larger than this screen (%dx%d available): the game shrinks the window to fit, keeping its shape.",usable.w,usable.h);
+    ImGui::TextDisabled("Window size and fullscreen apply live in the game (Escape menu). The picture keeps its 16:9 shape, with bars if needed.");
+    ImGui::Spacing();
+    int scale=0;
+    constexpr int scales=int(sizeof(buzz_pc::render_scale_presets)/sizeof(buzz_pc::render_scale_presets[0]));
+    for(int i=0;i<scales;++i)if(buzz_pc::render_scale_presets[i]<=pc.render_scale)scale=i;
+    auto res=[](unsigned pct){return std::to_string((1280*pct+50)/100)+"x"+std::to_string((720*pct+50)/100)+" ("+std::to_string(pct)+"%)";};
+    ImGui::SetNextItemWidth(260);
+    if(ImGui::BeginCombo("Internal resolution",res(pc.render_scale).c_str())) {
+        for(int i=0;i<scales;++i)if(ImGui::Selectable(res(buzz_pc::render_scale_presets[i]).c_str(),i==scale)){pc.render_scale=buzz_pc::render_scale_presets[i];app.settings.pc_configured=true;}
+        ImGui::EndCombo();
+    }
+    ImGui::TextDisabled("The resolution the game renders at, independent of the window size. Requires restarting the game; higher values need a faster GPU.");
+}
 void game_tab(App& app,SDL_Window* window) {
     heading("YOUR PREPARED GAME","Run a locally built copy directly. This launcher never downloads or builds game content.");
     const std::pair<const char*,const char*> fields[]={{"game_root","Game folder (parent of PS3_GAME)"},{"dev_flash","PS3 firmware (dev_flash)"},{"eboot_elf","Decrypted game executable (EBOOT.elf)"}};
@@ -234,14 +292,15 @@ void game_tab(App& app,SDL_Window* window) {
     if(ImGui::SliderInt("Master volume",&volume,0,100,"%d%%")){app.settings.pc.volume_percent=unsigned(volume);app.settings.pc_configured=true;}
     bool cap=app.settings.pc.fps_limit!=0;
     if(ImGui::Checkbox("30 FPS frame lock",&cap)){app.settings.pc.fps_limit=cap?30:0;app.settings.pc_configured=true;}
-    if(ImGui::Checkbox("Borderless fullscreen",&app.settings.pc.fullscreen))app.settings.pc_configured=true;
     if(ImGui::Checkbox("Host phone buzzers over local Wi-Fi",&app.settings.pc.phone_buzzers))app.settings.pc_configured=true;
     if(app.settings.pc.phone_buzzers) {
         int port=int(app.settings.pc.phone_port);ImGui::SetNextItemWidth(160);
         if(ImGui::InputInt("Phone controller port",&port)){app.settings.pc.phone_port=unsigned(std::clamp(port,1024,65535));app.settings.pc_configured=true;}
         ImGui::TextWrapped("Scan the QR code in the game's Escape > Phone buzzers menu. Phones and PC must share a trusted Wi-Fi network. Allow this game's port on private networks in Windows Firewall if prompted.");
     }
-    ImGui::TextDisabled("Offline mode requires restarting. Fullscreen does not change rendering resolution.");
+    ImGui::TextDisabled("Offline mode requires restarting.");
+    ImGui::Separator();ImGui::TextUnformatted("Display");
+    display_settings(app);
     ImGui::Spacing();ImGui::TextDisabled("Supported identities: EU 1.00, US 1.00, EU 1.02. ELF and EXE hashes are checked.");
     ImGui::TextWrapped("Configuration root: %s",utf8(app.root).c_str());
     if(app.ready) {ImGui::Spacing();ImGui::TextColored(accent,"VERIFIED: %s",app.ready->profile.version.c_str());ImGui::TextWrapped("%s",utf8(app.ready->executable).c_str());}

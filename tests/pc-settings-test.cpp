@@ -19,7 +19,12 @@ int main() {
         check(pad.sample(0,565)==0);check(pad.sample(0x1000|0x2000,566)==(0x1000|0x2000));
         pad.reset();check(pad.sample(0x10,567)==0); // START is not an answer/select
         MenuModel menu;check(!menu.open());menu.navigate(MenuAction::toggle);check(menu.open());
-        menu.navigate(MenuAction::up);check(menu.selection()==8);menu.navigate(MenuAction::down);check(menu.selection()==0);
+        menu.navigate(MenuAction::up);check(menu.selection()==row_quit&&menu.rows()==11);menu.navigate(MenuAction::down);check(menu.selection()==0);
+        check(next_window_size({0,0},1).width==1280&&next_window_size({0,0},-1).width==3840);
+        check(next_window_size({3840,2160},1).width==0);
+        {auto custom=next_window_size({1000,700},1);check(custom.width==0);check(next_window_size({1000,700},-1).width==3840);}
+        check(next_render_scale(100,1)==150&&next_render_scale(300,1)==300&&next_render_scale(100,-1)==100);
+        check(next_render_scale(175,-1)==150&&next_render_scale(175,1)==200);
         menu.show(MenuPage::controllers);check(menu.rows()==10);menu.navigate(MenuAction::up);check(menu.selection()==9);
         menu.navigate(MenuAction::back);check(menu.open()&&menu.page()==MenuPage::settings);
         menu.show(MenuPage::quit_confirm);check(menu.rows()==2&&menu.selection()==0);
@@ -32,10 +37,26 @@ int main() {
         controls.pad_buttons[0][0]=0x1234;const auto old_text=controls_text;check(!buzz_input_format_config(controls,controls_text,error)&&controls_text==old_text);
         check(p.volume_percent==100&&p.fps_limit==30&&p.offline);
         Preferences decoded;check(parse(serialize(p),decoded,error)&&decoded==p);
+        // Default display settings keep the exact version-1 file for older builds.
+        check(serialize(p).find("version=1\n")!=std::string::npos&&serialize(p).find("window_width")==std::string::npos);
+        check(parse("version=1\nvolume=7\nfullscreen=1",decoded,error)&&decoded.volume_percent==7&&decoded.fullscreen&&
+              decoded.window_width==0&&decoded.window_height==0&&decoded.render_scale==100);
+        {
+            Preferences display;display.window_width=2560;display.window_height=1440;display.render_scale=200;
+            const auto text=serialize(display);check(text.find("version=2\n")!=std::string::npos);
+            check(parse(text,decoded,error)&&decoded==display);
+            check(parse("version=2\nwindow_width=1000\nwindow_height=700\nrender_scale=150",decoded,error)&&decoded.window_width==1000&&decoded.render_scale==150);
+            check(valid_window_size(0,0)&&valid_window_size(640,360)&&valid_window_size(7680,4320));
+            check(!valid_window_size(1280,0)&&!valid_window_size(639,480)&&!valid_window_size(7681,4320));
+            for(auto size:window_presets)check(valid_window_size(size.width,size.height));
+            for(auto scale:render_scale_presets){display.render_scale=scale;check(validate(display,error));}
+        }
         p.volume_percent=42;p.fullscreen=true;p.fps_limit=0;p.offline=false;p.renderer=Renderer::vulkan;p.phone_buzzers=true;p.phone_port=65535;
         check(parse(serialize(p),decoded,error)&&decoded==p);
         const auto previous=decoded;
-        for(const char* bad:{"version=2","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10"}) {
+        for(const char* bad:{"version=0","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10",
+            "version=3","version=1\nwindow_width=1920\nwindow_height=1080","version=2\nwindow_width=1920","version=2\nwindow_width=100\nwindow_height=100",
+            "version=2\nwindow_width=99999\nwindow_height=1080","version=2\nrender_scale=50","version=2\nrender_scale=301","version=2\nrender_scale=1.5"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));
@@ -48,6 +69,10 @@ int main() {
         const auto revision=result.revision;check(state.apply(p).revision==revision);
         auto invalid=p;invalid.volume_percent=101;check(!state.apply(invalid).accepted&&state.requested()==p);
         p.offline=true;p.renderer=Renderer::automatic;check(state.apply(p).restart==no_restart);
+        p.window_width=1920;p.window_height=1080;check(state.apply(p).restart==no_restart&&state.active().window_width==1920);
+        p.render_scale=200;result=state.apply(p);
+        check(result.accepted&&result.restart==resolution_restart&&state.active().render_scale==100&&state.requested().render_scale==200);
+        p.render_scale=100;p.window_width=0;p.window_height=0;check(state.apply(p).restart==no_restart);
         std::thread writer([&]{for(unsigned i=0;i<10000;++i){Preferences q;q.volume_percent=i%101;state.apply(q);}});
         for(unsigned i=0;i<10000;++i)check(state.active().volume_percent<=100);
         writer.join();

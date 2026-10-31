@@ -171,10 +171,11 @@ Guest buzzer input is suppressed while open and held buttons must be released
 after closing/remapping before they can answer a question. Quit requires a
 separate confirmation. See `port/pc_overlay.cpp` and `port/pc_menu_model.h`.
 
-The overlay shares the existing D3D12 command list and draws after guest
-compositing, before presentation. Its resources are lazy-created, not a second
-window or a separate renderer. It does not alter guest shaders, framebuffer
-resolution or the Cell/SPURS performance work. `BUZZ_PC_OVERLAY=0` disables it
+The overlay shares the renderer's command list and draws after the guest
+frame has been scaled into the window, at window resolution, before
+presentation. Its resources are lazy-created, not a second window or a
+separate renderer. Its layout scales with the window height (1x at ~900 px,
+up to 3x), so it stays readable at 1440p and 4K. `BUZZ_PC_OVERLAY=0` disables it
 for diagnostic A/B checks (and restores the SDK's old Escape-to-close behavior).
 The runtime now connects volume to the shared audio mixer and borderless/fullscreen
 and the 0/30 FPS cap to D3D12 host controls. To seed preferences without the menu,
@@ -182,11 +183,43 @@ copy `config/pc-settings.example.ini` to the selected build's `runtime/pc-settin
 or pass an explicit `BUZZ_PC_SETTINGS` path. It is loaded once, never polled.
 Without a file, the existing SDK presentation/vsync behaviour remains unchanged.
 Save settings writes `runtime/pc-settings.ini` and `runtime/input-settings.ini`
-for the selected build. Volume/cap/fullscreen and controller mappings apply live;
-network policy remains restart-only. The native launcher reads and writes these
+for the selected build. Volume/cap/display mode/window size and controller
+mappings apply live; network policy and internal resolution remain restart-only.
+
+### Display size and internal resolution
+
+These are two separate settings, in code (`window_width`/`window_height` vs
+`render_scale`, `ps3_host_set_window_size` vs `ps3_host_set_render_scale`) and in
+both UIs:
+
+- **Display mode / window size** is the window client area and swapchain.
+  Windowed sizes are Default (1280x720), 1280x720, 1920x1080, 2560x1440,
+  3840x2160 or a custom 640x360-7680x7680, in physical pixels (the window is
+  per-monitor DPI aware; `RSX_PIXEL_WINDOW=0` restores the old DPI-unaware
+  window). A size larger than the monitor's work area is shrunk to fit,
+  keeping its proportions. Borderless fullscreen covers the monitor at the
+  desktop resolution. Both apply live. The frame is scaled into the window
+  with its 16:9 aspect ratio kept, black bars filling the rest; resizing,
+  DPI changes, minimizing and restoring recreate or keep the swapchain as
+  needed, and a minimized window simply presents nothing.
+- **Internal resolution** is the size the game renders at: 100% (1280x720),
+  150% (1920x1080), 200% (2560x1440) or 300% (3840x2160). Every guest colour
+  and depth surface is created that much larger; viewports, scissors, clear
+  and copy rectangles are scaled where they reach the GPU, and fragment
+  programs reading the window position get it back in guest pixels. The game
+  itself still sees its own 1280x720 surfaces: pixels read back to guest
+  memory are sampled down (nearest), pixels the CPU writes are sampled up.
+  It is read once at startup, so changes are marked `[restart]` in the menu.
+  D3D12 keeps 100% when the diagnostic `RSX_PACK_AA_COLOR=1` is set.
+
+A version-1 `pc-settings.ini` loads unchanged with the display defaults, and
+default display settings are still written as the exact version-1 file. If
+only the display keys of a file are invalid, the game starts with the default
+window size and internal resolution and logs why; the launcher still reports
+the file for repair. The native launcher reads and writes these
 same files, including custom controller mappings and offline policy. Its Game
-tab also exposes volume, frame lock, fullscreen and optional local phone-buzzer
-hosting. The in-game **Phone buzzers** page displays its QR code and player
+tab also exposes volume, frame lock, display mode, window size, internal
+resolution and optional local phone-buzzer hosting. The in-game **Phone buzzers** page displays its QR code and player
 sessions; see [phone controllers](phone-buzzers.md). Legacy launcher JSON remains
 compatible and provides paths, player labels and fallback preferences where a
 build has no INI yet; simply opening/checking a copy never writes a migration.
