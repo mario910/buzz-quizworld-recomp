@@ -8,14 +8,14 @@ use strict state checks; the existing Stage F exception remains unchanged.
 `BUZZ_GEOMETRY=0` forces the lift, `1` runs selected native kernels and `2`
 compares every handled invocation against the lifted reference. The reference
 state is retained in checked mode. `BUZZ_GEOMETRY_KERNELS` is the function bit
-mask; its current default is **35 (0x23)**, intersected with the built mask:
-unit-vector decoder bit 0, skinning bit 1 and halfword decoder bit 5.
-Bits 0/5 passed their scene reversals. Bit 1 also reduces worker/process
-cycles in both CPU reversal pairs, with negligible menu frame-time change.
-Bits 2 (halfword encoder) and 10 (pointer generation) remain off because
-their scene/CPU measurements do not show a repeatable benefit. New bits
-8 (raw float3 input), 9 (raw float3 output) and 12 (word fill) stay off until
-their renderer and A/B gates pass.
+mask; its current default is **803 (0x323)**, intersected with the built mask:
+unit-vector decoder bit 0, skinning bit 1, halfword decoder bit 5, raw float3
+input bit 8 and raw float3 output bit 9. Bits 0/5/8/9 passed their scene
+reversals. Bits 1/8 also reduce worker/process cycles in both CPU reversal
+pairs, with no material frame-time regression.
+Bits 2 (halfword encoder), 10 (pointer generation) and 12 (word fill) remain
+off because their combined scene/CPU results do not justify enabling them.
+Bits 3/4/6 remain off pending scene gates.
 Other function IDs are reserved while their implementations
 are pending; the build advertises its implemented mask and rejects unavailable
 bits. An unhandled input takes the reference and increments fallback;
@@ -329,7 +329,8 @@ state replay. A 60 s live run with all eight groups selected records at least
 under private `analysis/`). `phase2/raw-fill-build.json` binds the sources
 and frozen executable. Native menu/round images are normal. Reversed pairs
 measure menu +0.36% (-0.55%, +1.28%) and round -0.69% (-0.04%, -1.33%).
-CPU measurements are in progress; bit 12 stays off.
+CPU measurements show pool cycles -0.60%, but process indicators are mixed
+and pool CPU time rises +0.59%. Bit 12 stays off.
 
 ## Bit 8: raw float3 decoder (`0x97A8`), implementation in validation
 
@@ -348,7 +349,9 @@ divergences or failures. The same 60 s live run records at least 256 strict
 decoder matches and no differences. Native menu/round images are normal.
 After replacing the contaminated original menu set with a fresh A/B/B/A,
 menu improves +0.28% (pairs +0.30%, +0.26%) and round +0.23% (+0.09%, +0.37%).
-Bit 8 remains off pending CPU measurements/final selection.
+CPU measurements also show pool cycles -0.31%, process cycles -0.62% and
+process CPU time -0.31%, repeating in both pairs. Pool CPU time alone is
+mixed. Bit 8 is enabled by default after default-mask replay/live checks.
 On the private `pc_97A8.bin` sample, the
 local reversed benchmark is roughly 48..53 ns lifted versus 33..35 ns native.
 
@@ -375,7 +378,9 @@ its setup inputs have not changed. Local whole-column timing is roughly
 final default selection is pending. The same 60 s live run records at
 least 256 strict output-group matches with no differences. Native menu/round
 images are normal; reversed pairs improve menu +1.25% (+0.97%, +1.55%) and
-round +2.09% (+2.85%, +1.33%). CPU measurements are in progress.
+round +2.09% (+2.85%, +1.33%). Bit 9 is now enabled by default. CPU cycles
+fall slightly but CPU time rises, so its default is justified by FPS rather
+than a CPU-time claim. See the phase report for all measurements.
 
 ## Bit 3: triangle stitching (`0x7A90`), implementation in validation
 

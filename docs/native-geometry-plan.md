@@ -223,11 +223,11 @@ subject to the kernel gates before replacement.
 | 0xCB78 | 1.44 % | on | `BUZZ_GEOMETRY_KERNELS` 5 | 19,508 exact; 9,063 strict groups | >=200,000 exact | 31.73 -> 32.10 | eb29523 |
 | 0x78A8 | 1.15 % | corpus/live passed; render/A-B pending, default off | `BUZZ_GEOMETRY_KERNELS` 6 | 19,508 exact; 12,385 strict groups | >=256 exact | pending | 4cddd99 |
 | 0x9148 | 1.01 % | on | shares bit 0 with 0x92A0 | same coupled unit-vector decoder | same checked group | same measurement | a7ad7b2 |
-| 0x97A8 | 0.78 % | gated; CPU/final default decision pending, off | `BUZZ_GEOMETRY_KERNELS` 8 | 19,508 exact; 18,968 strict groups | >=256 exact | 32.52 -> 32.62 | cc9c877 |
-| 0x4750 | 0.76 % | gated; CPU/final default decision pending, off | `BUZZ_GEOMETRY_KERNELS` 9 | 19,508 exact; 4,975 strict groups | >=256 exact | 32.32 -> 32.73 | eee46de |
+| 0x97A8 | 0.78 % | on; repeated CPU/process benefit | `BUZZ_GEOMETRY_KERNELS` 8 | 19,508 exact; 18,968 strict groups | >=256 exact | 32.52 -> 32.62 | cc9c877 |
+| 0x4750 | 0.76 % | on | `BUZZ_GEOMETRY_KERNELS` 9 | 19,508 exact; 4,975 strict groups | >=256 exact | 32.32 -> 32.73 | eee46de |
 | 0x0988 | 0.75 % | gated; default off, CPU decision pending | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
-| 0x4808 | 0.73 % | coupled with 4750; final decision pending | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
-| 0x28F0 | 0.67 % | gated; mixed FPS, CPU decision pending, off | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
+| 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
+| 0x28F0 | 0.67 % | gated; mixed process/FPS results, off | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
 | Whole-job driver | n/a | phase 3; not started | | | | | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
@@ -248,7 +248,8 @@ It is enabled by default in the reviewed adapter after all its gates passed.
 Bit 1 implements `0xB880/B934/B940` and is now on: both CPU reversal pairs
 show less worker/process work, while menu frame times are effectively flat
 and round FPS improves. Bit 5 is on after all four FPS pairs improved.
-The default mask is 35 (0x23); checked/native default replay both pass all
+The default mask is 803 (0x323), adding raw float3 input/output after their
+gates and CPU/FPS decisions; checked/native default replay both pass all
 19,508 jobs. Encoder/pointer switches remain off; the remaining phase 2
 implementations/gates are pending. See the separate
 [phase 2 results](native-geometry-phase2-results.md) for complete evidence.

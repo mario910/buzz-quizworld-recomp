@@ -66,12 +66,12 @@ sessions should not be compared as an accumulated improvement.
 |---|---|---|---|
 | Unit vectors | 31.60 -> 31.94 (+1.08%) | 39.31 -> 40.65 (+3.41%) | on |
 | Skinning | 31.98 -> 31.87 (-0.36%) | 39.50 -> 40.24 (+1.88%) | on; repeated worker/process CPU savings, negligible menu frame-time change |
-| Halfword encoder | 31.73 -> 31.93 (+0.65%) | 39.69 -> 40.16 (+1.18%) | off pending CPU evidence; one menu pair negative |
+| Halfword encoder | 31.73 -> 31.93 (+0.65%) | 39.69 -> 40.16 (+1.18%) | off; one menu pair negative, no repeatable CPU savings |
 | Halfword decoder | 31.73 -> 32.10 (+1.18%) | 39.69 -> 40.75 (+2.66%) | on |
-| Input pointers | 31.73 -> 31.94 (+0.67%) | 39.69 -> 40.26 (+1.44%) | off pending CPU evidence; one round pair negative |
-| Raw float3 input | 32.52 -> 32.62 (+0.28%) | 41.19 -> 41.29 (+0.23%) | off pending CPU series/final selection |
-| Raw float3 output | 32.32 -> 32.73 (+1.25%) | 41.19 -> 42.06 (+2.09%) | off pending CPU series/final selection; all FPS pairs positive |
-| BE word fill | 32.32 -> 32.44 (+0.36%) | 41.19 -> 40.91 (-0.69%) | off; mixed FPS, CPU series pending |
+| Input pointers | 31.73 -> 31.94 (+0.67%) | 39.69 -> 40.26 (+1.44%) | off; one round pair negative, no repeatable CPU savings |
+| Raw float3 input | 32.52 -> 32.62 (+0.28%) | 41.19 -> 41.29 (+0.23%) | on; repeated cycle/process-CPU-time savings |
+| Raw float3 output | 32.32 -> 32.73 (+1.25%) | 41.19 -> 42.06 (+2.09%) | on; all FPS pairs positive |
+| BE word fill | 32.32 -> 32.44 (+0.36%) | 41.19 -> 40.91 (-0.69%) | off; mixed process indicators and round decline |
 
 Both groups have normal menu/round native renderer dumps and completed
 reversed pairs. Private reports are `phase2/unit24-ab-report.json` and
@@ -153,14 +153,33 @@ measured CPU benefit, not an energy claim. Encoder and pointer measurements
 do not show repeatable savings; both remain off. The decoder's all-positive
 FPS pairs support enabling it.
 
-A separate CPU series `p2-cpu-raw-menu` is now collecting bits 8/9/12 against
-baseline 35, with no readbacks, the same frozen raw2 EXE and an exact map
-binding. No CPU benefit is claimed for those three groups before it finishes.
+A separate CPU series `p2-cpu-raw-menu` completed bits 8/9/12 against baseline
+35, with no readbacks, the same frozen raw2 EXE and an exact map binding.
+Private report: `phase2/cpu-raw-menu-report.json`.
+
+| Kernel | Pool cycles/frame | Process cycles/frame | Pool CPU ms/frame | Process CPU ms/frame |
+|---|---|---|---|---|
+| Raw float3 input | -0.31% (-0.42%, -0.19%) | -0.62% (-1.17%, -0.08%) | +0.40% (+0.84%, -0.05%) | -0.31% (-0.45%, -0.17%) |
+| Raw float3 output | -0.28% (-0.42%, -0.13%) | -0.27% (-0.51%, -0.02%) | +1.27% (+1.59%, +0.95%) | +0.38% (+0.59%, +0.17%) |
+| BE word fill | -0.60% (-0.91%, -0.29%) | -0.80% (-1.60%, +0.01%) | +0.59% (+0.54%, +0.64%) | -0.22% (-0.63%, +0.20%) |
+
+Raw input has small but repeated cycle/process-CPU-time savings, supporting
+its four positive FPS pairs. Raw output's four positive FPS pairs justify
+enabling it; CPU time increases slightly despite fewer reported cycles, so
+no CPU-time saving is claimed for it. Word fill stays off: worker cycles
+fall, but process indicators are mixed and both round FPS pairs decline.
+Default mask **803 (0x323)** adds bits 8/9 to 35. Both checked and actual-native
+replay without a mask override pass all 19,508 jobs / 58,195 transfers, with
+zero differences/failures (`phase2/defaults803-mode{2,1}.log`). A 45 s live
+run without a mask override reports `0x323` and at least 256 strict matches
+for every selected group, with no differences (`vk-scene-p2-defaults803-live.stderr.log`).
+`phase2/defaults803-build.json` binds the frozen release used for the last
+three groups' scene gates. Its generated geometry C is identical to the
+eleven-kernel validation; only the default changed.
 
 ## Remaining work before phase closure
 
 - Finish `7A90`, `51E0` and `78A8` renderer/A/B gates and default decisions.
-- Finish raw float3 input/output and fill CPU measurements/default decisions.
 - Validate the final selected defaults again when the remaining phase kernels resolve.
 - Collect matched CPU-cost evidence wherever the default decision relies on
   CPU savings rather than an FPS gain.
