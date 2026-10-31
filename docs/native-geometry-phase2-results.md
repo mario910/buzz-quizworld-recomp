@@ -44,18 +44,30 @@ sessions should not be compared as an accumulated improvement.
 |---|---|---|---|
 | Unit vectors | 31.60 -> 31.94 (+1.08%) | 39.31 -> 40.65 (+3.41%) | on |
 | Skinning | 31.98 -> 31.87 (-0.36%) | 39.50 -> 40.24 (+1.88%) | off; mixed FPS, CPU-cost evidence not yet collected |
+| Halfword encoder | 31.73 -> 31.93 (+0.65%) | 39.69 -> 40.16 (+1.18%) | off pending CPU evidence; one menu pair negative |
+| Halfword decoder | 31.73 -> 32.10 (+1.18%) | 39.69 -> 40.75 (+2.66%) | off pending final default-build validation |
+| Input pointers | 31.73 -> 31.94 (+0.67%) | 39.69 -> 40.26 (+1.44%) | off pending CPU evidence; one round pair negative |
 
 Both groups have normal menu/round native renderer dumps and completed
 reversed pairs. Private reports are `phase2/unit24-ab-report.json` and
 `phase2/skin-ab-report.json` under `analysis/native-geometry/`.
 
-The halfword encoder/decoder and input-pointer builder are still default-off.
-Their actual-native menu dumps have been inspected and look normal. Their
-shared-reference series `p2-batch1-ab` has completed the menu runs and is
-running the round runs. Round images, complete FPS results and final default
-decisions remain open. Masks are 1/5/33/1025; each new kernel is enabled alone
-above the fixed unit-vector baseline. The executable and initial save hashes
-are checked throughout the series.
+The shared-reference series `p2-batch1-ab` completed all sixteen runs. The
+actual-native menu and round dumps for all three new groups look normal.
+Masks are 1/5/33/1025; each new kernel is enabled alone above the fixed
+unit-vector baseline. Private report: `phase2/batch1-ab-report.json`, bound
+EXE SHA256 `ce12f9c1280896ed5bf851b03135b2c3949b15f80f71a5157d45f86020c65c31`.
+The executable and initial save hashes were checked throughout the series.
+
+| Kernel | Menu pair changes | Round pair changes |
+|---|---|---|
+| Halfword encoder | -0.45%, +1.75% | +1.94%, +0.44% |
+| Halfword decoder | +0.07%, +2.31% | +4.36%, +1.02% |
+| Input pointers | +0.25%, +1.09% | +3.10%, -0.17% |
+
+These small effects have visible run-to-run variation; a positive average
+does not establish a repeatable gain for every kernel. Decoder reversal
+pairs are all positive; its final default-build validation remains open.
 
 ## CPU work as a separate benefit
 
@@ -77,8 +89,12 @@ Existing RIP samplers read cycle counters while suspending threads and are
 explicitly diagnostic; CPU-cost comparisons need counters collected without
 suspending workers. Run them separately from the existing frozen FPS series.
 The new [CPU measurement observer](native-geometry-cpu-measurements.md) reads
-counters without suspension and has passed unit/API self-tests; actual game
-captures and matched CPU comparisons remain pending.
+counters without suspension and has passed unit/API self-tests. Initial
+series `p2-cpu-menu1` was rejected at its first boundary: thread discovery
+ran inside the boundary and exceeded the 50 ms tolerance. It is invalid
+evidence. Discovery now runs before the window; series `p2-cpu-menu2` is
+collecting isolated skinning/encoder/pointer comparisons, with readbacks
+disabled in every arm and the observer source hash held fixed.
 The skinning default may be reconsidered with this evidence; its mixed FPS
 result is not by itself a permanent rejection.
 
@@ -86,7 +102,7 @@ result is not by itself a permanent rejection.
 
 - Resolve `7A90`, `51E0`, `78A8`, `97A8`, `4750`, `4808` and `28F0`; private
   prototypes are not counted as completed replacements.
-- Finish the three pending groups' round/render/FPS gates and default decisions.
+- Finish the three groups' default decisions and final default-build validation.
 - Collect matched CPU-cost evidence wherever the default decision relies on
   CPU savings rather than an FPS gain.
 - Validate the final selected defaults, update this report with complete
