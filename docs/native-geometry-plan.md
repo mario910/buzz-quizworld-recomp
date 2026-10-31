@@ -407,6 +407,19 @@ separate phase-3 results record each actual native/strict live counter and
 any still-open >=256-call gate. No default is promoted; weighted scatter,
 enclosing stages and final performance/default work remain open.
 
+The complete `0xC750/C7A8` weighted scatter now uses a host pipeline that
+preserves duplicate destinations, source/output aliases, map pointer bias,
+wrapped physical addresses and the asymmetric prefetch/store order. Its
+independent `BUZZ_GEOMETRY_JOB_BLEND_SCATTER=0/1/2` defaults off and compares
+the full root state with JOB=1 or JOB=2. Tests pass 6,153 strict cases plus
+14 unchanged-state/no-I/O rejects; descriptor tests include 1,198 native
+scatter calls. Five final frozen replay arms each pass 19,508 exact jobs /
+58,195 transfers; all 2,326 scatter calls are native without fallback.
+Actual strict live/root and normal native menu/round proofs are recorded in
+the separate phase-3 results document. Default/performance gates, enclosing
+pipeline implementations and the four cold typed-family live gates remain
+open; this does not close phase 3.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -614,6 +627,8 @@ See the separate
 | 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own0/1/2 default0;112 configuration cases; phase3open |
 
 | 2026-10-31 | Phase 3 remaining typed implementations 1/5/6/7 | Strict synthetic/routing and frozen replay/scene checks | functional only; no FPS/CPU claim | normal native menu/round | 30,208 strict +108 rejects;144 configuration cases;5 replay arms each19,508 exact/58,195 transfers;0new corpus dispatches;SNORM16 live gate OPEN; I16 live gate OPEN; CMP live gate OPEN; U8 integer live gate OPEN; own0/1/2 switches default0;phase3open |
+
+| 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own0/1/2 default0;152configuration cases;phase3open |
 
 ## Risks
 

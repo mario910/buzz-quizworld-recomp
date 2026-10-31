@@ -28,10 +28,10 @@ using namespace buzz;
 std::atomic<unsigned long long> attempted{0}, checked{0}, skipped{0}, failures{0}, drawn{0}, culled{0};
 std::atomic<unsigned long long> native_attempted{0}, native_executed{0}, native_compared{0}, native_fallback{0};
 std::atomic<unsigned long long> publication_native{0}, publication_fallback{0};
-std::atomic<unsigned long long> color_checked{0},unit_vectors_checked{0},half_stream_checked{0},float32_stream_checked{0},fixed_stream_checked{0},snorm_stream_checked{0},i16_stream_checked{0},cmp_stream_checked{0},u8_integer_stream_checked{0};
+std::atomic<unsigned long long> color_checked{0},unit_vectors_checked{0},half_stream_checked{0},float32_stream_checked{0},fixed_stream_checked{0},snorm_stream_checked{0},i16_stream_checked{0},cmp_stream_checked{0},u8_integer_stream_checked{0},blend_scatter_checked{0};
 std::atomic<unsigned long long> descriptor_checked{0},descriptor_dispatches[9]{};
-struct OutputCounters { std::atomic<unsigned long long> native{0}, fallback{0}, reused{0}; } output_counters[20];
-constexpr const char* output_labels[] = {"output-size", "vertex-publish", "command-buffer", "command-publish", "command-bind", "command-reset", "position-commands", "full-commands", "attributes", "raw-stream", "color-codec", "descriptor-control", "unit-vectors", "half-stream", "float32-stream", "fixed-stream", "snorm-stream", "i16-stream", "cmp-stream", "u8-integer-stream"};
+struct OutputCounters { std::atomic<unsigned long long> native{0}, fallback{0}, reused{0}; } output_counters[21];
+constexpr const char* output_labels[] = {"output-size", "vertex-publish", "command-buffer", "command-publish", "command-bind", "command-reset", "position-commands", "full-commands", "attributes", "raw-stream", "color-codec", "descriptor-control", "unit-vectors", "half-stream", "float32-stream", "fixed-stream", "snorm-stream", "i16-stream", "cmp-stream", "u8-integer-stream", "blend-scatter"};
 unsigned long long maximum = 512;
 
 struct Recording {
@@ -174,6 +174,7 @@ struct Init {
             std::fprintf(stderr, "[geometry-job] native position commands/bindings=%d (default off)\n", buzz_geometry_job_emit_enabled());
             std::fprintf(stderr, "[geometry-job] native full commands=%d (default off)\n", buzz_geometry_job_full_commands_enabled());
             std::fprintf(stderr, "[geometry-job] native attribute control/raw float3=%d (default off; descriptor codecs retained)\n", buzz_geometry_job_attributes_enabled());
+            std::fprintf(stderr, "[geometry-job] native blend scatter=%d (0 lift, 1 native, 2 strict root; default off)\n", buzz_geometry_job_blend_scatter_enabled());
             std::fprintf(stderr, "[geometry-job] native I16 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_i16_stream_enabled());
             std::fprintf(stderr, "[geometry-job] native CMP stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_cmp_stream_enabled());
             std::fprintf(stderr, "[geometry-job] native U8_INTEGER stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_u8_integer_stream_enabled());
@@ -269,7 +270,7 @@ extern "C" int buzz_geometry_job_codecs_enabled()
 }
 extern "C" void buzz_geometry_job_output_result(unsigned stage, int native, int reused_layout)
 {
-    if (stage >= 20) std::abort();
+    if (stage >= 21) std::abort();
     auto& counters = output_counters[stage];
     if (native) {
         if (reused_layout) ++counters.reused;
@@ -324,6 +325,16 @@ extern "C" void buzz_geometry_job_fixed_stream_checked_result()
 {
     const auto total=++fixed_stream_checked;
     if(total==1 || total==256 || total%5000==0)std::fprintf(stderr,"[geometry-job/fixed-stream] strict full-state %llu PASS\n",total);
+}
+
+extern "C" int buzz_geometry_job_blend_scatter_enabled()
+{
+    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BLEND_SCATTER", 2);return enabled;
+}
+extern "C" void buzz_geometry_job_blend_scatter_checked_result()
+{
+    const auto total=++blend_scatter_checked;
+    if(total==1 || total==256 || total%5000==0)std::fprintf(stderr,"[geometry-job/blend-scatter] strict full-state %llu PASS\n",total);
 }
 
 extern "C" int buzz_geometry_job_snorm_stream_enabled()
@@ -608,8 +619,10 @@ extern "C" void buzz_geometry_job_audit_report()
         std::fprintf(stderr,"[geometry-job/cmp-stream] strict-checked=%llu\n",cmp_stream_checked.load());
     if (buzz_geometry_job_mode() && buzz_geometry_job_u8_integer_stream_enabled())
         std::fprintf(stderr,"[geometry-job/u8-integer-stream] strict-checked=%llu\n",u8_integer_stream_checked.load());
-    if (buzz_geometry_job_mode()) for (unsigned stage = 0; stage < 20; ++stage)
-        if (stage == 19 ? buzz_geometry_job_u8_integer_stream_enabled() : stage == 18 ? buzz_geometry_job_cmp_stream_enabled() : stage == 17 ? buzz_geometry_job_i16_stream_enabled() : stage == 16 ? buzz_geometry_job_snorm_stream_enabled() : stage == 15 ? buzz_geometry_job_fixed_stream_enabled() : stage == 14 ? buzz_geometry_job_float32_stream_enabled() : stage == 13 ? buzz_geometry_job_half_stream_enabled() : stage == 12 ? buzz_geometry_job_unit_vectors_enabled() : stage == 11 ? buzz_geometry_job_descriptors_enabled() : stage == 10 ? buzz_geometry_job_codecs_enabled() : stage >= 8 ? buzz_geometry_job_attributes_enabled() : stage == 0 ? buzz_geometry_job_layout_enabled() : stage == 1 ? buzz_geometry_job_vertex_enabled() : stage == 2 ? buzz_geometry_job_commands_enabled() : stage == 3 ? buzz_geometry_job_command_publish_enabled() : stage == 7 ? buzz_geometry_job_full_commands_enabled() : buzz_geometry_job_emit_enabled())
+    if (buzz_geometry_job_mode() && buzz_geometry_job_blend_scatter_enabled())
+        std::fprintf(stderr,"[geometry-job/blend-scatter] strict-checked=%llu\n",blend_scatter_checked.load());
+    if (buzz_geometry_job_mode()) for (unsigned stage = 0; stage < 21; ++stage)
+        if (stage == 20 ? buzz_geometry_job_blend_scatter_enabled() : stage == 19 ? buzz_geometry_job_u8_integer_stream_enabled() : stage == 18 ? buzz_geometry_job_cmp_stream_enabled() : stage == 17 ? buzz_geometry_job_i16_stream_enabled() : stage == 16 ? buzz_geometry_job_snorm_stream_enabled() : stage == 15 ? buzz_geometry_job_fixed_stream_enabled() : stage == 14 ? buzz_geometry_job_float32_stream_enabled() : stage == 13 ? buzz_geometry_job_half_stream_enabled() : stage == 12 ? buzz_geometry_job_unit_vectors_enabled() : stage == 11 ? buzz_geometry_job_descriptors_enabled() : stage == 10 ? buzz_geometry_job_codecs_enabled() : stage >= 8 ? buzz_geometry_job_attributes_enabled() : stage == 0 ? buzz_geometry_job_layout_enabled() : stage == 1 ? buzz_geometry_job_vertex_enabled() : stage == 2 ? buzz_geometry_job_commands_enabled() : stage == 3 ? buzz_geometry_job_command_publish_enabled() : stage == 7 ? buzz_geometry_job_full_commands_enabled() : buzz_geometry_job_emit_enabled())
             std::fprintf(stderr, "[geometry-job/%s] native=%llu fallback=%llu reused-layout=%llu\n", output_labels[stage],
                 output_counters[stage].native.load(), output_counters[stage].fallback.load(), output_counters[stage].reused.load());
     if (buzz_geometry_job_mode() && buzz_geometry_job_publish_enabled())

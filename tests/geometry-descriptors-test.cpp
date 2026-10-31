@@ -1,4 +1,5 @@
 #define SPU_LS_DEBUG_HOOKS 0
+#include "../port/native_geometry_blend_scatter.h"
 #include "../port/native_geometry_descriptors.h"
 #include "../port/native_geometry_color.h"
 #include "../port/native_geometry_unit_vectors.h"
@@ -16,7 +17,7 @@
 #include <memory>
 
 using namespace buzz;
-static unsigned current_trial=0;
+static unsigned current_trial=0,blend_native_cases=0;
 static void drain(spu_context*,uint32_t);
 extern "C" {
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
@@ -120,6 +121,12 @@ static void native_u8_integer_stream(spu_context* ctx)
     GeometryU8IntegerStream p;const char* reason=nullptr;if(!read_geometry_u8_integer_stream(*ctx,p,&reason)){fprintf(stderr,"descriptor u8_integer preflight trial%u: %s\n",current_trial,reason);abort();}
     decode_geometry_u8_integer_stream(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
 }
+static void native_blend_scatter(spu_context* ctx)
+{
+    GeometryBlendScatter p;const char* reason=nullptr;
+    if(!read_geometry_blend_scatter(*ctx,p,&reason)){fprintf(stderr,"descriptor blend preflight trial%u:%s\n",current_trial,reason);abort();}
+    ++blend_native_cases;blend_geometry_scatter(*ctx,p);ctx->pc=ctx->gpr[0]._u32[0];g_spu_trampoline_fn=ctx->host_depth?nullptr:spu_indirect_branch;
+}
 static void compare(spu_context& native,spu_context& reference,unsigned trial)
 {
     current_trial=trial;
@@ -129,7 +136,7 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial)
     buzz_geometry_descriptor_functions functions{{trial&8?native_snorm_stream:buzz_job_6eba_spu_func_000085E8,trial&2048?native_float32_stream:buzz_job_6eba_spu_func_000087CC,
         trial&1024?native_half_stream:buzz_job_6eba_spu_func_00008378,trial&256?native_color:buzz_job_6eba_spu_func_000089B0,
         trial&8?native_i16_stream:buzz_job_6eba_spu_func_00008B94,trial&8?native_cmp_stream:buzz_job_6eba_spu_func_00008D34,trial&8?native_u8_integer_stream:buzz_job_6eba_spu_func_00008EA8,
-        trial&8?native_fixed_stream:buzz_job_6eba_spu_func_00009058,trial&512?native_unit_vectors:buzz_job_6eba_spu_func_00009114},buzz_job_6eba_spu_func_0000C750,buzz_job_6eba_spu_func_000083C8};
+        trial&8?native_fixed_stream:buzz_job_6eba_spu_func_00009058,trial&512?native_unit_vectors:buzz_job_6eba_spu_func_00009114},trial&16?native_blend_scatter:buzz_job_6eba_spu_func_0000C750,buzz_job_6eba_spu_func_000083C8};
     decode_geometry_descriptor_stream(native,p,functions);native.pc=native.gpr[0]._u32[0];
     const auto diff=compare_function_state(native,reference);
     if(!diff.exact()){
@@ -203,5 +210,6 @@ int main()
         memcpy(reference.get(),native.get(),sizeof(*native));assert(!read_geometry_descriptor_stream(*native,p));
         assert(!memcmp(reference.get(),native.get(),sizeof(*native)));
     }
+    assert(blend_native_cases>0);printf("Native blend scatter descriptor calls:%u PASS\n",blend_native_cases);
     _mm_setcsr(previous);puts("Descriptor control:4192 strict original/native-callee cases, all9storage families;28unchanged/noIO rejects PASS");
 }

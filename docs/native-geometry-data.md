@@ -375,6 +375,41 @@ the order of overlapping scratch writes, including columns with no ordinary
 output destination. Per-column final ABI materialization is needed because
 the two loop variants leave different volatile registers behind.
 
+### Remapped weighted attribute scatter
+
+The complete `0xC750/C7A8` root now has an opt-in native implementation in
+`native_geometry_blend_scatter.h`. Arguments are remap base r3, destination
+base r4, source end r5, component mask r6, negative source byte cursor r7 and
+weight vector r8. A supported cursor is a negative multiple of 32, up to
+4,096 pairs. The loop processes two source vectors per iteration until the
+preferred cursor reaches zero; non-preferred cursor words still advance.
+
+Each BE remap word contains two halfword byte offsets. The low halfword
+selects source B's destination; the high halfword selects A's. The original
+adds the full packed preferred word before LQD/STQD masks the physical LS
+address. The native plan retains that behavior, pointer bias and wrapping.
+Quad loads align down before the map's offset-dependent rotation. Source
+reads extend two pairs (64 bytes) beyond the nominal source end; remap reads
+include two trailing pairs, and the next destinations are also prefetched.
+That final read-only destination prefetch may address any physical LS quad,
+including the lower code/table area; it is not a store destination.
+
+Destination B for the next pair is read before either current store. Current
+B is stored first, then next A is read, then current A is stored. Therefore
+repeated destinations and source/output overlaps retain their original
+pipeline behavior. They cannot be replaced by independent sequential adds.
+The native host loop carries the prefetched values and pending FMA results;
+only its final iteration materializes the complete register ABI. It supports
+in-place source/output aliasing, while writes overlapping any prefetched
+remap quad reject before mutation so the predecoded map remains immutable.
+
+`BUZZ_GEOMETRY_JOB_BLEND_SCATTER=0/1/2` selects original/native/strict root
+comparison, independently and default-off. Mode 2 works with JOB=1 or JOB=2,
+comparing all GPRs, LS and architectural controls plus host depth, image and
+the exact r0 return/trampoline. This is a callable root, unlike the typed
+regions' 0x83C8 continuation. The checker drains by original tail identity,
+including when r0 itself equals 0xC7A8, and never repeats guest DMA or atomics.
+
 ### Remaining typed descriptor data: SNORM16, I16, CMP, U8 integer
 
 The full storage-1/5/6/7 regions now have native payload implementations in

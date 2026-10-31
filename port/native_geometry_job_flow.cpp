@@ -18,6 +18,7 @@
 #include "native_geometry_cmp_stream.h"
 #include "native_geometry_u8_integer_stream.h"
 #include "native_geometry_snorm_stream.h"
+#include "native_geometry_blend_scatter.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -581,6 +582,50 @@ extern "C" void buzz_geometry_job_decode_u8_integer_stream(spu_context* ctx, buz
         buzz_geometry_job_u8_integer_stream_checked_result();
     }
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM,1,0);
+}
+
+extern "C" void buzz_geometry_job_blend_scatter(spu_context* ctx,buzz_geometry_job_fn reference,buzz_geometry_job_fn tail)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_blend_scatter_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometryBlendScatter plan;const char* reason=tail?nullptr:"null tail";
+    if(!tail || !buzz::read_geometry_blend_scatter(*ctx,plan,&reason)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_BLEND_SCATTER,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/blend-scatter] first fallback: %s\n",reason);
+        reference(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected_next=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_blend_scatter_enabled()==2){
+        // Pure LS/FMA root: run the two original blocks on a private clone.
+        // Drain by tail identity, even if r0 itself equals the tail PC.
+        comparison=buzz::clone_function_state(ctx);
+        auto scheduled=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;reference(comparison);
+        unsigned steps=0;
+        while(g_spu_trampoline_fn==tail){
+            if(comparison->pc!=0xc7a8 || ++steps>65536)
+                buzz_geometry_job_native_fail(ctx,"blend-scatter reference tail escaped");
+            auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        expected_next=comparison->host_depth?nullptr:spu_indirect_branch;
+        if(comparison->pc!=comparison->gpr[0]._u32[0] || g_spu_trampoline_fn!=expected_next)
+            buzz_geometry_job_native_fail(ctx,"blend-scatter reference root return differs");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::blend_geometry_scatter(*ctx,plan);
+    ctx->pc=ctx->gpr[0]._u32[0];g_spu_trampoline_fn=ctx->host_depth?nullptr:spu_indirect_branch;
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool controls=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id && g_spu_trampoline_fn==expected_next;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !controls){
+            std::fprintf(stderr,"[geometry-job/blend-scatter] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"blend-scatter strict root state/return differs");
+        }
+        buzz_geometry_job_blend_scatter_checked_result();
+    }
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_BLEND_SCATTER,1,0);
 }
 
 extern "C" void buzz_geometry_job_decode_descriptors(spu_context* ctx,buzz_geometry_job_fn reference,

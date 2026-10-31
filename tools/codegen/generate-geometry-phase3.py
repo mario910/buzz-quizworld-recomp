@@ -151,6 +151,14 @@ def main():
         f"static void {u8_integer_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {u8_integer_name}(spu_context* ctx) {{ buzz_geometry_job_decode_u8_integer_stream(ctx, {u8_integer_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
         source, count=1)
+    blend_name = "buzz_job_6eba_spu_func_0000C750"
+    blend_pattern = rf"(?ms)^void {blend_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(blend_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned weighted-scatter root")
+    source = re.sub(blend_pattern, lambda m:
+        f"static void {blend_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {blend_name}(spu_context* ctx) {{ buzz_geometry_job_blend_scatter(ctx, {blend_name}_reference, buzz_job_6eba_spu_func_0000C7A8); }}",
+        source, count=1)
     descriptor_name = "buzz_job_6eba_spu_func_00007DF8"
     descriptor_pattern = rf"(?ms)^void {descriptor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(descriptor_pattern, source))) != 1:
@@ -183,7 +191,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 14\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 15\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

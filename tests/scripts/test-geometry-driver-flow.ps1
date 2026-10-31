@@ -14,6 +14,8 @@ try {
     if ($LASTEXITCODE) { throw 'CMP stream routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-u8-integer-stream-test.py
     if ($LASTEXITCODE) { throw 'U8_INTEGER stream routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-blend-scatter-test.py
+    if ($LASTEXITCODE) { throw 'Blend scatter routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-snorm-stream-test.py
     if ($LASTEXITCODE) { throw 'SNORM stream routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-fixed-stream-test.py

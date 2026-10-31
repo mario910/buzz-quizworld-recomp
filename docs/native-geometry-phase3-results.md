@@ -7,10 +7,10 @@ subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 
 Native payload implementations now exist for all nine descriptor storage
-families, plus the primary raw float3 path. The latest four implementations
-pass strict synthetic/routing checks; their real coverage and remaining gates
-are recorded below. Weighted scatter and enclosing pipeline bodies still
-keep phase 3 open.
+families, plus the primary raw float3 path. Remapped weighted scatter also
+has a complete native implementation with strict real-corpus/live coverage.
+The four cold typed families still have open real-data/live gates, and
+enclosing pipeline bodies keep phase 3 open.
 
 ## Driver boundary audit
 
@@ -1394,7 +1394,7 @@ The required phase-3 data inventory after this increment is:
 | `0x8D34`, storage 6 CMP | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
 | `0x8EA8`, storage 7 U8 integer | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
 | `0x9058` / `0xC810/C830/C910`, storage 8 fixed point | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
-| `0xC750`, remapped weighted scatter | Original data kernel | Native blend math/scatter and validation |
+| `0xC750/C7A8`, remapped weighted scatter | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0x0BF8`, list/blend stage | Original enclosing stage | Native enclosing flow and validation |
 | `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
@@ -1839,3 +1839,101 @@ the enclosing pipeline handlers remain original. Final interpreted-SPU counts,
 reversed same-frozen menu/round A/B, normalized worker/process cycles and CPU
 time per completed frame/job are still required. Repeatable CPU savings can
 justify a routine with flat FPS. Strict Stage F reconstruction stays last.
+
+## Complete remapped weighted scatter (2026-10-31)
+
+`port/native_geometry_blend_scatter.h` replaces both `0xC750/C7A8` blocks.
+A guarded host plan validates the negative pair cursor, complete source and
+remap lookahead, physical wrapped destinations and immutable remap quads
+before any mutation. The native loop carries pending masked sources,
+prefetched destinations and SPU-exact FMA results in host values. Duplicate
+destinations, within-pair and cross-pair hazards, biased pointers and
+source/output overlap retain the original load/store order. The complete
+last-iteration register state is materialized without an original callback.
+
+`BUZZ_GEOMETRY_JOB_BLEND_SCATTER=0/1/2` defaults off: lift, native, strict
+root comparison. Full-state checking works both with JOB=2 and independently
+with JOB=1. All 128 GPRs, 256 KiB LS, controls, root r0 return, trampoline,
+host depth and image are checked before the caller can overwrite state.
+No state exception is introduced. Adapter protocol is 15; stage 20 records
+scatter independently (21 counters total). The older defaults and leaf mask
+827 remain unchanged, including the limited existing Stage F contract.
+
+The pinned two-block oracle passes **6,153 strict cases**: 4,096 pair-count/
+pointer-bias/duplicate-index layouts, 1,024 raw FMA mask/weight cases, 1,024
+in-place source/output cases, two independent numerical hazard examples,
+one unused-tail remap case, one shared read-only map/source case and four
+large-count cases through the 4,096-pair limit, plus a speculative
+destination read below the data area. Both root return depths and
+the r0=0xC7A8 tail-PC collision are covered. Fourteen unsupported inputs leave
+the complete context unchanged and perform no I/O.
+
+The mixed descriptor matrix passes 4,192 full-state cases / 28 rejects,
+including **1,198 actual native scatter calls** alongside original and native
+typed handlers. Driver routing checks both JOB=2/BLEND=1 and JOB=1/BLEND=2
+against the actual two-block oracle, owner/off/foreign/null-tail/unsupported/
+post-scope guards, 1,024 driver models and 19,508 real driver entries. All
+43 controller and 152 production-getter configuration cases pass.
+
+### Weighted scatter: final frozen V2 evidence
+
+`build-vulkan-phase3-blend-scatter-v2` is bound by
+`phase3/blend-scatter-v2-build.json`, preserved generated C, source/tests/docs,
+saves and archived proofs. EXE SHA256:
+`b4181ec85ccfbf07ff10aacc0d4760a821b62bb1b6326a3307b9b79e11c46460`; map SHA256:
+`505db512d712816d075039bbc02d24ba414611680595ecc14f347a719e2b02c1`.
+
+All five `blend-scatter-v2-corpus-{off,independent,native,checked,kernel-checked}.log`
+arms pass **19,508 exact jobs / 58,195 transfers each**, zero concurrent input
+changes and zero failures, mask 827 / Stage F=2, with no contract override.
+All four native arms execute **2,326 complete scatter roots / zero fallback**.
+JOB=2 arms compare 2,326 full-state scatter exits plus all 19,508 whole-job/I/O
+transcripts. JOB=1 / BLEND=2 independently checks all 2,326 root exits.
+Combined older float32/fixed/half/unit/descriptor/U8-color counts remain
+12/3/12,431/12,067/12,309/109, all with zero fallback. The four cold typed
+families still have zero captured dispatches; no new coverage is attributed
+to them.
+
+The prototype V1 also replayed exactly, with 2,114 native calls and 212
+eligibility fallbacks. Its guard incorrectly applied the data-area minimum
+to the final read-only destination prefetch. V2 permits that speculative
+read anywhere in physical LS while preserving actual-store guards. The
+comparison fields are unchanged. The old EXE, logs and exact header/test
+SHA bindings remain preserved, with the former rejection now a positive
+strict test. V1 evidence is not substituted for this final V2 build.
+
+The same final EXE runs Stage F=1 / GEOMETRY=1 / all older native flags=1,
+fresh private saves, muted/background rendering and native buzzer input.
+BLEND=1 is used except in the independent root-checked round (BLEND=2).
+No compilation, CPU tests or profiling overlap these functional runs:
+
+| Scene proof | Mode | Frames / last renderer time | Scatter native / strict lower bounds |
+|---|---|---|---|
+| `p3-blend-v2-checked` | JOB=2 / BLEND=1 | 1,291 / 44555.023 ms | 0 / 0 |
+| `p3-blend-v2-menu` | JOB=1 / BLEND=1 | 2,292 / 74796.936 ms | 0 / 0 |
+| `p3-blend-v2-round-render` | JOB=1 / BLEND=1 | 6,086 / 196191.689 ms | 1,300,000 / 0 |
+| `p3-blend-v2-kernel-checked-round` | JOB=1 / BLEND=2 | 5,390 / 225609.268 ms | 940,000 / 940,000 |
+
+The actual scatter live gate passes **>=940,000 strict root comparisons**;
+menu whole-job checking passes **>=75,000 full-state/I/O
+comparisons**. Checker clones are not counted as extra live invocations.
+There are no differences, halts, scatter fallbacks or early exits.
+
+Renderer readbacks every 500 frames are preserved in
+`phase3/p3-blend-v2-menu.ppm/.png` and
+`phase3/p3-blend-v2-round-render.ppm/.png`. Both are visually inspected:
+normal menu/studio/crowd and the actual round stage with host, player and
+score display. Original and canonical template saves remain unchanged.
+Source, EXE/map/generated C, fixtures, corpus, live CSV/logs, images and 198
+archived controller/configuration/codec/descriptor/driver logs are bound to
+the source commit and verified again after committing.
+
+BLEND_SCATTER remains default-off. These are correctness/render observations,
+not matched FPS or CPU results. The four cold typed-family real-data/live
+gates remain explicit and unchanged; no state-contract exception is added.
+Enclosing list/blend, skinning, indices, transform, ring/atomics and full
+vertex-conversion bodies still require native implementations. Final
+interpreted-SPU counts, reversed same-frozen menu/round A/B and normalized
+worker/process cycles and CPU time per completed frame/job still gate phase
+3 and default selection. CPU savings can justify a routine with flat FPS.
+Strict Stage F reconstruction remains mandatory final phase 7.
