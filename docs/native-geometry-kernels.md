@@ -315,6 +315,24 @@ state replay. A 60 s live run with all eight groups selected records at least
 under private `analysis/`). `phase2/raw-fill-build.json` binds the sources
 and frozen executable. Renderer and A/B gates remain pending.
 
+## Bit 8: raw float3 decoder (`0x97A8`), implementation in validation
+
+This pure loop exits at `0x9498`. The pending first group comes from three
+entry registers; subsequent groups read packed BE float3 records and append
+the exact `1.0` W bits. AVX2 handles two vertices per vector without changing
+their XYZ bits, including any non-IEEE patterns. The final lifted iteration
+restores all temporary GPRs and speculative prefetch state. The guard checks
+five canonical constants, at least four groups, 16-byte alignment, bounded
+private LS and disjoint source/output ranges. Output streams may alias each
+other; store order is retained. Unsupported inputs return before mutation.
+The test compares 440 full states up to 512 groups, aliases and random XYZ
+bits, then sixteen unchanged-state rejections. Full checked and actual-native
+replay pass all 19,508 jobs: 18,968 exact groups and 540 fallback, with zero
+divergences or failures. The same 60 s live run records at least 256 strict
+decoder matches and no differences. Bit 8 stays default-off while renderer
+and scene measurements are pending. On the private `pc_97A8.bin` sample, the
+local reversed benchmark is roughly 48..53 ns lifted versus 33..35 ns native.
+
 ## Isolated kernel batches
 
 The measurement runner accepts one to three `-KernelMask` values. A batch
