@@ -56,6 +56,8 @@ static int skin_directions_mode=0;
 static int skin_flow_mode=0;
 static int rigid_skin_mode=0;
 static int skin_cofactor_mode=0;
+static int index_deltas_mode=0;
+static unsigned index_deltas_native=0,index_deltas_fallback=0,index_deltas_checked=0,index_deltas_references=0;
 static int skin_normalized_mode=0;
 static unsigned skin_normalized_native=0,skin_normalized_fallback=0,skin_normalized_checked=0,skin_normalized_references=0;
 static unsigned skin_cofactor_native=0,skin_cofactor_fallback=0,skin_cofactor_checked=0,skin_cofactor_references=0;
@@ -111,6 +113,8 @@ int buzz_geometry_job_blend_scatter_enabled(){return blend_scatter_enabled;}
 void buzz_geometry_job_blend_scatter_checked_result(){++blend_checked;}
 int buzz_geometry_job_blend_lists_enabled(){return lists_enabled;}
 int buzz_geometry_job_run_lists_enabled(){return run_lists_mode;}
+int buzz_geometry_job_index_deltas_enabled(){return index_deltas_mode;}
+void buzz_geometry_job_index_deltas_result(unsigned,int checked,int){if(checked)++index_deltas_checked;}
 int buzz_geometry_job_skin_normalized_enabled(){return skin_normalized_mode;}
 void buzz_geometry_job_skin_normalized_result(unsigned,int checked,int){if(checked)++skin_normalized_checked;}
 int buzz_geometry_job_skin_cofactor_enabled(){return skin_cofactor_mode;}
@@ -150,6 +154,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_INDEX_DELTAS){assert(routing_probe);if(native)++index_deltas_native;else ++index_deltas_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED){assert(routing_probe);if(native)++skin_normalized_native;else ++skin_normalized_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_SKIN_COFACTOR){assert(routing_probe);if(native)++skin_cofactor_native;else ++skin_cofactor_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_RIGID_SKIN){assert(routing_probe);if(native)++rigid_skin_native;else ++rigid_skin_fallback;return;}
@@ -271,10 +276,12 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-rigid-skin-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-cofactor-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-normalized-reference.inc"
+#include "../analysis/native-geometry/phase3/test-index-deltas-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-directions-reference.inc"
 static void skin_flow_trace(spu_context*,uint32_t){}
 static void skin_flow_model(spu_context*,uint32_t){abort();}
 #include "../analysis/native-geometry/phase3/test-skin-flow-reference.inc"
+static void index_deltas_reference(spu_context* ctx){++index_deltas_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void skin_normalized_reference(spu_context* ctx){++skin_normalized_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void skin_cofactor_reference(spu_context* ctx){++skin_cofactor_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void rigid_skin_reference(spu_context* ctx){++rigid_skin_references;ctx->pc=ctx->gpr[0]._u32[0];}
@@ -571,6 +578,28 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        ctx->gpr[88]=spu_ila(0xe800);ctx->gpr[31]=spu_ila(0xe800);ctx->gpr[0]._u32[0]=0x77f8;
+        auto* entry=buzz::clone_function_state(ctx);const auto tail=index_deltas_oracle::buzz_job_6eba_spu_func_000077F8;
+        for(unsigned shape=0;shape<3;++shape)for(unsigned mode=0;mode<3;++mode){
+            memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;
+            ctx->gpr[96]._u32[0]=shape==0?0:shape==1?1:65;if(shape==2)ctx->gpr[31]._u32[0]+=16;
+            flow_mode=mode==1?2:1;index_deltas_mode=mode==2?2:1;
+            buzz_geometry_job_index_deltas(ctx,index_deltas_oracle::buzz_job_6eba_spu_func_00007730,tail);
+            assert(ctx->pc==0x77f8 && g_spu_trampoline_fn==tail);
+        }
+        assert(index_deltas_native==9 && index_deltas_checked==6 && !index_deltas_fallback && !index_deltas_references);
+        flow_mode=1;index_deltas_mode=0;buzz_geometry_job_index_deltas(ctx,index_deltas_reference,tail);index_deltas_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_index_deltas(foreign,index_deltas_reference,tail);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_index_deltas(ctx,index_deltas_reference,tail);ctx->image_id=41;
+        buzz_geometry_job_index_deltas(ctx,index_deltas_reference,nullptr);
+        ctx->gpr[96]._u32[0]=65536;buzz_geometry_job_index_deltas(ctx,index_deltas_reference,tail);
+        ctx->gpr[96]._u32[0]=32;ctx->gpr[31]._u32[0]=0;buzz_geometry_job_index_deltas(ctx,index_deltas_reference,tail);
+        ctx->ls=entry->ls_store;buzz_geometry_job_index_deltas(ctx,index_deltas_reference,tail);ctx->ls=ctx->ls_store;
+        assert(index_deltas_references==7 && index_deltas_fallback==4 && index_deltas_native==9 && index_deltas_checked==6);
+        index_deltas_mode=0;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         skin_normalized_oracle::seed_constants(*ctx);ctx->gpr[33]._u32[0]=ctx->gpr[67]._u32[0]=0xe800;ctx->gpr[71]._u32[0]=0x30000;ctx->gpr[93]._u32[0]=0x34000;ctx->gpr[40]._u32[0]=0x18000;ctx->gpr[0]._u32[0]=0xb868;
@@ -980,6 +1009,9 @@ int main(int argc, char** argv)
     weighted_skin_mode=1;buzz_geometry_job_weighted_skin(native.get(),weighted_skin_fallback_call,weighted_skin_reference,weighted_skin_oracle::buzz_job_6eba_spu_func_0000B4C0,weighted_skin_oracle::buzz_job_6eba_spu_func_0000BB58);
     assert(weighted_skin_references==8 && weighted_skin_native==6 && weighted_skin_fallback==4 && weighted_skin_checked==4);weighted_skin_mode=0;
     puts("Complete weighted skin routing: one-pair/bulk; both strict modes; both tails; foreign/disabled/unsupported/post-scope PASS");
+    index_deltas_mode=1;buzz_geometry_job_index_deltas(native.get(),index_deltas_reference,index_deltas_oracle::buzz_job_6eba_spu_func_000077F8);
+    assert(index_deltas_references==8 && index_deltas_native==9 && index_deltas_fallback==4 && index_deltas_checked==6);index_deltas_mode=0;
+    puts("Complete index deltas routing: empty/one-group/bulk/aliases; both strict modes; owner/foreign/disabled/image/null-tail/unsupported/post-scope PASS");
     skin_normalized_mode=1;buzz_geometry_job_skin_normalized(native.get(),skin_normalized_reference,skin_normalized_oracle::buzz_job_6eba_spu_func_0000B868,1);
     assert(skin_normalized_references==7 && skin_normalized_native==27 && skin_normalized_fallback==3 && skin_normalized_checked==18);skin_normalized_mode=0;
     skin_cofactor_mode=1;buzz_geometry_job_skin_cofactor(native.get(),skin_cofactor_reference,skin_cofactor_oracle::buzz_job_6eba_spu_func_0000B4C0);

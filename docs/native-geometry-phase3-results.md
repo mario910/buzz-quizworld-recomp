@@ -31,6 +31,8 @@ The next complete decoder, `AEA0/7390`, now has a separate
 The original tracer passes all 19,508 jobs/58,195 transfers; a scalar delta
 model matches one complete captured register/LS pair. This is preparation for
 native implementation, with all new decoder acceptance/default gates open.
+The complete `7730/7770` delta region is now native opt-in, independently
+checked and documented below. Other regions of the decoder remain unfinished.
 
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
@@ -3159,3 +3161,83 @@ data families now have native implementations, with cold coverage and final
 gates still open. Phase 3 and the continuing goal remain active: remaining
 index/transform/ring/conversion stages, built-in inputs and final gates still
 require work. Strict Stage F reconstruction remains mandatory final phase 7.
+
+
+## Complete index delta reconstruction (7730/7770)
+
+`port/native_geometry_index_deltas.h` replaces the entire 7730 setup and 7770
+loop through the exact queued 77F8 continuation. Host vectors retain eight
+independent modulo-u16 prefix chains, four cached input quads and carry across
+groups. Every next input is read before all ordered stores. Initial zero
+writes, the repeated first destination, final flush, extra 64-byte lookahead,
+biased/separate bases and wrapped reads preserve the original alias behavior.
+All changed GPRs, including nonpreferred count lanes and final lookahead,
+are materialized once. No original setup, step or final iteration executes.
+This completes the delta region; the other index regions remain in the
+[explicit inventory](native-geometry-index-audit.md#native-implementation-inventory).
+
+`BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2` defaults to 0. Mode 2 or JOB=2 compares
+all 128 GPRs / all LS, architectural/channel/control state, PC/FN and image/depth/
+policy/overlay against both original blocks. There is no tolerance, exclusion
+or new Stage F exception. Unsupported states fall back before mutation with
+no native credit. Ownership/image guards prevent foreign execution. Stage 31,
+32 counters and routing protocol 26 add one-group/bulk/empty and alias counts.
+
+Strict tests pass **5,763 full-state/boundary cases**, including 4,096 randomized
+entries, 1,408 targeted base/alias cases (828 overlapping writers), 256 wrapped
+lookahead cases and 3 reconstructions of one pinned real entry under different
+control settings. Counts cover 0/1/31/32/33 and other block boundaries through
+65,535; GPR upper lanes and all u16 input/bias bits vary. Three independent
+numeric checks exercise eight separate chains, and 8 rejects leave state
+unchanged. API routing passes 9 native / 6 strict calls and 4 counted fallbacks,
+including owner/off/foreign/image/null-tail/invalid/foreign-LS/post-scope and
+r0=77F8 collision. The 1,024 outer models and 19,508 real-entry models, 43 runtime
+controller cases, 240 production-getter cases and durable first-fallback test
+also pass. There was no pre-freeze arithmetic/state mismatch.
+
+Frozen `build-vulkan-phase3-index-deltas-v1`:
+EXE `94ef25cb1bb11c06ae092838ae88039eed76e4d74cb4ffa87037c35de8ac1acc`;
+map `100e36fd32ed0e8e99664f07a568b1907c4cbe106d079b06056fc1a371db66f0`;
+generated C `03e2f205c7906c79c88b63610b583e6e06e38acbd5898de73c967ba3a3e8c395`.
+Frozen C and four compiled native/header/controller copies are preserved.
+
+All five arms pass **19,508 exact jobs / 58,195 transfers**, zero input changes
+and failures, Stage F=2 / leaf 827/no contract override:
+
+| Arm | JOB | Older flags | INDEX_DELTAS | Delta native/strict/fallback |
+|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|
+| Independent |2|0|1|9,763/9,763/0|
+| Combined native |1|1|1|9,763/0/0|
+| Combined checked |2|1|1|9,763/9,763/0|
+| Kernel checked |1|1|2|9,763/9,763/0|
+
+Every enabled arm has 2,999 one-group + 6,764 bulk calls, zero empty/alias calls.
+Both JOB=2 arms pass 19,508 whole-job state/I/O checks. Combined arms retain
+1,628 AF18, 6,113 weighted and 5,018 basic direction native roots, zero fallback.
+Real delta coverage is nonzero; synthetic alias/empty cases are not represented
+as additional real calls. The width-zero path bypasses the delta root.
+
+Same frozen EXE, fresh private saves, all older flags=1, GEOMETRY=1 / Stage F=1 / leaf 827, no
+compilation/CPU tests/profiling overlap:
+
+| Functional scene | JOB/INDEX_DELTAS | Frames /last elapsed ms | Delta evidence (lower bounds) |
+|---|---|---|---|
+| Checked menu, 60s |1/2|2,169 /59643.636|strict one-group>=235,000;bulk>=315,000|
+| Native menu, 75s |1/1|3,288 /74518.179|native one-group>=1,390,000;bulk>=1,895,000|
+| Native round, 60s after navigation |1/1|9,396 /196050.902|native one-group>=2,490,000;bulk>=4,920,000|
+
+No differences, halts or first delta fallback were observed. Forced shutdown
+leaves periodic live counts as lower bounds, not final fallback totals.
+Inspected 1280x720 readbacks show normal menu/studio/crowd and actual green-round
+host/player/score UI. Final interpreter/reversed A/B and normalized worker/
+process cycles/time/default gates remain OPEN; no FPS/CPU benefit is claimed.
+Repeatable CPU savings with flat FPS may justify enabling after all gates.
+JOB=0 / leaf 827 / all new flags=0 remain unchanged. Full index decoder, other enclosing
+stages/builtins/cold coverage and phase 3 final gates still require work; the
+continuing goal remains active, with strict Stage F reconstruction last.
+
+Private evidence uses `phase3/index-deltas-v1-*` and
+`analysis/vk-scene-p3-index-deltas-v1-*`; the finalized private manifest binds
+committed sources/docs/tests, frozen binaries/map/C/native snapshots,
+original entry pin, prior audit, tests, five replays and three scene outputs.

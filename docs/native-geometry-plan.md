@@ -591,6 +591,23 @@ Other enclosing stages/built-in inputs/cold coverage and final interpreter/
 reversed A/B/normalized CPU/default decisions still keep phase 3 open. Strict
 Stage F reconstruction remains mandatory final phase 7.
 
+### Native compressed-index delta reconstruction
+
+`7730/7770` now has a complete native implementation, independently selected
+by `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default 0. It preserves all eight
+u16 prefix chains, warmup/flush, input lookahead, aliases and the full final
+GPR/LS/77F8 boundary without an original final iteration. Strict tests pass
+5,763 cases plus three independent numeric checks and eight unchanged rejects;
+five corpus arms each pass 19,508 exact jobs / 58,195 transfers. All 9,763 real delta
+calls are native with zero fallback, comprising 2,999 one-group + 6,764 bulk calls.
+Strict live menu checks exceed 235,000 one-group + 315,000 bulk calls. Frozen
+native scene evidence is recorded in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
+The [remaining index inventory](native-geometry-index-audit.md#native-implementation-inventory)
+keeps the controller, bit unpack, flag expansion, relocation and triangle
+final ABI explicit. This completes one data region, not 7390 or phase 3.
+Final interpreter/reversed A/B/normalized worker/process CPU/default gates
+remain open. JOB=0 / leaf 827 / all new flags=0 are unchanged; strict Stage F remains last.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -716,6 +733,7 @@ subject to the kernel gates before replacement.
 | 0xB348 data suffix/B3C0/B3C8 rigid skin data | n/a | complete native implementation; real/live gates OPEN | `BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2`, default0 | 7,681strict+3numeric+10rejects;384AF18/data integration;five compatibility arms19,508exact/58,195transfers;zero real calls | Real/live >=256 gate OPEN; native scene compatibility in report | not measured | |
 | 0xBB58/BB68 cofactor normal data | n/a | complete native implementation;real/live gates OPEN | `BUZZ_GEOMETRY_JOB_SKIN_COFACTOR=0/1/2`, default0 | 7,808strict+3geometric+10rejects;768AF18/data integration;five compatibility arms in report;zero real calls | Real/live >=256 gate OPEN; scene compatibility only | not measured | |
 | 0xC14C/C280/B5A0 normalized direction data | n/a | complete native implementations;all real/live gates OPEN | `BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2`, default0 | 9,219strict+9geometric/cache+12rejects;1,152AF18 actual-data integration;five compatibility arms in report;zero real calls | Real/live >=256 gate OPEN in each variant;scene compatibility only | not measured | |
+| 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
@@ -766,6 +784,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-10-31 | Phase 3 complete 7730/7770 index delta reconstruction | Menu/actual round (functional) | not measured | not measured | 5,763 strict +3 numeric +8 rejects; 240 configuration cases; 9,763 native/0 fallback per enabled replay, each 19,508 exact/58,195 transfers; >=235,000 strict one-group +315,000 strict bulk live; normal native frames; own 0/1/2 default 0; remaining index stages and final gates OPEN |
 | 2026-10-30 | Baseline (all session fixes) | Menu 40-98 s | 36.3 | 29.6 / 34.8 | `vk-scene-final2-vk` |
 | 2026-10-30 | Baseline | Round 150-250 s | 44.2 | 22.6 / 27.3 | `vk-scene-final2-rvk` |
 | 2026-10-30 | Phase 0 capture / harness / profile | Menu, solo, two-player, loads | n/a (no optimization) | n/a | 37,222 real jobs replay exactly; native Stage F established contracts reproduced; native defaults unchanged |

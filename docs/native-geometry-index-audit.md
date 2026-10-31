@@ -1,6 +1,7 @@
 # Image-41 compressed indices: implementation contract
 
-Status: audited, **native whole-decoder implementation and acceptance OPEN**,
+Status: audited; delta reconstruction implemented separately; **native
+whole-decoder implementation and acceptance OPEN**,
 2026-10-31. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
 for the next phase-3 implementation. The continuing objective remains active
 through subsequent native phases and final strict Stage F reconstruction.
@@ -130,8 +131,10 @@ tails, halfword overflow, eight independent prefix chains, warmup, aliasing
 lookahead, malformed counts and the source pin.
 
 That snapshot omits full architectural/channel state and represents one call.
-It is a format proof, not acceptance of a new native kernel. No production
-switch, default, kernel, driver or generated lift changes in this audit.
+It is a format proof, not acceptance of a new native kernel. The source/format
+audit at `ca88254` changed no production switch, default, kernel, driver or
+generated lift. Subsequent delta implementation and its full-state evidence
+are tracked in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
 The native whole-decoder implementation, full-state synthetic/real checks,
 >=256 live calls, native menu/round rendering, interpreter checks, reversed
 same-EXE A/B and normalized worker/process cycles/time measurements remain
@@ -145,5 +148,21 @@ trace replay is terminal, with no game/performance run active:
 
 ```powershell
 .\toolenv\Scripts\python.exe -m unittest discover -s tests -p test_geometry_index_audit.py -v
-.\toolenv\Scripts\python.exe tools/inspect/geometry-index-audit.py analysis/native-geometry/replay-final/all/image41 analysis/native-geometry/phase3/index-audit-v1 --output analysis/native-geometry/phase3/index-audit-v1/verdict.json
+.\toolenv\Scripts\python.exe tools/inspect/geometry-index-audit.py analysis/native-geometry/replay-final/all/image41 analysis/native-geometry/phase3/index-audit-v1 --output analysis/native-geometry/phase3/index-audit-rerun.json
 ```
+
+Choose a fresh output filename; preserve the finalized v1 verdict and archive.
+
+## Native implementation inventory
+
+| Region | Current implementation |
+|---|---|
+| AEA0 controller, 7390 frame/setup, 2738 publication | Complete native replacement OPEN |
+| 74F0/7640 and 7C20/7CD0 bit unpack | Complete native replacement OPEN |
+| 7730/7770 delta prefix | Complete native implementation, own `INDEX_DELTAS=0/1/2`, default 0; final performance/default gates OPEN |
+| 7838/78A8 flag expansion | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
+| 79A8/79C8 command relocation | Complete native replacement OPEN |
+| 7A90 triangle reconstruction and frame restoration | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
+
+The native delta region calls no original setup, step or final iteration.
+Completing that region does not complete 7390 or the image-41 job flow.

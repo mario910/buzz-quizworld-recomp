@@ -675,6 +675,12 @@ the exact frame/continuation contract, the four error frontiers, observed
 width cohorts and the eight independent u16 delta chains with warmup and
 lookahead. Its scalar reconstruction matches all registers/LS of one captured
 7770 call. This is format evidence; full native-decoder acceptance remains open.
+The subsequent complete native `7730/7770` region uses eight u16 chains,
+preserves warmup, cached lookahead, aliases and all final GPR/LS state, and
+queues 77F8 without original setup/step/final execution. Its own
+`BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2` defaults to 0; full-state synthetic,
+real-corpus and live evidence is in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
+Other index data/control regions remain separate unfinished implementations.
 
 ## Vertex and index streams
 

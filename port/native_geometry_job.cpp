@@ -32,6 +32,7 @@ std::atomic<unsigned long long> color_checked{0},unit_vectors_checked{0},half_st
 std::atomic<unsigned long long> descriptor_checked{0},descriptor_dispatches[9]{};
 std::atomic<unsigned long long> custom_stream_checked{0};
 std::atomic<unsigned long long> skin_normalized_counts[2][3]{},skin_normalized_aliases[2][3]{};
+std::atomic<unsigned long long> index_deltas_counts[2][3]{}, index_deltas_aliases[2]{};
 std::atomic<unsigned long long> skin_cofactor_counts[2][2]{},skin_cofactor_aliases[2]{};
 std::atomic<unsigned long long> rigid_skin_counts[2][2]{},rigid_skin_aliases[2]{};
 std::atomic<unsigned long long> skin_flow_counts[2][2]{};
@@ -39,8 +40,8 @@ std::atomic<unsigned long long> skin_dispatch_counts[2][2]{};
 std::atomic<unsigned long long> weighted_skin_counts[2][2]{},weighted_skin_alias_counts[2]{};
 std::atomic<unsigned long long> skin_directions_counts[2][3]{},skin_directions_aliases[2][3]{};
 std::atomic<unsigned long long> run_lists_checked{0},run_lists_expanded_native{0},run_lists_empty_native{0},run_lists_expanded_checked{0},run_lists_empty_checked{0};
-struct OutputCounters { std::atomic<unsigned long long> native{0}, fallback{0}, reused{0}; } output_counters[31];
-constexpr const char* output_labels[] = {"output-size", "vertex-publish", "command-buffer", "command-publish", "command-bind", "command-reset", "position-commands", "full-commands", "attributes", "raw-stream", "color-codec", "descriptor-control", "unit-vectors", "half-stream", "float32-stream", "fixed-stream", "snorm-stream", "i16-stream", "cmp-stream", "u8-integer-stream", "blend-scatter", "blend-lists", "run-lists", "custom-stream", "skin-dispatch", "weighted-skin", "skin-directions", "skin-flow", "rigid-skin", "skin-cofactor", "skin-normalized"};
+struct OutputCounters { std::atomic<unsigned long long> native{0}, fallback{0}, reused{0}; } output_counters[32];
+constexpr const char* output_labels[] = {"output-size", "vertex-publish", "command-buffer", "command-publish", "command-bind", "command-reset", "position-commands", "full-commands", "attributes", "raw-stream", "color-codec", "descriptor-control", "unit-vectors", "half-stream", "float32-stream", "fixed-stream", "snorm-stream", "i16-stream", "cmp-stream", "u8-integer-stream", "blend-scatter", "blend-lists", "run-lists", "custom-stream", "skin-dispatch", "weighted-skin", "skin-directions", "skin-flow", "rigid-skin", "skin-cofactor", "skin-normalized", "index-deltas"};
 unsigned long long maximum = 512;
 
 struct Recording {
@@ -187,6 +188,7 @@ struct Init {
             std::fprintf(stderr, "[geometry-job] native blend lists=%d (default off; JOB=2 strict I/O root)\n", buzz_geometry_job_blend_lists_enabled());
             std::fprintf(stderr, "[geometry-job] native run lists=%d (0 lift, 1 native, 2 strict root; default off)\n", buzz_geometry_job_run_lists_enabled());
             std::fprintf(stderr, "[geometry-job] native normalized skin=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_skin_normalized_enabled());
+            std::fprintf(stderr, "[geometry-job] native index deltas=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_deltas_enabled());
             std::fprintf(stderr, "[geometry-job] native skin cofactor=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_skin_cofactor_enabled());
             std::fprintf(stderr, "[geometry-job] native rigid skin=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_rigid_skin_enabled());
             std::fprintf(stderr, "[geometry-job] native skin flow=%d (0 lift, 1 native, 2 strict state/return; default off)\n", buzz_geometry_job_skin_flow_enabled());
@@ -289,7 +291,7 @@ extern "C" int buzz_geometry_job_codecs_enabled()
 }
 extern "C" void buzz_geometry_job_output_result(unsigned stage, int native, int reused_layout)
 {
-    if (stage >= 31) std::abort();
+    if (stage >= 32) std::abort();
     auto& counters = output_counters[stage];
     if (native) {
         if (reused_layout) ++counters.reused;
@@ -365,6 +367,18 @@ extern "C" int buzz_geometry_job_blend_lists_enabled()
 extern "C" int buzz_geometry_job_run_lists_enabled()
 {
     static const int enabled=output_option("BUZZ_GEOMETRY_JOB_RUN_LISTS",2);return enabled;
+}
+extern "C" int buzz_geometry_job_index_deltas_enabled()
+{
+    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_INDEX_DELTAS", 2); return enabled;
+}
+extern "C" void buzz_geometry_job_index_deltas_result(unsigned groups, int checked, int aliases)
+{
+    const unsigned shape = groups == 0 ? 0 : groups == 1 ? 1 : 2;
+    const auto total = ++index_deltas_counts[!!checked][shape]; if (aliases) ++index_deltas_aliases[!!checked];
+    if (total == 1 || total == 256 || total % 5000 == 0)
+        std::fprintf(stderr, "[geometry-job/index-deltas/%s] %s=%llu aliases=%llu PASS\n", shape == 0 ? "empty" : shape == 1 ? "one-group" : "bulk",
+            checked ? "strict-full-state-boundary" : "native", total, index_deltas_aliases[!!checked].load());
 }
 extern "C" int buzz_geometry_job_skin_normalized_enabled()
 {
@@ -828,8 +842,10 @@ extern "C" void buzz_geometry_job_audit_report()
         std::fprintf(stderr,"[geometry-job/skin-cofactor] native-bulk=%llu native-one-group=%llu strict-bulk=%llu strict-one-group=%llu native-aliases=%llu strict-aliases=%llu\n",skin_cofactor_counts[0][0].load(),skin_cofactor_counts[0][1].load(),skin_cofactor_counts[1][0].load(),skin_cofactor_counts[1][1].load(),skin_cofactor_aliases[0].load(),skin_cofactor_aliases[1].load());
     if (buzz_geometry_job_mode() && buzz_geometry_job_skin_normalized_enabled())for(unsigned stream=0;stream<3;++stream)
         std::fprintf(stderr,"[geometry-job/skin-normalized/%u] native=%llu strict=%llu native-aliases=%llu strict-aliases=%llu\n",stream+1,skin_normalized_counts[0][stream].load(),skin_normalized_counts[1][stream].load(),skin_normalized_aliases[0][stream].load(),skin_normalized_aliases[1][stream].load());
-    if (buzz_geometry_job_mode()) for (unsigned stage = 0; stage < 31; ++stage)
-        if (stage == 30 ? buzz_geometry_job_skin_normalized_enabled() : stage == 29 ? buzz_geometry_job_skin_cofactor_enabled() : stage == 28 ? buzz_geometry_job_rigid_skin_enabled() : stage == 27 ? buzz_geometry_job_skin_flow_enabled() : stage == 26 ? buzz_geometry_job_skin_directions_enabled() : stage == 25 ? buzz_geometry_job_weighted_skin_enabled() : stage == 24 ? buzz_geometry_job_skin_dispatch_enabled() : stage == 23 ? buzz_geometry_job_custom_stream_enabled() : stage == 22 ? buzz_geometry_job_run_lists_enabled() : stage == 21 ? buzz_geometry_job_blend_lists_enabled() : stage == 20 ? buzz_geometry_job_blend_scatter_enabled() : stage == 19 ? buzz_geometry_job_u8_integer_stream_enabled() : stage == 18 ? buzz_geometry_job_cmp_stream_enabled() : stage == 17 ? buzz_geometry_job_i16_stream_enabled() : stage == 16 ? buzz_geometry_job_snorm_stream_enabled() : stage == 15 ? buzz_geometry_job_fixed_stream_enabled() : stage == 14 ? buzz_geometry_job_float32_stream_enabled() : stage == 13 ? buzz_geometry_job_half_stream_enabled() : stage == 12 ? buzz_geometry_job_unit_vectors_enabled() : stage == 11 ? buzz_geometry_job_descriptors_enabled() : stage == 10 ? buzz_geometry_job_codecs_enabled() : stage >= 8 ? buzz_geometry_job_attributes_enabled() : stage == 0 ? buzz_geometry_job_layout_enabled() : stage == 1 ? buzz_geometry_job_vertex_enabled() : stage == 2 ? buzz_geometry_job_commands_enabled() : stage == 3 ? buzz_geometry_job_command_publish_enabled() : stage == 7 ? buzz_geometry_job_full_commands_enabled() : buzz_geometry_job_emit_enabled())
+    if (buzz_geometry_job_mode() && buzz_geometry_job_index_deltas_enabled())
+        std::fprintf(stderr,"[geometry-job/index-deltas] native-empty=%llu native-one-group=%llu native-bulk=%llu strict-empty=%llu strict-one-group=%llu strict-bulk=%llu native-aliases=%llu strict-aliases=%llu\n",index_deltas_counts[0][0].load(),index_deltas_counts[0][1].load(),index_deltas_counts[0][2].load(),index_deltas_counts[1][0].load(),index_deltas_counts[1][1].load(),index_deltas_counts[1][2].load(),index_deltas_aliases[0].load(),index_deltas_aliases[1].load());
+    if (buzz_geometry_job_mode()) for (unsigned stage = 0; stage < 32; ++stage)
+        if (stage == 31 ? buzz_geometry_job_index_deltas_enabled() : stage == 30 ? buzz_geometry_job_skin_normalized_enabled() : stage == 29 ? buzz_geometry_job_skin_cofactor_enabled() : stage == 28 ? buzz_geometry_job_rigid_skin_enabled() : stage == 27 ? buzz_geometry_job_skin_flow_enabled() : stage == 26 ? buzz_geometry_job_skin_directions_enabled() : stage == 25 ? buzz_geometry_job_weighted_skin_enabled() : stage == 24 ? buzz_geometry_job_skin_dispatch_enabled() : stage == 23 ? buzz_geometry_job_custom_stream_enabled() : stage == 22 ? buzz_geometry_job_run_lists_enabled() : stage == 21 ? buzz_geometry_job_blend_lists_enabled() : stage == 20 ? buzz_geometry_job_blend_scatter_enabled() : stage == 19 ? buzz_geometry_job_u8_integer_stream_enabled() : stage == 18 ? buzz_geometry_job_cmp_stream_enabled() : stage == 17 ? buzz_geometry_job_i16_stream_enabled() : stage == 16 ? buzz_geometry_job_snorm_stream_enabled() : stage == 15 ? buzz_geometry_job_fixed_stream_enabled() : stage == 14 ? buzz_geometry_job_float32_stream_enabled() : stage == 13 ? buzz_geometry_job_half_stream_enabled() : stage == 12 ? buzz_geometry_job_unit_vectors_enabled() : stage == 11 ? buzz_geometry_job_descriptors_enabled() : stage == 10 ? buzz_geometry_job_codecs_enabled() : stage >= 8 ? buzz_geometry_job_attributes_enabled() : stage == 0 ? buzz_geometry_job_layout_enabled() : stage == 1 ? buzz_geometry_job_vertex_enabled() : stage == 2 ? buzz_geometry_job_commands_enabled() : stage == 3 ? buzz_geometry_job_command_publish_enabled() : stage == 7 ? buzz_geometry_job_full_commands_enabled() : buzz_geometry_job_emit_enabled())
             std::fprintf(stderr, "[geometry-job/%s] native=%llu fallback=%llu reused-layout=%llu\n", output_labels[stage],
                 output_counters[stage].native.load(), output_counters[stage].fallback.load(), output_counters[stage].reused.load());
     if (buzz_geometry_job_mode() && buzz_geometry_job_publish_enabled())

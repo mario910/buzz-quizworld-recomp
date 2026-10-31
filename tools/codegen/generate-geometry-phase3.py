@@ -24,6 +24,14 @@ def main():
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    delta_name = "buzz_job_6eba_spu_func_00007730"
+    delta_pattern = rf"(?ms)^void {delta_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(delta_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned index-delta entry")
+    source = re.sub(delta_pattern, lambda m:
+        f"static void {delta_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {delta_name}(spu_context* ctx) {{ buzz_geometry_job_index_deltas(ctx, {delta_name}_reference, buzz_job_6eba_spu_func_000077F8); }}",
+        source, count=1)
     for old, new in (("spu_wrch", "buzz_geometry_job_wrch"),
                      ("spu_rdch", "buzz_geometry_job_rdch"),
                      ("spu_rchcnt", "buzz_geometry_job_rchcnt")):
@@ -301,7 +309,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 25\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 26\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
