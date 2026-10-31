@@ -30,7 +30,7 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
        BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
-       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15 };
+       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19 };
 int buzz_geometry_job_layout_enabled(void);
 int buzz_geometry_job_vertex_enabled(void);
 int buzz_geometry_job_commands_enabled(void);
@@ -42,7 +42,19 @@ int buzz_geometry_job_codecs_enabled(void);
 int buzz_geometry_job_descriptors_enabled(void);
 int buzz_geometry_job_unit_vectors_enabled(void);
 int buzz_geometry_job_half_stream_enabled(void);
-/* Fixed/float32: 0 lift, 1 native, 2 strict region (also with native JOB=1). */
+/* Typed decoders: 0 lift, 1 native, 2 strict region (also with native JOB=1). */
+int buzz_geometry_job_i16_stream_enabled(void);
+void buzz_geometry_job_i16_stream_checked_result(void);
+void buzz_geometry_job_decode_i16_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
+int buzz_geometry_job_cmp_stream_enabled(void);
+void buzz_geometry_job_cmp_stream_checked_result(void);
+void buzz_geometry_job_decode_cmp_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
+int buzz_geometry_job_u8_integer_stream_enabled(void);
+void buzz_geometry_job_u8_integer_stream_checked_result(void);
+void buzz_geometry_job_decode_u8_integer_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
+int buzz_geometry_job_snorm_stream_enabled(void);
+void buzz_geometry_job_snorm_stream_checked_result(void);
+void buzz_geometry_job_decode_snorm_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
 int buzz_geometry_job_fixed_stream_enabled(void);
 void buzz_geometry_job_fixed_stream_checked_result(void);
 void buzz_geometry_job_decode_fixed_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);

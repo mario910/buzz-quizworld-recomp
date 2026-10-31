@@ -5,6 +5,11 @@
 #include "../port/native_geometry_half_stream.h"
 #include "../port/native_geometry_float32_stream.h"
 #include "../port/native_geometry_fixed_stream.h"
+#include "../port/native_geometry_snorm_stream.h"
+#include "../port/native_geometry_i16_stream.h"
+#include "../port/native_geometry_cmp_stream.h"
+#include "../port/native_geometry_u8_integer_stream.h"
+
 #include "../port/native_function_check.h"
 #include <cassert>
 #include <cstdio>
@@ -95,15 +100,35 @@ static void native_fixed_stream(spu_context* ctx)
     GeometryFixedStream p;const char* reason=nullptr;if(!read_geometry_fixed_stream(*ctx,p,&reason)){fprintf(stderr,"descriptor fixed preflight trial%u: %s\n",current_trial,reason);abort();}
     decode_geometry_fixed_stream(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
 }
+static void native_snorm_stream(spu_context* ctx)
+{
+    GeometrySnormStream p;const char* reason=nullptr;if(!read_geometry_snorm_stream(*ctx,p,&reason)){fprintf(stderr,"descriptor snorm preflight trial%u: %s\n",current_trial,reason);abort();}
+    decode_geometry_snorm_stream(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
+}
+static void native_i16_stream(spu_context* ctx)
+{
+    GeometryI16Stream p;const char* reason=nullptr;if(!read_geometry_i16_stream(*ctx,p,&reason)){fprintf(stderr,"descriptor i16 preflight trial%u: %s\n",current_trial,reason);abort();}
+    decode_geometry_i16_stream(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
+}
+static void native_cmp_stream(spu_context* ctx)
+{
+    GeometryCmpStream p;const char* reason=nullptr;if(!read_geometry_cmp_stream(*ctx,p,&reason)){fprintf(stderr,"descriptor cmp preflight trial%u: %s\n",current_trial,reason);abort();}
+    decode_geometry_cmp_stream(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
+}
+static void native_u8_integer_stream(spu_context* ctx)
+{
+    GeometryU8IntegerStream p;const char* reason=nullptr;if(!read_geometry_u8_integer_stream(*ctx,p,&reason)){fprintf(stderr,"descriptor u8_integer preflight trial%u: %s\n",current_trial,reason);abort();}
+    decode_geometry_u8_integer_stream(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
+}
 static void compare(spu_context& native,spu_context& reference,unsigned trial)
 {
     current_trial=trial;
     memcpy(&reference,&native,sizeof native);reference.ls=reference.ls_store;
     GeometryDescriptorStream p;assert(read_geometry_descriptor_stream(native,p));
     buzz_job_6eba_spu_func_00007DF8(&reference);drain(&reference,native.gpr[0]._u32[0]);
-    buzz_geometry_descriptor_functions functions{{buzz_job_6eba_spu_func_000085E8,trial&2048?native_float32_stream:buzz_job_6eba_spu_func_000087CC,
+    buzz_geometry_descriptor_functions functions{{trial&8?native_snorm_stream:buzz_job_6eba_spu_func_000085E8,trial&2048?native_float32_stream:buzz_job_6eba_spu_func_000087CC,
         trial&1024?native_half_stream:buzz_job_6eba_spu_func_00008378,trial&256?native_color:buzz_job_6eba_spu_func_000089B0,
-        buzz_job_6eba_spu_func_00008B94,buzz_job_6eba_spu_func_00008D34,buzz_job_6eba_spu_func_00008EA8,
+        trial&8?native_i16_stream:buzz_job_6eba_spu_func_00008B94,trial&8?native_cmp_stream:buzz_job_6eba_spu_func_00008D34,trial&8?native_u8_integer_stream:buzz_job_6eba_spu_func_00008EA8,
         trial&8?native_fixed_stream:buzz_job_6eba_spu_func_00009058,trial&512?native_unit_vectors:buzz_job_6eba_spu_func_00009114},buzz_job_6eba_spu_func_0000C750,buzz_job_6eba_spu_func_000083C8};
     decode_geometry_descriptor_stream(native,p,functions);native.pc=native.gpr[0]._u32[0];
     const auto diff=compare_function_state(native,reference);

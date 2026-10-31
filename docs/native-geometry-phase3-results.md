@@ -6,10 +6,11 @@ geometry mask 827 (`0x33B`). The continuing objective in
 subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 
-Complete native data handlers now cover raw float3, normalized U8 color,
-packed unit vectors, halfword, float32 and fixed-point attributes. The latest fixed-point
-increment passes the full corpus and live/render gates below; remaining typed data,
-weighted scatter and enclosing pipeline bodies still keep phase 3 open.
+Native payload implementations now exist for all nine descriptor storage
+families, plus the primary raw float3 path. The latest four implementations
+pass strict synthetic/routing checks; their real coverage and remaining gates
+are recorded below. Weighted scatter and enclosing pipeline bodies still
+keep phase 3 open.
 
 ## Driver boundary audit
 
@@ -1386,12 +1387,12 @@ The required phase-3 data inventory after this increment is:
 | `0x93F0`, storage 0 raw float3 | Complete, opt-in | Final aggregate performance/default gates |
 | `0x89B0..8B90`, storage 4 U8 color | Complete, opt-in | Final aggregate performance/default gates |
 | `0x9114/9148/92A0`, storage 9 unit vectors | Complete data implementation, opt-in | Final aggregate performance/default gates |
-| `0x85E8`, storage 1 SNORM16 | Original typed handler | Complete native data path and validation |
+| `0x85E8`, storage 1 SNORM16 | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
 | `0x87CC`, storage 2 float32 | Complete, opt-in | Final aggregate performance/default gates |
 | `0x8378` / `0xCAC0` family, storage 3 half | Complete, opt-in | Final aggregate performance/default gates |
-| `0x8B94`, storage 5 I16 | Original typed handler | Complete native data path and validation |
-| `0x8D34`, storage 6 CMP | Original typed handler | Complete native data path and validation |
-| `0x8EA8`, storage 7 U8 integer | Original typed handler | Complete native data path and validation |
+| `0x8B94`, storage 5 I16 | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
+| `0x8D34`, storage 6 CMP | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
+| `0x8EA8`, storage 7 U8 integer | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
 | `0x9058` / `0xC810/C830/C910`, storage 8 fixed point | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0xC750`, remapped weighted scatter | Original data kernel | Native blend math/scatter and validation |
 | `0x0BF8`, list/blend stage | Original enclosing stage | Native enclosing flow and validation |
@@ -1738,3 +1739,103 @@ menu/round A/B, interpreted-SPU counts, normalized worker/process cycles and
 CPU time per completed frame/job remain required for phase-3 defaults;
 repeatable CPU savings can matter with flat FPS. Remaining typed handlers,
 weighted scatter and enclosing stages remain open; strict Stage F is last.
+
+## Complete remaining typed data implementations (2026-10-31)
+
+Storage 1 SNORM16 (`0x85E8/8620/8698/8728/8740`), storage 5 I16
+(`0x8B94/8BC8/8C30/8CAC/8CC0`), storage 6 CMP (`0x8D34/8D68/8DE0`) and
+storage 7 U8 integer (`0x8EA8/8EE0/8F48/8FCC/8FE0`) now own their complete
+payload loops. A shared guarded layout reader validates their LS shape,
+gather tables, steps, source/lookahead/output/sentinel ranges and aliases
+before mutation. Each independent switch defaults to 0 and accepts
+0 lift / 1 native / 2 strict region, including strict checks with JOB=1.
+The new switches are `BUZZ_GEOMETRY_JOB_SNORM_STREAM`, `_I16_STREAM`,
+`_CMP_STREAM` and `_U8_INTEGER_STREAM`. Counters are stages 16..19; the
+adapter protocol is 14. Existing defaults, leaf mask 827 and the limited
+Stage F baseline exception remain unchanged.
+
+SNORM16 preserves its cross-quad initial gather even in the within-quad path;
+subsequent within-quad groups wrap unused components. I16 and U8 integer
+wrap every within-quad group. The two-stage table shuffle zeros the low
+halfword, rather than filling it with ones. SNORM16 performs CSFLT 139 and
+FMA with r93/r92; I16 uses CSFLT 139; U8 integer uses CUFLT 139. CMP gathers
+its packed word across quads, applies the full r90/r100 shift/mask vectors,
+CSFLT 124 and r99/r98 FMA. Arbitrary parameter bits retain SPU behavior.
+All families preserve per-column final ABI, branch-specific surviving
+registers, trailing stores/prefetches, row order, per-lane sentinel clipping
+and r121=0 immediate continuation. No lifted final-column callback remains.
+
+| Handler | Strict full-state cases | Additional coverage |
+|---|---:|---|
+| SNORM16 | 8,512 | All 65,536 input encodings, 4,096 shapes, 256 partial/mixed-path layouts, 64 empty entries, arbitrary FMA parameters |
+| I16 | 8,512 | All 65,536 input encodings, cross/within gather and unused components |
+| U8 integer | 4,672 | All 256 input encodings, cross/within byte gather |
+| CMP | 8,512 | Full 10/11-bit component ranges, arbitrary shift/mask/scale/bias vectors and packed input patterns |
+
+Each handler has 27 unchanged-context/no-I/O rejection cases. Its pinned
+private oracle executes all original region blocks and traps 0x83C8.
+The 4,192-case descriptor matrix / 28 rejects mixes original and native
+callbacks for all nine storage families. Driver routing uses each actual
+oracle in both JOB=2/new-switch=1 and JOB=1/new-switch=2, including owner,
+off/foreign/null/unsupported/post-scope guards, 1,024 models and all 19,508
+real driver entries. All 43 controller and 144 production-getter cases pass.
+
+### Remaining typed families: frozen compatibility and live coverage
+
+`phase3/typed-streams-build.json` binds `build-vulkan-phase3-typed-streams`,
+preserved `phase3/frozen-typed-streams-source.c`, code/tests/docs, fixtures,
+saves and proof logs to the source commit. EXE SHA256:
+`f0a782ef26f1c005bd7bc91ce40b949b052f69a351b104cdd14c7627cc719861`; map SHA256:
+`bddb57117e96b3f6432f3283a29f3251125adce04f4403edc30e3f353d015139`.
+
+All five `typed-streams-corpus-{off,independent,native,checked,kernel-checked}.log`
+arms pass **19,508 exact jobs / 58,195 transfers each**, zero concurrent input
+changes and zero failures, mask 827 / Stage F=2, with no contract override.
+The corpus contains **zero storage-1/5/6/7 dispatches**: this proves replay
+compatibility, not native-data coverage for these four handlers. Their native,
+strict and fallback counters all remain zero. JOB=2 arms compare 19,508 full
+whole-job/I/O transcripts. Combined older float32/fixed/half/unit/descriptor/
+U8-color coverage remains 12/3/12,431/12,067/12,309/109, all without fallback.
+
+The same EXE runs checked menu 45 s, native menu 75 s, native round 60 s
+and independently region-checked round 90 s after navigation/load. All use
+Stage F=1 / GEOMETRY=1 / older native switches=1, fresh private saves,
+muted/background rendering and native buzzer input. All four new switches
+are 1 except the final round arm, where they are 2. No compilation, CPU tests
+or profiling overlap these functional runs. There are no differences, halts,
+new-region fallbacks or early exits.
+
+| Scene proof | Whole-job mode | Frames / last renderer time |
+|---|---|---|
+| `p3-typed-checked` | JOB=2 | 1,988 / 44441.730 ms |
+| `p3-typed-menu` | JOB=1 | 3,332 / 74657.129 ms |
+| `p3-typed-round-render` | JOB=1 | 9,375 / 196081.918 ms |
+| `p3-typed-kernel-checked-round` | JOB=1 | 10,750 / 226100.151 ms |
+
+The checked menu records **>=110,000 strict whole-job/I/O
+comparisons**. Periodic 500-frame renderer readbacks are preserved in
+`phase3/p3-typed-menu.ppm/.png` and
+`phase3/p3-typed-round-render.ppm/.png`. Both are visually inspected: normal
+menu/studio/crowd, and an actual green round stage with host, player and
+score display. Original/template saves remain unchanged. The committed
+source binds 193 archived controller/configuration/codec/descriptor/driver
+proof logs.
+
+| Handler | Actual native live lower bound | Strict live lower bound | >=256 strict live gate |
+|---|---:|---:|---|
+| SNORM16 | 0 | 0 | OPEN |
+| I16 | 0 | 0 | OPEN |
+| CMP | 0 | 0 | OPEN |
+| U8 integer | 0 | 0 | OPEN |
+
+The observed scene sequence does not establish the required live gate for
+SNORM16, I16, CMP, U8 integer. These remain explicit open validation items.
+Zero calls, synthetic cases and repeated checker clones are not native live
+successes. A real workload exercising each missing family is still required.
+
+All four switches remain default-off. These complete opt-in implementations
+do not close phase 3 or justify promoting defaults. Weighted scatter and
+the enclosing pipeline handlers remain original. Final interpreted-SPU counts,
+reversed same-frozen menu/round A/B, normalized worker/process cycles and CPU
+time per completed frame/job are still required. Repeatable CPU savings can
+justify a routine with flat FPS. Strict Stage F reconstruction stays last.

@@ -375,6 +375,42 @@ the order of overlapping scratch writes, including columns with no ordinary
 output destination. Per-column final ABI materialization is needed because
 the two loop variants leave different volatile registers behind.
 
+### Remaining typed descriptor data: SNORM16, I16, CMP, U8 integer
+
+The full storage-1/5/6/7 regions now have native payload implementations in
+`native_geometry_{snorm,i16,cmp,u8_integer}_stream.h`. They share checked
+layout and bounds in `native_geometry_typed_stream.h`; each keeps its own
+register ABI, counter and default-off `BUZZ_GEOMETRY_JOB_*_STREAM=0/1/2`
+switch (SNORM, I16, CMP, U8_INTEGER). Mode 2 compares all registers, LS,
+architectural controls and exact 0x83C8 continuation, including with JOB=1.
+They return immediately for preferred r121=0 without touching unused pointers.
+
+SNORM16 uses D910 to generate a gather selector, then a second shuffle.
+D910's 0xFF bytes become selector 0x80, so the final low halfword is **zero**.
+The signed high halfword is converted with CSFLT 139, then FMA with r93/r92.
+I16 uses that same high-halfword expansion and CSFLT 139, without FMA.
+U8 integer uses D8C0 to place each source byte in bits 16..23 and CUFLT 139.
+This is separate from the normalized U8-color handler.
+
+The crossing predicate is `(columnOffset&15)+r25>16`. For I16 and U8 integer,
+the within-quad path wraps every group's unused components in the source
+quad. SNORM16's setup instead gathers the **first group across two quads in
+both paths**; later groups of its within-quad path wrap. Setup-only and
+path-specific volatile state from earlier columns must survive exactly.
+All three implementations materialize each column's final ABI; there is no
+original setup/loop/final-column callback. Source/lookahead, output, per-lane
+sentinels, immutable stack metadata and nonaliasing are checked before writes.
+
+CMP always gathers four consecutive packed bytes through DA80, including
+across a quad boundary. The gathered overlapping halfwords are shifted by
+r90, masked by r100, converted with CSFLT 124 and transformed with r99/r98 FMA.
+The fourth gathered word is zero; its result still follows those parameters.
+The initial r25 is unused and is not validated as a branch width. Its native
+host data loop preserves arbitrary shift/mask/scale/bias vectors, current
+and prefetched values, and each final register. Every family writes one
+additional group after the preferred limit, with row store order 0,1,2,3
+and the corresponding r82 sentinel lane for clipped rows.
+
 ### Variable-bit fixed-point descriptor attribute stream
 
 Storage 8 uses the complete `0x9058/C810/C830/C910` region. The native

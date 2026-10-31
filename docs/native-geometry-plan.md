@@ -395,6 +395,18 @@ This opt-in implementation remains default-off until final performance/
 default measurements. Separate phase-3 results record the source-bound
 evidence; phase 3 remains open.
 
+Complete native data implementations now cover the remaining storage families
+1 SNORM16, 5 I16, 6 CMP and 7 U8 integer, sharing guarded layout code and
+retaining separate default-off 0/1/2 switches. Their pinned oracles pass
+30,208 strict cases and 108 unchanged-state/no-I/O rejects; mixed descriptor,
+real driver-entry and 144 production-getter tests pass. Five frozen corpus
+arms each pass 19,508 exact jobs / 58,195 transfers, but contain zero calls
+to these four families; replay compatibility is not new data-path coverage.
+Native menu/round images look normal and whole-job live checks pass. The
+separate phase-3 results record each actual native/strict live counter and
+any still-open >=256-call gate. No default is promoted; weighted scatter,
+enclosing stages and final performance/default work remain open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -600,6 +612,8 @@ See the separate
 | 2026-10-31 | Phase 3 complete float32 stream 87CC/8800/8878/8910/8928 | Five frozen corpus arms and scene-specific same-EXE live checks | functional evidence; no FPS/CPU claim | normal native menu and actual round | 5,440 strict cases +25 rejects; all12corpus float calls native/0fallback; each replay19,508 exact/58,195 transfers; >=20,000 strict live float32 in round sequence and 70,000 whole-job/I/O in menu; final V3 parser +104 configuration checks; own0/1/2switch default0, leaf827 unchanged; phase3open |
 
 | 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own0/1/2 default0;112 configuration cases; phase3open |
+
+| 2026-10-31 | Phase 3 remaining typed implementations 1/5/6/7 | Strict synthetic/routing and frozen replay/scene checks | functional only; no FPS/CPU claim | normal native menu/round | 30,208 strict +108 rejects;144 configuration cases;5 replay arms each19,508 exact/58,195 transfers;0new corpus dispatches;SNORM16 live gate OPEN; I16 live gate OPEN; CMP live gate OPEN; U8 integer live gate OPEN; own0/1/2 switches default0;phase3open |
 
 ## Risks
 

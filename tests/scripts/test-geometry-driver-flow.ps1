@@ -8,6 +8,14 @@ try {
     if ($LASTEXITCODE) { throw 'Driver oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-half-stream-test.py
     if ($LASTEXITCODE) { throw 'Half-stream routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-i16-stream-test.py
+    if ($LASTEXITCODE) { throw 'I16 stream routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-cmp-stream-test.py
+    if ($LASTEXITCODE) { throw 'CMP stream routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-u8-integer-stream-test.py
+    if ($LASTEXITCODE) { throw 'U8_INTEGER stream routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-snorm-stream-test.py
+    if ($LASTEXITCODE) { throw 'SNORM stream routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-fixed-stream-test.py
     if ($LASTEXITCODE) { throw 'Fixed stream reference generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-float32-stream-test.py

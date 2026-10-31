@@ -119,6 +119,38 @@ def main():
         f"static void {fixed_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {fixed_name}(spu_context* ctx) {{ buzz_geometry_job_decode_fixed_stream(ctx, {fixed_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
         source, count=1)
+    snorm_name = "buzz_job_6eba_spu_func_000085E8"
+    snorm_pattern = rf"(?ms)^void {snorm_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(snorm_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned snorm-stream codec entry")
+    source = re.sub(snorm_pattern, lambda m:
+        f"static void {snorm_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {snorm_name}(spu_context* ctx) {{ buzz_geometry_job_decode_snorm_stream(ctx, {snorm_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
+        source, count=1)
+    i16_name = "buzz_job_6eba_spu_func_00008B94"
+    i16_pattern = rf"(?ms)^void {i16_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(i16_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned i16-stream codec entry")
+    source = re.sub(i16_pattern, lambda m:
+        f"static void {i16_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {i16_name}(spu_context* ctx) {{ buzz_geometry_job_decode_i16_stream(ctx, {i16_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
+        source, count=1)
+    cmp_name = "buzz_job_6eba_spu_func_00008D34"
+    cmp_pattern = rf"(?ms)^void {cmp_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(cmp_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned cmp-stream codec entry")
+    source = re.sub(cmp_pattern, lambda m:
+        f"static void {cmp_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {cmp_name}(spu_context* ctx) {{ buzz_geometry_job_decode_cmp_stream(ctx, {cmp_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
+        source, count=1)
+    u8_integer_name = "buzz_job_6eba_spu_func_00008EA8"
+    u8_integer_pattern = rf"(?ms)^void {u8_integer_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(u8_integer_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned u8_integer-stream codec entry")
+    source = re.sub(u8_integer_pattern, lambda m:
+        f"static void {u8_integer_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {u8_integer_name}(spu_context* ctx) {{ buzz_geometry_job_decode_u8_integer_stream(ctx, {u8_integer_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
+        source, count=1)
     descriptor_name = "buzz_job_6eba_spu_func_00007DF8"
     descriptor_pattern = rf"(?ms)^void {descriptor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(descriptor_pattern, source))) != 1:
@@ -151,7 +183,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 13\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 14\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
