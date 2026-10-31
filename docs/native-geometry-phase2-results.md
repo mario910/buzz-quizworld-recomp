@@ -76,6 +76,9 @@ microbenchmarks are encouraging, but do not by themselves justify defaults.
 Existing RIP samplers read cycle counters while suspending threads and are
 explicitly diagnostic; CPU-cost comparisons need counters collected without
 suspending workers. Run them separately from the existing frozen FPS series.
+The new [CPU measurement observer](native-geometry-cpu-measurements.md) reads
+counters without suspension and has passed unit/API self-tests; actual game
+captures and matched CPU comparisons remain pending.
 The skinning default may be reconsidered with this evidence; its mixed FPS
 result is not by itself a permanent rejection.
 
