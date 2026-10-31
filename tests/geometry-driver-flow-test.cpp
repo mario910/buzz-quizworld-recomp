@@ -21,6 +21,8 @@ static unsigned scenario;
 static const char* current_case = "synthetic";
 static bool emit_enabled = false, full_enabled = false;
 static bool attributes_enabled = false;
+static int fixed_stream_enabled=0;
+static unsigned fixed_references=0,fixed_native=0,fixed_fallback=0,fixed_checked=0;
 static int float32_stream_enabled=0;
 static unsigned float32_references=0,float32_native=0,float32_fallback=0,float32_checked=0;
 static bool half_stream_enabled=false;
@@ -69,6 +71,8 @@ int buzz_geometry_job_commands_enabled() { return commands_enabled; }
 int buzz_geometry_job_full_commands_enabled() { return full_enabled; }
 int buzz_geometry_job_attributes_enabled() { return attributes_enabled; }
 int buzz_geometry_job_codecs_enabled() { return codecs_enabled; }
+int buzz_geometry_job_fixed_stream_enabled(){return fixed_stream_enabled;}
+void buzz_geometry_job_fixed_stream_checked_result(){++fixed_checked;}
 int buzz_geometry_job_float32_stream_enabled(){return float32_stream_enabled;}
 void buzz_geometry_job_float32_stream_checked_result(){++float32_checked;}
 int buzz_geometry_job_half_stream_enabled(){return half_stream_enabled;}
@@ -83,6 +87,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_FIXED_STREAM){assert(routing_probe);if(native)++fixed_native;else ++fixed_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_FLOAT32_STREAM){assert(routing_probe);if(native)++float32_native;else ++float32_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_HALF_STREAM){assert(routing_probe);if(native)++half_native;else ++half_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_UNIT_VECTORS){assert(routing_probe);if(native)++unit_native;else ++unit_fallback;return;}
@@ -167,6 +172,7 @@ static void model_call(spu_context* ctx, unsigned pc)
 #include "../analysis/native-geometry/phase3/test-half-stream-reference.inc"
 #define BUZZ_GEOMETRY_TEST_CONTINUATION_83C8_DEFINED 1
 #include "../analysis/native-geometry/phase3/test-float32-stream-reference.inc"
+#include "../analysis/native-geometry/phase3/test-fixed-stream-reference.inc"
 
 static void routing_reference(spu_context* ctx)
 {
@@ -180,6 +186,7 @@ static void emit_reference(spu_context* ctx) { ++emit_references; ctx->pc = ctx-
 static void attribute_reference(spu_context* ctx) { ++attribute_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_reference(spu_context* ctx) { ++color_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_zero_reference(spu_context* ctx) { ctx->pc = 0x83c8; g_spu_trampoline_fn = color_reference; }
+static void fixed_reference(spu_context* ctx){++fixed_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void float32_reference(spu_context* ctx){++float32_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void half_reference(spu_context* ctx){++half_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void unit_reference(spu_context* ctx){++unit_references;ctx->pc=ctx->gpr[0]._u32[0];}
@@ -206,6 +213,31 @@ static void prepare_stream_routing(spu_context* ctx)
 static void attribute_routing(spu_context* ctx)
 {
     auto backup = std::make_unique<spu_context>(); memcpy(backup.get(), ctx, sizeof(*ctx));
+    fixed_stream_enabled=true;prepare_stream_routing(ctx);
+    const uint32_t fixed_tables[][4]={{0x80808001,0x80808003,0x80808005,0x80808007},{0x80808000,0x80808002,0x80808004,0x80808006}};
+    for(unsigned i=0;i<2;++i){u128 q;memcpy(&q,fixed_tables[i],16);spu_ls_write128(ctx,0xd230+i*16,q);}
+    spu_ls_write128(ctx,0x3d0d0,spu_il(0x3b000));spu_ls_write128(ctx,0x3d110,spu_il(0x3a000));
+    spu_ls_write128(ctx,0x3d0e0,spu_ila(0x10203));ctx->gpr[84]=spu_il(0);
+    for(unsigned i=0;i<4;++i){ctx->ls[0x3a000+i*2]=8;ctx->ls[0x3a001+i*2]=0;}
+
+    auto fixed_entry=std::make_unique<spu_context>();memcpy(fixed_entry.get(),ctx,sizeof(*ctx));
+    buzz_geometry_job_decode_fixed_stream(ctx,fixed_reference,buzz_job_6eba_spu_func_000083C8);
+    assert(fixed_native==1 && !fixed_references && ctx->pc==0x83c8 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_000083C8);
+    g_spu_trampoline_fn=nullptr;memcpy(ctx,fixed_entry.get(),sizeof(*ctx));flow_mode=2;
+    buzz_geometry_job_decode_fixed_stream(ctx,buzz_job_6eba_spu_func_00009058,buzz_job_6eba_spu_func_000083C8);
+    assert(fixed_checked==1 && fixed_native==2 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_000083C8);
+    g_spu_trampoline_fn=nullptr;flow_mode=1;fixed_stream_enabled=2;
+    memcpy(ctx,fixed_entry.get(),sizeof(*ctx));
+    buzz_geometry_job_decode_fixed_stream(ctx,buzz_job_6eba_spu_func_00009058,buzz_job_6eba_spu_func_000083C8);
+    assert(fixed_checked==2 && fixed_native==3 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_000083C8);
+    g_spu_trampoline_fn=nullptr;fixed_stream_enabled=1;
+    buzz_geometry_job_decode_fixed_stream(ctx,fixed_reference,nullptr);
+    fixed_stream_enabled=false;buzz_geometry_job_decode_fixed_stream(ctx,fixed_reference,buzz_job_6eba_spu_func_000083C8);fixed_stream_enabled=true;
+    auto fixed_foreign=std::make_unique<spu_context>();memcpy(fixed_foreign.get(),ctx,sizeof(*ctx));fixed_foreign->ls=fixed_foreign->ls_store;
+    buzz_geometry_job_decode_fixed_stream(fixed_foreign.get(),fixed_reference,buzz_job_6eba_spu_func_000083C8);
+    ctx->gpr[121]._u32[0]=1;ctx->gpr[107]._u32[0]=17;buzz_geometry_job_decode_fixed_stream(ctx,fixed_reference,buzz_job_6eba_spu_func_000083C8);
+    assert(fixed_references==4 && fixed_fallback==2 && fixed_native==3);
+    memcpy(ctx,backup.get(),sizeof(*ctx));
     float32_stream_enabled=true;prepare_stream_routing(ctx);
     auto float32_entry=std::make_unique<spu_context>();memcpy(float32_entry.get(),ctx,sizeof(*ctx));
     buzz_geometry_job_decode_float32_stream(ctx,float32_reference,buzz_job_6eba_spu_func_000083C8);
@@ -475,6 +507,8 @@ int main(int argc, char** argv)
     assert(half_references==5 && half_native==2 && half_fallback==2 && half_checked==1);half_stream_enabled=false;
     buzz_geometry_job_decode_float32_stream(native.get(),float32_reference,buzz_job_6eba_spu_func_000083C8);
     assert(float32_references==5 && float32_native==3 && float32_fallback==2 && float32_checked==2);float32_stream_enabled=false;
+    buzz_geometry_job_decode_fixed_stream(native.get(),fixed_reference,buzz_job_6eba_spu_func_000083C8);
+    assert(fixed_references==5 && fixed_native==3 && fixed_fallback==2 && fixed_checked==2);fixed_stream_enabled=false;
     attributes_enabled = false;
     puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;

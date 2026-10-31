@@ -8,6 +8,8 @@ try {
     if ($LASTEXITCODE) { throw 'Driver oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-half-stream-test.py
     if ($LASTEXITCODE) { throw 'Half-stream routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-fixed-stream-test.py
+    if ($LASTEXITCODE) { throw 'Fixed stream reference generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-float32-stream-test.py
     if ($LASTEXITCODE) { throw 'Float32-stream routing oracle generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath

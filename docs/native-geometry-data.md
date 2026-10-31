@@ -303,7 +303,7 @@ offsets, added to each extracted unsigned component with word wrap before
 separating integer/fractional parts. `0xC910` uses CSFLT
 155 for the signed integer and CUFLT 123 for the shifted fraction, then FA.
 Those instructions, including shifts and padding accesses, remain the
-authoritative contract for this unexercised path; it has no corpus-exact claim.
+authoritative contract; the native region and its validation are described below.
 
 ### Descriptor iteration, routing and blend inputs
 
@@ -374,6 +374,35 @@ loaded. Preflight and native host batching must account for those reads and
 the order of overlapping scratch writes, including columns with no ordinary
 output destination. Per-column final ABI materialization is needed because
 the two loop variants leave different volatile registers behind.
+
+### Variable-bit fixed-point descriptor attribute stream
+
+Storage 8 uses the complete `0x9058/C810/C830/C910` region. The native
+`port/native_geometry_fixed_stream.h` extracts four sequential MSB-first
+components with per-component widths 0..32, adds the BE word offset with
+32-bit wrap, then separates the signed integer and unsigned fraction.
+CSFLT 155, CUFLT 123 and FA retain the exact SPU truncation behavior.
+The first width byte is the integer part, the second the fraction.
+
+The width record is selected through r84, the SP+0xE0 shuffle and the
+SP+0x110 base. Its eight bytes rotate inside the loaded quad, including
+records crossing its end. SP+0xD0 points at a separate sixteen-byte offset
+record and advances by sixteen on entry; this LS update remains observable.
+Metadata aliasing that update is rejected before mutation.
+
+The original loop processes **r107 + 1 columns**, including r107=0. Each
+column writes one group after the preferred output limit and prefetches the
+following input. Stores occur in row order **2,3,1,0**, using the corresponding
+r82 sentinel lane for clipped rows. There is no r121=0 shortcut. The return
+link stays 0x9110 and the enclosing descriptor continuation is 0x83C8.
+
+Host loops own all payload groups. Only the final column/group materializes
+the complete register ABI; no original setup/loop/final-column callback is
+used. `BUZZ_GEOMETRY_JOB_FIXED_STREAM=0/1/2` selects lift, native or strict
+region comparison, independently and default-off. Mode 2 checks every GPR,
+LS byte, architectural control and continuation with either JOB=1 or JOB=2.
+Preflight bounds source/lookahead/output/sentinel ranges and protects stack,
+width and offset metadata before mutation. Unsupported inputs retain the lift.
 
 ### Float32 descriptor attribute stream
 

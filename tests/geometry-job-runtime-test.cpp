@@ -109,7 +109,7 @@ int main(int argc, char** argv)
             {"FULL_COMMANDS",buzz_geometry_job_full_commands_enabled},{"ATTRIBUTES",buzz_geometry_job_attributes_enabled},
             {"CODECS",buzz_geometry_job_codecs_enabled},{"DESCRIPTORS",buzz_geometry_job_descriptors_enabled},
             {"UNIT_VECTORS",buzz_geometry_job_unit_vectors_enabled},{"HALF_STREAM",buzz_geometry_job_half_stream_enabled},
-            {"FLOAT32_STREAM",buzz_geometry_job_float32_stream_enabled}};
+            {"FLOAT32_STREAM",buzz_geometry_job_float32_stream_enabled},{"FIXED_STREAM",buzz_geometry_job_fixed_stream_enabled}};
         for(const auto& option:options)if(!strcmp(argv[2],option.name)){
             expected_config_reject=!strcmp(argv[3],"reject");
             const int actual=option.get();

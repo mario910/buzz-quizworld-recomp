@@ -382,6 +382,19 @@ whole-job/I/O checks in the menu; native menu/actual-round readbacks look
 normal. Evidence is in the phase-3 results document; phase 3 and performance/
 default gates stay open.
 
+The complete storage-8 fixed-point handler (`0x9058/C810/C830/C910`) now
+uses host bit extraction, word-wrapped offsets and strict integer/fraction
+conversion, with a final full-ABI materialization. Its independent
+`BUZZ_GEOMETRY_JOB_FIXED_STREAM=0/1/2` defaults to 0. Tests pass 9,216 strict
+cases plus 33 unchanged-state rejects; five frozen replay arms each pass
+19,508 exact jobs / 58,195 transfers, including all three native fixed calls
+without fallback. Native menu/round images look normal and whole-job live
+checks pass. The fixed-specific live gate passes at least 5,000 strict
+comparisons in the later round sequence (the menu has no fixed calls).
+This opt-in implementation remains default-off until final performance/
+default measurements. Separate phase-3 results record the source-bound
+evidence; phase 3 remains open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -585,6 +598,8 @@ See the separate
 | 2026-10-31 | Phase 3 complete unit-vector decoder 9114/9148/92A0 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/round frames | 8,256 strict unit cases +23 rejects; 12,067 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=350,000 strict unit +525,000 whole-job/I/O; own switch default0, leaf827 unchanged; phase3 remains open |
 | 2026-10-31 | Phase 3 complete halfword stream 8378/CAC0/CAD8/CB78 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/crowd/round frames | 8,192 strict cases covering all65,536half encodings +23 rejects; 12,431 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=280,000 strict half +425,000 whole-job/I/O; independent default0, leaf827 unchanged; phase3 remains open |
 | 2026-10-31 | Phase 3 complete float32 stream 87CC/8800/8878/8910/8928 | Five frozen corpus arms and scene-specific same-EXE live checks | functional evidence; no FPS/CPU claim | normal native menu and actual round | 5,440 strict cases +25 rejects; all12corpus float calls native/0fallback; each replay19,508 exact/58,195 transfers; >=20,000 strict live float32 in round sequence and 70,000 whole-job/I/O in menu; final V3 parser +104 configuration checks; own0/1/2switch default0, leaf827 unchanged; phase3open |
+
+| 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own0/1/2 default0;112 configuration cases; phase3open |
 
 ## Risks
 

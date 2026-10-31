@@ -7,7 +7,7 @@ subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 
 Complete native data handlers now cover raw float3, normalized U8 color,
-packed unit vectors, halfword and float32 attributes. The latest float32
+packed unit vectors, halfword, float32 and fixed-point attributes. The latest fixed-point
 increment passes the full corpus and live/render gates below; remaining typed data,
 weighted scatter and enclosing pipeline bodies still keep phase 3 open.
 
@@ -1392,7 +1392,7 @@ The required phase-3 data inventory after this increment is:
 | `0x8B94`, storage 5 I16 | Original typed handler | Complete native data path and validation |
 | `0x8D34`, storage 6 CMP | Original typed handler | Complete native data path and validation |
 | `0x8EA8`, storage 7 U8 integer | Original typed handler | Complete native data path and validation |
-| `0x9058` / `0xC810`, storage 8 fixed point | Original typed handler | Complete native data path and validation |
+| `0x9058` / `0xC810/C830/C910`, storage 8 fixed point | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0xC750`, remapped weighted scatter | Original data kernel | Native blend math/scatter and validation |
 | `0x0BF8`, list/blend stage | Original enclosing stage | Native enclosing flow and validation |
 | `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
@@ -1661,3 +1661,80 @@ reversed same-frozen menu/round A/B and normalized worker/process cycles and
 CPU time per completed frame/job still gate completion and defaults.
 Repeatable CPU savings can justify enabling a correct routine even when FPS
 stays flat. Strict Stage F reconstruction remains mandatory final phase 7.
+
+## Complete storage-8 fixed-point decoder (2026-10-31)
+
+`port/native_geometry_fixed_stream.h` replaces the full `0x9058` entry and
+`0xC810/C830/C910` pipeline. Host bit extraction decodes all four MSB-first
+components, including zero/full-word widths; offset addition wraps before
+signed integer/fraction separation and strict CSFLT/CUFLT/FA conversion.
+All columns and groups are native. Only the final group reconstructs the
+full ABI, including pending input, the trailing store, r107+1 columns,
+0x9110 link, SP+0xD0 offset-record advancement and row store order 2,3,1,0.
+No lifted final-column callback remains. The independent
+`BUZZ_GEOMETRY_JOB_FIXED_STREAM=0/1/2` defaults off; mode 2 compares the
+same complete region state with JOB=1 or JOB=2. Adapter protocol is 13.
+
+The pinned four-block oracle passes **9,216 strict cases**: 4,096 shape/
+stride/column/count/bias cases, 4,096 variable integer/fraction width cases,
+and 1,024 rotated-metadata/offset-boundary/raw-payload cases. Thirty-three
+rejections leave all context bytes unchanged and perform no I/O. The mixed
+4,192-case descriptor matrix plus 28 rejects includes the complete native
+fixed handler alongside original and native float32/half/unit/color paths.
+Driver routing checks both whole-job checked and independent region-checked
+modes against the actual four-block fixed oracle, owner/off/foreign/null/
+unsupported/post-scope behavior, 1,024 models and 19,508 real driver entries.
+All 43 controller cases and **112 production-getter configuration cases**
+pass; only float32 and fixed-stream options accept region mode 2.
+
+### Fixed-point frozen corpus and scene evidence
+
+`phase3/fixed-stream-build.json` binds the final
+`build-vulkan-phase3-fixed-stream` executable, map, preserved generated C,
+code/tests/docs, fixtures and original/template saves. EXE SHA256:
+`eb9c534bd3d0d634a4ee8a5b6cac5fd423db0ec344fb048b2fe7616b0aa081fb`; map SHA256:
+`19065e43515133fd3d0d42e1dd0a2a4c18697bc2b5ab8334602f46d4d38cb49d`.
+
+All five `fixed-stream-corpus-{off,independent,native,checked,kernel-checked}.log`
+arms pass **19,508 exact jobs / 58,195 transfers each**, zero concurrent input
+changes and zero failures, with mask 827 / Stage F=2 and no contract override.
+All four native arms execute **3 complete fixed regions / zero fallback**.
+JOB=2 arms perform three full-state fixed comparisons and 19,508 whole-job/I/O
+checks. JOB=1 / FIXED_STREAM=2 independently compares those three fixed exits.
+Combined float32/half/unit/descriptor/U8 coverage stays 12/12,431/12,067/12,309/
+109, all with zero fallback; earlier command/output counts remain unchanged.
+
+The same EXE uses Stage F=1 / GEOMETRY=1 / older native flags=1, fresh private
+saves, muted/background rendering and native buzzer input. No builds, CPU
+tests or profiling overlap these functional runs:
+
+| Scene proof | Mode | Frames / last renderer time | Fixed native / strict lower bounds |
+|---|---|---|---|
+| `p3-fixed-checked` | JOB=2 / FIXED=1 | 1,994 / 44775.097 ms | 0 / 0 |
+| `p3-fixed-menu` | JOB=1 / FIXED=1 | 3,202 / 74981.577 ms | 0 / 0 |
+| `p3-fixed-round-render` | JOB=1 / FIXED=1 | 8,568 / 180911.291 ms | 256 / 0 |
+| `p3-fixed-kernel-checked-round` | JOB=1 / FIXED=2 | 9,428 / 196042.687 ms | 5,000 / 5,000 |
+
+The checked menu performs at least 115,000 complete whole-job/I/O
+comparisons without differences. Renderer readbacks every 500 frames are
+saved as `phase3/p3-fixed-menu.ppm/.png` and
+`phase3/p3-fixed-round-render.ppm/.png`. Both are visually inspected: normal
+menu/studio/crowd and an actual green-stage question with host, player and
+answer cards. There are no differences, halts, fixed fallbacks or early exits.
+The source commit also binds 158 archived controller/configuration/codec/
+descriptor/driver proof logs. Original and template saves remain unchanged.
+
+**Fixed-specific live >=256 gate: PASSED, >=5,000 strict round invocations.**
+The three real corpus calls and 9,216 synthetic cases do not substitute for
+live invocations. Fixed calls appear in the later round sequence, after
+being absent from the menu. The native round arm also passes 256 actual fixed invocations.
+Repeated reference clones are not counted as live coverage. The full-state
+comparison fields are identical in JOB=1 / FIXED=2 and JOB=2. The fixed
+implementation remains opt-in with default 0 until the final performance/
+default decision; phase 3 remains open.
+
+These functional CSVs are not matched FPS/CPU measurements. Final reversed
+menu/round A/B, interpreted-SPU counts, normalized worker/process cycles and
+CPU time per completed frame/job remain required for phase-3 defaults;
+repeatable CPU savings can matter with flat FPS. Remaining typed handlers,
+weighted scatter and enclosing stages remain open; strict Stage F is last.
