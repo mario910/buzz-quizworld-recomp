@@ -17,10 +17,18 @@ opt-in implementation; its separate validation is recorded below.
 The custom `0x93F0` dispatcher also has a native implementation through its
 exact descriptor tail handoff; built-in input formats 1..5 remain separate.
 The `0x9F8` skin/rigid controller now has native opt-in control through its
-exact weighted-data/normalization tail or return boundary. `0xAF18` data
-flow and the remaining directional skin data kernels remain separate work.
+exact weighted-data/normalization tail or return boundary. `0xAF18` now has
+native palette/frame/batch/dispatch/publication control, separately switched.
+Rigid, cofactor and normalized directional data remain explicit library work.
 The complete B880 weighted-data replacement passes strict real replay/live
 and native rendering below; final performance/default gates remain open.
+
+Functional scene runs use forced shutdown. Their periodic successful native
+and strict counters are lower bounds; final fallback totals are unavailable.
+Historical statements that no fallback appears in a live log mean none was
+reported, not a measured zero live fallback total. Completed corpus replay
+provides exact native/fallback totals. The final default decision must retain
+this distinction and use suitable instrumentation for live fallback totals.
 
 ## Driver boundary audit
 
@@ -1412,11 +1420,11 @@ The required phase-3 data inventory after this increment is:
 | `0x0BF8`, list/blend stage | Native opt-in reverse selection, double-buffered DMA and caller restoration; corpus/live/render checks pass; explicit library data calls | Final performance/default decision; run-list data kernel validation below |
 | `0x7118/7298`, compressed run-list decoder called by `0x0BF8` | Complete native opt-in backward expansion; strict synthetic/corpus/live and native rendering checks pass | Final performance/default decision |
 | `0x09F8`, skin/rigid controller | Complete native opt-in control/ABI; strict synthetic/corpus/live and native menu/round checks pass; separate weighted/rigid counters | Final performance/default decision |
-| `0xAF18`, weighted skin orchestration | Original 672-byte-frame palette transpose/batching/controller region; valid path has no DMA | Complete native control/transpose and validation; a 9F8 tail handoff is not data coverage |
+| `0xAF18`, weighted skin orchestration | Native opt-in palette transpose/frame/stream selection/batching/publication; valid path has no DMA; strict tests/replay pass, live evidence below | Cold branch gates and final performance/default decision; explicit retained data libraries do not count as new payload coverage |
 | `0xB880/B934/B940`, weighted position/matrix data | Complete native opt-in; original setup/final pair replaced; strict synthetic/corpus/live and native menu/round gates pass, including actual palette aliases | Final performance/default decision; one-pair API inputs observed only synthetically |
 | `0xB348/B3C8`, rigid skin position/matrix data | Original gathered matrix/position kernel | Native data implementation and validation |
 | `0xBB58/BB68`, cofactor/normal data | Original data loop | Native data implementation and validation |
-| `0xB4C0`, skin directional dispatch | Original LS-table dispatch | Native control and validation |
+| `0xB4C0`, skin directional dispatch | Native host dispatch within AF18, preserving cached data inputs and all nineteen table entries | Cold target gates and final performance/default decision; each data variant retains its own inventory row |
 | `0xBD4C/BE20`, basic one/two-stream data | Complete native opt-in; strict synthetic/corpus/live and native menu/round checks pass | Final performance/default decision |
 | `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
 | `0xC14C/C280/B5A0`, normalized directional data | Original three variants | Native data implementations and validation |
@@ -2742,8 +2750,102 @@ audit, test binaries/logs and frames.
 These functional runs establish no matched FPS or CPU-cycle benefit. JOB=0,
 leaf mask 827 and all new flags=0 remain unchanged. BF7C's real/live gates
 stay OPEN; a common-switch default decision must retain that distinction.
-Normalized C14C/C280/B5A0 and cofactor/normal BB58/BB68 are still original,
-as are AF18 palette/batch/publication control and the other remaining phase-3
-inventory rows. Built-in formats, cold typed gates, final interpreter counts,
+At that milestone, normalized C14C/C280/B5A0, cofactor/normal BB58/BB68
+and AF18 palette/batch/publication control were still original. The following
+section replaces AF18 control; the data and other inventory rows remain open. Built-in formats, cold typed gates, final interpreter counts,
 reversed A/B and normalized worker/process CPU/default decisions also remain
 open. Strict Stage F reconstruction stays final phase 7.
+
+
+## Native AF18 palette, batch and publication orchestration
+
+`port/native_geometry_skin_flow.h` implements the complete AF18 controller:
+672-byte frame and early exits, in-place packed palette transpose, stream
+selection/compaction, scratch-pool capacity, B348 batch clamps, B4C0 relative
+table dispatch, B868 continuation, palette publication calls and return.
+Palette conversion and batch traversal use host loops; fixed sequences
+materialize every original ABI vector, padded read and spill. The new path
+executes no original palette/control block. Position/direction data and the
+five ordinary pure-LS calls remain explicit library callbacks. Validated
+weighted/basic-direction native kernels retain their own switches/counters;
+rigid, cofactor and normalized data remain original, separately tracked work.
+
+`BUZZ_GEOMETRY_JOB_SKIN_FLOW=0/1/2` defaults to **0**. Its mode 2 and JOB=2
+compare the complete function against a source-pinned original clone,
+including all 128 GPRs / all LS, architectural state, PC, queued function, image,
+host depth, policy and overlay. Reference termination requires both the
+original r0 and restored stack, preserving interior/entry PC collisions.
+No exclusions or Stage F exception are added. Protocol 22 / stage 27 have
+28 counters, with independent work/empty and native/strict categories.
+Unsupported/error paths are rejected before mutation, then execute original
+AF18 without native-success credit. Protected manager/frame/table regions
+remain intact; data/data aliases are left to the explicit data library.
+
+Tests pass **6,600 strict full-state and all-GPR library-call transcript
+cases**, including 2,640 work / 3,960 early roots, weighted/rigid batches, all six
+directional targets, pointer biases, arbitrary shuffle tables, default-frame
+and external scratch, three depths, interrupt states and return-PC collisions.
+Three independent numeric cases validate the packed matrix word mapping and
+unchanged two-record padding; three early-exit cases prove unused invalid
+inputs/table are not inspected. Eighteen rejected-input cases preserve state
+and execute no call/I/O. Owner/off/foreign/image/missing-table/invalid/post-scope
+routing, both strict activation modes,1,024 outer pipeline models and 19,508
+real-entry models pass. The 43 runtime controller cases and 208 configuration-getter cases
+pass. One initial routing compilation found an ADL name clash with another
+private oracle; explicit namespace qualification fixed it before the frozen
+production build. No frozen runtime mismatch was observed.
+
+Frozen `build-vulkan-phase3-skin-flow-v1`:
+EXE SHA-256 `d3d33741622b29fcf24808f362824cb3f21f7ed6de2b25d70fb3ad55c96725eb`;
+map `94b4204ff236c117daa13d1ed19006594e0fe5a500459a0f5e297ded014a1cc5`;
+generated C `4bf8e6386bfcb517b64102e439801f64010b2a7173124e750ea23d9ec2b7b7a0`.
+Frozen C and four compiled native header/controller sources are preserved.
+
+All five frozen arms pass **19,508 exact jobs /58,195 transfers**, zero input
+changes and failures, Stage F=2 / leaf 827/no contract override:
+
+| Arm | JOB | Older flags | SKIN_FLOW | Native work/empty | Strict work/empty | Controller fallback |
+|---|---|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|0/0|n/a|
+| Independent |2|0|1|1,628/0|1,628/0|0|
+| Combined native |1|1|1|1,628/0|0/0|0|
+| Combined checked |2|1|1|1,628/0|1,628/0|0|
+| Kernel checked |1|1|2|1,628/0|1,628/0|0|
+
+Both JOB=2 arms pass 19,508 whole-job state/I/O checks. Combined-arm data
+coverage is retained: 6,113 weighted roots including 30 actual palette aliases,
+plus 1,158 single / 3,860 dual-direction roots, all with zero data fallback.
+The real trace records 1,628 AF18/palette roots, 6,113 batch/direction dispatches
+and zero rigid B3C8, cofactor BB58, normalized C14C/C280/B5A0 or BF7C data
+entries. Native controller totals do not turn those cold data paths into
+native payload coverage. Empty/control-cold and cold data gates remain OPEN.
+
+Same-frozen-EXE live checks use fresh private saves, all older flags=1,
+GEOMETRY=1 / Stage F=1 / leaf 827, without compilation/CPU tests/profiling overlap:
+
+| Functional run | JOB/SKIN_FLOW | Frames /last elapsed ms | Observed work-call lower bound |
+|---|---|---|---|
+| Checked menu,60s |1/2|2,364 /59,370.738|425,000 strict|
+| Native menu,75s |1/1|3,338 /75,066.681|1,265,000 native|
+| Native round,60s after start136.5s |1/1|9,617 /196,327.691|2,245,000 native|
+
+No DIFF/HALT/mismatch is logged. Scene shutdown is forced, so final live
+fallback totals are unavailable; zero fallback is proved by replay, while
+live counters are lower bounds of successful native/strict work. The inspected
+1280x720 native menu readback shows normal UI, studio and crowd; the round readback shows the
+actual green round stage, host/player and score UI. Empty
+work roots remain unobserved in these runs. These are functional/render
+checks, with **no matched FPS or CPU-cycle benefit claim**. Final interpreter,
+reversed-order menu/round A/B and normalized worker/process cycle/time gates
+remain open. Repeatable CPU savings may justify a default even with flat FPS;
+this milestone does not yet supply that measurement.
+
+Private logs/CSV use `analysis/vk-scene-p3-skin-flow-v1-{checked-menu,menu,round}.*`;
+readbacks and run scripts are under `phase3`. All sessions are terminal,
+source/fixture/original-save/canonical-template pins remain unchanged.
+`phase3/skin-flow-v1-build.json` and its proof archive bind committed sources,
+frozen binary/map/generated C/native sources, tests, real audit and rendering.
+JOB=0 / leaf 827 / all new flags=0 remain unchanged. Phase 3 and the continuing goal
+remain **active**: rigid/cofactor/normalized kernels, other enclosing stages,
+built-in inputs, cold coverage and final gates still require work. Strict
+Stage F reconstruction remains mandatory final phase 7.

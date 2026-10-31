@@ -1011,7 +1011,8 @@ arbitrary selector bytes and different first-write/nominal-primary pointers.
 Each variant materializes its distinct FM/FMA intermediates, raw secondary
 vectors, final pointers/count lanes, and the exact queued B868 continuation.
 No original setup, data iteration, step or final group is called. The B868
-batch continuation and AF18 caller are separate remaining control work.
+batch continuation and AF18 caller were separate control work at this
+milestone; the following section implements that control.
 
 ## Reproduction
 
@@ -1044,3 +1045,46 @@ Script milestones require native renderer frame verification: a profile
 selection screen must never count as multiplayer-round coverage. Capture
 uses absolute paths, creates parent directories, refuses to overwrite an
 existing corpus directory, and writes elapsed-time sidecars per job.
+
+
+### Native AF18 palette and batch orchestration
+
+`native_geometry_skin_flow.h` replaces AF18's frame/early-exit handling,
+B078/B100 palette loop, stream compaction, scratch selection, batch clamps,
+B4C0 indirect direction dispatch, B868 continuation and palette publication
+sequence. Retained position/direction/getter functions are explicit library
+callbacks. Native weighted and basic direction data run under their own
+switches; rigid, cofactor and normalized data remain separately tracked
+original implementations. Controller counts never imply native data coverage.
+
+Each palette record has twelve words. With input words numbered 0..11, the
+three output quads are `[0,5,10,3]`, `[1,6,8,7]`, `[2,4,9,11]`. The host loop
+writes only the active records. The original pipeline additionally reads two
+following matrices and computes the next unstored record; those values and
+all unused vector lanes are reconstructed in the return/callee ABI. Pointer
+biases retain the original quadword-floor addressing.
+
+The 672-byte frame holds a backchain, stream table and saved registers.
+Scratch defaults to frame+80 with four matrices; for rounded vertex counts
+above eleven, the manager's selected pool pointer is used, with capacity
+`(rounded_vertices/3)&~3`. Scratch writes cannot touch protected spills;
+the lookahead may read those spills, as the original does. Preflight validates
+actual read/write spans, manager/frame protection and the fixed B554 table
+before mutation. CC70 error/report inputs remain original. Early exits do
+not inspect unused palette, stream, weight or table fields.
+
+Data trampolines stop by exact B4C0/B868 callee identity, with original entry
+PC, register lanes, link and host depth. Rigid data begins after B348's clamp
+and weighted branch, avoiding a second execution of original control.
+The five ordinary pure-LS calls preserve their original calling convention.
+`BUZZ_GEOMETRY_JOB_SKIN_FLOW=0/1/2` defaults to zero; JOB=2 also forces a
+strict full-function clone comparison through the restored-stack/r0 return.
+Full LS, all GPRs and architectural/control/continuation state are checked
+without exclusions. Protocol 22 has 28 independent stage counters.
+
+The independent tests compare all 128 GPRs at every library call as well as
+full exit state, covering arbitrary palette shuffles/biases, all six direction
+targets, rigid/weighted batching, inline/external scratch, early exits, return
+PC collisions, three host depths and interrupt states. Separate numeric
+checks validate the packed matrix word mapping and untouched padded records.
+Real replay/live/render evidence is recorded in the phase-3 results.

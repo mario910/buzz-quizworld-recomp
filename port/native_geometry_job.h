@@ -24,6 +24,11 @@ typedef struct buzz_geometry_blend_list_functions {
 typedef struct buzz_geometry_skin_dispatch_functions {
     buzz_geometry_job_fn position_pointer, normal_pointer, tangent_pointer, transform, normalize, weighted;
 } buzz_geometry_skin_dispatch_functions;
+
+typedef struct buzz_geometry_skin_flow_functions {
+    buzz_geometry_job_fn position_pointer, normal_pointer, tangent_pointer, aux_pointer, publish_palette;
+    buzz_geometry_job_fn weighted, rigid, directions[6], direction_entry, batch_entry;
+} buzz_geometry_skin_flow_functions;
 typedef struct buzz_geometry_descriptor_functions {
     buzz_geometry_job_fn codec[9], blend, continuation;
     void (*dispatched)(unsigned storage);
@@ -37,7 +42,10 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
        BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
-       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23, BUZZ_GEOMETRY_JOB_SKIN_DISPATCH = 24, BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN = 25, BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS = 26 };
+       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23, BUZZ_GEOMETRY_JOB_SKIN_DISPATCH = 24, BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN = 25, BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS = 26, BUZZ_GEOMETRY_JOB_SKIN_FLOW = 27 };
+int buzz_geometry_job_skin_flow_enabled(void);
+void buzz_geometry_job_skin_flow_result(int work, int checked);
+void buzz_geometry_job_skin_flow(spu_context*, buzz_geometry_job_fn reference, const buzz_geometry_skin_flow_functions*);
 int buzz_geometry_job_skin_directions_enabled(void);
 void buzz_geometry_job_skin_directions_result(unsigned streams, int checked, int aliases);
 void buzz_geometry_job_skin_directions(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn tail, unsigned streams);
