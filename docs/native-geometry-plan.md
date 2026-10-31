@@ -40,7 +40,8 @@ uncapped) above 30, and is the prerequisite for any low-power target.
    Existing stage F is an explicitly accepted baseline exception (2026-10-30):
    reproduce its established volatile-register/cull contract while reporting
    strict differences separately. New kernels must pass strict full-state
-   comparisons. See [data map and harness](native-geometry-data.md).
+   comparisons. This exception is temporary: the final phase 7 removes it
+   after Stage F passes the same strict gates. See [data map and harness](native-geometry-data.md).
 2. **One function per step.** Replace a single lifted function (or a
    tightly coupled group), prove it, measure it, commit it. Never a big-bang
    rewrite.
@@ -124,6 +125,27 @@ frame dumps match, render drain reduced, A/B recorded.
 ### Phase 6: portability (optional)
 Every native kernel gets a scalar reference + NEON path next to AVX2,
 same corpus gate, for ARM targets.
+
+### Phase 7: strict Stage F cleanup (final)
+After the preceding selected phases, bring the existing Stage F vertex,
+transform, normalize and cull kernels up to the strict contract used by new
+native kernels. Reproduce all 128 GPRs, including volatile/dead temporaries,
+the entire LS including scratch/padding, control state and return/trampoline
+continuation. Fix the implementations or reconstruct their exact tail state;
+do not exclude differing fields or weaken the checker.
+
+Require zero strict per-function differences on the full corpus and at least
+256 live comparisons per kernel. Whole-job replay must also pass with actual
+native Stage F execution (`BUZZ_STAGEF=1`), without relying on checked mode
+retaining the lifted state. Verify the complete DMA/atomic stream and exit
+state, normal native menu/round frame dumps, and the usual reversed menu/round
+A/B pairs. Preserve reference fallback, source pins and per-kernel switches;
+record any performance cost of stricter state reconstruction.
+
+Remove the accepted Stage F exception only after all these gates pass, update
+the contracts/trackers and commit the correction. Until then, earlier phases
+retain the explicitly accepted baseline contract. This is the final roadmap
+phase, not an expansion of the currently active phase 2 implementation goal.
 
 ## Gates for every step
 
@@ -215,6 +237,15 @@ The other phase 2 kernels remain pending.
 |---|---|---|---|
 | 0x6DB8 loop | | on | `BUZZ_IMAGE40_LOCALS` |
 | (fill in from phase 0 ranking) | | | |
+
+### Phase 7: strict Stage F cleanup
+
+| Item | Status | Exit evidence |
+|---|---|---|
+| Audit/reconstruct volatile GPRs, scratch/padding and continuations | todo | Exact full-state contract per Stage F kernel; no excluded fields |
+| Strict corpus and actual-native whole-job replay | todo | Zero differences/failures, including transfers and exit state |
+| Live/render/performance gates | todo | >=256 strict calls per kernel, normal native menu/round dumps, reversed A/B pairs |
+| Retire baseline exception | todo | All gates passed, switches/contracts updated, dedicated commit |
 
 ### Measurements log
 
