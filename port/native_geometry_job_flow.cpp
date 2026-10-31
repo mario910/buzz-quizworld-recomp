@@ -6,6 +6,7 @@
 #include "native_geometry_pipeline.h"
 #include "native_geometry_commands.h"
 #include "native_geometry_command_publish.h"
+#include "native_geometry_position_commands.h"
 #include <atomic>
 #include <cstdio>
 
@@ -48,6 +49,34 @@ extern "C" void buzz_geometry_job_publish_commands(spu_context* ctx, buzz_geomet
         reference(ctx); return;
     }
     buzz::publish_geometry_commands(*ctx, plan);
+    SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_command_bindings(spu_context* ctx, buzz_geometry_job_fn reference, int reset)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_emit_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryCommandBindings plan;
+    const bool supported = buzz::read_geometry_command_bindings(*ctx, reset != 0, plan);
+    buzz_geometry_job_output_result(reset ? BUZZ_GEOMETRY_JOB_COMMAND_RESET : BUZZ_GEOMETRY_JOB_COMMAND_BIND, supported, 0);
+    if (!supported) { reference(ctx); return; }
+    if (reset) buzz::reset_geometry_command_bindings(*ctx, plan);
+    else buzz::bind_geometry_command_attributes(*ctx, plan);
+    SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_emit_position(spu_context* ctx, buzz_geometry_job_fn reference,
+                                               const buzz_geometry_command_functions* functions)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_emit_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryPositionCommands plan;
+    const bool supported = buzz::read_geometry_position_commands(*ctx, plan);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_POSITION_COMMANDS, supported, 0);
+    if (!supported) { reference(ctx); return; }
+    buzz::emit_geometry_position_commands(*ctx, plan, *functions);
     SPU_RET(ctx);
 }
 

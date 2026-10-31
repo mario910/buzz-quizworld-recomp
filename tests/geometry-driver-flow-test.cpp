@@ -19,6 +19,8 @@ struct Call {
 static std::vector<Call> calls;
 static unsigned scenario;
 static const char* current_case = "synthetic";
+static bool emit_enabled = false;
+static unsigned emit_references = 0, emit_native[3]{}, emit_fallback[3]{};
 static bool routing_probe = false, commands_enabled = false, command_publish_enabled = false;
 static unsigned publication_references = 0, publication_native = 0, publication_fallback = 0;
 static unsigned routed_references = 0, routed_native = 0, routed_fallback = 0;
@@ -51,8 +53,15 @@ void buzz_geometry_job_publish_result(int) { abort(); }
 int buzz_geometry_job_layout_enabled() { return 0; }
 int buzz_geometry_job_vertex_enabled() { return 0; }
 int buzz_geometry_job_commands_enabled() { return commands_enabled; }
+int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if (stage >= BUZZ_GEOMETRY_JOB_COMMAND_BIND) {
+        assert(routing_probe && stage <= BUZZ_GEOMETRY_JOB_POSITION_COMMANDS);
+        if (native) ++emit_native[stage - BUZZ_GEOMETRY_JOB_COMMAND_BIND];
+        else ++emit_fallback[stage - BUZZ_GEOMETRY_JOB_COMMAND_BIND];
+        return;
+    }
     if (stage == BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH) {
         assert(routing_probe);
         if (native) ++publication_native; else ++publication_fallback;
@@ -120,6 +129,7 @@ static void publication_reference(spu_context* ctx)
 {
     ++publication_references; ctx->pc = ctx->gpr[0]._u32[0];
 }
+static void emit_reference(spu_context* ctx) { ++emit_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void routing_inside(spu_context* ctx)
 {
     std::array<u128, 128> saved;
@@ -150,6 +160,24 @@ static void routing_inside(spu_context* ctx)
     ctx->gpr[5] = spu_il(1); // Unsupported before mutation.
     buzz_geometry_job_publish_commands(ctx, publication_reference);
     assert(publication_references == 4 && publication_fallback == 1 && publication_native == 1);
+    ctx->gpr[3] = spu_ila(context); ctx->gpr[4] = spu_ila(0x28000);
+    ctx->gpr[5] = spu_ila(0x28020); ctx->gpr[6] = spu_il(1);
+    buzz::geometry_job_put32(ctx->ls + context + 0x74, 0x2a000); ctx->ls[0x2a000] = 0;
+    buzz_geometry_job_command_bindings(ctx, emit_reference, 0);
+    ctx->gpr[3] = spu_ila(context); ctx->gpr[4] = spu_ila(0x28000); ctx->gpr[5] = spu_il(1);
+    buzz_geometry_job_command_bindings(ctx, emit_reference, 1);
+    assert(emit_native[0] == 1 && emit_native[1] == 1);
+    buzz_geometry_job_command_bindings(foreign.get(), emit_reference, 0);
+    buzz_geometry_job_emit_position(foreign.get(), emit_reference, nullptr);
+    emit_enabled = false;
+    buzz_geometry_job_command_bindings(ctx, emit_reference, 0);
+    buzz_geometry_job_emit_position(ctx, emit_reference, nullptr);
+    emit_enabled = true;
+    ctx->gpr[3]._u32[0] = SPU_LS_SIZE - 1;
+    buzz_geometry_job_command_bindings(ctx, emit_reference, 0);
+    ctx->gpr[1]._u32[0] = 3;
+    buzz_geometry_job_emit_position(ctx, emit_reference, nullptr);
+    assert(emit_fallback[0] == 1 && emit_fallback[2] == 1);
     memcpy(ctx->gpr, saved.data(), sizeof ctx->gpr); ctx->pc = pc;
 }
 
@@ -223,10 +251,13 @@ int main(int argc, char** argv)
     const unsigned previous = _mm_getcsr();
     _mm_setcsr((previous & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
     auto native = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
-    routing_probe = commands_enabled = command_publish_enabled = true;
+    routing_probe = commands_enabled = command_publish_enabled = emit_enabled = true;
     synthetic(*native, 0); native->host_depth = 1;
     buzz_geometry_job_prepare_commands(native.get(), routing_reference);
     buzz_geometry_job_publish_commands(native.get(), publication_reference);
+    buzz_geometry_job_command_bindings(native.get(), emit_reference, 0);
+    buzz_geometry_job_emit_position(native.get(), emit_reference, nullptr);
+    assert(emit_references == 2);
     assert(publication_references == 1 && !publication_native && !publication_fallback);
     assert(routed_references == 1 && !routed_native && !routed_fallback);
     synthetic(*native, 0); g_spu_trampoline_fn = nullptr;
@@ -237,8 +268,12 @@ int main(int argc, char** argv)
     assert(routed_references == 5 && routed_native == 1 && routed_fallback == 1);
     buzz_geometry_job_publish_commands(native.get(), publication_reference);
     assert(publication_references == 5 && publication_native == 1 && publication_fallback == 1);
-    routing_probe = commands_enabled = command_publish_enabled = false;
-    puts("Command preparation/publication routing: owner native; reference/foreign/disabled/unsupported/post-scope checks PASS");
+    buzz_geometry_job_command_bindings(native.get(), emit_reference, 0);
+    buzz_geometry_job_emit_position(native.get(), emit_reference, nullptr);
+    assert(emit_references == 10 && emit_native[0] == 1 && emit_native[1] == 1 && !emit_native[2]);
+    assert(emit_fallback[0] == 1 && !emit_fallback[1] && emit_fallback[2] == 1);
+    routing_probe = commands_enabled = command_publish_enabled = emit_enabled = false;
+    puts("Command preparation/publication/emission routing: owner native; reference/foreign/disabled/unsupported/post-scope checks PASS");
     for (scenario = 0; scenario < 1024; ++scenario) { synthetic(*native, scenario); compare(*native, *reference); }
     unsigned corpus = 0;
     if (argc > 1) for (const auto& path : std::filesystem::directory_iterator(argv[1])) {

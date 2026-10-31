@@ -254,6 +254,23 @@ comparisons and native command finalizations, plus normal actual-native
 menu/round-introduction renderer readbacks. See the separate phase-3 report
 for bindings and remaining performance/interpreter gates.
 
+Position-only command emission (`0x02E8`) and shared attribute binding/reset
+writers (`0x0100`/`0x0020`) now have native implementations behind independent
+`BUZZ_GEOMETRY_JOB_EMIT=0/1`, default 0. The host emitter plans the actual packet
+space before preparation/GET, handles raster state, leading alignment, full
+and final indexed batches, then resets attributes and publishes via the
+independently switched entries. The same writers also serve the retained
+full command emitter. Tests pass 8,192 strict writer cases plus 8,320 strict
+position-emitter/channel cases and 54 unchanged-state rejections. Unsupported
+entries retain the original stage before effects; no new checker exception
+or default is introduced. Four frozen corpus arms pass all 19,508 jobs /
+58,195 transfers, with 2,123 native position emissions and 7,201 bindings/
+resets each, zero fallback. Live checking passes at least 450,000 strict whole
+jobs, including 120,000 position emissions and 375,000 bindings/resets each;
+actual-native menu/round-introduction frames look normal. `0x12F0` and the
+remaining geometry data stages remain work for phase 3; final interpreter/
+FPS/CPU gates remain open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -369,6 +386,8 @@ subject to the kernel gates before replacement.
 | 0x35F0 vertex publication | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_VERTEX=0/1`, default 0 | 7,201 native publications, zero fallback; 7,201 host-layout reuses in combined runs; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks and layout reuses; normal native menu/round intro dumps | not measured | |
 | 0x32C8 command-buffer preparation | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_COMMANDS=0/1`, default 0 | 19,508 native preparations, zero fallback; 58,195 exact transfers; 4,096 strict synthetic cases | >=450,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x27A0 command relocation/publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH=0/1`, default 0 | 19,508 native publications, zero fallback; 58,195 exact transfers in four corpus arms; 8,256 strict cases and 20 unchanged-state rejects | >=450,000 inside strict whole-job checks; native frame checks in phase-3 report | not measured | |
+| 0x0100/0x0020 command attribute binding/reset | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_EMIT=0/1`, default 0 | 7,201 native each, zero fallback; four 19,508-job/58,195-transfer arms exact; 8,192 strict cases +28 unchanged-state rejects | >=375,000 each inside strict whole-job checks; render proof in phase-3 report | not measured | |
+| 0x02E8 position-only command emission | n/a | native opt-in; full emitter body and shared writers; final gates open | shares `BUZZ_GEOMETRY_JOB_EMIT`, default 0 | 2,123 native, zero fallback; four full-corpus arms exact; 8,320 strict state/channel cases +26 unchanged-state rejects | >=120,000 inside strict whole-job checks; render proof in phase-3 report | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),

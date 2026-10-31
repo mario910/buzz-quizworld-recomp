@@ -10,14 +10,15 @@ struct GeometryCommandBuffer {
     uint32_t records = 0, count = 0, first_sync = 0, first_ready = 0;
     u128 context_arg{}, output_arg{}, destination{}, records_arg{}, count_arg{}, context50{}, configuration{}, tag{};
 };
-inline bool read_geometry_command_buffer(const spu_context& ctx, GeometryCommandBuffer& output)
+inline bool read_geometry_command_buffer(const spu_context& ctx, GeometryCommandBuffer& output, const u128* arguments = nullptr)
 {
     if (ctx.ls != ctx.ls_store) return false;
+    const u128* r = arguments ? arguments : ctx.gpr;
     GeometryCommandBuffer plan;
-    plan.context_arg = ctx.gpr[3]; plan.output_arg = ctx.gpr[4]; plan.destination = ctx.gpr[5];
-    plan.records_arg = ctx.gpr[6]; plan.count_arg = ctx.gpr[7];
-    plan.context = ctx.gpr[3]._u32[0]; plan.output = ctx.gpr[4]._u32[0]; plan.stack = ctx.gpr[1]._u32[0];
-    plan.count = ctx.gpr[7]._u32[0]; plan.records = ctx.gpr[6]._u32[0];
+    plan.context_arg = r[3]; plan.output_arg = r[4]; plan.destination = r[5];
+    plan.records_arg = r[6]; plan.count_arg = r[7];
+    plan.context = r[3]._u32[0]; plan.output = r[4]._u32[0]; plan.stack = r[1]._u32[0];
+    plan.count = r[7]._u32[0]; plan.records = r[6]._u32[0];
     if (!geometry_output_range(plan.context, 0x160) || !geometry_output_range(plan.output, 16) ||
         (plan.stack & 15) || plan.stack < 0x90 || plan.stack > SPU_LS_SIZE - 32 ||
         (plan.destination._u32[0] & 3) || plan.count > SPU_LS_SIZE / 32) return false;

@@ -666,7 +666,9 @@ scope, including nested command-emitter calls. JOB=0, the retained JOB=2
 reference, foreign contexts and disabled/unsupported calls keep the original
 entry. The original entry retains its leaf switches, including the `0x28F0`
 fill switch; enabling the complete native publication selects its own bulk
-fill. Adapter protocol **4** is required and stale adapters fail at configure.
+fill. This publication increment introduced adapter protocol **4**; the emitter
+increment below advances the requirement to protocol **5**. Stale adapters
+fail at configure.
 No runtime default changes in this increment.
 
 ```powershell
@@ -725,6 +727,117 @@ and pinned lift remain unchanged. These functional checks do not establish
 FPS or CPU savings; final interpreter counts and reversed same-EXE normalized
 CPU/FPS gates remain open.
 
+## Native position commands and shared binding packets (`0x02E8`, `0x0100`, `0x0020`)
+
+`port/native_geometry_command_bindings.h` reads the output attribute list into
+a host view and writes RSX format/address and reset packets directly. It owns
+shader-slot selection, stride/type/component packing, GPU base-plus-offset
+and location bits, with full vector ABI reconstruction. Binding and reset
+share the same host list; reset preserves the original size-zero/type-2 word.
+The read-only plans check actual touched quadwords and aliases before writes.
+Empty or fully masked lists do not dereference their unused command record.
+Even the lift's six-bit arithmetic-shift behavior for nonstandard slot bytes
+is retained; synthetic tests include these bytes without claiming that they
+represent valid rendered GPU formats.
+
+`port/native_geometry_position_commands.h` now owns the complete position-only
+emitter body: caller spills, optional raster/cull commands, cache invalidation,
+index binding, primitive begin/end, leading alignment batch, full 8192-byte
+packets, final batches, attribute reset and caller restoration. Host loops and
+packet sizes replace translated block dispatch. Full packets generate their
+batch words directly and reconstruct only the final iteration's scratch
+vectors, preserving its original RMW snapshot. The native emitter calls the
+existing preparation/publication entries, which retain their separate flags;
+with all output flags enabled, those stages and the shared writers are native.
+The full command emitter `0x12F0` remains original, but its shared binding/reset
+calls can use the new native writers under the same owner scope.
+
+A read-only preflight computes the exact packet sizes and 128-byte insertion
+space before preparation can issue a GET. It validates the combined root/
+preparation stack footprint, attribute descriptors, allocation record,
+metadata and command workspace. A nonzero destination must fit the logical
+reservation after relocation; zero-destination calls still assemble commands
+and may extend past that logical limit if their actual touched LS span fits.
+Large unpublished streams therefore retain the original full-packet behavior.
+Unsupported ranges/aliases/capacity or interrupt continuations retain the
+original emitter before any mutation or I/O, and do not count as native.
+
+`BUZZ_GEOMETRY_JOB_EMIT=0/1`, default **0**, controls this coupled emitter/
+writer group. Public generated entries route only the native pipeline owner;
+the JOB=2 retained reference and foreign contexts stay original, including
+nested library calls. Counters distinguish binding, reset and position
+emission. Adapter protocol **5** is required; older adapters are rejected by
+CMake. The earlier preparation/publication and leaf switches retain their
+behavior. JOB remains default 0 and the leaf default remains 827.
+
+```powershell
+.\tests\scripts\test-geometry-command-bindings.ps1
+.\tests\scripts\test-geometry-position-commands.ps1
+```
+
+PASS: **8,192 strict full-state binding/reset cases** against 22 pinned blocks,
+plus **28 unchanged-state rejections**. Counts 0 through 255, empty/masked
+lists with invalid unused record pointers, all word offsets, duplicate and
+nonstandard slots, full upper lanes, format/address arithmetic and random
+LS padding are covered. Log: `phase3/command-bindings-test.log`.
+
+PASS: **8,320 strict position-emitter state/channel cases** against 75 pinned
+original blocks including its real callees, plus **26 unchanged-state/no-I/O
+rejections**. Tests run the new emitter with original and native callees and
+compare all GPRs/LS/controls/returns, ordered GET/PUT arguments, controls and
+payloads. Coverage includes absent/skip/normal/reversed raster state,
+all byte offsets for index alignment, 0/1/255/256/257 and larger index counts,
+64 minimum-reservation zero-destination cases, 64 full-packet cases, varied
+attribute masks, uninitialized padding and arbitrary non-preferred lanes.
+Log: `phase3/position-commands-test.log`.
+
+The command-preparation parameter-view extension also re-passes its 4,096
+strict cases and 16 unchanged-state rejections. Owner/reference/foreign/
+disabled/unsupported/post-scope routing, 1,024 outer-flow model scenarios,
+19,508 real model entries and 43 controller scenarios pass. The root routing
+probe deliberately rejects before consulting a null callback table, proving
+that unsupported entry planning executes no callee or I/O.
+
+The frozen `build-vulkan-phase3-position-commands` EXE SHA256 is
+`4b48ade071ceecb7eaac6506b78987f6c3d436d85fa80646d6513beae0fd640a`;
+`phase3/position-commands-build.json` binds its source/map/protocol-5 adapter.
+Four corpus arms each pass **19,508 exact jobs / 58,195 transfers**, with
+zero input divergences or failures:
+
+| Arm | Configuration and native coverage |
+|---|---|
+| Original | JOB=0, EMIT=1: native-owner route inactive; original result unchanged |
+| Independent emitter/writers | JOB=2, EMIT=1, all older output switches 0: 2,123 native position emissions, 7,201 native bindings and resets, zero fallback; all 19,508 strict whole-job/I/O checks pass |
+| Combined actual native | JOB=1, all new output switches 1: same emitter/writer counts; 19,508 preparations/publications, 7,201 size/index/vertex stages and layout reuses; zero new-stage fallback |
+| Combined checked | JOB=2, all new output switches 1: same native counts and all 19,508 strict whole-job/I/O checks pass |
+
+Logs: `phase3/position-commands-corpus-{off,independent,native,checked}.log`.
+Leaf mask remains 827, with Stage F in baseline-retaining checked mode. Exact
+stage counts confirm the retained JOB=2 reference stays original. These replay
+timings do not establish FPS or normalized CPU savings.
+
+On the same frozen EXE, the 65 s checked menu run passes **at least 450,000
+strict whole-job + I/O comparisons**, including **120,000 native position
+emissions** and **375,000 native bindings and resets each**. Preparation/
+publication each record at least 450,000; size/index/vertex stages and layout
+reuses each record at least 375,000. The CSV records 2,096 frames through
+64.971 s. Actual native Stage F and geometry execution are used
+(`BUZZ_STAGEF=1`, `BUZZ_GEOMETRY=1`); no baseline exception is expanded.
+
+Actual-native menu and round runs complete normally. The 75 s menu run
+records 3,161 frames through 74.564 s. The round starts at 136.5 s and
+continues another 30 s, recording 7,722 frames through
+166.550 s. Renderer readbacks at frames 2,500 and 6,500, inspected as
+1280x720 PNGs, show normal menu geometry/text/TVs and round-introduction
+host, instructions and effects. These runs use separate fresh private saves,
+muted background windows and the native buzzer mailbox, with no compilation,
+CPU tests or profiling overlapping them. Logs:
+`analysis/vk-scene-p3-position-commands-{checked,menu,round}.{csv,stderr.log}`.
+Images: `phase3/p3-position-commands-{menu,round}.{ppm,png}`. No driver
+DIFF/HALT/fallback or early-exit diagnostic occurs. These are functional
+checks, without a performance claim or default-on decision; final interpreter
+counts and reversed same-EXE normalized CPU/FPS gates remain open.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -743,14 +856,16 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
 | `0x54E8` | Vertex conversion/packing | Retained library; validated output kernels inside |
 | `0x35F0` | Vertex publication | Native opt-in publication using shared host layout; unsupported families retain library |
-| `0x12F0`, `0x02E8` | Full/position-only command emission | Retained library |
+| `0x12F0` | Full command emission | Retained library; its binding/reset callees can use native writers |
+| `0x02E8` | Position-only command emission | Native opt-in emitter body and writers; preparation/publication retain independent flags |
+| `0x0100`, `0x0020` | Attribute binding and reset packets | Native opt-in shared writers, including calls inside the retained full emitter |
 | `0x32C8` | Command-buffer preparation for empty and drawn output | Native opt-in reservation, scans, fenced GET and command preamble |
 | `0x27A0` | Final command relocation/publication | Native opt-in semaphore append, packet split/relocation, NOP fill and fenced PUT; unsupported families retain library |
 
 The host input model, context initialization and complete outer control are
 native. Host-buffer/data-path integration and the retained stage bodies above
-remain phase-3 work; this publication increment does not close the phase or
-enable a new default.
+remain phase-3 work; these native increments do not close the phase or enable
+a new default.
 
 ## Remaining phase-3 gates
 

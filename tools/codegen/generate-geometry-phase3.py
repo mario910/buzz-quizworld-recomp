@@ -42,6 +42,25 @@ def main():
             f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
             f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_{hook}(ctx, {command_name}_reference); }}",
             source, count=1)
+    for command_pc, reset in ((0x20, 1), (0x100, 0)):
+        command_name = f"buzz_job_6eba_spu_func_{command_pc:08X}"
+        pattern = rf"(?ms)^void {command_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(pattern, source))) != 1:
+            raise SystemExit("Expected one pinned binding/reset entry")
+        source = re.sub(pattern, lambda m:
+            f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_command_bindings(ctx, {command_name}_reference, {reset}); }}",
+            source, count=1)
+    command_name = "buzz_job_6eba_spu_func_000002E8"
+    pattern = rf"(?ms)^void {command_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(pattern, source))) != 1:
+        raise SystemExit("Expected one pinned position-command entry")
+    command_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x32c8, 0x100, 0x20, 0x27a0))
+    source = re.sub(pattern, lambda m:
+        f"static const buzz_geometry_command_functions {command_name}_library = {{{command_library}}};\n"
+        f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_emit_position(ctx, {command_name}_reference, &{command_name}_library); }}",
+        source, count=1)
     name = "buzz_job_6eba_spu_func_00001C18"
     # Retain the public library wrappers and their per-kernel switches. No
     # original main-driver block is a continuation of the native path.
@@ -63,7 +82,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 4\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 5\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

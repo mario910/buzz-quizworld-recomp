@@ -465,6 +465,39 @@ and the configured byte count (`16*config[1]`, or four). The independent
 oracles compare physical LS bytes and complete state as well as DMA payloads;
 packet-level semantic equivalence alone is insufficient.
 
+### Command attribute packets and position-only emitter
+
+The shared packet writers (`0x0100`, `0x0020`) use the descriptor pointer at
+geometry context `+0x74`. Descriptor byte 0 is attribute count, byte 1 stride;
+each eight-byte attribute record starts at descriptor `+8`: byte offsets
+0/1/2/5 hold output offset, type, component count and shaderSlot. The selected
+mask is its low 16 bits. Binding emits one format packet and one address
+packet for each selected attribute; reset emits the same format method with
+parameter 2 (zero size, type 2).
+
+The format word is `(stride << 8) | (components << 4) | type`. Address packets
+use the output record's word `+4` plus the attribute's byte offset, OR'd with
+word `+8` shifted left 31. Methods select `0x1740 + 4*shaderSlot` for format
+and `0x1680 + 4*shaderSlot` for address. Descriptor/count/unused-pointer and
+non-preferred-lane behavior is checked by the strict phase-3 writer oracle.
+
+The position-only emitter (`0x02E8`) surrounds these bindings with optional
+raster/cull state, cache invalidation, index-buffer setup, primitive begin/
+end and indexed batches. A leading batch handles the indices before the
+next 128-byte index-address boundary when that prefix is nonempty and less
+than the full count. Subsequent batch parameters each describe up to 256
+indices. A full nonincrementing packet contains 2,047 batch parameters and
+occupies 8,192 bytes; the remaining packet contains the final batches.
+
+Zero command destination skips finalization/PUT but still assembles the
+stream. Such a stream may extend past its logical reservation; the native
+preflight bounds its actual physical writes instead. Published streams must
+fit their logical reservation after all 128-byte packet insertions. Root and
+nested preparation spill areas, descriptors, allocation records and optional
+metadata are checked before the synchronization GET can occur. These are
+phase-3 native implementation contracts, with results and coverage limits in
+[native-geometry-phase3-results.md](native-geometry-phase3-results.md).
+
 ## Corpus cross-check and coverage limits
 
 `geometry-format-inventory.py` rejects malformed layouts and checks
