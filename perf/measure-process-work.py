@@ -208,7 +208,10 @@ class NativeProcess:
             self.k.CloseHandle(snapshot)
 
     def snapshot(self, binding, epoch):
-        self.discover()
+        # Discovery enumerates system threads and can exceed a frame. Retain
+        # named handles before the window, never on a counter boundary.
+        if not self.handles:
+            raise ValueError("Discover pool handles before the CPU window")
         before = self.now(); frames_before = self.read_counter(binding, SYMBOLS[1])
         process = self.cpu(self.process); threads = []
         for tid, handle in self.handles.items():
@@ -223,6 +226,13 @@ class NativeProcess:
             raise ValueError("Counter snapshot is not monotonic")
         return dict(elapsed_ns=(before+after)//2-epoch, query_span_ns=after-before,
                     frames_before=frames_before, frames_after=frames_after, process=process, threads=threads)
+
+    def discover_pool(self):
+        self.discover()
+        for tid, handle in list(self.handles.items()):
+            if not re.fullmatch(r"SPURS pool lane \d+", self.thread_name(handle)):
+                self.k.CloseHandle(handle)
+                del self.handles[tid]
 
     def wait_until(self, target):
         while True:
@@ -280,16 +290,19 @@ def main():
             time.sleep(.05)
         if target.now() > epoch + args.start*1e9:
             raise ValueError("Attached after the requested CPU window began")
+        target.wait_until(epoch + int((args.start-1)*1e9))
+        target.discover_pool()
         snapshots = []
         for seconds in (args.start, args.end):
             target.wait_until(epoch + int(seconds*1e9))
             snapshot = target.snapshot(binding, epoch)
             if abs(snapshot["elapsed_ns"]/1e9-seconds) > .05:
-                raise ValueError("CPU snapshot missed its boundary by more than 50 ms")
+                raise ValueError(f"CPU snapshot missed its boundary by more than 50 ms: requested={seconds}, "
+                                 f"actual={snapshot['elapsed_ns']/1e9:.6f}, query_ms={snapshot['query_span_ns']/1e6:.3f}")
             snapshots.append(snapshot)
         result = dict(status="complete", pid=args.pid, exe_sha256=binding["exe_sha256"],
                       binding_sha256=sha256(args.binding), window_seconds=[args.start, args.end],
-                      method="OS CPU/cycle counters, no suspension; map-bound renderer epoch/serial",
+                      method="OS CPU/cycle counters, pre-discovered pool handles, no suspension; map-bound renderer epoch/serial",
                       snapshots=snapshots, **summarize(*snapshots))
         write_new(args.output, result)
     finally:

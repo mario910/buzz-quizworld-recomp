@@ -43,6 +43,23 @@ in every arm. Do not retrofit CPU collection into an ongoing FPS series.
 Keep the EXE, initial save, scene, rendering/audio settings and counter method
 constant; compare worker and process cost alongside FPS/frame times.
 
+The scene runner can launch the observer automatically. Use a separate series,
+with no renderer readbacks in any arm:
+
+```powershell
+.\perf\measure-geometry-kernel.ps1 -BuildDirectory build-vulkan-batch1 -Tag p2-cpu-menu2 -KernelMask @(2,4,1024) -BaselineMask 1 -Scenes Menu -NoDumps -CpuBinding analysis/native-geometry/phase2/cpu-batch1-binding.json -SaveTemplate analysis/native-geometry/private-gamedata
+.\toolenv\Scripts\python.exe perf/geometry-cpu-report.py analysis/native-geometry/phase2/p2-cpu-menu2/progress.jsonl --output analysis/native-geometry/phase2/cpu-menu2-report.json
+```
+
+The report requires a complete symmetric single-scene series, fixed EXE,
+initial save, binding and observer source hashes, and equal methods/windows.
+It verifies each CPU file's completed-run hash and recomputes the normalized
+cost from raw snapshots. A cached summary cannot conceal a counter reset.
+
 Tool status: synthetic normalization/identity/map checks and Windows API
-self-tests pass. The first game CPU capture and matched CPU series are still
-pending; no CPU-cycle reduction is claimed yet.
+self-tests pass. First game trial `p2-cpu-menu1` failed the 50 ms boundary
+gate because thread discovery ran on the boundary. That incomplete series
+is invalid. Discovery now runs one second before the window; boundary
+queries retain only the four named pool handles and the process. Endpoints
+still require stable live thread identities and the same strict tolerance.
+Matched series `p2-cpu-menu2` is in progress; no savings are claimed yet.

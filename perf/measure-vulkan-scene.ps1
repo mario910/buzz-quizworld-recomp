@@ -14,6 +14,7 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [ValidateRange(30,3600)][int]$Seconds = 100, [ValidateRange(10,3600)][int]$RoundSeconds = 120,
       [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
       [string]$PhaseLog = '',
+      [string]$CpuBinding = '', [string]$CpuOutput = '',
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -27,7 +28,15 @@ if ($Env) { foreach ($kv in $Env -split ';') { $extra += ($kv -split '=', 2)[0] 
 $previous = @{}
 foreach ($key in $keys + $extra) { $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process') }
 $procId = 0
+$cpuObserver = $null
 $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
+if ($CpuBinding -and -not $CpuOutput) { throw 'CpuBinding requires a fresh CpuOutput path' }
+if ($CpuOutput -and -not $CpuBinding) { throw 'CpuOutput requires CpuBinding' }
+if ($CpuBinding) {
+    $CpuBinding = (Resolve-Path -LiteralPath $CpuBinding).Path
+    $CpuOutput = [IO.Path]::GetFullPath($CpuOutput)
+    if (Test-Path -LiteralPath $CpuOutput) { throw 'CPU measurement already exists' }
+}
 try {
     if ($Env) { foreach ($kv in $Env -split ';') { $k, $v = $kv -split '=', 2; [Environment]::SetEnvironmentVariable($k, $v, 'Process') } }
     [IO.File]::WriteAllText(($prefix + '.ini'), "version=1`nvolume=0`nfps_limit=$Limit`nfullscreen=0`noffline=1`nrenderer=auto`n")
@@ -41,6 +50,15 @@ try {
     $procId = [int]([regex]::Match($r, 'PID=(\d+)').Groups[1].Value)
     $log = [regex]::Match($r, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
     $t0 = Get-Date
+    if ($CpuBinding) {
+        $cpuStart = if ($Scene -eq 'Menu') { 40 } else { 150 }
+        $cpuEnd = if ($Scene -eq 'Menu') { 98 } else { 220 }
+        $cpuArgs = @(('"' + (Join-Path $PSScriptRoot 'measure-process-work.py') + '"'),
+            'measure', '--pid', "$procId", '--exe', ('"' + $exe + '"'),
+            '--binding', ('"' + $CpuBinding + '"'), '--output', ('"' + $CpuOutput + '"'),
+            '--start', "$cpuStart", '--end', "$cpuEnd")
+        $cpuObserver = Start-Process -FilePath (Join-Path $root 'toolenv/Scripts/python.exe') -ArgumentList $cpuArgs -WindowStyle Hidden -PassThru -RedirectStandardError ($CpuOutput + '.stderr.log') -RedirectStandardOutput ($CpuOutput + '.stdout.log')
+    }
     function Phase([string]$name) {
         if ($PhaseLog) {
             @{ phase=$name; elapsed_ms=[int](((Get-Date)-$t0).TotalMilliseconds) } |
@@ -84,7 +102,14 @@ try {
     while (((Get-Date) - $t0).TotalSeconds -lt $end) { Start-Sleep -Milliseconds 500 }
     if ($Scene -eq 'Round') { Shot 'end' }
     Phase 'end'
+    if ($cpuObserver) {
+        if (-not $cpuObserver.WaitForExit(3000)) { throw 'CPU observer did not finish before scene shutdown' }
+        if ($cpuObserver.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $CpuOutput)) {
+            throw "CPU observer failed; inspect $CpuOutput.stderr.log"
+        }
+    }
 } finally {
+    if ($cpuObserver -and -not $cpuObserver.HasExited) { Stop-Process -Id $cpuObserver.Id -Force }
     if ($procId) {
         $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
         if ($p -and $p.Path -eq $exe) { Stop-Process -Id $procId -Force; Start-Sleep -Milliseconds 500 }
