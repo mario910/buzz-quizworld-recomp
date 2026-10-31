@@ -17,7 +17,7 @@ Reference decoder/encoder: `tools/questions/buzzq.py`; Lua 5.1 BE disassembler:
 | Text, picture, video and music questions | **Yes** | Pictures are frames in `pics00N.sdi`, video is `.sdi`, music is `.rsf` |
 | Question speech / per-language sets | **Yes, with an ATRAC3 encoder** | All audio is ATRAC3 at 48 kHz; one PAK per language |
 | Import Buzz! Quiz TV packs | **Very likely as whole packs** | Same containers and codec; Quiz World's loader accepts the Quiz TV file version |
-| Import Knowledge Is Power (PS4) | **Unknown until unpacked** | Fake-signed PKG; PFS needs a PS4 PKG tool; engine/data format not yet seen |
+| Import Knowledge Is Power (PS4) | **Yes** | Unpacked and exported: 4,862 Polish questions with Polish voice, 545 pictures. See [question-import-kip.md](question-import-kip.md) |
 
 ## Where questions live
 
@@ -111,11 +111,12 @@ POL pack 100 contents:
 - Fallback: convert questions into Quiz World-style `q_<category>` files using the encoder.
 
 ### Knowledge Is Power (PS4, CUSA09557)
-- The file is a fake-signed PKG (`drm_type 0xF`) whose PFS image is encrypted with
-  the standard fake-PKG keys. A PS4 PKG tool (LibOrbisPkg PkgTool / shadPS4
-  installer) can unpack it. Data format unknown until unpacked.
-- The questions are 4-answer multiple choice, which maps onto Buzz records. Speech
-  will not match Buzz's host voice, so plan on text-only or generated speech.
+- Unpacked with `tools/questions/ps4pkg.py` (Python port of the fake-PKG
+  algorithms, all-zero passcode). It is a Unity game. Questions are TSV TextAssets and
+  `.loc` text (24 languages), pictures are a ZIP of JPEGs, and voice is Wwise ATRAC9
+  (pl/ru/en), which FFmpeg decodes. Details: [question-import-kip.md](question-import-kip.md).
+- `tools/questions/kip_export.py` exports 3,812 trivia + 750 Polish-only + 300
+  finale questions in Polish, plus en/ru.
 
 ## Proposed tool: `buzzpack`
 
