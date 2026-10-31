@@ -402,6 +402,97 @@ runs supply no FPS/CPU-benefit claim or unchanged-interpreter-count proof.
 Original player-save, private template and original lifted-source hashes
 remain unchanged.
 
+## Native index publication (`0x2DC0`)
+
+`port/native_geometry_publish.h` replaces the index-output stage with a C++
+publication plan and a native chunk loop. Host values carry the source,
+remaining bytes, CPU allocation cursor and GPU offset between transfers.
+The implementation preserves the complete LS spill footprint, output-record
+padding, allocation synchronization fields, interrupt state and all exit
+vectors. It sends the same ordered PUT operations in chunks of at most
+16 KiB through the existing single-commit shadow-I/O adapter.
+
+`BUZZ_GEOMETRY_JOB_PUBLISH=1` enables this stage inside JOB=1/2; its default
+is **0** independently of the whole-driver and leaf switches. A read-only
+admission check rejects unsupported ownership, ranges, aliases, allocation
+capacity or enabled-interrupt continuation before the stage makes a write or
+channel call. Rejected stage inputs use the original publisher, with separate
+native/fallback counters; they do not count as native publication coverage.
+The zero-count path retains its original spill/return behavior and issues no
+channel operation. The remaining vertex publisher is unchanged.
+
+```powershell
+.\tests\scripts\test-geometry-publish.ps1
+```
+
+PASS: **2,048 synthetic full-state/channel/payload cases** against ten pinned
+original blocks, plus **nine unchanged-state rejections**. Cases cover zero
+indices, rounding to eight indices, both sides of 16 KiB chunk boundaries,
+multiple chunks, 32-bit count/address wrap and arbitrary non-preferred lanes.
+Every final GPR/LS/control field is compared, along with channel order,
+arguments, controls before/after each operation and every transfer byte.
+Private log: `phase3/publish-test.log`. The outer-flow model test and all
+43 controller scenarios also pass after integration.
+
+The frozen `build-vulkan-phase3-publish` EXE SHA256 is
+`c99ba1bb48a8083352e78bc4d35745bd437cceb5a9548093805a90cbbf04a290`;
+`phase3/publish-build.json` binds its map, generated C and native sources.
+On that same EXE, all three driver modes pass **19,508 exact jobs / 58,195
+transfers**, with zero input divergence/failures. JOB=1 and JOB=2 each execute
+**7,201 native index publications, zero publication fallback**; JOB=2 also
+passes all 19,508 strict whole-job + I/O checks. Logs:
+`phase3/publish-corpus-mode{0,1,2}.log`. The original driver arm disables the
+new switch; both native arms enable it. Stage F remains in baseline-preserving
+checked mode and the leaf mask remains 827. Diagnostic replay timings are
+not a cycle/FPS benefit claim.
+
+Three functional runs on this frozen publisher EXE enable the new switch,
+actual-native Stage F and the default geometry mask, using fresh private
+saves. All complete normally with no difference/HALT diagnostic:
+
+| Run | Evidence |
+|---|---|
+| JOB=2 menu, 65 s | At least 445,000 strict whole-job + I/O matches, including at least 370,000 native index-publication executions; renderer continues through 64.7 s |
+| JOB=1 menu, 65 s | Renderer continues through 64.6 s; normal renderer readback at frame 2,500 |
+| JOB=1 round, 30 s after navigation | Round start at 147.1 s; renderer continues through 177.0 s (8,213 recorded frames); normal round-introduction readback at frame 6,500 |
+
+Logs: `analysis/vk-scene-p3-publish-{checked,menu,round}.{csv,stderr.log}`.
+Native renderer readbacks, inspected as 1280x720 PNGs, are
+`phase3/p3-publish-{menu,round}.{ppm,png}`. These replace the failed
+PrintWindow method for this increment's visual checks. Menu geometry and the
+round introduction's character, environment and text look normal against the
+phase-2 baseline scenes. The screenshots are visual checks, not a claim of
+pixel equality between different animation frames. Original save/template
+and source pins remain unchanged. Final reversed FPS/CPU measurements and
+interpreter-count evidence remain open, and the publication switch stays off
+by default.
+
+## Remaining pipeline inventory
+
+This table tracks the outer driver's library boundaries explicitly. Completing
+a row still requires its supported formats/paths and normal gates; native
+coverage of one leaf does not make the entire enclosing stage native.
+
+| Library entry | Role | Native status |
+|---|---|---|
+| `0xAC68` | Primary/secondary attribute decode | Retained library; validated format kernels inside |
+| `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
+| `0x09F8` | Palette/skinning flow | Retained library; validated skin kernel inside |
+| `0xAEA0` | Index decoding | Retained library; validated index/triangle kernels inside |
+| `0x6608` | Transform/cull | Retained library with existing Stage F; strict cleanup remains phase 7 |
+| `0x2B80` | Output buffer sizing | Retained library |
+| `0x37C0` | Ring allocation/atomics | Retained library |
+| `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
+| `0x54E8` | Vertex conversion/packing | Retained library; validated output kernels inside |
+| `0x35F0` | Vertex publication | Retained library |
+| `0x12F0`, `0x02E8` | Full/position-only command emission | Retained library |
+| `0x32C8`, `0x27A0` | Empty-output conversion/publication | Retained library |
+
+The host input model, context initialization and complete outer control are
+native. Host-buffer/data-path integration and the retained stage bodies above
+remain phase-3 work; this publication increment does not close the phase or
+enable a new default.
+
 ## Remaining phase-3 gates
 
 - Complete the native data path behind the outer driver using the validated

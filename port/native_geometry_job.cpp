@@ -27,6 +27,7 @@ namespace {
 using namespace buzz;
 std::atomic<unsigned long long> attempted{0}, checked{0}, skipped{0}, failures{0}, drawn{0}, culled{0};
 std::atomic<unsigned long long> native_attempted{0}, native_executed{0}, native_compared{0}, native_fallback{0};
+std::atomic<unsigned long long> publication_native{0}, publication_fallback{0};
 unsigned long long maximum = 512;
 
 struct Recording {
@@ -161,6 +162,8 @@ struct Init {
             }
             std::fprintf(stderr, "[geometry-job] mode=%d: native outer driver + SPU-ABI library, experimental/default off\n",
                          buzz_geometry_job_mode());
+            std::fprintf(stderr, "[geometry-job] native index publication=%d (default off)\n",
+                         buzz_geometry_job_publish_enabled());
         }
         if (!buzz_geometry_job_audit_enabled()) return;
         if (!BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE) {
@@ -176,6 +179,25 @@ struct Init {
     }
 } init;
 } // namespace
+
+extern "C" int buzz_geometry_job_publish_enabled()
+{
+    static const int enabled = [] {
+        const char* value = std::getenv("BUZZ_GEOMETRY_JOB_PUBLISH");
+        if (!value) return 0;
+        if ((value[0] != '0' && value[0] != '1') || value[1]) std::abort();
+        return value[0] - '0';
+    }();
+    return enabled;
+}
+
+extern "C" void buzz_geometry_job_publish_result(int native)
+{
+    if (native) {
+        const auto total = ++publication_native;
+        if (total % 5000 == 0) std::fprintf(stderr, "[geometry-job/index-publish] native=%llu\n", total);
+    } else ++publication_fallback;
+}
 
 extern "C" int buzz_geometry_job_mode()
 {
@@ -382,6 +404,9 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
 
 extern "C" void buzz_geometry_job_audit_report()
 {
+    if (buzz_geometry_job_mode() && buzz_geometry_job_publish_enabled())
+        std::fprintf(stderr, "[geometry-job/index-publish] native=%llu fallback=%llu\n",
+                     publication_native.load(), publication_fallback.load());
     if (buzz_geometry_job_mode())
         std::fprintf(stderr, "[geometry-job/native-outer] mode=%d attempted=%llu executed=%llu checked=%llu fallback=%llu failed=%llu\n",
                      buzz_geometry_job_mode(), native_attempted.load(), native_executed.load(),

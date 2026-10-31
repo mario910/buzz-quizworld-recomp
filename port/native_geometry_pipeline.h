@@ -4,6 +4,7 @@
 #pragma once
 #include "native_geometry_job.h"
 #include "native_geometry_job_call.h"
+#include "native_geometry_publish.h"
 
 namespace buzz {
 class GeometryPipeline {
@@ -125,7 +126,12 @@ class GeometryPipeline {
     {
         ctx.gpr[80] = spu_il(0); // Mode 0 never issues metadata summaries.
         ctx.gpr[3] = context; ctx.gpr[4] = load(0x30); ctx.gpr[5] = ctx.gpr[90]; ctx.gpr[6] = ctx.gpr[100];
-        call(functions.put_indices, 0x2240);
+        if (buzz_geometry_job_publish_enabled()) {
+            GeometryIndexPublication plan;
+            const bool supported = read_geometry_index_publication(ctx, plan);
+            buzz_geometry_job_publish_result(supported);
+            call(supported ? native_put_indices : functions.put_indices, 0x2240);
+        } else call(functions.put_indices, 0x2240);
         ctx.gpr[3] = context;
         call(functions.emit_vertices, 0x2248);
         ctx.gpr[3] = context; ctx.gpr[4] = ctx.gpr[90]; ctx.gpr[5] = ctx.gpr[102];
@@ -139,6 +145,14 @@ class GeometryPipeline {
         ctx.gpr[9] = command; ctx.gpr[11] = flags; ctx.gpr[12] = range;
         call(setup.entry.position_only() ? functions.position_commands : functions.commands,
              setup.entry.position_only() ? 0x2714 : 0x2298);
+    }
+    static void native_put_indices(spu_context* ctx)
+    {
+        GeometryIndexPublication plan;
+        if (!read_geometry_index_publication(*ctx, plan))
+            buzz_geometry_job_native_fail(ctx, "index publication admission changed");
+        publish_geometry_indices(*ctx, plan);
+        SPU_RET(ctx);
     }
     void restore_caller()
     {

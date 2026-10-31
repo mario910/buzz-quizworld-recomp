@@ -40,6 +40,10 @@ void spu_stop(spu_context*) { abort(); }
 void spu_halt(spu_context*) { abort(); }
 void spu_wrch(spu_context*, uint32_t, u128) { abort(); }
 u128 spu_rdch(spu_context*, uint32_t) { abort(); }
+void buzz_geometry_job_wrch(spu_context*, uint32_t, u128) { abort(); }
+u128 buzz_geometry_job_rdch(spu_context*, uint32_t) { abort(); }
+int buzz_geometry_job_publish_enabled() { return 0; }
+void buzz_geometry_job_publish_result(int) { abort(); }
 void buzz_geometry_job_native_fail(spu_context*, const char* reason) {
     fprintf(stderr, "%s: native rejection: %s\n", current_case, reason); abort();
 }

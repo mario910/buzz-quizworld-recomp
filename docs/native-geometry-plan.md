@@ -193,6 +193,20 @@ Changed reference reservations are rejected before trial, without relaxing
 the shadow checker. Final data-path, live/render/interpreter/performance
 gates remain required; these results do not complete phase 3.
 
+The first native publication stage (`0x2DC0`, index PUTs) now has a separate
+`BUZZ_GEOMETRY_JOB_PUBLISH=0/1` switch, default 0. All 19,508 jobs / 58,195
+transfers pass with the switch enabled in actual and checked modes, including
+7,201 native publications and zero publication fallback. An independent
+original-function oracle also passes 2,048 strict state/channel/payload cases
+and nine mutation-free rejections. The phase-3 report now inventories every
+remaining outer-driver library boundary explicitly; they are not silently
+counted as native because an internal leaf is native.
+On the frozen publisher build, live checking passes at least 445,000 strict
+whole jobs including at least 370,000 native publications. Actual-native menu
+and round-introduction renderer readbacks look normal. The new switch remains
+off pending matched FPS/CPU measurements; these functional runs do not close
+the phase's remaining data-path or interpreter/performance gates.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -303,6 +317,7 @@ subject to the kernel gates before replacement.
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
 | Whole-job driver | n/a | wip; native outer control, SPU-ABI library/data-path integration and final gates open | `BUZZ_GEOMETRY_JOB=0/1/2`, default 0 | 19,508 exact / 58,195 transfers in all three modes; 1,024 synthetic outer paths | >=445,000 strict outer-flow + I/O matches | not measured for native driver | |
+| 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),

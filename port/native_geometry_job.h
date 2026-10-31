@@ -13,6 +13,8 @@ typedef struct buzz_geometry_job_functions {
 } buzz_geometry_job_functions;
 int buzz_geometry_job_audit_enabled(void);
 int buzz_geometry_job_mode(void);
+int buzz_geometry_job_publish_enabled(void);
+void buzz_geometry_job_publish_result(int native);
 void buzz_geometry_job_audit_run(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_run(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn native,
                            buzz_geometry_job_eligibility_fn);
