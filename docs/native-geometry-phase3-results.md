@@ -35,9 +35,11 @@ The complete `7730/7770` delta region is now native opt-in, independently
 checked and documented below. Other regions of the decoder remain unfinished.
 The full low/high bit-unpack region is now independently native as well;
 its source-compatible width-16 behavior and evidence are recorded below.
+Full `79A8/79C8` command relocation is now independently native through queued
+7A90; its overlapping-window contract and evidence are recorded below.
 Full `7838/78A8` flag expansion is also native opt-in through its actual
-post-write capacity decision, with separate evidence below. Whole-index control,
-command relocation and complete triangle final state remain unfinished.
+post-write capacity decision, with separate evidence below. Whole-index control
+and complete triangle final state remain unfinished.
 
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
@@ -3445,3 +3447,100 @@ Private evidence uses `phase3/index-expand-v1-*` and
 `analysis/vk-scene-p3-index-expand-v1-*`; the finalized manifest binds committed
 sources/docs/tests, frozen executable/map/C/native copies, original entry pin,
 diagnostic, prior unpack proof, tests, five replays and three scenes.
+
+
+## Complete command relocation (79A8/79C8)
+
+`port/native_geometry_index_relocate.h` replaces both original blocks through
+queued 7A90, including every warmup/body/final iteration and the complete
+triangle-entry ABI. Host vectors hold the input/output pointers and cached
+quads; one invariant alignment shuffle is prepared once. No original setup,
+step or final iteration runs. The enclosing controller and 7A90 body remain
+separate unfinished work in the [inventory](native-geometry-index-audit.md#native-implementation-inventory).
+
+For C in r87, `ceil(C/16)+1` iterations write one zero warmup quad, repeat the
+first destination, then advance by 16. Even C=0 still writes a quad and reads
+lookahead. Each cached store precedes both next source reads, retaining
+feedback for aliases in either direction. This is deliberately not implemented
+as memcpy/memmove. Input reads wrap/floor LS, physical writes remain bounded
+at/above E680, and eligibility is decided before any mutation. Oversized or
+nonterminating unsigned counts fall back without native credit. Full upper
+GPR lanes, arbitrary alignment selectors, biased pointers, post-loop source
+cache and final D160/D170/D180 loads are exact.
+
+Own `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares all 128 GPRs/all LS, architectural/channel/control state, PC/FN and
+image/depth/policy/overlay with the two original blocks. There is no tolerance,
+exclusion or new Stage F exception. Stage 34, 35 stage counters and protocol 29
+provide per-shape native/strict counts and durable first-fallback reporting.
+
+**5,777 strict full-state/LS cases** pass: 4,096 randomized entries with
+arbitrary GPR upper lanes and standard/arbitrary alignment shuffles, 512
+targeted overlap/wrap/end-of-LS cases, 16 maximum-span cases, one pinned real
+entry, and **1,152 independent byte models**. The numeric models cover all 16
+source alignments, biased destination pointers, nine lengths (0/1/15/16/17/
+31/32/33/127), separate/identical/forward/backward overlap and wrapped source
+windows. They commit the prior cached bytes before fetching from modified LS,
+then compare the entire 262,144-byte result. Eight rejects preserve state.
+There were no strict native/reference differences or numeric fixture failures.
+
+Real-owner API routing passes 18 native / 12 strict calls and seven counted
+fallbacks, including warmup-only/one-group/bulk, both strict modes, aliases,
+tail-PC collisions, owner/off/foreign/image/null callback/invalid fields/
+foreign LS/post-scope. The 1,024 outer models, 19,508 real-entry models,
+43 runtime controller scenarios, **264 production-getter configuration cases**
+and durable first-fallback check pass. The frozen production build succeeds.
+
+Frozen `build-vulkan-phase3-index-relocate-v1`:
+EXE `b12f13964a9f4c4dba2ee955ebb392468bd030003b8eb0164dc4186becf67712`;
+map `7c984a3d693a83acbf5ca9a0b29a4ab726c7d88cc1913912c287cb8326fa2cfc`;
+generated C `57efbe355698a1882b17e015769bbf4219caeb23bae7d129840a01ab3c2df166`.
+Frozen generated C and four compiled native/header/controller copies are retained.
+
+All five corpus arms pass **19,508 exact jobs / 58,195 transfers**, zero input
+changes and failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | INDEX_RELOCATE | Relocation native/strict/fallback |
+|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline |
+| Independent | 2 | 0 | 1 | 19,508/19,508/0 |
+| Combined native | 1 | 1 | 1 | 19,508/0/0 |
+| Combined checked | 2 | 1 | 1 | 19,508/19,508/0 |
+| Kernel checked | 1 | 1 | 2 | 19,508/19,508/0 |
+
+Every enabled arm has 0 warmup, 9,756 short, 9,752 bulk, zero fallback. Both JOB=2
+arms pass all 19,508 whole-job state/I/O checks. Combined arms retain all
+9,763 native unpack roots, 9,763 deltas and 19,508 flag expansions, plus 1,628
+AF18, 6,113 weighted and 5,018 basic-direction roots, zero fallback. This proves
+actual composition of all four completed index data regions; synthetic
+coverage is not represented as real native calls.
+
+Functional live runs use the same frozen EXE, fresh private saves, all older
+flags=1 including unpack/deltas/expansion, GEOMETRY=1 / Stage F=1 / leaf 827,
+background/native mailbox/mute, with no compilation/CPU-test/profiling overlap:
+
+| Scene | JOB/INDEX_RELOCATE | Frames / last elapsed ms | Relocation lower bounds |
+|---|---|---|---|
+| checked-menu | 1/2 | 1,401 / 59,312.020 | strict: warmup>=0; short>=200,000; bulk>=260,000 |
+| menu | 1/1 | 2,252 / 74,979.362 | native: warmup>=0; short>=1,365,000; bulk>=1,785,000 |
+| round | 1/1 | 6,062 / 196,219.099 | native: warmup>=0; short>=2,530,000; bulk>=4,375,000 |
+
+Checked menu ran 60s, native menu 75s, and the native round 60s after navigation.
+Strict live relocation comparisons reach at least **460,000**. No differences,
+halts or first relocation fallback were observed. Periodic counters are lower
+bounds; forced shutdown provides no final fallback totals. Inspected 1280x720
+native readbacks show normal studio/menu/crowd and actual green-round host/
+player/score UI. Cold/unseen shapes remain explicitly identified by zero counts.
+
+Final interpreter, reversed same-frozen-EXE menu/round A/B and normalized
+worker/process cycles/time/default gates remain **OPEN**. These functional
+scenes make no FPS or CPU benefit claim. Repeatable CPU savings can justify a
+later default-on decision with flat FPS after all correctness/render gates.
+JOB=0 / leaf 827 / new flags=0 remain. Phase 3 and the continuing goal stay
+active; 7390 control, complete triangle/final ABI, other enclosing paths and
+cold coverage remain required. Strict Stage F reconstruction stays last.
+
+Private evidence uses `phase3/index-relocate-v1-*` and
+`analysis/vk-scene-p3-index-relocate-v1-*`; the finalized manifest binds the
+committed sources/docs/tests, source/fixture/save pins, frozen EXE/map/C/native
+copies, prior expansion proof, tests, five replays and three scenes.

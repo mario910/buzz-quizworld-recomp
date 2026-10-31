@@ -46,6 +46,10 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
 enum { BUZZ_GEOMETRY_JOB_INDEX_DELTAS = 31 };
 enum { BUZZ_GEOMETRY_JOB_INDEX_UNPACK = 32 };
 enum { BUZZ_GEOMETRY_JOB_INDEX_EXPAND = 33 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_RELOCATE = 34 };
+int buzz_geometry_job_index_relocate_enabled(void);
+void buzz_geometry_job_index_relocate_result(unsigned iterations, int checked);
+void buzz_geometry_job_index_relocate(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn triangles);
 int buzz_geometry_job_index_expand_enabled(void);
 void buzz_geometry_job_index_expand_result(unsigned iterations, int checked, int capacity_error);
 void buzz_geometry_job_index_expand(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn commands, buzz_geometry_job_fn capacity_error);

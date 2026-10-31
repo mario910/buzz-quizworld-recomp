@@ -1252,3 +1252,17 @@ byte-exact. AF18 integration uses actual normalized data and three combinations
 of original/native rigid and cofactor kernels, including scratch feedback.
 The original real trace has zero calls to all three normalized roots; real
 native-corpus and >=256 live gates remain OPEN until actual coverage exists.
+
+
+### Native compressed-index command relocation
+
+`native_geometry_index_relocate.h` replaces all of 79A8/79C8 through queued
+7A90. Its zero warmup/repeated destination and store-before-next-read order
+preserve overlapping input/output feedback. Full vectors and one prepared
+alignment shuffle replace repeated GPR traffic; the complete triangle-entry
+ABI remains exact. `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2` defaults to zero.
+Mode 2 or JOB=2 compares all GPR/LS/architectural/control state and continuation
+against both original blocks. Eligibility bounds every write before mutation;
+unsupported input falls back without native credit. See the
+[source contract](native-geometry-index-audit.md#command-relocation-and-overlapping-windows)
+and [phase-3 results](native-geometry-phase3-results.md) for coverage and gates.

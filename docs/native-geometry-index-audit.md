@@ -1,7 +1,7 @@
 # Image-41 compressed indices: implementation contract
 
-Status: audited; bit unpack, delta reconstruction and flag expansion implemented separately; **native
-whole-decoder implementation and acceptance OPEN**,
+Status: audited; bit unpack, deltas, flag expansion and command relocation
+implemented separately; **native whole-decoder implementation and acceptance OPEN**,
 2026-10-31. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
 for the next phase-3 implementation. The continuing objective remains active
 through subsequent native phases and final strict Stage F reconstruction.
@@ -161,10 +161,10 @@ Choose a fresh output filename; preserve the finalized v1 verdict and archive.
 | 74F0/7640 and 7C20/7CD0 bit unpack | Complete native implementation through 7730/77F8, own `INDEX_UNPACK=0/1/2`, default 0; final performance/default gates OPEN |
 | 7730/7770 delta prefix | Complete native implementation, own `INDEX_DELTAS=0/1/2`, default 0; final performance/default gates OPEN |
 | 7838/78A8 flag expansion | Complete native region including final ABI and 79A8/7DCC handoff, own `INDEX_EXPAND=0/1/2`, default 0; final performance/default gates OPEN |
-| 79A8/79C8 command relocation | Complete native replacement OPEN |
+| 79A8/79C8 command relocation | Complete native region through 7A90, own `INDEX_RELOCATE=0/1/2`, default 0; final performance/default gates OPEN |
 | 7A90 triangle reconstruction and frame restoration | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
 
-The native bit-unpack, delta and flag-expansion regions call no original setup, step or final
+The native bit-unpack, delta, flag-expansion and command-relocation regions call no original setup, step or final
 iteration. Completing those regions does not complete 7390 or the image-41 job flow.
 
 ### Flag expansion and post-write capacity
@@ -192,6 +192,28 @@ mixed flag patterns and flag-quad crossings are checked independently.
 Arbitrary flag bases and extraction/shuffle tables remain covered by strict
 source-state comparisons. The legacy phase-2 bit6 prefix is unchanged and
 independent; the full native region has no original final-iteration callback.
+
+### Command relocation and overlapping windows
+
+`79A8/79C8` copies command bytes through a one-quad pipeline. For C in r87,
+the region executes `ceil(C/16)+1` iterations, including one zero warmup.
+Even C=0 writes a zero quad and reads lookahead. The initial destination is
+r81; its increment starts at zero, then becomes 16. Thus the first destination
+is repeated, and the total physical write span is `max(1,ceil(C/16))*16`.
+The first source window starts at incoming r80+16. Every iteration writes its
+cached quad BEFORE reading the next high and low source quads. Shared input/
+output therefore has feedback that an ordinary memcpy or memmove would lose.
+
+The complete native implementation keeps full input/output vectors and cached
+quads in host variables, prepares the invariant byte-alignment shuffle once,
+and reconstructs all changed GPRs and the complete queued-7A90 entry ABI.
+It handles all input/output byte biases, wrapped input/lookahead, arbitrary
+alignment selectors and GPR upper lanes. The output span is checked before
+mutation; writes stay in bounded physical data LS, at or above E680. Oversized
+and nonterminating unsigned-count cases fall back without native credit.
+The final D160/D170/D180 table loads, relocated offsets, triangle count and
+LUT bases remain exact; no original setup, step or final iteration runs.
+The 7A90 body and enclosing controller remain separate unfinished work.
 
 ### Width-16 source compatibility
 

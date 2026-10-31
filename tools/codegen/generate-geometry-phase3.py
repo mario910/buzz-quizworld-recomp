@@ -24,6 +24,14 @@ def main():
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    relocate_name = "buzz_job_6eba_spu_func_000079A8"
+    relocate_pattern = rf"(?ms)^void {relocate_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(relocate_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned complete command-relocation entry")
+    source = re.sub(relocate_pattern, lambda m:
+        f"static void {relocate_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {relocate_name}(spu_context* ctx) {{ buzz_geometry_job_index_relocate(ctx, {relocate_name}_reference, buzz_job_6eba_spu_func_00007A90); }}",
+        source, count=1)
     expand_name = "buzz_job_6eba_spu_func_00007838"
     expand_pattern = rf"(?ms)^void {expand_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(expand_pattern, source))) != 1:
@@ -325,7 +333,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 28\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 29\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
