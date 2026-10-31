@@ -20,7 +20,8 @@ The `0x9F8` skin/rigid controller now has native opt-in control through its
 exact weighted-data/normalization tail or return boundary. `0xAF18` now has
 native palette/frame/batch/dispatch/publication control, separately switched.
 Rigid data now has a separately switched implementation below, with no
-observed real/live data coverage. Cofactor and normalized data remain original.
+observed real/live data coverage. Cofactor data now has an independently switched implementation below, also
+without real/live coverage. Normalized directional data remains original.
 The complete B880 weighted-data replacement passes strict real replay/live
 and native rendering below; final performance/default gates remain open.
 
@@ -1426,7 +1427,7 @@ The required phase-3 data inventory after this increment is:
 | `0xAF18`, weighted skin orchestration | Native opt-in palette transpose/frame/stream selection/batching/publication; valid path has no DMA; strict tests/replay pass, live evidence below | Cold branch gates and final performance/default decision; explicit retained data libraries do not count as new payload coverage |
 | `0xB880/B934/B940`, weighted position/matrix data | Complete native opt-in; original setup/final pair replaced; strict synthetic/corpus/live and native menu/round gates pass, including actual palette aliases | Final performance/default decision; one-pair API inputs observed only synthetically |
 | `0xB348` data suffix / `B3C0/B3C8`, rigid position/matrix data | Complete native pair pipeline with strict synthetic and AF18 integration checks; separate switch default0 | Real-corpus and >=256 live gates OPEN (zero observed calls); final measurements/default decision |
-| `0xBB58/BB68`, cofactor/normal data | Original data loop | Native data implementation and validation |
+| `0xBB58/BB68`, cofactor normal data | Complete native host group loop with strict synthetic/composed-data checks; independent switch default0 | Nonzero real/native corpus and >=256 live gates OPEN (zero observed calls); final performance/default decision |
 | `0xB4C0`, skin directional dispatch | Native host dispatch within AF18, preserving cached data inputs and all nineteen table entries | Cold target gates and final performance/default decision; each data variant retains its own inventory row |
 | `0xBD4C/BE20`, basic one/two-stream data | Complete native opt-in; strict synthetic/corpus/live and native menu/round checks pass | Final performance/default decision |
 | `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
@@ -2952,3 +2953,100 @@ remain unchanged. JOB=0 / leaf 827 / all new flags=0 remain unchanged. Phase 3 a
 continuing goal remain active; next data work is cofactor and normalized
 skinning, followed by other enclosing stages/built-in inputs/cold coverage
 and final gates. Strict Stage F reconstruction remains final phase 7.
+
+
+## Cofactor normal transform: implementation with open real/live gates
+
+`port/native_geometry_skin_cofactor.h` replaces BB58/BB68 through the exact
+queued B4C0 boundary, using host four-vertex groups, AVX2 pairs and explicit
+final-group state reconstruction. No original setup/body/final group runs on
+the native path. Each group loads its twelve matrix quads and four normals
+before stores, preserving matrix/normal aliases and feedback. Sequential
+matrix reads can wrap LS; normal writes remain bounded physical data.
+Arbitrary input masks/shuffles and unused vector/pointer/count lanes remain
+supported. The arithmetic retains separately rounded FM subtrahends, FMS
+cofactors, FM+two-FMA transforms and exact SPU FRSQEST/FI normalization.
+
+`BUZZ_GEOMETRY_JOB_SKIN_COFACTOR=0/1/2` defaults to 0; mode 2 or JOB=2 compares
+all GPR/LS bytes, architectural/control state, PC, queued function and image/
+depth/policy/overlay against the complete original data closure. No Stage F
+exception or state exclusion is added. Protocol 24 / stage 29 has 30 counters,
+with independent one-group/bulk and matrix/normal-alias native/strict counts.
+Unsupported input is rejected before mutation and receives no native credit.
+The existing flushed first-fallback notification remains active and its
+abrupt `_Exit` persistence test passes.
+
+**Strict evidence:** 7,808 full-state/boundary cases = 6,400 random counts 4..4096,
+640 alias/wrapped cases (576 actual matrix/normal overlaps),512 arbitrary mask/
+shuffle cases and 256 special-FP cases, including signed zeros, denormals,
+maximum/extended SPU values. Ten rejected-input cases preserve state and
+perform no I/O. Three additional independent geometric checks use the
+inverse-transpose of diag(2,3,4), checking expected directions, unchanged
+matrices/padding and final pointers. Their 5e-4 semantic tolerance reflects
+SPU's approximate reciprocal root; **no tolerance is applied to any strict
+state, corpus or live checker**.
+
+AF18 composition passes 768 additional strict cases using actual original
+cofactor data versus its native implementation, after both original and
+native rigid data, including scratch/normal feedback and full 128 GPR call
+transcripts. Directional data remains an explicit model in this harness;
+these composition cases do not validate the remaining normalized direction
+kernels. All previous 6,600 control cases,384 actual-rigid integration cases,
+3 numeric palette cases,3 unused-input early cases and 18 rejects pass unchanged.
+Owner/off/foreign/image/null-tail/invalid/post-scope routing and both strict
+activation modes pass; the 1,024 outer models and 19,508 real-entry models pass.
+Runtime 43 controller cases, 224 configuration-getter cases and the durable
+first-fallback test pass. There was no pre-freeze arithmetic/state mismatch.
+
+Frozen `build-vulkan-phase3-skin-cofactor-v1`:
+EXE `7b1bd0a45a1be199f781280f6b3ea9441833ed29b97dfb3c34372a1c3a2b83dd`;
+map `689d08e6f32bafe68572f0c4b8d050db522c64802a2130595b487aa0a2901334`;
+generated C `2e4a7d01690cd757a8079ca98fb3cacc98426f783ae75b6167e5d6e870f97ca2`.
+Frozen C and four compiled native header/controller copies are preserved.
+
+All five compatibility configurations pass **19,508 exact jobs /58,195
+transfers**, zero input changes and failures, Stage F=2 / leaf 827/no contract
+override:
+
+| Compatibility arm | JOB | Older flags | SKIN_COFACTOR | New native/strict/fallback |
+|---|---|---|---|---|
+| Off |0|0|2|No native pipeline|
+| Independent |2|0|1|0/0/0|
+| Combined native |1|1|1|0/0/0|
+| Combined checked |2|1|1|0/0/0|
+| Kernel checked |1|1|2|0/0/0|
+
+Both JOB=2 arms pass 19,508 whole-job state/I/O comparisons. Combined arms retain
+1,628 AF18, 6,113 weighted roots including 30 palette aliases, 5,018 basic direction
+roots and zero rigid roots, all without fallback. **There are zero new real
+cofactor calls**; the original trace records BB58=0. These results prove
+compatibility of observed paths, not real-data validation of this kernel.
+Nonzero native corpus coverage and >=256 strict live cofactor comparisons
+remain **OPEN**. Normalized C14C/C280/B5A0 data remains original work.
+
+Same frozen EXE, fresh private saves, all older flags=1, GEOMETRY=1 / Stage F=1 /
+leaf827, without compilation/CPU tests/profiling overlap:
+
+| Functional compatibility run | JOB/SKIN_COFACTOR | Frames /last elapsed ms | New native/strict observed |
+|---|---|---|---|
+| Checked menu,60s |1/2|2,753 /59,573.692|0/0;gate OPEN|
+| Native menu,75s |1/1|3,288 /74,690.806|0/0;gate OPEN|
+| Native round,60s after start136.5s |1/1|9,424 /195,974.106|0/0;gate OPEN|
+
+The logs confirm the requested modes, no DIFF/HALT/mismatch and no observed
+new cofactor native/strict/first-fallback event. Inspected 1280x720 readbacks
+show normal menu/studio/crowd and the actual green round/host/player/score UI.
+**A normal scene with no new data calls does not close the real/live gate.**
+No matched FPS/CPU benefit is claimed. Final interpreter/reversed A/B and
+normalized worker/process cycle/time/default decisions remain open; repeatable
+CPU savings may matter even with flat FPS.
+
+Private evidence uses `phase3/skin-cofactor-v1-*` and
+`analysis/vk-scene-p3-skin-cofactor-v1-{checked-menu,menu,round}.*`.
+`phase3/skin-cofactor-v1-build.json` and archived proofs bind committed code,
+tests/docs, frozen binary/map/C/native sources, source trace and scene data.
+All sessions are terminal and source/generator/save/template/fixture pins
+remain unchanged. JOB=0 / leaf 827 / all new flags=0 remain unchanged. Phase 3 and the
+continuing goal remain active. Next data work is normalized directional
+skinning, followed by other enclosing stages/built-in inputs/cold coverage
+and final gates. Strict Stage F reconstruction remains mandatory final phase 7.

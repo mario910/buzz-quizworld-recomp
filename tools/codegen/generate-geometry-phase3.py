@@ -123,6 +123,14 @@ def main():
         f"static void {weighted_name}_phase2(spu_context* ctx) {{{m[1]}}}\n"
         f"void {weighted_name}(spu_context* ctx) {{ buzz_geometry_job_weighted_skin(ctx, {weighted_name}_phase2, {weighted_name}_reference, buzz_job_6eba_spu_func_0000B4C0, buzz_job_6eba_spu_func_0000BB58); }}",
         source, count=1)
+    cofactor_name = "buzz_job_6eba_spu_func_0000BB58"
+    cofactor_pattern = rf"(?ms)^void {cofactor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(cofactor_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned cofactor data root")
+    source = re.sub(cofactor_pattern, lambda m:
+        f"static void {cofactor_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {cofactor_name}(spu_context* ctx) {{ buzz_geometry_job_skin_cofactor(ctx, {cofactor_name}_reference, buzz_job_6eba_spu_func_0000B4C0); }}",
+        source, count=1)
     # Separate the retained rigid data suffix from B348's native clamp/branch.
     rigid_name = "buzz_job_6eba_spu_func_0000B348"
     rigid_match = re.search(rf"(?ms)^void {rigid_name}\(spu_context\* ctx\) \{{(.*?)^\}}", source)
@@ -284,7 +292,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 23\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 24\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

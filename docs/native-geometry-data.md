@@ -1136,3 +1136,54 @@ this behavior is tested with `_Exit` before normal final summaries.
 
 Synthetic and real-coverage distinctions, frozen artifacts and current
 validation gates are recorded in the phase-3 results document.
+
+
+### Native cofactor normal data (BB58/BB68)
+
+`native_geometry_skin_cofactor.h` replaces the cofactor transform and normal
+normalization through its exact queued B4C0 boundary. A group has four normals
+and twelve matrix quads. All current-group inputs are loaded before stores;
+there is no following-group lookahead. Normal/matrix overlaps and feedback
+into later groups retain original ordering. Sequential matrix reads can wrap
+LS; normal writes remain bounded physical data writes. Pointer biases and
+all unused vector lanes are preserved.
+
+With three packed matrix rows A/B/C and the incoming cyclic shuffles Y/Z,
+the three packed cofactor rows are:
+
+- `Y(A)*Z(A) - Z(C)*Y(B)`;
+- `Z(B)*Y(B) - Y(C)*Z(A)`;
+- `Y(C)*Z(C) - Z(B)*Y(A)`.
+
+Each subtraction is an ordered FMS with a separately rounded FM subtrahend.
+Normal transformation uses FM followed by two FMAs. Host AVX2 pairs use the
+existing exact RTZ arithmetic/repair helpers, with sign-flipped C for FMS.
+The four transformed normals are packed into the original length lanes,
+squared with FM+two FMAs and normalized using the exact SPU FRSQEST/FI steps
+and incoming broadcast tables. Arbitrary masks/shuffles remain supported.
+Prefix groups keep intermediates in host locals; a fixed final-group
+calculation materializes every original GPR, intermediate and pointer/count
+lane. No original setup/body/final group executes on the native data path.
+
+`BUZZ_GEOMETRY_JOB_SKIN_COFACTOR=0/1/2` defaults to zero. Mode 2 or JOB=2 runs
+a complete original data closure on a clone and compares all GPR/LS bytes,
+architectural/control state, PC, function continuation, image/depth/policy/
+overlay. Stage 29 / protocol 24 has 30 stage counters, with separate one-group,
+bulk and matrix/normal-alias native/strict counts. Unsupported inputs are
+rejected before mutation and never credited as native success.
+
+The tests retain strict byte-exact comparisons for arbitrary FP bits,
+SPU extended values, zeros/denormals, aliases, wrapping and arbitrary tables.
+Additional geometric checks compare an inverse-transpose of diag(2,3,4)
+against independent double arithmetic, using 5e-4 numeric tolerance solely
+for that additional semantic check because SPU reciprocal root is approximate.
+This tolerance is not used by any strict state/corpus/live checker.
+Synthetic AF18 composition also compares actual original/native cofactor
+data after either original or native rigid data, including scratch/normal
+feedback. Directional data remains explicitly modeled in that integration
+harness; its own implementation/coverage is tracked separately.
+
+The real BB58 trace is empty. A compatible corpus replay or normal scene
+with no new data calls cannot satisfy this kernel's nonzero real-corpus or
+>=256 strict live gate. Frozen evidence and open gates are recorded in the
+separate phase-3 results.
