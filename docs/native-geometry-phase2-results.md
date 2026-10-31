@@ -38,6 +38,13 @@ Latest private corpus logs: `analysis/native-geometry/phase2/raw-fill-mode{2,1}.
 The new groups' live log is `analysis/vk-scene-p2-raw-fill-live.stderr.log`;
 their source/executable binding is `phase2/raw-fill-build.json`. Renderer
 and A/B gates remain open for these three groups; their defaults are off.
+In-progress series `p2-batch2-ab` has normal native menu dumps for all three
+groups and the default mask. Its original bit-8 menu reverse run
+`p2-batch2-ab-menu-7-1` is invalid because a standalone compile/test overlapped
+the timed window. All original bit-8 menu results will be replaced by a fresh
+four-run menu A/B/B/A; original round results and other kernels' valid runs
+can be retained. The private `p2-batch2-ab/exclusions.json` records the
+timestamps and scope. This series is not yet performance evidence.
 The original game save remains unchanged; tests use private saves.
 
 ## Completed scene measurements

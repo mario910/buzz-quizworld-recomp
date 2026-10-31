@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $geometryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location -LiteralPath $geometryRoot
 try {
+    & (Join-Path $PSScriptRoot 'assert-geometry-build-idle.ps1')
     $geometryExe = Join-Path $geometryRoot "$BuildDirectory/BuzzQuizWorldRecomp.exe"
     if (Get-Process BuzzQuizWorldRecomp -ErrorAction SilentlyContinue | Where-Object Path -EQ $geometryExe) {
         throw 'Selected game build is running; finish that test before rebuilding.'

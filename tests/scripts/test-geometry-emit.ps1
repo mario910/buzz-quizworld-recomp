@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $geometryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location -LiteralPath $geometryRoot
 try {
+    & (Join-Path $PSScriptRoot 'assert-geometry-build-idle.ps1')
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-phase2.py
     if ($LASTEXITCODE) { throw 'Phase 2 generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
