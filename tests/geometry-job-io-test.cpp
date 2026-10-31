@@ -178,12 +178,21 @@ int main()
         std::vector<GeometryJobIoOperation> single(1);
         single[0].before = single[0].after = GeometryJobControls::capture(*changed);
         single[0].after.mfc_tag_status = 8;
+        // Lock values differ from the recording and must survive application.
+        changed->ch_out_mbox.lock = 11;
+        changed->ch_in_mbox.lock = 12;
+        changed->ch_out_intr_mbox.lock = 13;
+        changed->ch_sig_notify[0].lock = 14;
+        changed->ch_sig_notify[1].lock = 15;
         GeometryJobIoReplay check(single);
         assert(check.consume(*changed, GeometryJobIoKind::write, 0, 0, result) && check.finish());
         assert(changed->mfc_tag_status == 8 && changed->pc == 0x1122);
         assert(changed->gpr[80]._u32[2] == 0xaabbccdd);
         assert(changed->mfc_private == reinterpret_cast<void*>(uintptr_t(0x1234)));
         assert(!memcmp(changed->ls, memory.data(), memory.size()));
+        assert(changed->ch_out_mbox.lock == 11 && changed->ch_in_mbox.lock == 12);
+        assert(changed->ch_out_intr_mbox.lock == 13);
+        assert(changed->ch_sig_notify[0].lock == 14 && changed->ch_sig_notify[1].lock == 15);
     }
     printf("Geometry job I/O: full exit state, ordered/overlapping DMA, six atomic/transfer kinds, "
            "no repeated guest commit, %u rejected corruptions, missing/extra channels and read/count PASS\n",

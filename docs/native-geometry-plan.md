@@ -44,11 +44,10 @@ CPU tests and profiling separate from performance runs.
 
 At each phase boundary, finalize a separate results document, commit it and
 continue to the next unfinished phase without requiring renewed permission.
-The current app goal for phase 3 is an implementation subgoal of this
-continuing objective. Available goal tools cannot edit an active objective's
-text: leave it active until its own gates are met, then mark it complete and
-create the next phase goal under this authorization. Do not falsely mark an
-unfinished phase complete just to replace its goal. The overall objective
+The user also updated the active app goal to include continuing after phase 3:
+complete its gates, mark that phase complete and create the phase-4 goal,
+then continue subsequent phases under the same authorization. Do not mark
+an unfinished phase complete just to advance its goal. The overall objective
 is finished only after the mandatory native-function inventory and final
 strict Stage F gates are complete, with optional-phase decisions recorded.
 

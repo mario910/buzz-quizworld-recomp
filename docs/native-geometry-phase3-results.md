@@ -65,7 +65,9 @@ range cases are rejected, along with missing/extra calls and a corrupted
 output tail. Separate checks reject dead exit GPR, unused LS and final-PC
 differences even when I/O is complete. Read/count results and logical channel
 queue rotation are preserved; applying channel state leaves host pointers,
-PC, GPRs and unrelated LS untouched. Private log:
+PC, GPRs and unrelated LS untouched. Channel snapshots contain queue data
+only, excluding `spu_channel::lock`; the test preserves five distinct lock
+values across state application. Private log:
 `analysis/native-geometry/phase3/job-io-test.log`.
 
 This core is **not connected to the game yet**. The tests do not establish

@@ -26,19 +26,52 @@ namespace buzz {
     X(ch_out_mbox) X(ch_in_mbox) X(ch_out_intr_mbox) \
     X(ch_sig_notify[0]) X(ch_sig_notify[1])
 
+struct GeometryJobChannel {
+    uint32_t value = 0, count = 0, head = 0;
+    uint32_t q[SPU_CHANNEL_CAP]{};
+
+    static GeometryJobChannel capture(const spu_channel& channel)
+    {
+        GeometryJobChannel state;
+        state.value = channel.value;
+        state.count = channel.count;
+        state.head = channel.head;
+        memcpy(state.q, channel.q, sizeof(state.q));
+        return state;
+    }
+    bool matches(const spu_channel& channel) const
+    {
+        if (count != channel.count || value != channel.value) return false;
+        for (unsigned i = 0; i < count && i < SPU_CHANNEL_CAP; ++i)
+            if (q[(head + i) % SPU_CHANNEL_CAP] !=
+                channel.q[(channel.head + i) % SPU_CHANNEL_CAP]) return false;
+        return true;
+    }
+    void apply(spu_channel& channel) const
+    {
+        channel.value = value;
+        channel.count = count;
+        channel.head = head;
+        memcpy(channel.q, q, sizeof(q));
+        // channel.lock belongs to this host context, not to the SPU state.
+    }
+};
+
 struct GeometryJobControls {
 #define DECLARE(name) decltype(spu_context::name) name{};
     BUZZ_JOB_CONTROL_FIELDS(DECLARE)
 #undef DECLARE
-    spu_channel ch_out_mbox{}, ch_in_mbox{}, ch_out_intr_mbox{}, ch_sig_notify[2]{};
+    GeometryJobChannel ch_out_mbox{}, ch_in_mbox{}, ch_out_intr_mbox{}, ch_sig_notify[2]{};
 
     static GeometryJobControls capture(const spu_context& ctx)
     {
         GeometryJobControls state;
 #define COPY(name) memcpy(&state.name, &ctx.name, sizeof(ctx.name));
         BUZZ_JOB_CONTROL_FIELDS(COPY)
-        BUZZ_JOB_CHANNEL_FIELDS(COPY)
 #undef COPY
+#define COPY_CHANNEL(name) state.name = GeometryJobChannel::capture(ctx.name);
+        BUZZ_JOB_CHANNEL_FIELDS(COPY_CHANNEL)
+#undef COPY_CHANNEL
         return state;
     }
 
@@ -47,7 +80,7 @@ struct GeometryJobControls {
 #define COMPARE(name) if (memcmp(&name, &ctx.name, sizeof(name))) return #name;
         BUZZ_JOB_CONTROL_FIELDS(COMPARE)
 #undef COMPARE
-#define COMPARE_CHANNEL(name) if (!same_channel(name, ctx.name)) return #name;
+#define COMPARE_CHANNEL(name) if (!name.matches(ctx.name)) return #name;
         BUZZ_JOB_CHANNEL_FIELDS(COMPARE_CHANNEL)
 #undef COMPARE_CHANNEL
         return nullptr;
@@ -57,8 +90,10 @@ struct GeometryJobControls {
     {
 #define COPY(name) memcpy(&ctx.name, &name, sizeof(name));
         BUZZ_JOB_CONTROL_FIELDS(COPY)
-        BUZZ_JOB_CHANNEL_FIELDS(COPY)
 #undef COPY
+#define COPY_CHANNEL(name) name.apply(ctx.name);
+        BUZZ_JOB_CHANNEL_FIELDS(COPY_CHANNEL)
+#undef COPY_CHANNEL
     }
 };
 #undef BUZZ_JOB_CONTROL_FIELDS
