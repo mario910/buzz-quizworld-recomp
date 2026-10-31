@@ -106,6 +106,16 @@ def main():
             f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
             f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_{hook}(ctx, {command_name}_reference, &{command_name}_library); }}",
             source, count=1)
+    skin_name = "buzz_job_6eba_spu_func_000009F8"
+    skin_pattern = rf"(?ms)^void {skin_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(skin_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned skin/rigid controller")
+    skin_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x2750, 0x2778, 0x2780, 0xc518, 0x2c00, 0xaf18))
+    source = re.sub(skin_pattern, lambda m:
+        f"static const buzz_geometry_skin_dispatch_functions {skin_name}_library = {{{skin_library}}};\n"
+        f"static void {skin_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {skin_name}(spu_context* ctx) {{ buzz_geometry_job_skin_dispatch(ctx, {skin_name}_reference, &{skin_name}_library); }}",
+        source, count=1)
     stream_name = "buzz_job_6eba_spu_func_000093F0"
     stream_pattern = rf"(?ms)^void {stream_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(stream_pattern, source))) != 1:
@@ -235,7 +245,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 18\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 19\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

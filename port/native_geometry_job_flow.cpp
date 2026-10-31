@@ -22,6 +22,7 @@
 #include "native_geometry_blend_lists.h"
 #include "native_geometry_run_lists.h"
 #include "native_geometry_custom_stream.h"
+#include "native_geometry_skin_dispatch.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -72,6 +73,56 @@ extern "C" void buzz_geometry_job_blend_lists(spu_context* ctx, buzz_geometry_jo
     blend_list_reference = previous;
     if (check) buzz_geometry_job_blend_lists_checked_result();
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_BLEND_LISTS, 1, 0);
+}
+
+extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_job_fn reference,
+                                                 const buzz_geometry_skin_dispatch_functions* functions)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_skin_dispatch_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometrySkinDispatch plan;
+    if(!functions || !functions->position_pointer || !functions->normal_pointer || !functions->tangent_pointer ||
+       !functions->transform || !functions->normalize || !functions->weighted || !buzz::read_geometry_skin_dispatch(*ctx,plan)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,0,0);reference(ctx);return;
+    }
+    spu_context* comparison=nullptr;auto expected=buzz_geometry_job_fn(nullptr);
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_skin_dispatch_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;;++steps){
+            auto next=g_spu_trampoline_fn;
+            if(next==functions->weighted || next==functions->normalize)break;
+            if(!next || next==spu_indirect_branch){
+                if(comparison->pc!=comparison->gpr[0]._u32[0] ||
+                   (comparison->host_depth==0)!=(next==spu_indirect_branch))
+                    buzz_geometry_job_native_fail(ctx,"skin dispatch reference escaped return");
+                break;
+            }
+            if(steps>=32)buzz_geometry_job_native_fail(ctx,"skin dispatch reference escaped boundary");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        expected=g_spu_trampoline_fn;
+        if((plan.weighted && (expected!=functions->weighted || comparison->pc!=0xaf18)) ||
+           (!plan.weighted && expected==functions->weighted) ||
+           (expected==functions->normalize && comparison->pc!=0x2c00))
+            buzz_geometry_job_native_fail(ctx,"skin dispatch reference tail differs");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::dispatch_geometry_skin(*ctx,plan,*functions);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/skin-dispatch] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"skin dispatch strict state/boundary differs");
+        }
+        buzz_geometry_job_skin_dispatch_result(plan.weighted,1);
+    }
+    buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
 }
 
 extern "C" void buzz_geometry_job_prepare_commands(spu_context* ctx, buzz_geometry_job_fn reference)

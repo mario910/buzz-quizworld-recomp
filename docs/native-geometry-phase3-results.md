@@ -16,6 +16,9 @@ corpus/live checks. Its `0x7118/7298` run-list data decoder now has a native
 opt-in implementation; its separate validation is recorded below.
 The custom `0x93F0` dispatcher also has a native implementation through its
 exact descriptor tail handoff; built-in input formats 1..5 remain separate.
+The `0x9F8` skin/rigid controller now has native opt-in control through its
+exact weighted-data/normalization tail or return boundary. `0xAF18` data
+flow and the remainder of the `0xB880` skin kernel remain separate work.
 
 ## Driver boundary audit
 
@@ -1305,7 +1308,7 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x89B0..0x8B90` | U8 normalized-color descriptor handler | Complete native opt-in column/batch loop and continuation; other typed handlers remain original |
 | `0x93F0`, formats 1..5 | Other built-in input streams | Retained original, no corpus native-coverage claim |
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
-| `0x09F8` | Palette/skinning flow | Retained library; validated skin kernel inside |
+| `0x09F8` | Skin/rigid controller | Native opt-in controller now complete; AF18 data flow and complete B880 region remain separate work, detailed below |
 | `0xAEA0` | Index decoding | Retained library; validated index/triangle kernels inside |
 | `0x6608` | Transform/cull | Retained library with existing Stage F; strict cleanup remains phase 7 |
 | `0x2B80` | Output buffer sizing | Native opt-in layout/size path above; unsupported families retain library |
@@ -1406,7 +1409,9 @@ The required phase-3 data inventory after this increment is:
 | `0xC750/C7A8`, remapped weighted scatter | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0x0BF8`, list/blend stage | Native opt-in reverse selection, double-buffered DMA and caller restoration; corpus/live/render checks pass; explicit library data calls | Final performance/default decision; run-list data kernel validation below |
 | `0x7118/7298`, compressed run-list decoder called by `0x0BF8` | Complete native opt-in backward expansion; strict synthetic/corpus/live and native rendering checks pass | Final performance/default decision |
-| `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
+| `0x09F8`, skin/rigid controller | Complete native opt-in control/ABI; strict synthetic/corpus/live and native menu/round checks pass; separate weighted/rigid counters | Final performance/default decision |
+| `0xAF18`, weighted skin data flow | Original 672-byte-frame palette/DMA/controller region | Complete native data flow and validation; a 9F8 tail handoff is not data coverage |
+| `0xB880..B940`, weighted skin kernel | Phase-2 native inner loop with original setup/final pair and 413 real fallbacks | Complete native region and fallback paths, strict validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
 | `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
@@ -2343,3 +2348,121 @@ measurements. Performance/default decisions, built-in formats 1..5, cold
 typed families, remaining enclosing bodies and final interpreter/reversed
 A/B/normalized CPU gates still keep phase 3 open. All new defaults remain
 off; strict Stage F cleanup remains final phase 7.
+
+
+## Native skin/rigid dispatch 9F8 (2026-10-31)
+
+`port/native_geometry_skin_dispatch.h` replaces all eight reachable controller
+blocks (`9F8/A28/A84/B18/B48/B54/B80/B9C`) with host branching, shared frame
+save/restore and explicit library calls. It preserves the original 160-byte
+frame, all vector lanes, register state before every callee, link/entry PCs,
+image/depth and pending continuation. The lexical BF8 branch after B9C's
+unconditional B48 branch is unreachable and is not a dependency.
+
+The preferred low byte of input r9 selects weighted data when zero, including
+nonzero words such as `0x10000`. The controller constructs r5/r6 and restores
+its frame before queuing AF18. On the rigid path it calls the three pointer
+getters, transforms positions through C518, then conditionally transforms and
+normalizes normals and tangents. The secondary-stream test observes bit zero
+of `r10^1`, not whether the entire byte differs from 1. It returns through
+B18 when no tangent needs work, otherwise restores its frame and queues the
+final 2C00 normalization. Both existing Stage F calls keep the accepted
+baseline contract; no new state exception is added.
+
+`BUZZ_GEOMETRY_JOB_SKIN_DISPATCH=0/1/2` selects original/native/strict controller
+boundaries, default **0**. JOB=2 also forces the strict boundary check. The
+reference executes on a clone, stopping by function identity at AF18 or the
+final 2C00 tail, or at the original r0 return. Synchronous child normalization
+calls are drained internally. Weighted data and the final normalization are
+not executed twice by the checker. All 128 GPRs, 256 KiB LS, architectural
+controls, PC, pending function, image/depth/policy/overlay must match. Separate
+native/strict counters distinguish weighted handoffs from rigid execution;
+neither implies native AF18 data coverage. Adapter protocol **19**, stage
+counter **24** (25 counters), is required by CMake.
+
+Preflight requires physical LS, an aligned manager >=E680 with a `0x170`-byte region,
+an aligned stack >=E840 with space through stack+31, and a disjoint 192-byte
+controller frame/link span. Missing callbacks and unsupported input delegate
+to the original before mutation. The existing switches for child routines
+remain independent.
+
+```powershell
+.\tests\scripts\test-geometry-skin-dispatch.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+.\tests\scripts\test-geometry-job-runtime.ps1
+```
+
+PASS: **6,144 strict full-state/boundary/call-trace cases**: 3,072 weighted
+handoffs, 2,304 rigid returns, 768 normal transforms/normalizations and 768
+tangent tail handoffs (normal/tangent categories overlap). The pinned oracle
+contains eight complete original controller blocks and five adversarial
+library models. Models hash all argument lanes and entry PC/depth into
+volatile-register/LS effects; independent assertions check the call sequence,
+arguments and entry PCs. Tests cover flags, all nonzero selector bytes,
+arbitrary GPR/LS bits, pointer biases, three depths, both interrupt states,
+and r0 collisions with internal/tail PCs. Eight invalid/overlap/foreign-LS
+cases reject without mutation or I/O.
+
+PASS: owner/native, both strict activation modes and weighted/return/normalize
+boundaries; disabled/foreign-image/foreign-context/missing-table/missing-callee/
+invalid-stack/post-scope routes; all previous routes, 1,024 pipeline models
+and **19,508 real entry models**. All **43 controller cases and 184 production
+configuration-getter cases** pass.
+
+Frozen `build-vulkan-phase3-skin-dispatch-v1`:
+EXE SHA-256 `ee02802d7fade1854a214e90a490511010c3dfc9b766fa8cc924d37f72dc408e`;
+map SHA-256 `86340e6e97ad4b8750d86bc7d2029c5209559337563cc9b964b5d01ee77cc296`;
+generated C SHA-256
+`3049b8c1561428c4d41db9e6a0419de013dcac0ade39e32989781bba4c2ed08d`,
+preserved as `phase3/frozen-skin-dispatch-v1-source.c`.
+
+All five configurations pass **19,508 exact jobs / 58,195 transfers**, zero
+changed inputs and zero failures. Stage F=2, leaf mask 827 and no replay
+contract override apply throughout:
+
+| Configuration | JOB | Other new flags | SKIN_DISPATCH | Native weighted / rigid | Strict weighted / rigid | Fallback |
+|---|---|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline | 0 / 0 | n/a |
+| Independent | 2 | 0 | 1 | 1,628 / 17,880 | 1,628 / 17,880 | 0 |
+| Combined native | 1 | 1 | 1 | 1,628 / 17,880 | 0 / 0 | 0 |
+| Combined checked | 2 | 1 | 1 | 1,628 / 17,880 | 1,628 / 17,880 | 0 |
+| Controller checked | 1 | 1 | 2 | 1,628 / 17,880 | 1,628 / 17,880 | 0 |
+
+The two JOB=2 arms additionally pass 19,508 whole-job state/I/O comparisons.
+Combined counters retain 11,414 custom handoffs, 12,309 descriptor roots,
+328 BF8 roots, 1,198 run-list roots and 2,326 weighted scatters, with their
+previous real codec coverage. The strict controller does not duplicate AF18
+DMA or the final normalization data tail. These results establish controller
+compatibility, not a new native implementation of either data tail.
+
+Live validation uses that same frozen EXE, fresh copies of the canonical
+private save, all older stage flags=1, GEOMETRY=1, Stage F=1 and leaf mask 827.
+JOB=1/SKIN_DISPATCH=2 checked menu completes 60 seconds, with 2,094 CSV frames
+through 59,817.239 ms and **at least 300,000 strict rigid boundaries plus
+135,000 strict weighted handoffs**. Both paths independently exceed 256 calls.
+JOB=1/SKIN_DISPATCH=1 native menu completes 75 seconds, with 3,094 frames
+through 75,105.009 ms, at least 2,315,000 native rigid calls and 1,045,000
+weighted handoffs. The inspected 1280x720 readback shows the normal menu UI,
+crowd and studio geometry. Neither run logs a DIFF/HALT/mismatch.
+
+JOB=1/SKIN_DISPATCH=1 native round completes 60 seconds after
+`round_start_s=136.5`: 8,595 frames through 196,166.064 ms, **at least 6,565,000
+native rigid calls and 1,955,000 weighted handoffs**. The inspected 1280x720
+readback shows the actual green question/round stage, host, player, answers
+and scoreboard. No DIFF/HALT/mismatch appears.
+
+All test/build/corpus/live sessions are terminal. No build, CPU test or
+profiling overlapped the functional live runs. Original lift/generator and
+save/template pins remain unchanged. Private CSV/stderr pairs use
+`analysis/vk-scene-p3-skin-dispatch-v1-{checked-menu,menu,round}.*`; native
+PPM/PNG readbacks use the menu/round tags under `phase3`. The source-bound
+`phase3/skin-dispatch-v1-build.json` and its archived proofs preserve the
+frozen EXE/map/generated source, tests, logs, frames and committed docs.
+
+These functional runs do not establish a matched FPS or CPU-cycle benefit.
+All new defaults remain off (JOB=0, leaf mask 827). AF18/B880, other enclosing
+data stages, built-in input formats 1..5, the cold typed real/live gates and
+final interpreter/reversed A/B/normalized worker/process CPU/default decisions
+keep phase 3 open. The next implementation target is AF18's palette/DMA/data
+flow, with full strict state and I/O checking. Strict Stage F reconstruction
+remains final phase 7.

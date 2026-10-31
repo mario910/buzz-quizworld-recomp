@@ -50,6 +50,8 @@ static bool routing_probe = false, commands_enabled = false, command_publish_ena
 static bool lists_enabled=false;
 static int run_lists_mode=0;
 static int custom_stream_mode=0;
+static int skin_dispatch_mode=0;
+static unsigned skin_dispatch_native=0,skin_dispatch_fallback=0,skin_dispatch_checked=0,skin_dispatch_references=0;
 static unsigned custom_stream_native=0,custom_stream_fallback=0,custom_stream_checked=0,custom_stream_references=0;
 static unsigned run_list_native=0,run_list_fallback=0,run_list_reference_count=0,run_list_checked=0,run_list_expanded=0,run_list_empty=0;
 static unsigned list_native=0,list_fallback=0,list_references=0;
@@ -97,6 +99,8 @@ int buzz_geometry_job_blend_scatter_enabled(){return blend_scatter_enabled;}
 void buzz_geometry_job_blend_scatter_checked_result(){++blend_checked;}
 int buzz_geometry_job_blend_lists_enabled(){return lists_enabled;}
 int buzz_geometry_job_run_lists_enabled(){return run_lists_mode;}
+int buzz_geometry_job_skin_dispatch_enabled(){return skin_dispatch_mode;}
+void buzz_geometry_job_skin_dispatch_result(int,int checked){if(checked)++skin_dispatch_checked;}
 int buzz_geometry_job_custom_stream_enabled(){return custom_stream_mode;}
 void buzz_geometry_job_custom_stream_checked_result(){++custom_stream_checked;}
 void buzz_geometry_job_run_lists_checked_result(int){++run_list_checked;}
@@ -122,6 +126,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_SKIN_DISPATCH){assert(routing_probe);if(native)++skin_dispatch_native;else ++skin_dispatch_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_CUSTOM_STREAM){assert(routing_probe);if(native)++custom_stream_native;else ++custom_stream_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_RUN_LISTS){assert(routing_probe);if(native)++run_list_native;else ++run_list_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_BLEND_LISTS){assert(routing_probe);if(native)++list_native;else ++list_fallback;return;}
@@ -223,6 +228,17 @@ static void model_call(spu_context* ctx, unsigned pc)
 #include "../analysis/native-geometry/phase3/test-i16-stream-reference.inc"
 #include "../analysis/native-geometry/phase3/test-run-lists-reference.inc"
 #include "../analysis/native-geometry/phase3/test-custom-stream-reference.inc"
+static unsigned skin_dispatch_secondary=0;
+static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
+{
+    if(pc==0x2750)ctx->gpr[3]=spu_ila(0x18000);
+    if(pc==0x2778)ctx->gpr[3]=spu_ila(skin_dispatch_secondary?0x19000:0);
+    if(pc==0x2780)ctx->gpr[3]=spu_ila(skin_dispatch_secondary==2?0x1a000:0);
+    ctx->pc=ctx->gpr[0]._u32[0];
+}
+#include "../analysis/native-geometry/phase3/test-skin-dispatch-reference.inc"
+static void skin_dispatch_reference(spu_context* ctx){++skin_dispatch_references;ctx->pc=ctx->gpr[0]._u32[0];}
+
 
 static void routing_reference(spu_context* ctx)
 {
@@ -509,6 +525,30 @@ static void routing_inside(spu_context* ctx)
 {
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        const auto& f=skin_dispatch_oracle::library;
+        ctx->gpr[0]._u32[0]=0x2c00;ctx->gpr[1]._u32[0]=0x3f000;ctx->gpr[3]._u32[0]=0xe800;
+        auto* entry=buzz::clone_function_state(ctx);
+        for(unsigned branch=0;branch<3;++branch)for(unsigned mode=0;mode<3;++mode){
+            memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;
+            ctx->gpr[9]._u32[0]=branch?0x10001:0x10000;ctx->gpr[10]=spu_il(0);skin_dispatch_secondary=branch==2?2:0;
+            flow_mode=mode==1?2:1;skin_dispatch_mode=mode==2?2:1;
+            buzz_geometry_job_skin_dispatch(ctx,skin_dispatch_oracle::buzz_job_6eba_spu_func_000009F8,&f);
+            assert(ctx->pc==0x2c00 || ctx->pc==0xaf18);
+            assert(g_spu_trampoline_fn==(branch==0?f.weighted:branch==2?f.normalize:nullptr));
+        }
+        assert(skin_dispatch_native==9 && skin_dispatch_checked==6 && !skin_dispatch_fallback);
+        flow_mode=1;skin_dispatch_mode=0;buzz_geometry_job_skin_dispatch(ctx,skin_dispatch_reference,&f);skin_dispatch_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_skin_dispatch(foreign,skin_dispatch_reference,&f);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_skin_dispatch(ctx,skin_dispatch_reference,&f);ctx->image_id=41;
+        buzz_geometry_job_skin_dispatch(ctx,skin_dispatch_reference,nullptr);
+        auto missing=f;missing.weighted=nullptr;buzz_geometry_job_skin_dispatch(ctx,skin_dispatch_reference,&missing);
+        ctx->gpr[1]._u32[0]|=1;buzz_geometry_job_skin_dispatch(ctx,skin_dispatch_reference,&f);
+        assert(skin_dispatch_references==6 && skin_dispatch_fallback==3 && skin_dispatch_native==9 && skin_dispatch_checked==6);
+        skin_dispatch_mode=0;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
+
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         ctx->gpr[0]._u32[0]=0x7df8;ctx->gpr[1]._u32[0]=0x3f000;ctx->gpr[3]._u32[0]=0xe800;ctx->gpr[4]._u32[0]=0x20000;
         ctx->gpr[6]._u32[0]=255;ctx->gpr[7]._u32[0]=0x24000;ctx->gpr[8]._u32[0]=0;ctx->pc=0xacd0;
         ctx->ls[0xe808]=0;ctx->ls[0xe809]=5;
@@ -752,6 +792,9 @@ int main(int argc, char** argv)
     assert(run_list_reference_count==5 && run_list_native==4 && run_list_fallback==2 && run_list_checked==3);run_lists_mode=0;
     custom_stream_mode=1;buzz_geometry_job_decode_custom_stream(native.get(),custom_stream_reference,buzz_job_6eba_spu_func_00007DF8);
     assert(custom_stream_references==8 && custom_stream_native==3 && custom_stream_fallback==4 && custom_stream_checked==2);custom_stream_mode=0;
+    skin_dispatch_mode=1;buzz_geometry_job_skin_dispatch(native.get(),skin_dispatch_reference,&skin_dispatch_oracle::library);
+    assert(skin_dispatch_references==7 && skin_dispatch_native==9 && skin_dispatch_fallback==3 && skin_dispatch_checked==6);skin_dispatch_mode=0;
+    puts("Skin dispatch routing: owner native; both strict modes; weighted/return/normalize boundaries; foreign/disabled/unsupported/post-scope PASS");
     attributes_enabled = false;
     puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;

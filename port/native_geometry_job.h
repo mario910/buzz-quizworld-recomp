@@ -20,6 +20,10 @@ typedef struct buzz_geometry_attribute_functions {
 typedef struct buzz_geometry_blend_list_functions {
     buzz_geometry_job_fn unpack, attributes, normal_pointer, normalize, tail;
 } buzz_geometry_blend_list_functions;
+
+typedef struct buzz_geometry_skin_dispatch_functions {
+    buzz_geometry_job_fn position_pointer, normal_pointer, tangent_pointer, transform, normalize, weighted;
+} buzz_geometry_skin_dispatch_functions;
 typedef struct buzz_geometry_descriptor_functions {
     buzz_geometry_job_fn codec[9], blend, continuation;
     void (*dispatched)(unsigned storage);
@@ -33,7 +37,10 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
        BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
-       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23 };
+       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23, BUZZ_GEOMETRY_JOB_SKIN_DISPATCH = 24 };
+int buzz_geometry_job_skin_dispatch_enabled(void);
+void buzz_geometry_job_skin_dispatch_result(int weighted, int checked);
+void buzz_geometry_job_skin_dispatch(spu_context*, buzz_geometry_job_fn reference, const buzz_geometry_skin_dispatch_functions*);
 int buzz_geometry_job_blend_lists_enabled(void);
 void buzz_geometry_job_blend_lists_checked_result(void);
 void buzz_geometry_job_blend_lists(spu_context*, buzz_geometry_job_fn reference, const buzz_geometry_blend_list_functions*);

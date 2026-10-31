@@ -459,6 +459,22 @@ least 410,000 strict handoffs, and native menu/round readbacks look normal.
 Final performance/default gates remain open; this does not validate built-in
 formats 1..5 or close phase 3.
 
+The `0x9F8` skin/rigid controller now has an independent native implementation
+through the exact AF18 weighted tail, final 2C00 normalization tail or r0
+return. Its `BUZZ_GEOMETRY_JOB_SKIN_DISPATCH=0/1/2` switch defaults off; both
+JOB=2 and its own mode 2 compare all state before any queued data tail.
+Synthetic coverage passes 6,144 strict state/call-trace cases plus eight
+unchanged/no-I/O rejects, all driver-entry models and 184 configuration cases.
+Five frozen replay configurations each pass all 19,508 jobs / 58,195 transfers,
+with 1,628 weighted handoffs and 17,880 rigid calls, zero fallback; all are
+strictly checked in the three comparison arms. Live checking passes at least
+300,000 rigid boundaries and 135,000 weighted handoffs; native menu and actual
+round readbacks look normal. Final performance/default gates remain open
+and are tracked in the separate phase-3 results. AF18 palette/DMA/data flow and the
+complete B880 kernel (including original setup/final work and fallback paths)
+remain explicit required inventory rows; a native controller is not a native
+data-path claim. Strict Stage F reconstruction remains final phase 7.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -577,6 +593,7 @@ subject to the kernel gates before replacement.
 | 0x0100/0x0020 command attribute binding/reset | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_EMIT=0/1`, default 0 | 7,201 native each, zero fallback; four 19,508-job/58,195-transfer arms exact; 8,192 strict cases +28 unchanged-state rejects | >=375,000 each inside strict whole-job checks; render proof in phase-3 report | not measured | |
 | 0x02E8 position-only command emission | n/a | native opt-in; full emitter body and shared writers; final gates open | shares `BUZZ_GEOMETRY_JOB_EMIT`, default 0 | 2,123 native, zero fallback; four full-corpus arms exact; 8,320 strict state/channel cases +26 unchanged-state rejects | >=120,000 inside strict whole-job checks; render proof in phase-3 report | not measured | |
 | 0x12F0 full multipass command emission | n/a | native opt-in; remaining phase gates open | `BUZZ_GEOMETRY_JOB_FULL_COMMANDS=0/1`, default 0 | 5,078 native emissions, zero fallback; four full-corpus arms exact; 8,512 strict state/channel/packet-size cases +32 unchanged-state rejects | >=250,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
+| 0x09F8 skin/rigid dispatch | n/a | complete native opt-in control/ABI; final gates open | `BUZZ_GEOMETRY_JOB_SKIN_DISPATCH=0/1/2`, default 0 | Five arms19,508 exact/58,195 transfers;1,628 weighted+17,880 rigid native/0fallback;6,144 strict synthetic+8 rejects | >=300,000 strict rigid+135,000 strict weighted;normal native menu/actual round | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),
@@ -685,3 +702,4 @@ See the separate
   code must too.
 - **Lift changes** (new extra entries, lifter updates) move function
   boundaries: hash pins catch it; re-audit before regenerating.
+| 2026-10-31 | Phase 3 native 9F8 skin/rigid controller | Strict synthetic, five frozen corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,144 strict state/call-trace+8 rejects;each19,508exact/58,195transfers;1,628weighted+17,880rigid native/0fallback;>=300,000strict rigid+135,000strict weighted live;184configcases;own0/1/2 default0;AF18/B880 data stillrequired;phase3open |

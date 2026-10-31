@@ -911,6 +911,29 @@ of those paths. Any replacement reaching an unverified selector must retain the
 lift until dedicated capture, strict comparison and the live/render/A/B gates
 pass. No native kernel or default switch changed during phases 0/1.
 
+## Skin/rigid controller boundary (phase 3)
+
+`0x9F8` uses a 160-byte stack frame and saves r0 at old SP+16 and r80..87
+at old SP-16..128. A zero preferred low byte in input r9 selects weighted
+skinning, swaps r5/r6, restores the frame and queues `0xAF18`. Full-word
+nonzero tests are incorrect for values such as `0x10000`.
+
+The rigid path calls `0x2750/2778/2780` for position/normal/tangent pointers,
+then uses the manager header's BE16 vertex count at +8. C518 transforms
+positions using input r7 and secondary vectors using input r8. Input r10's
+bit zero disables normal/tangent work when set. Non-null normal data gets a
+synchronous 2C00 normalization; tangent normalization is the final queued
+2C00 tail after frame restoration. A missing/disabled tangent returns through
+r0. All argument lanes and original call-entry PCs remain observable.
+
+The independent native controller/checker stops before AF18 or the final
+normalization tail and compares all GPR/LS/control/continuation state. Its
+weighted handoff count is **not** native palette/skin data coverage. AF18's
+672-byte frame, palette/DMA flow and the complete B880 region remain explicit
+native implementation/validation tasks. The phase-2 B880 hot-loop replacement
+still retains original setup/final work and real fallback paths. Stage F's
+strict reconstruction remains the final roadmap phase.
+
 ## Reproduction
 
 Run from the repository root with private, locally generated inputs:
