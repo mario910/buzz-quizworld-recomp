@@ -946,6 +946,111 @@ FPS or normalized CPU savings. Final interpreter-count, reversed same-EXE
 FPS/CPU and default-selection gates remain open, along with the remaining
 geometry data stages.
 
+## Native attribute control and complete raw float3 stream (`0xAC68`, `0x93F0`)
+
+`BUZZ_GEOMETRY_JOB_ATTRIBUTES=0/1`, default **0**, selects native attribute
+orchestration and the complete built-in format-0 decoder inside the native
+pipeline owner. With JOB=0 or a foreign/reference context, both entries retain
+their original bodies. The generated adapter now requires routing protocol 7;
+CMake rejects an older adapter. The 14-entry job table is unchanged; a separate
+two-entry table supplies stream decoding and the retained output-stride getter.
+
+`port/native_geometry_attributes.h` implements primary/secondary stream control,
+input pointer publication, normal lower-input selection, special output-stride
+extent calculation, full spills/restores and the final pointer setter. The raw
+decoder owns allocation of the first free float4 table, position-pointer
+publication, every data group including small streams, the extra pipelined
+lookahead and the complete return ABI. Its host integer SIMD loop expands four
+BE float3 records from 48 to 64 bytes and inserts exact 1.0 W bits. It does not
+execute an original final conversion iteration. NaNs and padding are bit data.
+
+Preflight validates the original dispatch/selectors and physical lookahead/output
+ranges, excludes context/stack/input/output aliasing and makes rejection decisions
+before writes. Zero vertices preserve the no-data return even with otherwise
+unused invalid format/source arguments. The new flag owns this complete decoder;
+the older leaf bit 8 continues to control `0x97A8` when this new entry is disabled
+or retains an original path.
+
+Descriptor decoding (`0x7DF8`) and built-in formats 1..5 remain explicit original
+callees; `0x40C8` remains the original stride getter. The `attributes` counter
+measures native outer control. The separate `raw-stream` counter counts retained
+non-raw/unsupported paths as fallback, never as native decoder coverage. Native
+unit-vector/half leaves inside retained descriptor bodies do not close their
+enclosing decoder inventory.
+
+Validation commands:
+
+```powershell
+.\tests\scripts\test-geometry-attributes.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+.\tests\scripts\test-geometry-job-runtime.ps1
+.\tests\scripts\test-geometry-full-commands.ps1
+```
+
+The pinned private oracle retains 26 original blocks, including real raw-stream,
+attribute-control and stride callees. Nine external/dead or unsupported boundaries
+abort if reached; no handwritten simulated decoder serves as the reference.
+PASS: **720 strict raw-stream cases + 704 strict attribute-control cases**, with
+original and native raw callees, all 16 first-free slots, counts 0..2048, partial
+groups, random upper lanes/padding and special float bit patterns. An independent
+parser compares every expanded XYZ and W word. Twenty range/alias/dispatch/slot
+rejections leave state unchanged. All 128 GPRs, all 256 KiB LS, return/control
+state and no-I/O behavior are checked. Owner/foreign/disabled/null-table/
+unsupported/post-scope routing passes, along with 1,024 outer model scenarios,
+19,508 real model entries, 43 controller scenarios and the existing 8,512 strict
+full-command cases after moving the shared synchronous call helper.
+
+Frozen build: `build-vulkan-phase3-attributes`, EXE SHA256
+`1c977392704388258e6af54e1c29eb7f8f47a2bb4f99554ff7f6f160523f277f`.
+Private `phase3/attributes-build.json` binds code, adapter, map and saves;
+`phase3/frozen-attributes-source.c` preserves the exact generated source.
+Four arms on that same EXE each pass **19,508 exact jobs / 58,195 transfers**,
+with zero input divergence/failure:
+
+| Arm | Configuration and coverage |
+|---|---|
+| Original | JOB=0, ATTRIBUTES=1, older stage flags 0: no native owner; original behavior retained |
+| Independent attributes | JOB=2, ATTRIBUTES=1, older stage flags 0: 19,508 native attribute controls and 19,508 complete raw streams, zero raw-format rejection; 11,414 retained stream calls reported separately; 19,508 strict whole-job/I/O checks |
+| Combined actual native | JOB=1, all stage flags 1: same attribute/raw counts, 11,414 retained stream calls; existing command/output counts unchanged with zero fallback |
+| Combined checked | JOB=2, all stage flags 1: same stage counts plus 19,508 strict whole-job/I/O checks |
+
+Private logs: `phase3/attributes-corpus-{off,independent,native,checked}.log`.
+The older `0x97A8` leaf records no native execution in the combined actual arm,
+confirming the new raw data path does not merely delegate its conversion loop.
+Native-owner counters do not increment for JOB=2's retained reference.
+The 11,414 retained calls remain unfinished stream-decoder coverage; they are
+not converted into successes by the native enclosing-control count.
+New switches remain off, mask 827 is unchanged, and Stage F's accepted exception
+is unchanged. Diagnostic replay time does not prove a CPU/FPS improvement.
+
+On the same frozen EXE, the 65 s checked menu run passes **at least 450,000
+strict whole-job/I/O comparisons**, including 450,000 native attribute controls
+and raw streams. It also executes at least 255,000 full command emissions,
+120,000 position emissions, 375,000 binding/reset/size/index/vertex stages each
+and 450,000 preparation/publication calls each. Its CSV records 2,097 frames
+through 64.707 s. The actual-native menu run records 3,151 frames through
+74.705 s. The actual-native round starts at 136.5 s, continues for 30 s and
+records 7,661 frames through 166.224 s. These are functional observations,
+not matched performance measurements.
+
+Renderer readbacks at frames 2,500 (menu) and 6,500 (round introduction) were
+converted to 1280x720 PNGs and visually inspected. Menu UI, monitors and studio
+geometry are normal; the round has a normal host, green instruction display,
+platform and lighting. Logs:
+`analysis/vk-scene-p3-attributes-{checked,menu,round}.{csv,stderr.log}`.
+Images: `phase3/p3-attributes-{menu,round}.{ppm,png}`. All three runs use
+`BUZZ_STAGEF=1`, `BUZZ_GEOMETRY=1`, all new stage flags 1, a fresh private save,
+muted background rendering and the native buzzer mailbox. No compilation,
+CPU tests or profiling overlap. There is no DIFF/HALT/mismatch/early-exit
+diagnostic. Original save, private template, frozen code/EXE/map and source
+bindings were verified afterwards.
+
+This closes the format-0 decoder increment, not the attribute-codec subsystem
+or phase 3. Next work is the remaining descriptor decoder and its real data
+handlers, followed by the other retained pipeline stages. The complete-data-
+path interpreter-count, reversed menu/round FPS and normalized CPU-cost gates
+and the final default decision remain open. No new default is enabled.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -954,7 +1059,10 @@ coverage of one leaf does not make the entire enclosing stage native.
 
 | Library entry | Role | Native status |
 |---|---|---|
-| `0xAC68` | Primary/secondary attribute decode | Retained library; validated format kernels inside |
+| `0xAC68` | Primary/secondary attribute decode | Native opt-in control; descriptor decoder and stride getter remain explicit original callees |
+| `0x93F0`, format 0 | Raw float3 stream | Native opt-in complete decoder, including allocation, small groups and exact final ABI |
+| `0x7DF8` and codec dispatch | Descriptor attribute streams | Retained whole decoder; validated format leaves inside do not complete this row |
+| `0x93F0`, formats 1..5 | Other built-in input streams | Retained original, no corpus native-coverage claim |
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
 | `0x09F8` | Palette/skinning flow | Retained library; validated skin kernel inside |
 | `0xAEA0` | Index decoding | Retained library; validated index/triangle kernels inside |

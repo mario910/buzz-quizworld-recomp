@@ -75,12 +75,6 @@ inline bool read_geometry_position_commands(const spu_context& ctx, GeometryPosi
     output = p; return true;
 }
 
-inline void geometry_command_call(spu_context& ctx, buzz_geometry_job_fn fn, uint32_t link)
-{
-    ctx.gpr[0] = spu_link(link); const int32_t image = ctx.image_id;
-    ++ctx.host_depth; fn(&ctx); spu_drain_call(&ctx, link); --ctx.host_depth; spu_img_restore(&ctx, image);
-}
-
 inline void emit_geometry_position_commands(spu_context& ctx, const GeometryPositionCommands& p,
                                            const buzz_geometry_command_functions& functions)
 {

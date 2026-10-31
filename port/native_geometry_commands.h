@@ -5,6 +5,12 @@
 #include "native_geometry_job.h"
 
 namespace buzz {
+inline void geometry_command_call(spu_context& ctx, buzz_geometry_job_fn fn, uint32_t link)
+{
+    ctx.gpr[0] = spu_link(link); const int32_t image = ctx.image_id;
+    ++ctx.host_depth; fn(&ctx); spu_drain_call(&ctx, link); --ctx.host_depth; spu_img_restore(&ctx, image);
+}
+
 struct GeometryCommandBuffer {
     uint32_t context = 0, output = 0, stack = 0, workspace = 0, start = 0, limit = 0, end = 0;
     uint32_t records = 0, count = 0, first_sync = 0, first_ready = 0;

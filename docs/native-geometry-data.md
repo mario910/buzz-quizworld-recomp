@@ -264,7 +264,37 @@ word: signed x in bits 0..10, y in 11..21, z in 22..31, normalized by
 1023/1023/511 (SDK `rsx_live_draw.c`). Built-in output IDs 0..3 have strides
 12/20/24/24; all captured jobs use custom output instead.
 
-All captured input positions are raw BE float3. In the static fixed-point
+All captured input positions are raw BE float3. The native phase-3 raw-stream
+reader owns the complete `0x93F0` format-0 path, including small streams,
+slot allocation, pointer publication and the return ABI. `0xAC68` calls it
+for the primary stream and, when present, the secondary stream. Format bytes
+are config bytes 2/3; vertex count is the BE halfword at config+8. The first
+zero byte of context+`0x160..0x16F` reserves a table from context+`0x10+4*slot`
+and becomes 1. `0x2760` publishes that table pointer at context+`0x5C`.
+
+The raw decoder processes `ceil(vertices/4)` groups. Each consumes 48 bytes
+of BE float3 and writes 64 bytes of float4 with exact `0x3F800000` W bits,
+including padded vertices in the final group. Its pipelined loop loads an
+additional 48 bytes after the final consumed group. Those lookahead values,
+the final group shuffles, full vector counters, all stack spills and restored
+registers remain observable and must match. The native loop uses integer
+SIMD byte rearrangement, preserving NaN payloads, signed zeros and denormals.
+Preflight checks the extra lookahead, all destination bytes, first free
+slot, dispatch/selectors and disjoint context/stack/input/output ranges
+before any mutation. A zero vertex count takes the original no-data path,
+without inspecting unused format/source values.
+
+`0xAC68` publishes the primary input at context+`0x54`. Normally its final
+context+`0x58` value is the lower non-null input pointer. Config byte 0 bit
+16 instead requires no secondary stream and uses the output stride selected
+by config byte 4, times vertex count, aligned to 16. The stride getter stays
+an explicit original callee in this increment. Custom descriptor decoders
+(`0x7DF8`) and built-in formats 1..5 also retain their original complete
+bodies; native leaves inside them do not establish native whole-decoder
+coverage. The `raw-stream` counter reports these retained paths as fallback,
+separately from native `attributes` control coverage.
+
+In the static fixed-point
 path, attribute byte 6 selects an extra 8-byte width record relative to
 `descriptor+8`. Its four pairs are `{integerBits, fractionalBits}`; tables
 `0xD230/0xD240` select odd/even bytes. Components consume integer+fractional

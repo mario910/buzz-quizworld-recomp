@@ -8,6 +8,7 @@
 #include "native_geometry_command_publish.h"
 #include "native_geometry_position_commands.h"
 #include "native_geometry_full_commands.h"
+#include "native_geometry_attributes.h"
 #include <atomic>
 #include <cstdio>
 
@@ -92,6 +93,35 @@ extern "C" void buzz_geometry_job_emit_full(spu_context* ctx, buzz_geometry_job_
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FULL_COMMANDS, supported, 0);
     if (!supported) { reference(ctx); return; }
     buzz::emit_geometry_full_commands(*ctx, plan, *functions);
+    SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_decode_attributes(spu_context* ctx, buzz_geometry_job_fn reference,
+                                                     const buzz_geometry_attribute_functions* functions)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_attributes_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryAttributes plan;
+    const bool supported = functions && functions->stream && functions->stride && buzz::read_geometry_attributes(*ctx, plan);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_ATTRIBUTES, supported, 0);
+    if (!supported) { reference(ctx); return; }
+    buzz::decode_geometry_attributes(*ctx, plan, *functions);
+    SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_decode_stream(spu_context* ctx, buzz_geometry_job_fn reference)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_attributes_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryRawStream plan;
+    const bool supported = buzz::read_geometry_raw_stream(*ctx, plan);
+    // Non-raw descriptors deliberately retain the original decoder. They are
+    // reported as fallback here even when the enclosing AC68 control is native.
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RAW_STREAM, supported, 0);
+    if (!supported) { reference(ctx); return; }
+    buzz::decode_geometry_raw_stream(*ctx, plan);
     SPU_RET(ctx);
 }
 

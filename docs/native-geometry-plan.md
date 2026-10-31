@@ -286,6 +286,22 @@ at least 445,000 strict whole jobs, including 250,000 full-emitter calls;
 actual-native menu/round-introduction frames look normal. Remaining geometry
 data stages and final interpreter/FPS/CPU gates still keep phase 3 open.
 
+Attribute orchestration (`0xAC68`) and the complete built-in raw float3 stream
+(`0x93F0`, format 0) now have native implementations behind independent
+`BUZZ_GEOMETRY_JOB_ATTRIBUTES`, default 0. The host SIMD data loop includes
+small groups, final padding/lookahead, table allocation and the full return
+ABI. Tests pass 720 strict raw-stream and 704 strict control cases, 20
+unchanged-state rejects, owner routing, the real-entry model and controller
+checks. Four frozen corpus arms pass all 19,508 jobs / 58,195 transfers.
+Enabled arms execute 19,508 native attribute controls and complete raw streams
+each. A separate counter reports 11,414 retained stream calls; descriptor
+decoding (`0x7DF8`), other built-ins and the stride getter remain explicit
+original bodies. They remain in the required inventory. Live checking passes
+at least 450,000 strict whole jobs with native attribute/raw coverage; actual
+native menu/round-introduction renderer readbacks look normal. Evidence is
+recorded in the phase-3 results document; no CPU/FPS benefit or new default is
+claimed. Remaining data stages and final validation keep phase 3 open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.

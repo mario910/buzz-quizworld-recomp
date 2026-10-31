@@ -20,6 +20,8 @@ static std::vector<Call> calls;
 static unsigned scenario;
 static const char* current_case = "synthetic";
 static bool emit_enabled = false, full_enabled = false;
+static bool attributes_enabled = false;
+static unsigned attribute_references = 0, attribute_native[2]{}, attribute_fallback[2]{};
 static unsigned emit_references = 0, emit_native[4]{}, emit_fallback[4]{};
 static bool routing_probe = false, commands_enabled = false, command_publish_enabled = false;
 static unsigned publication_references = 0, publication_native = 0, publication_fallback = 0;
@@ -54,9 +56,16 @@ int buzz_geometry_job_layout_enabled() { return 0; }
 int buzz_geometry_job_vertex_enabled() { return 0; }
 int buzz_geometry_job_commands_enabled() { return commands_enabled; }
 int buzz_geometry_job_full_commands_enabled() { return full_enabled; }
+int buzz_geometry_job_attributes_enabled() { return attributes_enabled; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if (stage >= BUZZ_GEOMETRY_JOB_ATTRIBUTES) {
+        assert(routing_probe && stage <= BUZZ_GEOMETRY_JOB_RAW_STREAM);
+        if (native) ++attribute_native[stage - BUZZ_GEOMETRY_JOB_ATTRIBUTES];
+        else ++attribute_fallback[stage - BUZZ_GEOMETRY_JOB_ATTRIBUTES];
+        return;
+    }
     if (stage >= BUZZ_GEOMETRY_JOB_COMMAND_BIND) {
         assert(routing_probe && stage <= BUZZ_GEOMETRY_JOB_FULL_COMMANDS);
         if (native) ++emit_native[stage - BUZZ_GEOMETRY_JOB_COMMAND_BIND];
@@ -131,8 +140,39 @@ static void publication_reference(spu_context* ctx)
     ++publication_references; ctx->pc = ctx->gpr[0]._u32[0];
 }
 static void emit_reference(spu_context* ctx) { ++emit_references; ctx->pc = ctx->gpr[0]._u32[0]; }
+static void attribute_reference(spu_context* ctx) { ++attribute_references; ctx->pc = ctx->gpr[0]._u32[0]; }
+static void attribute_routing(spu_context* ctx)
+{
+    auto backup = std::make_unique<spu_context>(); memcpy(backup.get(), ctx, sizeof(*ctx));
+    const buzz_geometry_attribute_functions functions{attribute_reference,attribute_reference};
+    const uint32_t context = ctx->gpr[3]._u32[0]; memset(ctx->ls + context,0,0x190);
+    ctx->gpr[4] = ctx->gpr[5] = ctx->gpr[6] = ctx->gpr[7] = spu_il(0);
+    attributes_enabled = true;
+    buzz_geometry_job_decode_stream(ctx,attribute_reference);
+    assert(attribute_native[1] == 1 && !attribute_references);
+    ctx->gpr[3] = spu_ila(context);
+    buzz_geometry_job_decode_attributes(ctx,attribute_reference,&functions);
+    assert(attribute_native[0] == 1 && attribute_references == 1);
+    ctx->gpr[3] = spu_ila(context);
+    auto foreign = std::make_unique<spu_context>(); memcpy(foreign.get(),ctx,sizeof(*ctx)); foreign->ls = foreign->ls_store;
+    buzz_geometry_job_decode_attributes(foreign.get(),attribute_reference,&functions);
+    buzz_geometry_job_decode_stream(foreign.get(),attribute_reference);
+    attributes_enabled = false;
+    buzz_geometry_job_decode_attributes(ctx,attribute_reference,&functions);
+    buzz_geometry_job_decode_stream(ctx,attribute_reference);
+    attributes_enabled = true;
+    buzz_geometry_job_decode_attributes(ctx,attribute_reference,nullptr);
+    const buzz_geometry_attribute_functions null_functions{};
+    buzz_geometry_job_decode_attributes(ctx,attribute_reference,&null_functions);
+    ctx->gpr[3]._u32[0] = 3;
+    buzz_geometry_job_decode_attributes(ctx,attribute_reference,&functions);
+    buzz_geometry_job_decode_stream(ctx,attribute_reference);
+    assert(attribute_references == 9 && attribute_fallback[0] == 3 && attribute_fallback[1] == 1);
+    memcpy(ctx,backup.get(),sizeof(*ctx));
+}
 static void routing_inside(spu_context* ctx)
 {
+    attribute_routing(ctx);
     std::array<u128, 128> saved;
     memcpy(saved.data(), ctx->gpr, sizeof ctx->gpr); const auto pc = ctx->pc;
     const uint32_t context = ctx->gpr[3]._u32[0];
@@ -279,6 +319,11 @@ int main(int argc, char** argv)
     assert(emit_references == 15 && emit_native[0] == 1 && emit_native[1] == 1 && !emit_native[2]);
     assert(emit_fallback[0] == 1 && !emit_fallback[1] && emit_fallback[2] == 1);
     assert(emit_fallback[3] == 1 && !emit_native[3]);
+    buzz_geometry_job_decode_attributes(native.get(),attribute_reference,nullptr);
+    buzz_geometry_job_decode_stream(native.get(),attribute_reference);
+    assert(attribute_references == 11 && attribute_native[0] == 1 && attribute_native[1] == 1);
+    attributes_enabled = false;
+    puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;
     puts("Command preparation/publication/emission routing: owner native; reference/foreign/disabled/unsupported/post-scope checks PASS");
     for (scenario = 0; scenario < 1024; ++scenario) { synthetic(*native, scenario); compare(*native, *reference); }
