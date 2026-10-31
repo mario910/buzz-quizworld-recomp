@@ -370,6 +370,31 @@ its setup inputs have not changed. Local whole-column timing is roughly
 renderer/performance gates are pending. The same 60 s live run records at
 least 256 strict output-group matches with no differences.
 
+## Bit 3: triangle stitching (`0x7A90`), implementation in validation
+
+This pure loop exits at `0x2738`, including its original stack-register
+restores. The prefix retains eighteen loop-carried GPRs in locals, prepares
+only used entries of the two shuffle-control tables, and reconstructs three
+output quadwords per iteration. Every selector class is supported. Input
+prefetches remain before output stores, preserving in-place operation.
+The lifted final iteration restores all temporary GPRs, stack registers and
+the continuation exactly.
+
+Five canonical masks and bounded private LS are required. The code-stream
+quadwords cannot overlap output; the control tables remain below `0xE680`.
+After the first input step, `6*population + 2*(8-population)` is at most 48,
+so one conservative interval check bounds all speculative reads. This
+replaces an expensive second scan of the code stream. Initial table indices,
+population/adjustment, output step and iteration count are checked before
+mutation. Unsupported/debug/interrupt shapes retain the lift. Bit 3 stays
+default-off while scene gates are pending. Public tests pass 440 full states
+(4..256 iterations, random selectors and in-place overlap) and 23
+unchanged-state rejections, with explicit `0x2738` continuation checks.
+Checked and actual-native replay pass all 19,508 jobs / 58,195 transfers:
+12,675 exact groups and 6,833 fallback, zero divergences or failures.
+A 60 s live run selecting all eleven groups records at least 256 strict
+triangle matches and no differences.
+
 ## Isolated kernel batches
 
 The measurement runner accepts one to three `-KernelMask` values. A batch

@@ -64,6 +64,11 @@ EMIT = {
     49: (0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f),
     54: (0, 4, 8, 12), 63: (0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f),
 }
+TRIANGLES = {
+    36: (0xf000,) * 4, 37: (0xf00,) * 4, 38: (0xaaaa,) * 4,
+    83: (0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f),
+    85: (0x03030303,) * 4,
+}
 
 
 def constant_declarations(values=UNIT24):
@@ -87,7 +92,7 @@ def main():
     support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 5927\n'
+    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 5935\n'
     support += constants_guard()
     support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
     support += constants_guard("skin", SKIN)
@@ -103,9 +108,11 @@ def main():
     support += f'#include "{(ROOT / "port/native_geometry_float3.h").as_posix()}"\n'
     support += constants_guard("emit", EMIT)
     support += f'#include "{(ROOT / "port/native_geometry_emit.h").as_posix()}"\n'
+    support += constants_guard("triangles", TRIANGLES)
+    support += f'#include "{(ROOT / "port/native_geometry_triangles.h").as_posix()}"\n'
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
-    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0", "97A8", "46FC", "4750", "4808", "47F0"):
+    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0", "97A8", "46FC", "4750", "4808", "47F0", "7A90"):
         name = "buzz_job_6eba_spu_func_0000" + pc
         pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
         match = re.search(pattern, source)
@@ -166,6 +173,11 @@ def main():
                 f"static __attribute__((noinline)) int {emit_name}_native(spu_context* ctx) {{ return buzz_emit_native(ctx, {emit_name}_reference); }}\n")
     emit_wrapper = f"void {emit_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 512)) {{ {emit_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {emit_name}_reference, {emit_name}_native, 9); }}"
     source = re.sub(rf"(?ms)^void {emit_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: emit_setup + emit_functions("buzz_job_6eba_spu_func_00004750", "buzz_job_6eba_spu_func_00004808", "buzz_job_6eba_spu_func_000047F0") + emit_wrapper, source, count=1)
+    triangles_name = "buzz_job_6eba_spu_func_00007A90"
+    triangles_reference = f"static __attribute__((noinline)) void {triangles_name}_reference(spu_context* ctx) {{{bodies['7A90']}}}\n"
+    triangles_native = f"static __attribute__((noinline)) int {triangles_name}_native(spu_context* ctx) {{ return buzz_triangles_native(ctx, {triangles_name}_reference); }}\n"
+    triangles_wrapper = f"void {triangles_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 8)) {{ {triangles_name}_reference(ctx); return; }} buzz_geometry_run(ctx, {triangles_name}_reference, {triangles_name}_native, 3); }}"
+    source = re.sub(rf"(?ms)^void {triangles_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: triangles_reference + triangles_native + triangles_wrapper, source, count=1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
@@ -210,7 +222,11 @@ def main():
     emit_tests += "static void emit_seed_constants(spu_context* ctx) {\n" + constant_declarations(EMIT) + "\n"
     emit_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in EMIT) + "\n}\n"
     (DEST / "test-emit-kernels.inc").write_text(emit_tests)
-    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n28F0: bit 12; BE word fill, exact reference final word\n97A8: bit 8; raw float3 decoder, exact reference final group\n46FC/4750/4808/47F0: bit 9; raw float3 output, exact reference final column\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
+    triangles_tests = constants_guard("triangles", TRIANGLES) + f'#include "{(ROOT / "port/native_geometry_triangles.h").as_posix()}"\n' + triangles_reference + triangles_native
+    triangles_tests += "static void triangles_seed_constants(spu_context* ctx) {\n" + constant_declarations(TRIANGLES) + "\n"
+    triangles_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in TRIANGLES) + "\n}\n"
+    (DEST / "test-triangles-kernels.inc").write_text(triangles_tests)
+    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n28F0: bit 12; BE word fill, exact reference final word\n97A8: bit 8; raw float3 decoder, exact reference final group\n46FC/4750/4808/47F0: bit 9; raw float3 output, exact reference final column\n7A90: bit 3; triangle stitching, exact reference final iteration\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
     print(f"Generated phase-2 geometry kernels -> {DEST}")
 
 
