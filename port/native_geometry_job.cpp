@@ -28,6 +28,8 @@ using namespace buzz;
 std::atomic<unsigned long long> attempted{0}, checked{0}, skipped{0}, failures{0}, drawn{0}, culled{0};
 std::atomic<unsigned long long> native_attempted{0}, native_executed{0}, native_compared{0}, native_fallback{0};
 std::atomic<unsigned long long> publication_native{0}, publication_fallback{0};
+struct OutputCounters { std::atomic<unsigned long long> native{0}, fallback{0}, reused{0}; } output_counters[2];
+constexpr const char* output_labels[] = {"output-size", "vertex-publish"};
 unsigned long long maximum = 512;
 
 struct Recording {
@@ -164,6 +166,8 @@ struct Init {
                          buzz_geometry_job_mode());
             std::fprintf(stderr, "[geometry-job] native index publication=%d (default off)\n",
                          buzz_geometry_job_publish_enabled());
+            std::fprintf(stderr, "[geometry-job] native output sizing=%d, vertex publication=%d (default off)\n",
+                         buzz_geometry_job_layout_enabled(), buzz_geometry_job_vertex_enabled());
         }
         if (!buzz_geometry_job_audit_enabled()) return;
         if (!BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE) {
@@ -197,6 +201,35 @@ extern "C" void buzz_geometry_job_publish_result(int native)
         const auto total = ++publication_native;
         if (total % 5000 == 0) std::fprintf(stderr, "[geometry-job/index-publish] native=%llu\n", total);
     } else ++publication_fallback;
+}
+
+static int output_option(const char* name)
+{
+    const char* value = std::getenv(name);
+    if (!value) return 0;
+    if ((value[0] != '0' && value[0] != '1') || value[1]) std::abort();
+    return value[0] - '0';
+}
+extern "C" int buzz_geometry_job_layout_enabled()
+{
+    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_LAYOUT");
+    return enabled;
+}
+extern "C" int buzz_geometry_job_vertex_enabled()
+{
+    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_VERTEX");
+    return enabled;
+}
+extern "C" void buzz_geometry_job_output_result(unsigned stage, int native, int reused_layout)
+{
+    if (stage >= 2) std::abort();
+    auto& counters = output_counters[stage];
+    if (native) {
+        if (reused_layout) ++counters.reused;
+        const auto total = ++counters.native;
+        if (total % 5000 == 0) std::fprintf(stderr, "[geometry-job/%s] native=%llu reused-layout=%llu\n",
+            output_labels[stage], total, counters.reused.load());
+    } else ++counters.fallback;
 }
 
 extern "C" int buzz_geometry_job_mode()
@@ -404,6 +437,10 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
 
 extern "C" void buzz_geometry_job_audit_report()
 {
+    if (buzz_geometry_job_mode()) for (unsigned stage = 0; stage < 2; ++stage)
+        if (stage == 0 ? buzz_geometry_job_layout_enabled() : buzz_geometry_job_vertex_enabled())
+            std::fprintf(stderr, "[geometry-job/%s] native=%llu fallback=%llu reused-layout=%llu\n", output_labels[stage],
+                output_counters[stage].native.load(), output_counters[stage].fallback.load(), output_counters[stage].reused.load());
     if (buzz_geometry_job_mode() && buzz_geometry_job_publish_enabled())
         std::fprintf(stderr, "[geometry-job/index-publish] native=%llu fallback=%llu\n",
                      publication_native.load(), publication_fallback.load());

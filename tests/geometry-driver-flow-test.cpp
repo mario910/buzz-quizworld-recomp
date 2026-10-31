@@ -44,6 +44,9 @@ void buzz_geometry_job_wrch(spu_context*, uint32_t, u128) { abort(); }
 u128 buzz_geometry_job_rdch(spu_context*, uint32_t) { abort(); }
 int buzz_geometry_job_publish_enabled() { return 0; }
 void buzz_geometry_job_publish_result(int) { abort(); }
+int buzz_geometry_job_layout_enabled() { return 0; }
+int buzz_geometry_job_vertex_enabled() { return 0; }
+void buzz_geometry_job_output_result(unsigned, int, int) { abort(); }
 void buzz_geometry_job_native_fail(spu_context*, const char* reason) {
     fprintf(stderr, "%s: native rejection: %s\n", current_case, reason); abort();
 }

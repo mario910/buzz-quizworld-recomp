@@ -14,6 +14,8 @@ class GeometryPipeline {
     const u128 frame, context;
     const u128 palette_input, skin_input, palette_bytes, blend_flag, position_flag, pipeline;
     const u128 command, output_parameters, flags, range;
+    GeometryOutputLayout output_layout;
+    bool cached_output_layout = false;
 
     void call(buzz_geometry_job_fn fn, uint32_t link)
     {
@@ -21,6 +23,17 @@ class GeometryPipeline {
         const int32_t image = ctx.image_id;
         ++ctx.host_depth;
         fn(&ctx);
+        spu_drain_call(&ctx, link);
+        --ctx.host_depth;
+        spu_img_restore(&ctx, image);
+    }
+    template<class Function> void call_native(Function function, uint32_t link)
+    {
+        ctx.gpr[0] = spu_link(link);
+        const int32_t image = ctx.image_id;
+        ++ctx.host_depth;
+        function();
+        ctx.pc = ctx.gpr[0]._u32[0]; // Ordinary SPU_RET while this host call frame is live.
         spu_drain_call(&ctx, link);
         --ctx.host_depth;
         spu_img_restore(&ctx, image);
@@ -108,7 +121,15 @@ class GeometryPipeline {
     bool allocate_output(u128 visible)
     {
         ctx.gpr[4] = visible; ctx.gpr[3] = context;
-        call(functions.vertex_bytes, 0x21b0);
+        if (buzz_geometry_job_layout_enabled()) {
+            GeometryOutputSize size;
+            const bool supported = read_geometry_output_size(ctx, size);
+            buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_OUTPUT_SIZE, supported, 0);
+            if (supported) {
+                output_layout = size.layout; cached_output_layout = true;
+                call_native([&] { measure_geometry_output(ctx, size); }, 0x21b0);
+            } else call(functions.vertex_bytes, 0x21b0);
+        } else call(functions.vertex_bytes, 0x21b0);
         const u128 bytes = ctx.gpr[3];
         // Mode 0 ignores the unused metadata capacity records. Its complete
         // nonvolatile values reduce to these constants/selections.
@@ -130,12 +151,19 @@ class GeometryPipeline {
             GeometryIndexPublication plan;
             const bool supported = read_geometry_index_publication(ctx, plan);
             buzz_geometry_job_publish_result(supported);
-            call(supported ? native_put_indices : functions.put_indices, 0x2240);
+            if (supported) call_native([&] { publish_geometry_indices(ctx, plan); }, 0x2240);
+            else call(functions.put_indices, 0x2240);
         } else call(functions.put_indices, 0x2240);
         ctx.gpr[3] = context;
         call(functions.emit_vertices, 0x2248);
         ctx.gpr[3] = context; ctx.gpr[4] = ctx.gpr[90]; ctx.gpr[5] = ctx.gpr[102];
-        call(functions.put_vertices, 0x2258);
+        if (buzz_geometry_job_vertex_enabled()) {
+            GeometryVertexPublication plan;
+            const bool supported = read_geometry_vertex_publication(ctx, plan, cached_output_layout ? &output_layout : nullptr);
+            buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH, supported, supported && plan.reused_layout);
+            if (supported) call_native([&] { publish_geometry_vertices(ctx, plan); }, 0x2258);
+            else call(functions.put_vertices, 0x2258);
+        } else call(functions.put_vertices, 0x2258);
 
         ctx.gpr[100] = spu_xsbh(ctx.gpr[95]);
         ctx.gpr[102] = spu_shlqbyi(flags, 3); ctx.gpr[10] = spu_andi(ctx.gpr[102], 1);
@@ -145,14 +173,6 @@ class GeometryPipeline {
         ctx.gpr[9] = command; ctx.gpr[11] = flags; ctx.gpr[12] = range;
         call(setup.entry.position_only() ? functions.position_commands : functions.commands,
              setup.entry.position_only() ? 0x2714 : 0x2298);
-    }
-    static void native_put_indices(spu_context* ctx)
-    {
-        GeometryIndexPublication plan;
-        if (!read_geometry_index_publication(*ctx, plan))
-            buzz_geometry_job_native_fail(ctx, "index publication admission changed");
-        publish_geometry_indices(*ctx, plan);
-        SPU_RET(ctx);
     }
     void restore_caller()
     {

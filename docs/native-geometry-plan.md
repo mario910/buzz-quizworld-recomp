@@ -207,6 +207,23 @@ and round-introduction renderer readbacks look normal. The new switch remains
 off pending matched FPS/CPU measurements; these functional runs do not close
 the phase's remaining data-path or interpreter/performance gates.
 
+Output sizing (`0x2B80`) and vertex publication (`0x35F0`) now have native
+opt-in paths, using a shared host layout retained across allocation, index
+publication and vertex encoding. Independent `BUZZ_GEOMETRY_JOB_LAYOUT` and
+`BUZZ_GEOMETRY_JOB_VERTEX` switches default to 0. Five corpus arms (original,
+each new stage separately checked, combined actual and combined checked)
+pass all 19,508 jobs / 58,195 transfers with no input divergence/failures or
+new-stage fallback. Combined runs execute each stage 7,201 times and reuse
+the host layout for all 7,201 vertex publications. Another 4,096 strict
+synthetic size/publication cases and 20 mutation-free rejections pass,
+including full-vector cache invalidation. Remaining library stages and final
+interpreter/performance/default gates stay open. On the frozen output build,
+a 65 s checked menu run passes at least 450,000 whole-job comparisons, with
+at least 375,000 native executions of each new stage and layout reuses.
+Actual-native menu and round-introduction renderer readbacks look normal.
+These gates must be repeated on the completed pipeline; this increment does
+not finish phase 3.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -318,6 +335,8 @@ subject to the kernel gates before replacement.
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
 | Whole-job driver | n/a | wip; native outer control, SPU-ABI library/data-path integration and final gates open | `BUZZ_GEOMETRY_JOB=0/1/2`, default 0 | 19,508 exact / 58,195 transfers in all three modes; 1,024 synthetic outer paths | >=445,000 strict outer-flow + I/O matches | not measured for native driver | |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
+| 0x2B80 output sizing | n/a | native opt-in; shared host layout; final gates open | `BUZZ_GEOMETRY_JOB_LAYOUT=0/1`, default 0 | 7,201 native sizes, zero fallback; independent/combined 19,508-job replay exact; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
+| 0x35F0 vertex publication | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_VERTEX=0/1`, default 0 | 7,201 native publications, zero fallback; 7,201 host-layout reuses in combined runs; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks and layout reuses; normal native menu/round intro dumps | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),

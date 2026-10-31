@@ -3,6 +3,7 @@
 #pragma once
 #include "native_geometry_job.h"
 #include "native_geometry_context.h"
+#include "native_geometry_output.h"
 #include "spu_helpers.h"
 
 namespace buzz {
@@ -108,6 +109,97 @@ inline void publish_geometry_indices(spu_context& ctx, const GeometryIndexPublic
     }
     ctx.gpr[1] = stack;
     ctx.gpr[0] = spu_ls_read128(&ctx, plan.stack + 16);
+    for (unsigned reg = 80; reg <= 87; ++reg)
+        ctx.gpr[reg] = spu_ls_read128(&ctx, plan.stack - (reg - 79) * 16);
+    ctx.gpr[126] = spu_ls_read128(&ctx, plan.stack - 0x90);
+}
+struct GeometryVertexPublication {
+    GeometryOutputLayout layout;
+    uint32_t stack = 0, allocation_lsa = 0, record_lsa = 0, bytes = 0;
+    bool reused_layout = false;
+    u128 allocation{}, source_quad{}, tag{}, byte_vector{};
+};
+inline bool read_geometry_vertex_publication(const spu_context& ctx, GeometryVertexPublication& output,
+                                             const GeometryOutputLayout* cached = nullptr)
+{
+    if (ctx.ls != ctx.ls_store || ctx.int_enable) return false;
+    GeometryVertexPublication plan;
+    plan.stack = ctx.gpr[1]._u32[0]; plan.allocation_lsa = ctx.gpr[4]._u32[0]; plan.record_lsa = ctx.gpr[5]._u32[0];
+    const uint32_t context = ctx.gpr[3]._u32[0];
+    if ((plan.stack & 15) || plan.stack < 0xb0 || plan.stack > SPU_LS_SIZE - 32 ||
+        !geometry_output_range(context, 0x160) || !geometry_output_range(plan.allocation_lsa, 32) ||
+        !geometry_output_range(plan.record_lsa, 16)) return false;
+    const uint32_t starts[] = {context, plan.allocation_lsa, plan.record_lsa, plan.stack - 0xb0};
+    const uint32_t sizes[] = {0x160, 32, 16, 0xd0};
+    for (unsigned a = 0; a < 4; ++a) for (unsigned b = a + 1; b < 4; ++b)
+        if (geometry_output_overlap(starts[a], sizes[a], starts[b], sizes[b])) return false;
+    plan.reused_layout = cached && geometry_output_layout_matches(ctx, context, *cached);
+    if (plan.reused_layout) plan.layout = *cached;
+    else if (!read_geometry_output_layout(ctx, context, plan.layout)) return false;
+    if (!geometry_output_layout_outside_stack(plan.layout, plan.stack - 0xb0, 0xd0)) return false;
+    plan.byte_vector = geometry_output_vertex_bytes(plan.layout);
+    for (auto& word : plan.byte_vector._u32) word = (word + 15u) & ~15u;
+    plan.bytes = plan.byte_vector._u32[0];
+    plan.allocation = geometry_output_quad(ctx, plan.allocation_lsa);
+    plan.source_quad = geometry_output_quad(ctx, context + 0x50);
+    plan.tag = geometry_output_quad(ctx, context + 0x150);
+    if (!geometry_output_range(plan.source_quad._u32[1], plan.bytes) ||
+        uint32_t(plan.allocation._u32[0] + plan.bytes) > plan.allocation._u32[3]) return false;
+    output = plan;
+    return true;
+}
+inline void publish_geometry_vertices(spu_context& ctx, const GeometryVertexPublication& plan)
+{
+    const u128 stack = ctx.gpr[1];
+    spu_ls_write128(&ctx, plan.stack - 0x90, ctx.gpr[126]);
+    for (unsigned reg = 80; reg <= 87; ++reg)
+        spu_ls_write128(&ctx, plan.stack - (reg - 79) * 16, ctx.gpr[reg]);
+    spu_ls_write128(&ctx, plan.stack + 16, ctx.gpr[0]);
+    spu_ls_write128(&ctx, plan.stack - 0xb0, stack);
+    ctx.gpr[1] = spu_ai(stack, -176); ctx.gpr[15] = spu_ila(0x3600);
+    const u128 machine = buzz_geometry_job_rdch(&ctx, SPU_RdMachStat);
+    ctx.int_enable = 0;
+    ctx.gpr[14] = plan.layout.configuration;
+    ctx.gpr[0] = spu_link(0x3660);
+    materialize_geometry_output_stride(ctx, plan.layout);
+    u128 remaining = plan.byte_vector, source = spu_rotqbyi(plan.source_quad, 4);
+    u128 cpu = plan.allocation, gpu = spu_rotqbyi(plan.allocation, 4);
+    ctx.gpr[12] = plan.layout.configuration; ctx.gpr[9] = plan.allocation;
+    ctx.gpr[10] = plan.source_quad; ctx.gpr[11] = spu_rotqbyi(ctx.gpr[12], 6);
+    ctx.gpr[6] = spu_rotqbyi(plan.allocation, 12);
+    ctx.gpr[5] = geometry_output_vertex_bytes(plan.layout); ctx.gpr[4] = spu_ai(ctx.gpr[5], 15);
+    ctx.gpr[3] = spu_a(remaining, cpu);
+    ctx.gpr[2] = spu_clgt(ctx.gpr[3], ctx.gpr[6]);
+    const u128 old_record = spu_ls_read128(&ctx, plan.record_lsa);
+    ctx.gpr[25] = old_record; ctx.gpr[26] = spu_cwd(ctx.gpr[1], 0);
+    ctx.gpr[24] = spu_cwd(ctx.gpr[1], 4); ctx.gpr[21] = spu_cwd(ctx.gpr[1], 8);
+    ctx.gpr[23] = old_record; ctx.gpr[23]._u32[0] = cpu._u32[0];
+    ctx.gpr[20] = ctx.gpr[23]; ctx.gpr[20]._u32[1] = gpu._u32[0];
+    ctx.gpr[22] = plan.allocation; ctx.gpr[19] = spu_rotqbyi(plan.allocation, 8);
+    ctx.gpr[18] = ctx.gpr[20]; ctx.gpr[18]._u32[2] = plan.allocation._u32[2];
+    spu_ls_write128(&ctx, plan.record_lsa, ctx.gpr[18]);
+    ctx.gpr[8] = spu_il(16384); ctx.gpr[7] = spu_il(32);
+    do {
+        ctx.gpr[32] = spu_clgt(remaining, ctx.gpr[8]);
+        const u128 chunk = spu_selb(remaining, ctx.gpr[8], ctx.gpr[32]);
+        ctx.gpr[31] = source; ctx.gpr[30] = cpu; ctx.gpr[27] = ctx.gpr[29] = chunk; ctx.gpr[28] = plan.tag;
+        buzz_geometry_job_wrch(&ctx, MFC_LSA, source); buzz_geometry_job_wrch(&ctx, MFC_EAL, cpu);
+        buzz_geometry_job_wrch(&ctx, MFC_Size, chunk); buzz_geometry_job_wrch(&ctx, MFC_TagID, plan.tag);
+        buzz_geometry_job_wrch(&ctx, MFC_Cmd, ctx.gpr[7]);
+        remaining = spu_sf(chunk, remaining); source = spu_a(source, chunk);
+        cpu = spu_a(cpu, chunk); gpu = spu_a(gpu, chunk);
+    } while (remaining._u32[0]);
+    ctx.gpr[44] = spu_andi(machine, 1); ctx.gpr[43] = spu_ceqbi(ctx.gpr[44], 0);
+    ctx.gpr[42] = spu_cwd(ctx.gpr[1], 0); ctx.gpr[40] = spu_cwd(ctx.gpr[1], 4);
+    ctx.gpr[37] = spu_xsbh(ctx.gpr[43]); ctx.gpr[41] = spu_ls_read128(&ctx, plan.allocation_lsa);
+    ctx.gpr[39] = ctx.gpr[41]; ctx.gpr[39]._u32[0] = cpu._u32[0];
+    ctx.gpr[38] = ctx.gpr[39]; ctx.gpr[38]._u32[1] = gpu._u32[0];
+    spu_ls_write128(&ctx, plan.allocation_lsa, ctx.gpr[38]);
+    ctx.gpr[2] = spu_ai(spu_link(0x3744), 8);
+    ctx.gpr[35] = spu_il(1); ctx.gpr[34] = spu_ls_read128(&ctx, plan.allocation_lsa + 16);
+    ctx.gpr[36] = spu_cbd(ctx.gpr[1], 4); ctx.gpr[33] = spu_shufb(ctx.gpr[35], ctx.gpr[34], ctx.gpr[36]);
+    spu_ls_write128(&ctx, plan.allocation_lsa + 16, ctx.gpr[33]);
+    ctx.gpr[1] = stack; ctx.gpr[0] = spu_ls_read128(&ctx, plan.stack + 16);
     for (unsigned reg = 80; reg <= 87; ++reg)
         ctx.gpr[reg] = spu_ls_read128(&ctx, plan.stack - (reg - 79) * 16);
     ctx.gpr[126] = spu_ls_read128(&ctx, plan.stack - 0x90);

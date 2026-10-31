@@ -467,6 +467,96 @@ and source pins remain unchanged. Final reversed FPS/CPU measurements and
 interpreter-count evidence remain open, and the publication switch stays off
 by default.
 
+## Shared native output layout and vertex publication
+
+`port/native_geometry_output.h` provides a host description shared by buffer
+sizing (`0x2B80`) and vertex publication (`0x35F0`). It decodes the vertex
+count, four reviewed built-in formats (strides 12/20/24/24) and the custom
+descriptor stride, while preserving the full vectors needed at the SPU ABI.
+The native size operation computes the combined index/vertex allocation with
+the original 128-byte rounding and 32-bit wrap behavior. The native vertex
+publisher uses that layout and a host transfer cursor to issue the original
+ordered, at-most-16-KiB PUT chunks, including the original zero-byte operation
+when the vertex payload is empty. Its spill, padding, allocation-record,
+synchronization-byte and complete exit state remain exact.
+
+Two independent switches, both default **0**, select these stages inside
+JOB=1/2:
+
+| Option | Native operation |
+|---|---|
+| `BUZZ_GEOMETRY_JOB_LAYOUT=1` | Output size and a host layout retained across allocation, index publication and vertex encoding |
+| `BUZZ_GEOMETRY_JOB_VERTEX=1` | Vertex publication, using the retained layout when its complete source snapshots still match |
+
+They are independent of `BUZZ_GEOMETRY_JOB_PUBLISH`, which still selects index
+publication. With only VERTEX enabled, publication reads its own layout. A
+changed cached configuration, descriptor, callback vector or dispatch-table
+quadword forces a fresh read; a cache hit cannot hide changed padding or
+non-preferred lanes. Unsupported custom callbacks, built-in dispatch tables,
+ranges, aliases or enabled-interrupt publication continuations retain the
+original stage before a native spill/channel operation. Stage fallback has
+separate counters and does not count as native stage coverage.
+
+Native stages now receive their admitted plans directly within ordinary
+host call frames, preserving the original return depth and continuation.
+This also removes the index publisher's duplicate admission read. No
+translated size/getter/publication block runs for these native operations;
+other library callers of the original stride getter remain unchanged.
+
+```powershell
+.\tests\scripts\test-geometry-output.ps1
+```
+
+PASS: **2,048 size cases and 2,048 vertex-publication cases** against 17 pinned
+original blocks, plus **20 no-mutation/no-I/O rejections**. Tests compare every
+GPR, LS byte and control field, channel arguments/order/before-after controls
+and each transfer byte. Coverage includes all four built-ins, custom and null
+descriptors, all descriptor low nibbles, zero/boundary/multi-chunk payloads,
+index/address wrap, arbitrary non-preferred lanes, and invalidation after
+independent full-vector source changes. Private log: `phase3/output-test.log`.
+The 2,048 index-publication tests, 43 controller scenarios and outer-flow model
+(1,024 synthetic paths plus all 19,508 real entries) also pass.
+
+The frozen `build-vulkan-phase3-output` EXE SHA256 is
+`d0f4baeffdec4ca9f6d95a2d287fc1646765f49f7d3d5f0b3813a8d58053307e`;
+`phase3/output-build.json` binds its native sources, map and preserved adapter.
+All five corpus configurations below pass **19,508 exact jobs / 58,195
+transfers**, with zero input divergence/failures and zero native-stage
+fallback. Each checked arm passes all 19,508 strict whole-job + I/O checks.
+
+| Arm | JOB / LAYOUT / VERTEX / PUBLISH | Native stages and host-layout reuse |
+|---|---|---|
+| Original driver | 0 / 0 / 0 / 0 | Retained driver baseline |
+| Size independently checked | 2 / 1 / 0 / 1 | 7,201 sizes, 7,201 index publications |
+| Vertex independently checked | 2 / 0 / 1 / 1 | 7,201 vertex and index publications; vertex stage reads its own layout |
+| Combined actual native | 1 / 1 / 1 / 1 | 7,201 executions of each stage; all 7,201 vertex publications reuse the size stage's host layout |
+| Combined checked | 2 / 1 / 1 / 1 | Same stage counts and reuse, with full job/I/O comparison |
+
+Logs: `phase3/output-corpus-{off,layout,vertex,native,checked}.log`. All keep
+the default leaf mask 827 and baseline-preserving Stage F checked mode.
+The replay timings do not establish a measured CPU-cycle or FPS benefit;
+the new switches remain off pending the required matched measurements.
+
+Three functional runs on this same frozen output EXE enable LAYOUT, VERTEX
+and PUBLISH together, with actual-native Stage F, leaf mask 827 and fresh
+private saves. The 65 s checked menu run records **at least 450,000 strict
+whole-job + I/O matches**, including **at least 375,000 native executions of
+each new stage** and the same number of vertex-publication layout reuses.
+Rendering continues through 64.5 s (2,097 recorded frames), with no difference
+or early exit. As before, externally changed reference snapshots are rejected
+before trial and do not count as successful comparisons.
+
+An actual-native menu run completes 75 s, with rendering through 74.5 s
+(3,150 recorded frames). A separate actual-native run reaches the round at
+136.5 s and continues for another 30 s. Renderer readbacks at frames 2,500
+(menu) and 6,500 (round introduction) were inspected as 1280x720 PNGs and look
+normal: scene geometry, text and the round's transition effects render
+correctly. Logs are `analysis/vk-scene-p3-output-{checked,menu,round}.{csv,stderr.log}`;
+images are `phase3/p3-output-{menu,round}.{ppm,png}`. All runs complete normally,
+with no driver difference/HALT diagnostic. Original saves, private template
+and source pins remain unchanged. These functional runs make no performance
+benefit claim and do not close the remaining interpreter/performance gates.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -480,11 +570,11 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x09F8` | Palette/skinning flow | Retained library; validated skin kernel inside |
 | `0xAEA0` | Index decoding | Retained library; validated index/triangle kernels inside |
 | `0x6608` | Transform/cull | Retained library with existing Stage F; strict cleanup remains phase 7 |
-| `0x2B80` | Output buffer sizing | Retained library |
+| `0x2B80` | Output buffer sizing | Native opt-in layout/size path above; unsupported families retain library |
 | `0x37C0` | Ring allocation/atomics | Retained library |
 | `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
 | `0x54E8` | Vertex conversion/packing | Retained library; validated output kernels inside |
-| `0x35F0` | Vertex publication | Retained library |
+| `0x35F0` | Vertex publication | Native opt-in publication using shared host layout; unsupported families retain library |
 | `0x12F0`, `0x02E8` | Full/position-only command emission | Retained library |
 | `0x32C8`, `0x27A0` | Empty-output conversion/publication | Retained library |
 
