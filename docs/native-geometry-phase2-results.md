@@ -95,16 +95,17 @@ The executable and initial save hashes were checked throughout the series.
 
 These small effects have visible run-to-run variation; a positive average
 does not establish a repeatable gain for every kernel. Decoder reversal
-pairs are all positive. The new default mask **35 (0x23)** selects unit
+pairs are all positive. Intermediate default mask **35 (0x23)** selected unit
 vectors, skinning and the halfword decoder. Both checked and actual-native
 replay with no explicit mask pass all 19,508 jobs / 58,195 transfers, with
 zero differences or failures (`phase2/defaults35-mode{2,1}.log`). Generated
 geometry C is byte-identical to the eight-kernel validation; only the
-runtime default changed. All other kernel switches remain off.
+runtime default changed. The raw-format measurements below subsequently
+justify extending this mask to 803.
 A 45 s live run without a mask override reports `kernels=0x23`, at least
 256 strict matches for each selected group and over 100,000 for skinning,
 with no differences (`analysis/vk-scene-p2-defaults35-live.stderr.log`).
-`phase2/defaults35-build.json` binds the final sources and frozen EXE.
+`phase2/defaults35-build.json` binds those sources and frozen EXE.
 
 ## CPU work as a separate benefit
 

@@ -314,8 +314,8 @@ quadword padding and continuation exactly. Counter subtraction retains
 
 The guard requires at least four remaining words, a four-byte aligned,
 bounded output at or above `0xE680`, private LS, and no pending interrupt or
-debug probe. Smaller or unsupported fills keep the lift. Bit 12 is opt-in;
-final default selection is pending. The public
+debug probe. Smaller or unsupported fills keep the lift. Bit 12 is opt-in
+and remains off after its mixed scene/CPU results. The public
 test covers 440 full states, 4..8192 words, all four word positions in a
 quadword, exact end-of-LS writes, zero/all-one/random values, counter wrap
 and eleven unchanged-state rejection cases.
@@ -374,8 +374,7 @@ twenty unchanged-state rejections. Checked and actual-native replay pass all
 19,508 jobs: 4,975 exact groups and 2,226 fallback, with zero divergences or
 failures. The private `pc_4808.bin` sample can also seed this `46FC` entry:
 its setup inputs have not changed. Local whole-column timing is roughly
-164..177 ns lifted versus 109..115 ns native. Bit 9 remains default-off;
-final default selection is pending. The same 60 s live run records at
+164..177 ns lifted versus 109..115 ns native. The same 60 s live run records at
 least 256 strict output-group matches with no differences. Native menu/round
 images are normal; reversed pairs improve menu +1.25% (+0.97%, +1.55%) and
 round +2.09% (+2.85%, +1.33%). Bit 9 is now enabled by default. CPU cycles
