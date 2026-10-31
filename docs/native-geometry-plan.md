@@ -167,6 +167,11 @@ host registers/arrays between stages instead of LS round trips; the lifted
 job stays as fallback for any descriptor it does not recognise. Exit:
 whole-job corpus bit-exact, interpreted count unchanged, menu/round A/B.
 
+Implementation and current evidence are tracked in
+[native-geometry-phase3-results.md](native-geometry-phase3-results.md).
+The driver boundary audit and synthetic shadow-I/O core are complete;
+game integration, native pipeline flow and all whole-job gates remain open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -276,7 +281,7 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
-| Whole-job driver | n/a | phase 3; not started | | | | | |
+| Whole-job driver | n/a | wip; driver audited, shadow-I/O core tested; native flow/gates open | independent job switch planned | pending | pending | pending | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
 intervals on four pool lanes (19,499 samples in image-41 block symbols),
