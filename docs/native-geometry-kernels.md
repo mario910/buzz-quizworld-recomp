@@ -395,6 +395,25 @@ Checked and actual-native replay pass all 19,508 jobs / 58,195 transfers:
 A 60 s live run selecting all eleven groups records at least 256 strict
 triangle matches and no differences.
 
+## Bit 6: index expansion (`0x78A8`), implementation in validation
+
+The prefix keeps thirteen live GPRs in locals and predecodes fixed shuffle
+controls once. All control-byte values and logical input-address wrap are
+supported. Reads use the exact SPU quadword alignment/wrap helper; output
+alone is restricted to aligned, bounded private data at or above `0xE680`.
+The initial output step must be 0 or 32 and count must be 4..4096. Input
+reads remain before stores, including code-stream/input/output aliases.
+
+One important carry is `r10`: it contains the population count of the masked
+code, rather than the earlier shuffled-code temporary. The lifted final
+iteration reconstructs every temporary and the post-loop continuation
+(`0x79A8` or `0x7DCC`). Public tests pass 440 full states up to 256 iterations
+with arbitrary selectors and wrapping input, plus eleven unchanged-state
+rejections. Both continuations are explicitly checked. Checked and
+actual-native replay pass all 19,508 jobs: 12,385 exact groups and 7,123
+fallback, zero divergences or failures. The same 60 s live run records at
+least 256 strict index matches. Bit 6 remains default-off pending scene gates.
+
 ## Isolated kernel batches
 
 The measurement runner accepts one to three `-KernelMask` values. A batch
