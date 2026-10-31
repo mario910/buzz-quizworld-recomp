@@ -274,6 +274,14 @@ void display_settings(App& app) {
         ImGui::EndCombo();
     }
     ImGui::TextDisabled("The resolution the game renders at, independent of the window size. Requires restarting the game; higher values need a faster GPU.");
+    ImGui::Spacing();
+    int filter=pc.upscaler==buzz_pc::Upscaler::fsr1?1:0;ImGui::SetNextItemWidth(260);
+    if(ImGui::Combo("Upscaling filter",&filter,"Bilinear\0AMD FidelityFX FSR 1\0")){pc.upscaler=filter?buzz_pc::Upscaler::fsr1:buzz_pc::Upscaler::bilinear;app.settings.pc_configured=true;}
+    if(pc.upscaler==buzz_pc::Upscaler::fsr1) {
+        int sharp=int(pc.fsr_sharpness);ImGui::SetNextItemWidth(260);
+        if(ImGui::SliderInt("FSR sharpness",&sharp,0,100,"%d%%")){pc.fsr_sharpness=unsigned(sharp);app.settings.pc_configured=true;}
+    }
+    ImGui::TextDisabled("How the frame is scaled into the window. FSR 1 applies when the window is larger than the internal resolution (e.g. 720p or 1080p into 1440p/4K); otherwise the frame is scaled bilinearly. Applies live.");
 }
 void game_tab(App& app,SDL_Window* window) {
     heading("YOUR PREPARED GAME","Run a locally built copy directly. This launcher never downloads or builds game content.");

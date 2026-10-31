@@ -151,6 +151,12 @@ void act(buzz_pc::MenuAction action) {
             if(preferences.fullscreen&&status.rfind("Applied",0)==0)status="Window size applies in windowed mode. Borderless uses the desktop resolution.";
         }
         else if(row==row_render_scale){preferences.render_scale=next_render_scale(preferences.render_scale,direction);apply_live();}
+        else if(row==row_upscaler) {
+            preferences.upscaler=preferences.upscaler==Upscaler::fsr1?Upscaler::bilinear:Upscaler::fsr1;apply_live();
+            if(preferences.upscaler==Upscaler::fsr1&&status.rfind("Applied",0)==0)
+                status="FSR 1 sharpens when the window is larger than the internal resolution.";
+        }
+        else if(row==row_sharpness&&!accept){preferences.fsr_sharpness=unsigned(std::clamp(int(preferences.fsr_sharpness)+direction*10,0,100));apply_live();}
         else if(row==row_offline){preferences.offline=!preferences.offline;apply_live();}
         else if(row==row_controllers&&accept)menu.show(MenuPage::controllers);
         else if(row==row_phones&&accept)menu.show(MenuPage::phones);
@@ -304,6 +310,8 @@ std::string row_label(int row) {
                 return "INTERNAL RES.       "+size(scaled(1280,preferences.render_scale),scaled(720,preferences.render_scale))+
                        (preferences.render_scale!=active?" [restart]":"");
             }
+            case row_upscaler:return std::string("UPSCALING FILTER    ")+(preferences.upscaler==Upscaler::fsr1?"AMD FSR 1":"BILINEAR");
+            case row_sharpness:return "FSR SHARPNESS                         "+std::to_string(preferences.fsr_sharpness)+"%";
             case row_offline:return std::string("OFFLINE MODE [restart]              ")+(preferences.offline?"ON":"OFF");
             case row_controllers:return "CONTROLLERS  >";case row_phones:return "PHONE BUZZERS  >";case row_save:return "SAVE SETTINGS";case row_return:return "RETURN TO GAME";default:return "QUIT GAME...";
         }
@@ -398,7 +406,7 @@ void draw_menu() {
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,ImVec4(.48f,.22f,.78f,1));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,ImVec4(.67f,.28f,.96f,1));
         auto label=row_label(row);
-        const bool adjustable=(menu.page()==buzz_pc::MenuPage::settings&&(row==buzz_pc::row_volume||row==buzz_pc::row_window_size||row==buzz_pc::row_render_scale))||
+        const bool adjustable=(menu.page()==buzz_pc::MenuPage::settings&&(row==buzz_pc::row_volume||row==buzz_pc::row_window_size||row==buzz_pc::row_render_scale||row==buzz_pc::row_sharpness))||
             (menu.page()==buzz_pc::MenuPage::controllers&&row==6)||(phones&&row==1);
         const float adjust_width=44*ui,space=ImGui::GetStyle().ItemSpacing.x;
         if(adjustable){

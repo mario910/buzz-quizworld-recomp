@@ -19,7 +19,7 @@ int main() {
         check(pad.sample(0,565)==0);check(pad.sample(0x1000|0x2000,566)==(0x1000|0x2000));
         pad.reset();check(pad.sample(0x10,567)==0); // START is not an answer/select
         MenuModel menu;check(!menu.open());menu.navigate(MenuAction::toggle);check(menu.open());
-        menu.navigate(MenuAction::up);check(menu.selection()==row_quit&&menu.rows()==11);menu.navigate(MenuAction::down);check(menu.selection()==0);
+        menu.navigate(MenuAction::up);check(menu.selection()==row_quit&&menu.rows()==13);menu.navigate(MenuAction::down);check(menu.selection()==0);
         check(next_window_size({0,0},1).width==1280&&next_window_size({0,0},-1).width==3840);
         check(next_window_size({3840,2160},1).width==0);
         {auto custom=next_window_size({1000,700},1);check(custom.width==0);check(next_window_size({1000,700},-1).width==3840);}
@@ -50,13 +50,17 @@ int main() {
             check(!valid_window_size(1280,0)&&!valid_window_size(639,480)&&!valid_window_size(7681,4320));
             for(auto size:window_presets)check(valid_window_size(size.width,size.height));
             for(auto scale:render_scale_presets){display.render_scale=scale;check(validate(display,error));}
+            display.upscaler=Upscaler::fsr1;display.fsr_sharpness=35;
+            check(parse(serialize(display),decoded,error)&&decoded==display);
+            check(parse("version=2\nupscale_filter=fsr1",decoded,error)&&decoded.upscaler==Upscaler::fsr1&&decoded.fsr_sharpness==80);
         }
         p.volume_percent=42;p.fullscreen=true;p.fps_limit=0;p.offline=false;p.renderer=Renderer::vulkan;p.phone_buzzers=true;p.phone_port=65535;
         check(parse(serialize(p),decoded,error)&&decoded==p);
         const auto previous=decoded;
         for(const char* bad:{"version=0","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10",
             "version=3","version=1\nwindow_width=1920\nwindow_height=1080","version=2\nwindow_width=1920","version=2\nwindow_width=100\nwindow_height=100",
-            "version=2\nwindow_width=99999\nwindow_height=1080","version=2\nrender_scale=50","version=2\nrender_scale=301","version=2\nrender_scale=1.5"}) {
+            "version=2\nwindow_width=99999\nwindow_height=1080","version=2\nrender_scale=50","version=2\nrender_scale=301","version=2\nrender_scale=1.5",
+            "version=2\nupscale_filter=dlss","version=2\nfsr_sharpness=101","version=1\nupscale_filter=fsr1"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));

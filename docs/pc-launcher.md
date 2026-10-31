@@ -211,6 +211,15 @@ both UIs:
   memory are sampled down (nearest), pixels the CPU writes are sampled up.
   It is read once at startup, so changes are marked `[restart]` in the menu.
   D3D12 keeps 100% when the diagnostic `RSX_PACK_AA_COLOR=1` is set.
+- **Upscaling filter** decides how the finished frame is scaled into the
+  window: bilinear, or AMD FidelityFX Super Resolution 1 (EASU edge-adaptive
+  upscale followed by RCAS sharpening, `ps3recomp/libs/video/rsx_fsr1.h`).
+  FSR 1 is used only when the output rectangle is larger than the internal
+  resolution, e.g. 100-150% into a 1440p or 4K window; downscaling a higher
+  internal resolution stays bilinear. Sharpness 0-100 maps to RCAS 2-0 stops.
+  Both apply live. If the shaders cannot be built (Vulkan needs the HLSL
+  translator) presentation stays bilinear. Temporal upscalers (DLSS, FSR 2/3,
+  XeSS) are not offered: the game provides no motion vectors or jitter.
 
 A version-1 `pc-settings.ini` loads unchanged with the display defaults, and
 default display settings are still written as the exact version-1 file. If
@@ -219,7 +228,7 @@ window size and internal resolution and logs why; the launcher still reports
 the file for repair. The native launcher reads and writes these
 same files, including custom controller mappings and offline policy. Its Game
 tab also exposes volume, frame lock, display mode, window size, internal
-resolution and optional local phone-buzzer hosting. The in-game **Phone buzzers** page displays its QR code and player
+resolution, upscaling filter and optional local phone-buzzer hosting. The in-game **Phone buzzers** page displays its QR code and player
 sessions; see [phone controllers](phone-buzzers.md). Legacy launcher JSON remains
 compatible and provides paths, player labels and fallback preferences where a
 build has no INI yet; simply opening/checking a copy never writes a migration.

@@ -8,7 +8,8 @@ bool operator==(const Preferences& a,const Preferences& b) {
     return a.volume_percent==b.volume_percent && a.fps_limit==b.fps_limit &&
         a.fullscreen==b.fullscreen && a.offline==b.offline && a.renderer==b.renderer &&
         a.phone_buzzers==b.phone_buzzers && a.phone_port==b.phone_port &&
-        a.window_width==b.window_width && a.window_height==b.window_height && a.render_scale==b.render_scale;
+        a.window_width==b.window_width && a.window_height==b.window_height && a.render_scale==b.render_scale &&
+        a.upscaler==b.upscaler && a.fsr_sharpness==b.fsr_sharpness;
 }
 bool valid_window_size(unsigned w,unsigned h) {
     if(!w&&!h)return true; // backend default
@@ -21,6 +22,8 @@ bool validate(const Preferences& p,std::string& error) {
     else if(p.phone_port<1024||p.phone_port>65535)error="Phone controller port must be 1024-65535";
     else if(!valid_window_size(p.window_width,p.window_height))error="Window size must be 640x360 to 7680x7680, or 0x0 for the default";
     else if(p.render_scale<min_render_scale||p.render_scale>max_render_scale)error="Internal resolution must be 100-300 percent";
+    else if(p.upscaler!=Upscaler::bilinear&&p.upscaler!=Upscaler::fsr1)error="Invalid upscaling filter";
+    else if(p.fsr_sharpness>100)error="FSR sharpness must be 0-100";
     else {error.clear();return true;}
     return false;
 }
@@ -30,12 +33,13 @@ std::string serialize(const Preferences& p) {
     const char* renderer=p.renderer==Renderer::automatic?"auto":p.renderer==Renderer::d3d12?"d3d12":"vulkan";
     // Version 2 only adds display keys. Default display settings keep writing
     // the exact version-1 file, so older builds sharing it still load it.
-    const bool display=p.window_width||p.window_height||p.render_scale!=100;
+    const bool display=p.window_width||p.window_height||p.render_scale!=100||p.upscaler!=Upscaler::bilinear||p.fsr_sharpness!=80;
     s<<"# Buzz PC preferences v"<<(display?2:1)<<". Restart-only options are not live switches.\n"
       <<"version="<<(display?2:1)<<"\nvolume="<<p.volume_percent<<"\nfps_limit="<<p.fps_limit
       <<"\nfullscreen="<<p.fullscreen<<"\noffline="<<p.offline<<"\nrenderer="<<renderer
       <<"\nphone_buzzers="<<p.phone_buzzers<<"\nphone_port="<<p.phone_port<<'\n';
-    if(display)s<<"window_width="<<p.window_width<<"\nwindow_height="<<p.window_height<<"\nrender_scale="<<p.render_scale<<'\n';
+    if(display)s<<"window_width="<<p.window_width<<"\nwindow_height="<<p.window_height<<"\nrender_scale="<<p.render_scale
+                <<"\nupscale_filter="<<(p.upscaler==Upscaler::fsr1?"fsr1":"bilinear")<<"\nfsr_sharpness="<<p.fsr_sharpness<<'\n';
     return s.str();
 }
 bool parse(const std::string& text,Preferences& output,std::string& error) {
@@ -62,10 +66,13 @@ bool parse(const std::string& text,Preferences& output,std::string& error) {
         else if(key=="phone_port") {if(!number()||n<1024||n>65535)return fail();p.phone_port=n;}
         else if(key=="window_width"||key=="window_height") {if(!number()||n>max_window_extent)return fail();(key=="window_width"?p.window_width:p.window_height)=n;}
         else if(key=="render_scale") {if(!number()||n<min_render_scale||n>max_render_scale)return fail();p.render_scale=n;}
+        else if(key=="upscale_filter") {if(value=="bilinear")p.upscaler=Upscaler::bilinear;else if(value=="fsr1")p.upscaler=Upscaler::fsr1;else return fail();}
+        else if(key=="fsr_sharpness") {if(!number()||n>100)return fail();p.fsr_sharpness=n;}
         else return fail();
     }
     if(!seen.count("version")){error="PC preferences require version=1 or 2";return false;}
-    if(version==1&&(seen.count("window_width")||seen.count("window_height")||seen.count("render_scale"))){error="Display size keys require version=2";return false;}
+    for(const char* key:{"window_width","window_height","render_scale","upscale_filter","fsr_sharpness"})
+        if(version==1&&seen.count(key)){error="Display keys require version=2";return false;}
     if(!validate(p,error))return false;
     output=p;error.clear();return true;
 }
@@ -78,7 +85,7 @@ bool parse_with_display_fallback(const std::string& text,Preferences& output,std
         auto key=line.substr(0,line.find('='));
         key.erase(0,key.find_first_not_of(" \t\r\xef\xbb\xbf"));
         key.erase(key.find_last_not_of(" \t\r")+1);
-        if(key=="window_width"||key=="window_height"||key=="render_scale")continue;
+        if(key=="window_width"||key=="window_height"||key=="render_scale"||key=="upscale_filter"||key=="fsr_sharpness")continue;
         if(key=="version")line="version=1";
         kept+=line+'\n';
     }
@@ -98,6 +105,7 @@ Change State::apply(const Preferences& p) {
     active_.volume_percent=p.volume_percent;active_.fps_limit=p.fps_limit;active_.fullscreen=p.fullscreen;
     active_.phone_buzzers=p.phone_buzzers;active_.phone_port=p.phone_port;
     active_.window_width=p.window_width;active_.window_height=p.window_height;
+    active_.upscaler=p.upscaler;active_.fsr_sharpness=p.fsr_sharpness;
     uint32_t restart=no_restart;
     if(active_.offline!=p.offline)restart|=network_restart;
     if(active_.renderer!=p.renderer)restart|=renderer_restart;

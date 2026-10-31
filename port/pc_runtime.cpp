@@ -46,6 +46,7 @@ void apply_live(const buzz_pc::Preferences& p) {
     ps3_host_set_frame_limit(p.fps_limit);
     ps3_host_set_fullscreen(p.fullscreen);
     ps3_host_set_window_size(p.window_width,p.window_height);
+    ps3_host_set_upscaler(p.upscaler==buzz_pc::Upscaler::fsr1?PS3_HOST_UPSCALE_FSR1:PS3_HOST_UPSCALE_BILINEAR,p.fsr_sharpness);
 }
 }
 bool buzz_pc_runtime_init() {

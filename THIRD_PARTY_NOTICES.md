@@ -19,6 +19,7 @@ either, or the following separately licensed components.
 | PicoSHA2, okdshin and contributors | MIT; pinned source `LICENSE`, installed as `licenses/PicoSHA2.txt` | Native launcher's SHA-256 consistency checks |
 | cpp-httplib, Yuji Hirose and contributors, v0.18.7 | MIT; `third_party/cpp-httplib/LICENSE` | Embedded local HTTP phone-controller server |
 | QR Code generator, Project Nayuki, v1.8.0 | MIT notice in each file in `third_party/qrcodegen` | In-game phone pairing QR code |
+| AMD FidelityFX Super Resolution 1.0 algorithm, Advanced Micro Devices | MIT; notice retained in `ps3recomp/libs/video/rsx_fsr1.h` | Optional FSR 1 presentation upscaler (EASU + RCAS port) |
 
 Other notices in upstream files remain in place. Tool dependencies installed
 by pip have their own licenses; they are not vendored by this repository.

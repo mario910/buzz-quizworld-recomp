@@ -7,6 +7,8 @@
 
 namespace buzz_pc {
 enum class Renderer { automatic, d3d12, vulkan };
+// How the frame is scaled into the window; FSR 1 only acts when upscaling.
+enum class Upscaler { bilinear, fsr1 };
 struct Preferences {
     unsigned volume_percent = 100;
     unsigned fps_limit = 30; // Only 0 (uncapped) or 30, not a simulation-speed knob.
@@ -17,6 +19,8 @@ struct Preferences {
     // Internal rendering resolution, in percent of the guest's own surfaces
     // (1280x720 at 100). Independent of the window/swapchain size above.
     unsigned render_scale = 100;
+    Upscaler upscaler = Upscaler::bilinear;
+    unsigned fsr_sharpness = 80; // 0-100; RCAS strength
     bool offline = true;
     Renderer renderer = Renderer::automatic;
     bool phone_buzzers = false;
