@@ -28,6 +28,8 @@ try {
     if ($LASTEXITCODE) { throw 'Float32-stream routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-skin-dispatch-test.py
     if ($LASTEXITCODE) { throw 'Skin dispatch routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-weighted-skin-test.py
+    if ($LASTEXITCODE) { throw 'Weighted skin routing oracle generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'

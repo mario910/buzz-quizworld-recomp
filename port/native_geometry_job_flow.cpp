@@ -23,6 +23,7 @@
 #include "native_geometry_run_lists.h"
 #include "native_geometry_custom_stream.h"
 #include "native_geometry_skin_dispatch.h"
+#include "native_geometry_weighted_skin.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -123,6 +124,43 @@ extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
+}
+
+extern "C" void buzz_geometry_job_weighted_skin(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,
+                                                 buzz_geometry_job_fn directions,buzz_geometry_job_fn normals)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_weighted_skin_enabled()){
+        fallback(ctx);return;
+    }
+    buzz::GeometryWeightedSkin plan;const char* reason=nullptr;
+    if(!reference || !directions || !normals || !buzz::read_geometry_weighted_skin(*ctx,plan,&reason)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/weighted-skin] first fallback: %s count=%u position=%X weights=%X destination=%X rows=%X/%X/%X\n",reason?reason:"missing callback",ctx->gpr[84]._u32[0],ctx->gpr[80]._u32[0],ctx->gpr[85]._u32[0],ctx->gpr[96]._u32[0],ctx->gpr[54]._u32[0],ctx->gpr[53]._u32[0],ctx->gpr[52]._u32[0]);
+        fallback(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_weighted_skin_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);expected=g_spu_trampoline_fn;
+        if((expected!=directions || comparison->pc!=0xb4c0) && (expected!=normals || comparison->pc!=0xbb58))
+            buzz_geometry_job_native_fail(ctx,"weighted skin reference escaped data boundary");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::transform_geometry_weighted_skin(*ctx,plan,directions,normals);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/weighted-skin] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"weighted skin strict data/state/boundary differs");
+        }
+        buzz_geometry_job_weighted_skin_result(plan.count,1,plan.palette_alias);
+    }
+    buzz_geometry_job_weighted_skin_result(plan.count,0,plan.palette_alias);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN,1,0);
 }
 
 extern "C" void buzz_geometry_job_prepare_commands(spu_context* ctx, buzz_geometry_job_fn reference)

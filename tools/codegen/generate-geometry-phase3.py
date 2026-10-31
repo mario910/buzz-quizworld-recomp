@@ -106,6 +106,14 @@ def main():
             f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
             f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_{hook}(ctx, {command_name}_reference, &{command_name}_library); }}",
             source, count=1)
+    weighted_name = "buzz_job_6eba_spu_func_0000B880"
+    weighted_pattern = rf"(?ms)^void {weighted_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(weighted_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned phase-2 weighted skin entry")
+    source = re.sub(weighted_pattern, lambda m:
+        f"static void {weighted_name}_phase2(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {weighted_name}(spu_context* ctx) {{ buzz_geometry_job_weighted_skin(ctx, {weighted_name}_phase2, {weighted_name}_reference, buzz_job_6eba_spu_func_0000B4C0, buzz_job_6eba_spu_func_0000BB58); }}",
+        source, count=1)
     skin_name = "buzz_job_6eba_spu_func_000009F8"
     skin_pattern = rf"(?ms)^void {skin_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(skin_pattern, source))) != 1:
@@ -245,7 +253,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 19\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 20\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

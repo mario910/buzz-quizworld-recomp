@@ -18,7 +18,9 @@ The custom `0x93F0` dispatcher also has a native implementation through its
 exact descriptor tail handoff; built-in input formats 1..5 remain separate.
 The `0x9F8` skin/rigid controller now has native opt-in control through its
 exact weighted-data/normalization tail or return boundary. `0xAF18` data
-flow and the remainder of the `0xB880` skin kernel remain separate work.
+flow and the remaining directional skin data kernels remain separate work.
+The complete B880 weighted-data replacement passes strict real replay/live
+and native rendering below; final performance/default gates remain open.
 
 ## Driver boundary audit
 
@@ -1410,8 +1412,11 @@ The required phase-3 data inventory after this increment is:
 | `0x0BF8`, list/blend stage | Native opt-in reverse selection, double-buffered DMA and caller restoration; corpus/live/render checks pass; explicit library data calls | Final performance/default decision; run-list data kernel validation below |
 | `0x7118/7298`, compressed run-list decoder called by `0x0BF8` | Complete native opt-in backward expansion; strict synthetic/corpus/live and native rendering checks pass | Final performance/default decision |
 | `0x09F8`, skin/rigid controller | Complete native opt-in control/ABI; strict synthetic/corpus/live and native menu/round checks pass; separate weighted/rigid counters | Final performance/default decision |
-| `0xAF18`, weighted skin data flow | Original 672-byte-frame palette/DMA/controller region | Complete native data flow and validation; a 9F8 tail handoff is not data coverage |
-| `0xB880..B940`, weighted skin kernel | Phase-2 native inner loop with original setup/final pair and 413 real fallbacks | Complete native region and fallback paths, strict validation |
+| `0xAF18`, weighted skin orchestration | Original 672-byte-frame palette transpose/batching/controller region; valid path has no DMA | Complete native control/transpose and validation; a 9F8 tail handoff is not data coverage |
+| `0xB880/B934/B940`, weighted position/matrix data | Complete native opt-in; original setup/final pair replaced; strict synthetic/corpus/live and native menu/round gates pass, including actual palette aliases | Final performance/default decision; one-pair API inputs observed only synthetically |
+| `0xB348/B3C8`, rigid skin position/matrix data | Original gathered matrix/position kernel | Native data implementation and validation |
+| `0xBB58/BB68`, cofactor/normal data | Original data loop | Native data implementation and validation |
+| `0xB4C0` and directional roots BD4C/BE20/BF7C/C14C/C280/B5A0 | Original LS-table dispatch and six data variants | Native dispatch/data implementations and validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
 | `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
@@ -2463,6 +2468,142 @@ These functional runs do not establish a matched FPS or CPU-cycle benefit.
 All new defaults remain off (JOB=0, leaf mask 827). AF18/B880, other enclosing
 data stages, built-in input formats 1..5, the cold typed real/live gates and
 final interpreter/reversed A/B/normalized worker/process CPU/default decisions
-keep phase 3 open. The next implementation target is AF18's palette/DMA/data
+keep phase 3 open. The next implementation target is AF18's palette transpose/batch
 flow, with full strict state and I/O checking. Strict Stage F reconstruction
 remains final phase 7.
+
+
+## Complete weighted skin position/matrix data B880 (2026-10-31)
+
+Auditing AF18 identifies a pure-LS skin pipeline with explicit position,
+cofactor/normal and directional data kernels, plus palette transposition and
+batch control. No DMA instruction occurs on its valid paths. This corrects
+the earlier placeholder description; the upstream loader stages the data.
+The current inventory lists all of these dependencies separately. The next
+native increment replaces the complete hot weighted position/matrix region,
+rather than depending on its original setup and final pair.
+
+`port/native_geometry_weighted_skin.h` processes pairs with AVX2, preserving
+FM/three-FMA influence order and all four palette reads even for zero weights.
+Its final pair computes the weighted matrices, positions and every live or
+scratch GPR in native code. It also reconstructs lookahead coefficients,
+addresses, unused pointer/count lanes and the exact B4C0/BB58 continuation.
+No original B880/B934/B940 block executes on the eligible native path.
+Single-pair counts and all 16 pointer biases are supported, with quadword-floor
+LS semantics. Preflight checks data/lookahead/palette extents, all gather/mask/
+scale constants and writable-stream/input aliases before any mutation. Actual
+palette/output aliases retain original pair ordering and have separate
+native/strict coverage counters. Unsupported
+states retain the prior phase-2 path, preserving its own leaf switch.
+
+`BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN=0/1/2` selects prior/native/strict data-state
+execution, default **0**; JOB=2 also forces strict mode. The pure original
+three-block reference runs on a clone and stops before either data tail.
+The comparison covers all GPR/LS/architectural controls, PC and pending
+function, image/depth/policy/overlay, without exclusions. Independent counters
+distinguish one-pair and bulk calls; fallbacks are separate. The adapter now
+requires protocol **20**, stage counter **25** (26 counters).
+
+```powershell
+.\tests\scripts\test-geometry-weighted-skin.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+.\tests\scripts\test-geometry-job-runtime.ps1
+```
+
+PASS: **6,912 strict full-state/boundary cases and 12 unchanged/no-I/O rejects**.
+Twenty count edges span 2..2,048 vertices. Tests vary all pointer biases,
+independent palette-row bases, all 256 indices, all-zero/each one-hot/sparse/
+dense/non-normalized weights, arbitrary FP payloads and upper register lanes,
+three host depths, both interrupt states and both continuation branches.
+The original oracle and constants are pinned independently of the new kernel.
+An additional 256 cases place writable positions in gaps between actual
+indexed palette quads. Another 256 exercise true palette/output feedback with
+nonzero weights across multiple pairs. Preflight checks every indexed quad,
+including zero-weight indices. Palette aliases are supported by loading all
+six matrix rows for a pair before its first store; subsequent pairs observe
+those stores. Writable position/weight/output-stream aliases remain guarded.
+This preserves the complete original state without exempting any alias data.
+
+PASS: one-pair and bulk routing, both strict activation modes, both tails,
+owner/off/foreign-image/foreign-context/missing-reference/missing-tail/invalid/
+post-scope cases, previous routing checks, 1,024 pipeline models and 19,508
+real entry models. **43 runtime cases and 192 production getter cases** pass.
+The first full combined checked replay on frozen V3 passes all **19,508 exact
+jobs / 58,195 transfers**, zero changed inputs or failures. All **6,113 weighted
+data roots execute natively with zero fallback**, including **30 actual
+palette/output aliases**; every data root and alias passes the full-state
+boundary comparison. The complete JOB=2 execution also passes 19,508
+whole-job state/I/O comparisons. The ordinary reference execution retains
+its prior leaf behavior; its old phase-2 fallback counter is independent of
+the new region's zero-fallback counter.
+
+Frozen `build-vulkan-phase3-weighted-skin-v3`:
+EXE SHA-256 `37dc73a1bc702bf217c665aa0bd218ec0735313a4352ef98b78125872e7fb814`;
+map SHA-256 `149fabddc77d7eefdf6d62bf44b478283700087af8bdbda81019bb2a3b78fbb6`;
+generated C SHA-256
+`91601b5474c4e828039ad13959f9e3f3bcf8f2a1e9465d0d54f48d195185099c`.
+The generated C is preserved as `phase3/frozen-weighted-skin-v3-source.c`;
+frozen copies of the compiled native header/controller sources bind changes
+that do not alter the adapter's C text.
+
+The final footprint/order behavior has two diagnostic predecessors. V1 used
+a conservative palette bounding span and reported 5,700 native / 413 fallback.
+V2 checked the indexed quads and reported 6,083 native / 30 fallback. Both
+passed replay, but neither proved complete native coverage. V3 supports the
+remaining actual aliases with original pair ordering and no state waivers.
+Their frozen EXEs/logs remain private diagnostic evidence; acceptance uses
+V3 exclusively. Single-pair native data is validated synthetically; no
+single-pair call occurs in this real corpus.
+
+All five V3 configurations pass **19,508 exact jobs / 58,195 transfers**,
+zero changed inputs and zero failures, Stage F=2 / leaf mask 827 / no contract
+override:
+
+| Configuration | JOB | Other new flags | WEIGHTED_SKIN | Native data / fallback | Strict data | Native / strict palette aliases |
+|---|---|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline | 0 | 0 / 0 |
+| Independent | 2 | 0 | 1 | 6,113 / 0 | 6,113 | 30 / 30 |
+| Combined native | 1 | 1 | 1 | 6,113 / 0 | 0 | 30 / 0 |
+| Combined checked | 2 | 1 | 1 | 6,113 / 0 | 6,113 | 30 / 30 |
+| Kernel checked | 1 | 1 | 2 | 6,113 / 0 | 6,113 | 30 / 30 |
+
+Both JOB=2 arms additionally pass 19,508 whole-job state/I/O checks; previous
+real payload/controller counts remain unchanged. The final 6,912-case test
+also varies physically noncontiguous palette rows, as supported by the API.
+
+Live checks use that same frozen V3 EXE, fresh private-save copies, all older
+stage flags=1, GEOMETRY=1, Stage F=1 and leaf mask 827. The 60-second
+JOB=1/WEIGHTED_SKIN=2 menu run completes 2,061 CSV frames through
+59,685.196 ms, with **at least 430,000 strict weighted data boundaries and
+256 strict actual palette/output aliases**. No DIFF/HALT/mismatch or fallback
+is logged. Single-pair counts remain absent from this live workload.
+
+The 75-second JOB=1/WEIGHTED_SKIN=1 native menu completes 2,997 frames through
+74,756.869 ms, with **at least 3,860,000 native weighted data calls and 256
+native palette/output aliases**. The inspected 1280x720 readback shows normal
+menu UI and studio/stage geometry. No DIFF/HALT/mismatch or fallback appears.
+
+The 60-second JOB=1/WEIGHTED_SKIN=1 round run starts at
+`round_start_s=136.4` and completes 8,437 CSV frames through 195,994.520 ms.
+It records **at least 7,515,000 native weighted data calls and 40,000 native
+palette/output aliases**. The inspected 1280x720 readback shows the actual
+green question/round stage, host, player, answer panels and scoreboard.
+No DIFF/HALT/mismatch or fallback is logged.
+
+All build/test/corpus/live sessions are terminal. No compilation, CPU test
+or profiling overlapped the functional live runs. Original lift/generator,
+original save and canonical private-template pins remain unchanged. Private
+CSV/stderr pairs use `analysis/vk-scene-p3-weighted-skin-v3-{checked-menu,menu,round}.*`;
+menu/round PPM/PNG readbacks use the same tags under `phase3`. The source-bound
+`phase3/weighted-skin-v3-build.json` and archived proofs bind the committed
+code/tests/docs, frozen EXE/map/generated C/native sources, real LS-table
+fixture, static audit, logs and frames.
+
+These functional observations establish no matched FPS or CPU-cycle benefit.
+JOB=0, leaf mask 827 and all new stage flags=0 remain unchanged. AF18
+palette/batch control, rigid skin position data, cofactor normals, six
+remaining directional kernels, other enclosing stages, built-in formats
+1..5, cold typed real/live gates and final interpreter/reversed A/B/normalized
+worker/process CPU/default decisions keep phase 3 open. Continue with these
+explicit data/controller dependencies; strict Stage F cleanup stays final
+phase 7.

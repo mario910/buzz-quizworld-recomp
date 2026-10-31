@@ -929,10 +929,61 @@ r0. All argument lanes and original call-entry PCs remain observable.
 The independent native controller/checker stops before AF18 or the final
 normalization tail and compares all GPR/LS/control/continuation state. Its
 weighted handoff count is **not** native palette/skin data coverage. AF18's
-672-byte frame, palette/DMA flow and the complete B880 region remain explicit
-native implementation/validation tasks. The phase-2 B880 hot-loop replacement
-still retains original setup/final work and real fallback paths. Stage F's
+672-byte frame, palette transpose and batch/directional orchestration remain
+explicit native implementation/validation tasks. The complete B880 data
+replacement is recorded in the phase-3 results below the controller milestone. Stage F's
 strict reconstruction remains the final roadmap phase.
+
+### AF18 audit and complete weighted data kernel
+
+Reproduce the pinned 38-block dependency map and six-way directional table:
+
+```powershell
+.\toolenv\Scripts\python.exe tools/inspect/inspect-geometry-skin.py
+```
+
+Private output: `analysis/native-geometry/phase3/skin-audit.json`. The tool
+pins the original source and the real LS-table snapshot; excludes unreachable
+C500/getter tails, includes the 19 indirect table entries, and verifies the
+ordinary library functions have no channel sites or further calls.
+
+The follow-up audit corrects the earlier palette/DMA placeholder: the valid
+`0xAF18..0xC500` skin path performs **no channel/DMA operations**. Input
+palettes and weights have already been staged by the job loader. Its only
+ordinary direct calls are the four stream-pointer getters and `0x2738`
+palette publication. CC70 is the rejected error/report path. The lexical
+C518 tail after C500's unconditional B24C branch is unreachable.
+
+AF18 saves a 672-byte frame, transposes each 48-byte palette matrix in place,
+chooses output streams and a scratch capacity, then batches vertices through
+position/matrix kernels and directional kernels. B4C0's 19-entry relative
+LS table at B554 maps selectors 0/1/2 to BD4C/BE20/BF7C, selectors 3..15 to
+B868 (batch continuation), and selectors 16/17/18 to C14C/C280/B5A0. These
+six directional data roots and BB58/BB68's cofactor/normal data remain
+explicit required implementations; replacing the outer controller or B880
+alone does not replace them.
+
+The complete opt-in B880/B934/B940 native kernel uses a host AVX2 prefix
+and a native final-pair calculation with explicit full GPR reconstruction.
+It calls no original setup/iteration/final block. Each vertex consumes four
+unsigned byte weights and four unsigned byte indices. All indices are read,
+including those whose weights are zero. Accumulation is FM then three FMAs
+in influence order with RTZ scale `0x3B808080`. Three palette row bases can
+be distinct; original quadword-floor addressing is preserved for all pointer
+biases. Positions are updated in place and three 16-byte matrix rows are
+written per vertex. Row zero's W becomes 1; the other row W values become 0.
+
+The pipeline reads a final pair of positions and 16 bytes of weights beyond
+the active vertices; their raw bits, gathered coefficients, offsets and all
+unused pointer/count lanes survive in the boundary ABI. A positive even
+count includes a single pair. The region stops at B4C0 or BB58 according to
+the exact XSBH result of r102. Both data tails are separate and never run
+twice by the strict checker. Preflight rejects foreign LS, unsupported
+constants/counts, out-of-bounds reads/writes and aliases of writable streams
+with position/weight inputs before mutation. Palette/output aliases are
+supported: all six rows for a pair are gathered before any write, and the
+following pair sees the previous stores. Correctness/render and remaining gates
+are tracked in the separate phase-3 results.
 
 ## Reproduction
 
