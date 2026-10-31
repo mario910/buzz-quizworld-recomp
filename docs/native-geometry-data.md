@@ -375,6 +375,36 @@ the order of overlapping scratch writes, including columns with no ordinary
 output destination. Per-column final ABI materialization is needed because
 the two loop variants leave different volatile registers behind.
 
+### Halfword attribute stream
+
+The complete storage-3 region (`0x8378` -> `0xCAC0/CAD8/CB78`) now has native
+data decoding in `port/native_geometry_half_stream.h`, controlled by
+`BUZZ_GEOMETRY_JOB_HALF_STREAM=0/1` (default 0). Four source rows are decoded
+in eight-component AVX2 pairs; host loops own every column and group. The
+last group reconstructs the entire pipeline ABI natively, without calling
+the original setup, loop or last-column function.
+
+Preserve the lift's table composition rather than using an IEEE half
+instruction. For each component, let H be its BE16 source halfword and B the
+first byte of that row's enclosing aligned input quad. The composed gather
+forms `W=(H<<16)|(B*0x101)`. The decoded word is
+`(signed_shift_right(W,3)&0x8FFFFFFF) + ((W&0x7FFFFFFF)>0 ? 0x38000000 : 0)`.
+Thus low output bits depend on B, including nominal half zero/denormal and
+special encodings. All 65,536 H patterns are compared against the original
+pipeline with independently varied B and full observable state.
+
+Each iteration preloads its next input group before stores. The final
+iteration is one past the preferred output limit and writes clipped rows
+to the sentinel; stores occur in row order 1,2,0,3, including aliases.
+Logical cursor bias is retained until physical STQD alignment. Ten surviving
+setup registers (r70..r79) still describe group zero, not the last group.
+The native path reproduces r0's 0x83C8 link and the complete region exit;
+JOB=2 checks it before the generic descriptor continuation overwrites state.
+Preflight validates source/lookahead, tables, output/sentinel extents and
+immutable stack metadata before writes, allowing the designated SP+0x20
+sentinel. The handler uses the r107 column count; unrelated caller registers
+do not justify skipping it. Zero/unsupported column counts retain the lift.
+
 ### 24-bit unit vectors
 
 Read three bytes as BE u24. `qU=(word>>14)&1023`, `qV=(word>>4)&1023`;

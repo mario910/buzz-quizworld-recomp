@@ -95,6 +95,14 @@ def main():
         f"static void {unit_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {unit_name}(spu_context* ctx) {{ buzz_geometry_job_decode_unit_vectors(ctx, {unit_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
         source, count=1)
+    half_name = "buzz_job_6eba_spu_func_00008378"
+    half_pattern = rf"(?ms)^void {half_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(half_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned half-stream codec entry")
+    source = re.sub(half_pattern, lambda m:
+        f"static void {half_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {half_name}(spu_context* ctx) {{ buzz_geometry_job_decode_half_stream(ctx, {half_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
+        source, count=1)
     descriptor_name = "buzz_job_6eba_spu_func_00007DF8"
     descriptor_pattern = rf"(?ms)^void {descriptor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(descriptor_pattern, source))) != 1:
@@ -127,7 +135,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 10\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 11\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

@@ -21,6 +21,8 @@ static unsigned scenario;
 static const char* current_case = "synthetic";
 static bool emit_enabled = false, full_enabled = false;
 static bool attributes_enabled = false;
+static bool half_stream_enabled=false;
+static unsigned half_references=0,half_native=0,half_fallback=0,half_checked=0;
 static bool codecs_enabled = false,unit_vectors_enabled=false;
 static unsigned unit_references=0,unit_native=0,unit_fallback=0,unit_checked=0;
 static unsigned color_references = 0, color_native = 0, color_fallback = 0;
@@ -65,6 +67,8 @@ int buzz_geometry_job_commands_enabled() { return commands_enabled; }
 int buzz_geometry_job_full_commands_enabled() { return full_enabled; }
 int buzz_geometry_job_attributes_enabled() { return attributes_enabled; }
 int buzz_geometry_job_codecs_enabled() { return codecs_enabled; }
+int buzz_geometry_job_half_stream_enabled(){return half_stream_enabled;}
+void buzz_geometry_job_half_stream_checked_result(){++half_checked;}
 int buzz_geometry_job_unit_vectors_enabled(){return unit_vectors_enabled;}
 void buzz_geometry_job_unit_vectors_checked_result(){++unit_checked;}
 int buzz_geometry_job_descriptors_enabled() { return descriptors_enabled; }
@@ -75,6 +79,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_HALF_STREAM){assert(routing_probe);if(native)++half_native;else ++half_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_UNIT_VECTORS){assert(routing_probe);if(native)++unit_native;else ++unit_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_DESCRIPTORS){
         assert(routing_probe);if(native)++descriptor_native;else ++descriptor_fallback;return;
@@ -154,6 +159,7 @@ static void model_call(spu_context* ctx, unsigned pc)
     ctx->pc = record.link;
 }
 #include "../analysis/native-geometry/phase3/test-driver-reference.inc"
+#include "../analysis/native-geometry/phase3/test-half-stream-reference.inc"
 
 static void routing_reference(spu_context* ctx)
 {
@@ -167,12 +173,41 @@ static void emit_reference(spu_context* ctx) { ++emit_references; ctx->pc = ctx-
 static void attribute_reference(spu_context* ctx) { ++attribute_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_reference(spu_context* ctx) { ++color_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_zero_reference(spu_context* ctx) { ctx->pc = 0x83c8; g_spu_trampoline_fn = color_reference; }
+static void half_reference(spu_context* ctx){++half_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void unit_reference(spu_context* ctx){++unit_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void unit_zero_reference(spu_context* ctx){ctx->pc=0x83c8;g_spu_trampoline_fn=unit_reference;}
 static void descriptor_reference(spu_context* ctx){++descriptor_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void attribute_routing(spu_context* ctx)
 {
     auto backup = std::make_unique<spu_context>(); memcpy(backup.get(), ctx, sizeof(*ctx));
+    half_stream_enabled=true;ctx->gpr[1]._u32[0]=0x3d000;ctx->gpr[107]._u32[0]=1;
+    ctx->gpr[106]._u32[0]=8;ctx->gpr[42]._u32[0]=0;
+    const unsigned half_bases[]={118,117,116,124};
+    for(unsigned row=0;row<4;++row){
+        ctx->gpr[half_bases[row]]._u32[0]=0x10000+row*0x4000;
+        u128 pointer=ctx->gpr[row+4];pointer._u32[0]=ctx->gpr[half_bases[row]]._u32[0]+16;
+        spu_ls_write128(ctx,0x3d070-row*16,pointer);
+        ctx->gpr[41]._u32[row]=0x24000+row*256;ctx->gpr[80]._u32[row]=0x243f0;
+        ctx->gpr[81]._u32[row]=1024;ctx->gpr[82]._u32[row]=0x3d020;ctx->gpr[83]._u32[row]=256;
+    }
+    const uint32_t half_tables[][4]={{0x03030303,0x03030303,0x03030303,0x03030303},
+        {0x00010203,0x04050607,0x08090a0b,0x0c0d0e0f},{0x00010203,0x00010203,0x00010203,0x00010203},
+        {0x00018080,0x02038080,0x04058080,0x06078080}};
+    for(unsigned i=0;i<4;++i){u128 q;memcpy(&q,half_tables[i],16);spu_ls_write128(ctx,0xd5d0+i*16,q);}
+    auto half_entry=std::make_unique<spu_context>();memcpy(half_entry.get(),ctx,sizeof(*ctx));
+    buzz_geometry_job_decode_half_stream(ctx,half_reference,buzz_job_6eba_spu_func_000083C8);
+    assert(half_native==1 && !half_references && ctx->pc==0x83c8 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_000083C8);
+    g_spu_trampoline_fn=nullptr;memcpy(ctx,half_entry.get(),sizeof(*ctx));flow_mode=2;
+    buzz_geometry_job_decode_half_stream(ctx,buzz_job_6eba_spu_func_00008378,buzz_job_6eba_spu_func_000083C8);
+    assert(half_checked==1 && half_native==2 && g_spu_trampoline_fn==buzz_job_6eba_spu_func_000083C8);
+    g_spu_trampoline_fn=nullptr;flow_mode=1;
+    buzz_geometry_job_decode_half_stream(ctx,half_reference,nullptr);
+    half_stream_enabled=false;buzz_geometry_job_decode_half_stream(ctx,half_reference,buzz_job_6eba_spu_func_000083C8);half_stream_enabled=true;
+    auto half_foreign=std::make_unique<spu_context>();memcpy(half_foreign.get(),ctx,sizeof(*ctx));half_foreign->ls=half_foreign->ls_store;
+    buzz_geometry_job_decode_half_stream(half_foreign.get(),half_reference,buzz_job_6eba_spu_func_000083C8);
+    ctx->gpr[107]._u32[0]=17;buzz_geometry_job_decode_half_stream(ctx,half_reference,buzz_job_6eba_spu_func_000083C8);
+    assert(half_references==4 && half_fallback==2 && half_native==2);
+    memcpy(ctx,backup.get(),sizeof(*ctx));
     unit_vectors_enabled=true;ctx->gpr[121]._u32[0]=0;
     buzz_geometry_job_decode_unit_vectors(ctx,unit_reference,unit_reference);
     assert(unit_native==1 && !unit_references && ctx->pc==0x83c8 && g_spu_trampoline_fn==unit_reference);
@@ -404,6 +439,8 @@ int main(int argc, char** argv)
     assert(descriptor_references==6 && descriptor_native==1 && descriptor_fallback==3);descriptors_enabled=false;
     buzz_geometry_job_decode_unit_vectors(native.get(),unit_reference,unit_reference);
     assert(unit_references==5 && unit_native==2 && unit_fallback==2 && unit_checked==1);unit_vectors_enabled=false;
+    buzz_geometry_job_decode_half_stream(native.get(),half_reference,buzz_job_6eba_spu_func_000083C8);
+    assert(half_references==5 && half_native==2 && half_fallback==2 && half_checked==1);half_stream_enabled=false;
     attributes_enabled = false;
     puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;

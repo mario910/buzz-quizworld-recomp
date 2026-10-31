@@ -6,6 +6,11 @@ geometry mask 827 (`0x33B`). The continuing objective in
 subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 
+Complete native data handlers now cover raw float3, normalized U8 color,
+packed unit vectors and halfword attributes. The latest halfword increment
+passes the full corpus and live/render gates below; remaining typed data,
+weighted scatter and enclosing pipeline bodies still keep phase 3 open.
+
 ## Driver boundary audit
 
 The registered image-41 workload starts at `0x0010` and reaches its main
@@ -1338,8 +1343,9 @@ loops decode packed coordinates with eight-lane AVX2 SPU RTZ arithmetic.
 The final two groups reproduce the complete pipeline state with native math
 and memory operations; the old lifted last-column callback is absent. This
 completes actual storage-9 data work beyond the earlier phase-2 inner leaf
-and the native descriptor controller. Half, float32, fixed-point and the
-remaining typed handlers and weighted scatter remain required work.
+and the native descriptor controller. At that milestone, half, float32, fixed-point and the remaining typed
+handlers and weighted scatter still required work; the following increment
+completes half. The current inventory below records the remaining paths.
 
 The independent `BUZZ_GEOMETRY_JOB_UNIT_VECTORS=0/1` switch defaults to 0.
 It routes only the current native pipeline owner; JOB=0, disabled,
@@ -1382,7 +1388,7 @@ The required phase-3 data inventory after this increment is:
 | `0x9114/9148/92A0`, storage 9 unit vectors | Complete data implementation, opt-in | Final aggregate performance/default gates |
 | `0x85E8`, storage 1 SNORM16 | Original typed handler | Complete native data path and validation |
 | `0x87CC`, storage 2 float32 | Original typed handler | Complete native data path and validation |
-| `0x8378` / `0xCAC0` family, storage 3 half | Inner leaf validated; enclosing handler original | Complete native data path and validation |
+| `0x8378` / `0xCAC0` family, storage 3 half | Complete, opt-in | Final aggregate performance/default gates |
 | `0x8B94`, storage 5 I16 | Original typed handler | Complete native data path and validation |
 | `0x8D34`, storage 6 CMP | Original typed handler | Complete native data path and validation |
 | `0x8EA8`, storage 7 U8 integer | Original typed handler | Complete native data path and validation |
@@ -1450,3 +1456,92 @@ A/B, interpreted-SPU counts and normalized worker/process CPU-cycle/time
 measurements remain final phase-3 gates after the required data inventory is
 implemented. A repeatable reduction in CPU cost can justify default-on even
 with flat FPS; raw CPU percentage and diagnostic replay timing cannot.
+
+## Complete storage-3 halfword attribute decoder (2026-10-31)
+
+`port/native_geometry_half_stream.h` replaces all data and control of the
+storage-3 region: `0x8378` plus `0xCAC0/CAD8/CB78`. Host column/group loops
+use AVX2 pairs of four decoded components and reconstruct only the final
+pipeline iteration's full ABI. No original last-column callback remains.
+Ten setup-only registers retain their group-zero values. The implementation
+preserves the table shuffle's low output bits, all padded preloads, biased
+logical/physical output addressing, sentinel aliases and store order 1,2,0,3.
+IEEE half conversion alone would violate this contract.
+
+The independent `BUZZ_GEOMETRY_JOB_HALF_STREAM=0/1` switch defaults to 0.
+Only the current native pipeline owner routes it; disabled, JOB=0,
+foreign/reference, null-continuation and unsupported inputs retain the
+lift before mutation. Existing U8 and unit-vector switches keep their prior
+meaning and defaults. Stage 13 separately counts half-region native and
+fallback executions; the adapter/CMake routing protocol is 11. The fourteen
+outer-driver callees and leaf mask 827 are unchanged.
+
+JOB=2 checks all 128 GPRs, all 256 KiB LS, controls, exact 0x83C8 continuation,
+host depth and image identity at this region's exit, as well as the enclosing
+strict whole-job/I/O transcript. The existing temporary Stage F baseline
+exception is unchanged; the new decoder has no relaxed-state exception.
+
+A pinned four-block private original oracle passes **8,192 full-state cases**:
+4,096 column/stride/bias/count/sentinel variants and 4,096 batches covering
+**all 65,536 halfword encodings**, including independently varied aligned
+quad-byte contributions. Twenty-three preflight rejects leave the context
+unchanged and perform no I/O. The descriptor matrix now mixes complete
+native half, unit-vector and color callees with original typed/blend code;
+4,192 strict all-family cases and 28 rejects pass. Driver routing additionally
+checks the new region against its actual four-block original oracle in
+JOB=2, alongside owner/off/foreign/null/unsupported/post-scope cases,
+1,024 models and all 19,508 real driver entries. All 43 controller cases pass.
+
+The preliminary combined JOB=2 replay passes all 19,508 jobs / 58,195
+transfers with **12,431 complete native half regions / zero fallback**,
+12,431 strict half-region comparisons and all 19,508 strict whole-job/I/O
+comparisons. Native unit-vector coverage remains 12,067/0, descriptor control
+12,309/0 and U8 color 109/0. Final frozen evidence follows below; diagnostic
+replay timings do not establish a performance benefit.
+
+### Frozen half-stream replay and live evidence
+
+`phase3/half-stream-build.json` binds the native sources, tests, private
+fixture policy, saves and frozen `build-vulkan-phase3-half-stream` EXE SHA256
+`ffb19a32f74a043587aa3e637c5081c6c4bc7b6fda73b70e6d7a1359ba64eb14`;
+map SHA256 `9b462f04af66a62a8b4402c950bc80b1f2ddbea8258f8d946e49e5af1ad60bd0`.
+`phase3/frozen-half-stream-source.c` preserves the generated adapter.
+
+All four `half-stream-corpus-{off,independent,native,checked}.log` arms pass
+**19,508 exact jobs / 58,195 transfers**, zero concurrent input changes and
+zero failures, using leaf mask 827 / Stage F mode 2 without a replay override.
+The independent arm uses JOB=2 / HALF_STREAM=1 with older stage flags off;
+combined JOB=1/JOB=2 arms enable all stage flags. Every native arm covers
+**12,431 complete half regions with zero fallback**. JOB=2 checks all 12,431
+region exits and 19,508 whole-job/I/O transcripts. Combined unit-vector,
+descriptor and U8 coverage stays 12,067/0, 12,309/0 and 109/0 respectively;
+previous output/command counts are unchanged. JOB=0 with HALF_STREAM=1
+confirms there is no routing outside the current native owner scope.
+
+The same frozen EXE then uses Stage F=1 / GEOMETRY=1 / all stage switches=1
+for fresh private saves, background/muted execution and native buzzer input.
+No compilation, CPU test or profiling overlaps these runs. The 105-second
+checked menu logs at least **280,000 strict half-region comparisons**,
+285,000 unit-region and descriptor-function comparisons, **425,000 strict
+whole-job/I/O comparisons** and 256 strict U8 comparisons. Actual-native menu
+runs 75 seconds; round runs 30 seconds after 136.5 seconds of navigation/load.
+All three arms exceed 256 actual-native half and unit calls, without half
+fallback, mismatch, halt or early exit.
+
+Renderer frame 2,500 of the menu and 6,500 of the round are saved in
+`phase3/p3-half-stream-{menu,round}.ppm/.png` and visually inspected:
+normal menu cards, studio monitors/control desk, crowd geometry and green
+illuminated stairs. CSVs contain 2097, 3117
+and 7503 frames, ending at 104620.911,
+74933.432 and 166495.461 ms. These establish
+functional duration/scene coverage; they are not matched FPS/CPU results.
+Original and canonical template save hashes stay unchanged. Code, EXE, map,
+source, fixture, save and archived proof-log hashes are verified again after
+the commit.
+
+HALF_STREAM remains default-off. Float32, fixed-point, the other required
+typed handlers, weighted scatter and the enclosing stages in the inventory
+remain open. Interpreted-SPU counts, same-frozen reversed menu/round A/B and
+normalized worker/process cycles and CPU time per completed frame/job are
+still required before the final phase-3 default decision. Repeatable CPU
+savings can justify enabling a correct routine even with flat FPS.
