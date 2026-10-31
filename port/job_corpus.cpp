@@ -23,6 +23,7 @@
 #include "spu_workload.h"
 #include "zlib.h"
 #include "job_replay_policy.h"
+#include "native_geometry_job.h"
 #ifdef BUZZ_NATIVE_IMAGE36
 #include "native_image36.h"
 #endif
@@ -128,6 +129,7 @@ thread_local Recording* t_recording = nullptr;
 void observe(spu_context* ctx, uint32_t kind, uint32_t lsa, uint32_t ea, uint32_t size,
              const void* data)
 {
+    buzz_geometry_job_observe(ctx, kind, lsa, ea, size, data);
     for (auto& slot : g_slots) {
         Recording* r = slot.load(std::memory_order_acquire);
         if (!r || r->ctx != ctx) continue;
@@ -224,6 +226,10 @@ void capture_end(spu_context* ctx, int, uint32_t)
 struct CorpusInit {
     CorpusInit()
     {
+        if (buzz_geometry_job_audit_enabled()) {
+            g_spu_dma_observer = observe;
+            g_spu_step_observer = buzz_geometry_job_step;
+        }
         const char* dir = getenv("BUZZ_JOB_CORPUS");
         if (!dir || !dir[0] || getenv("BUZZ_REPLAY_CORPUS")) return;
         std::error_code error;
@@ -341,6 +347,7 @@ bool g_trace_steps = false;
 
 void replay_step(spu_context* ctx, uint32_t pc)
 {
+    buzz_geometry_job_step(ctx, pc);
     if (ctx == g_replay_ctx) g_steps.push_back(pc);
 }
 double g_run_seconds[2];  /* culled (one transfer), drawn */
@@ -363,6 +370,7 @@ double seconds_now()
 void replay_observe(spu_context* ctx, uint32_t kind, uint32_t lsa, uint32_t ea, uint32_t size,
                     const void* data)
 {
+    buzz_geometry_job_observe(ctx, kind, lsa, ea, size, data);
     if (ctx != g_replay_ctx) return;
     Transfer t{kind, lsa, ea, size, g_replay_data.size()};
     put_bytes(g_replay_data, data, size);
@@ -416,7 +424,8 @@ int replay_job(const std::string& path, const Job& job, const std::vector<Seed>&
     g_replay_data.clear();
     g_replay_ctx = ctx;
     g_steps.clear();
-    g_spu_step_observer = g_trace_steps ? replay_step : nullptr;
+    g_spu_step_observer = g_trace_steps ? replay_step :
+        buzz_geometry_job_audit_enabled() ? buzz_geometry_job_step : nullptr;
     double start = seconds_now();
     spurs_job_run_prepared(entry, job.image, ctx);
     const int drawn = job.transfers.size() > 1;
@@ -581,6 +590,8 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     if (buzz_stagef_check_failures()) ++failed;
     buzz_geometry_report();
     if (buzz_geometry_check_failures()) ++failed;
+    buzz_geometry_job_audit_report();
+    if (buzz_geometry_job_audit_failures()) ++failed;
 #ifdef BUZZ_NATIVE_IMAGE36
     buzz_image36_report();
     if (buzz_image36_mismatches()) ++failed;

@@ -70,19 +70,75 @@ only, excluding `spu_channel::lock`; the test preserves five distinct lock
 values across state application. Private log:
 `analysis/native-geometry/phase3/job-io-test.log`.
 
-This core is **not connected to the game yet**. The tests do not establish
-live transaction capture, real list/atomic coverage or native driver speed.
-There is no new enabled runtime path or changed phase-2 default.
+## Integrated reference/shadow audit
+
+The phase-3 adapter now connects this core to the real driver. It wraps 102
+channel-write, 22 channel-read and one channel-count sites in the pinned
+image-41 source. Corpus capture/replay observers forward DMA events to the
+audit without losing their own observations. Shadow computed branches and
+drain steps must stay in the compiled image; they cannot fall through to
+unwrapped/interpreted code. Normal execution retains the original dispatch
+and return behavior.
+
+`BUZZ_GEOMETRY_JOB_AUDIT=1` opts into **reference versus shadow reference**,
+not a native driver. `BUZZ_GEOMETRY_JOB_AUDIT_MAX` defaults to 512 attempts;
+0 audits the full corpus. An unavailable adapter rejects the audit request.
+External LS, unsupported entry state, asynchronous DMA, unknown reference
+branches and unstable external inputs do not count as successful checks.
+The owner token is atomic, and a foreign observer cannot write the recording
+thread's transcript vectors. All comparison mismatches fail immediately.
+
+The reference result is frozen at the driver exit boundary before the shadow
+runs. Later peer changes to the retained context's events/reservations or
+queues remain intact; comparing the live context at a later time would mix
+different observations. External control/channel changes during recording
+make the trace unrecordable before the trial. No architectural exit field is
+waived to accommodate them. Host channel locks are never restored.
+
+Build and controller tests:
+
+```powershell
+.\tests\scripts\build-geometry-phase3.ps1
+.\tests\scripts\test-geometry-job-runtime.ps1
+```
+
+The controller passes 15 scenarios: exact execution, original external-LS
+eligibility, asynchronous/unknown reference paths, unstable events/queues,
+post-exit event/queue changes, changed output/exit/register/control state,
+missing/extra operations and an unknown shadow step. Wrong supported shadows
+abort with a difference diagnostic while the synthetic real output is still
+committed exactly once. Fallback/unrecordable cases cannot satisfy the
+nonzero-comparison gate. Private test log: `phase3/job-runtime-test.log`.
+
+| Frozen adapter configuration | Corpus result | Whole-driver checks |
+|---|---|---|
+| Audit on, geometry checked, Stage F checked | 19,508 exact / 58,195 transfers, zero input changes or failures | 19,508 exact; 7,231 multi-transfer and 12,277 single-transfer jobs; zero skipped/failed |
+| Audit on, geometry native, Stage F checked | same | same |
+| Audit off, geometry native, Stage F checked | same | audit disabled; reference driver retained |
+
+All use the phase-2 default mask 827, without a mask override. Logs are
+`phase3/io-corpus-{mode2,mode1,off}.log` under `analysis/native-geometry/`.
+These reproduce the existing driver; they do not validate a new native flow.
+Stage F retains its previously accepted baseline contract.
+
+A separate 60 s live menu run uses actual-native Stage F and geometry groups,
+the same frozen adapter and a fresh private save. It records **256 strict
+whole-driver + I/O matches**, no differences, and completes normally:
+`analysis/vk-scene-p3-io-live.stderr.log`. The audit remains opt-in; the
+phase-2 default mask is unchanged. This functional run is not an FPS claim.
+
+`analysis/native-geometry/phase3/io-build.json` binds source hashes, the
+preserved generated C, map and frozen `build-vulkan-phase3-io` EXE SHA256
+`004919f6fc19a06fdfaf7d98e1840d86add41e52fac7a07c29d8b96ab6108b5c`.
+Original game-save and lifted-source hashes are unchanged. Preliminary audit
+builds/logs are superseded by this frozen set.
 
 ## Remaining phase-3 gates
 
-- Integrate channel recording and the DMA observer without replacing corpus
-  capture/replay observers or issuing shadow guest writes. Validate real list
-  descriptors, transaction ordering and unsupported/asynchronous traces;
-  rejected traces cannot count as comparisons.
 - Add the independent off/native/checked job switch and an eligibility check
-  on the original entry before mutation. Preserve per-kernel switches and
-  whole-job fallback for unsupported descriptor families.
+  for supported descriptor families on the original entry before mutation.
+  Preserve per-kernel switches and whole-job fallback. The diagnostic audit
+  switch above is not the native-path switch.
 - Implement the native descriptor/pipeline flow using the validated routines.
   Keep host state between stages where all observable LS/GPR/IO effects remain
   exact. A renamed or merged lift alone does not complete this requirement.
