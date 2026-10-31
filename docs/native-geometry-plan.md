@@ -52,11 +52,12 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: the complete image-41 `AEA0/7390` compressed-index
-decoder. Its [source/format audit](native-geometry-index-audit.md) now binds
-19,508 original real replays and distinguishes the four data stages, error
-frontiers, alias ordering and remaining native gates. This audit is preparation;
-it does not count as a completed native decoder or close phase 3.
+Current next implementation: the remaining image-41 transform stage `6608`,
+followed by ring/atomic flow `37C0`, conversion `54E8` and builtins 1..5 after
+source/contract audits. The complete recognized `AEA0/7390` index controller
+and all five data regions now have native opt-in implementations, with their
+[source/format contract](native-geometry-index-audit.md) and separate evidence
+below. Their completion does not close phase 3 or the final validation gates.
 
 ## Why these jobs
 
@@ -686,6 +687,24 @@ Whole index control/setup/publication and other enclosing paths remain open.
 Final interpreter/reversed A/B/normalized worker/process CPU/default gates
 remain OPEN; JOB=0 / leaf 827 / new flags=0 are unchanged. Strict Stage F is last.
 
+### Complete native compressed-index controller
+
+AEA0/7390 now owns native control, frames, metadata/zero-width setup, 2738/end
+and outer/original-pointer publication, and exact root return. Five data
+switches remain independent; all enabled compose the complete native decoder.
+`BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2` defaults to 0. Eligibility checks all
+writes and four error frontiers before mutation; unsupported inputs keep the
+retained control without native credit. Tests pass 5,633 strict cases, all 32
+child combinations, 256 independent byte models, 20 unchanged rejects, API
+routing and 280 config cases. Five arms each pass 19,508 exact / 58,195 transfers,
+all 19,508 controller roots native / zero fallback (9,745 zero + 7,211 low +
+2,552 high). Combined arms retain every native data region. Strict live root
+checks reach at least 455,000; native menu/round frames are normal. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-index-control-frames-and-publication-aea07390).
+Other enclosing stages/builtins/cold functions and final interpreter/reversed
+A/B/normalized worker/process CPU/default gates remain OPEN. JOB=0 / leaf 827 /
+new flags=0 remain unchanged; strict Stage F stays last.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -815,6 +834,7 @@ subject to the kernel gates before replacement.
 | 0x7838/78A8 complete flag expansion | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0 | 4,691 strict including 64 numeric merges + 2 capacity reversals; seven rejects; five arms: 19,508 exact / 58,195 transfers; 19,508 native/0 fallback | >=130,000 strict short +330,000 strict bulk; native scenes in report | not measured | |
 | 0x79A8/79C8 command relocation | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2`, default 0 | 5,777 strict including 1,152 byte models; eight rejects; five arms 19,508 exact / 58,195 transfers; all 19,508 native / 0 fallback | >=460,000 strict live; native scene frames normal | not measured | |
 | 0x7A90 complete triangles/frame | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2`, default 0 | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=465,000 strict live; native scene frames normal | not measured | |
+| AEA0/7390 complete index control/setup/publication | n/a | complete native opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2`, default 0 | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=455,000 strict live; native scene frames normal | not measured | |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
@@ -866,6 +886,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Complete AEA0/7390 index control/setup/publication | Menu/actual round (functional) | not measured | not measured | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; 280 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=455,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-11-01 | Complete 7A90 triangles/frame | Menu/actual round (functional) | not measured | not measured | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; 272 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=465,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-10-31 | Complete 79A8/79C8 command relocation | Menu/actual round (functional) | not measured | not measured | 5,777 strict including 1,152 byte models; eight rejects; 264 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=460,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-10-31 | Complete 7838/78A8 flag expansion | Menu/actual round (functional) | not measured | not measured | 4,691 strict including 64 scalar merges + 2 capacity reversals; seven rejects; 256 configuration cases; each replay: 19,508 exact / 58,195 transfers, all 19,508 native / 0 fallback; >=130,000 strict short +330,000 strict bulk live; own 0/1/2, default 0; final gates OPEN |

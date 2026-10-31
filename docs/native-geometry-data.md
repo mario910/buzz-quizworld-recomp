@@ -680,7 +680,8 @@ preserves warmup, cached lookahead, aliases and all final GPR/LS state, and
 queues 77F8 without original setup/step/final execution. Its own
 `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2` defaults to 0; full-state synthetic,
 real-corpus and live evidence is in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
-Other index data/control regions remain separate unfinished implementations.
+The other index regions now have separate implementations; complete control
+and current acceptance gates are documented below.
 The full `74F0/7640/7C20/7CD0/77E8` bit-unpack region is also native opt-in
 through `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0. Its two warmup
 iterations, repeated final-block writes, backward output sequence, wrapped
@@ -1278,6 +1279,22 @@ mutable high tables are always reread. Every write is bounded before mutation.
 `BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2` defaults to zero. Mode 2 or JOB=2
 compares all GPR/LS/architectural/control state and exact continuation against
 the complete original body; the phase-2 bit3 wrapper remains the separate
-fallback. The 2738 publication body and enclosing controller remain unfinished.
+fallback. Native 2738 publication and enclosing control are documented in
+the following section.
 See the [source contract](native-geometry-index-audit.md#triangle-stitching-mutable-tables-and-final-frame)
 and [phase-3 results](native-geometry-phase3-results.md) for coverage and gates.
+
+
+### Native complete compressed-index control
+
+`native_geometry_index_control.h` joins the five data regions with native
+AEA0/7390 frames, metadata/zero-width setup, end/original-pointer publications
+and exact root return. `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2` defaults to zero;
+all five data switches remain independent. Read-only eligibility checks every
+write and the four error frontiers before mutation, protecting metadata and
+frames needed by later stages. Unsupported inputs select the retained control
+before writes, with no native-control credit. Strict comparison uses a pinned
+22-block original normal closure, full architectural state and continuation;
+reporting handlers are never executed twice. See the
+[control contract](native-geometry-index-audit.md#complete-control-and-pre-mutation-eligibility)
+and [phase-3 results](native-geometry-phase3-results.md) for evidence and gates.

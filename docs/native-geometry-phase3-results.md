@@ -35,13 +35,15 @@ The complete `7730/7770` delta region is now native opt-in, independently
 checked and documented below. Other regions of the decoder remain unfinished.
 The full low/high bit-unpack region is now independently native as well;
 its source-compatible width-16 behavior and evidence are recorded below.
-Complete native 7A90 stitching and frame restoration now reaches queued 2738;
-publication and the enclosing controller remain unfinished.
+Complete native AEA0/7390 control, zero-width setup and both publications
+now compose the five index data regions through exact root return. Final
+acceptance/default gates and other image-41 stages remain open.
+Complete native 7A90 stitching and frame restoration reaches queued 2738.
 Full `79A8/79C8` command relocation is now independently native through queued
 7A90; its overlapping-window contract and evidence are recorded below.
 Full `7838/78A8` flag expansion is also native opt-in through its actual
-post-write capacity decision, with separate evidence below. Whole-index control
-and publication remain unfinished.
+post-write capacity decision, with separate evidence below. Whole-index control and publication now have the separate opt-in implementation
+documented below.
 
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
@@ -3667,3 +3669,131 @@ Private evidence uses `phase3/index-triangles-v1-*` and
 `analysis/vk-scene-p3-index-triangles-v1-*`; the finalized manifest binds the
 committed sources/docs/tests, source/fixture/save pins, frozen EXE/map/C/native
 copies, prior relocation proof, tests, five replays and three scenes.
+
+
+## Complete index control, frames and publication (AEA0/7390)
+
+`port/native_geometry_index_control.h` completes the recognized compressed-index
+flow through exact AEA0 root return. Native code owns the empty/raw/decoded
+routes, 64-byte outer and 432-byte decoder frames, 7390/73A0 setup, 7428 full
+metadata/extraction ABI, 77D8/77E8 zero-width setup, 77F8 expansion setup,
+2738 end publication, AEE8 original-pointer publication and AEF8 restoration.
+No original control/setup/publication block runs on this path. The selected
+five data callbacks retain their independent switches; with all five enabled,
+the recognized complete decoder is native, including every data final step.
+
+Read-only eligibility precedes ALL writes. It bounds stack/manager/header
+accesses and every actual unpack/delta/expansion/command/triangle output,
+including warmups/padding, mutable D120/DA30 output-offset sequences and
+source-compatible width-16 behavior. It checks alignment and all three later
+capacity frontiers. Protected manager metadata, initial header reads and
+return frames cannot be invalidated by admitted writes. Unsupported layouts,
+non-triangle counts, width>16, pending interrupts, metadata/frame aliases and
+unsafe writes fall back before mutation with no native-control credit.
+Input/data feedback remains supported where protected regions are unaffected;
+individual data kernels retain their wider standalone alias contracts.
+
+Both publications preserve CWD-selected words and all untouched bytes at
+manager+50, including biased stack/manager pointers. The ordinary AF0C call
+retains preferred-slot-only LINK(AF10), depth/image/drain semantics and no
+entry-PC assignment. Final return checks stack and FN identity as well as PC;
+links that name an interior block cannot terminate the checker early. Native
+control replaces an already scheduled incoming continuation, including empty
+and raw routes. Reporting handlers are never speculatively executed twice.
+
+Own `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares all 128 GPRs/all LS, architectural/channel/control state and actual
+PC/FN/image/depth/policy/overlay against an independently pinned closure of
+**all 22 original normal blocks**, with four distinct reporting-frontier traps.
+The retained fallback and strict original-reference closure are separate.
+No Stage F waiver, exclusion or tolerance is added. Stage 36 / 37 counters /
+protocol 31 record empty/raw/zero-width/low-width/high-width coverage.
+
+**5,633 strict full-state/LS/return cases** pass with zero unsupported positive
+seeds: 4,096 randomized entries, 512 targeted cases, 768 integrations covering
+all **32 child-switch combinations**, **256 independent early/publication byte
+models**, and one pinned real AEA0 entry. Cases span all widths 0..16, full
+upper GPR lanes, biased stacks/managers, every return depth, interior return-PC
+collisions, an incoming scheduled continuation, zero-width/nonzero-delta and
+nonzero-width/zero-delta paths, altered extraction selectors, minimum data LS,
+empty-frame/manager aliasing and raw arbitrary stream pointers. The byte
+models independently apply the four frame spills and selected pointer word,
+compare all 262,144 LS bytes and verify stack/link/nonvolatile restoration.
+
+Twenty rejects preserve every context/LS byte and the output plan: foreign LS,
+pending interrupt, unsafe manager/stack/header/output spans, metadata/frame
+overlap, misalignment, malformed count/width and each capacity frontier.
+An added pure-continuation guard initially omitted the normal 77E8 footer;
+the guard was corrected before integration. Its diagnostic is preserved.
+The native data algorithms and full-state checker were not weakened. A test
+build also corrected a helper-name typo before execution. All executed strict
+native/reference comparisons were exact before freezing.
+
+Real-owner API routing passes **30 native / 20 strict** calls and 15 counted
+fallbacks across five paths, both strict modes and both depth classes. It
+covers biased addresses, return-PC collisions, incoming continuations,
+separate fallback/reference, off/foreign/image/null table/null reference/all
+seven missing child callbacks/invalid fields/pending interrupt/post-scope.
+Exactly 20 original-controller calls are strict checks; no original controller
+executes in ordinary native mode. The 1,024 outer models, 19,508 real-entry
+models, 43 runtime scenarios, **280 production-getter cases** and durable
+first-fallback check pass. The production build succeeds.
+
+Frozen `build-vulkan-phase3-index-control-v1`:
+EXE `53a91e4591994c3dc8de6c8da35c94853aa0c0f6b7cf464226333635b2579029`;
+map `f2e19bb335aa9b00b647c75106b718df775db70881b97fa8616efd9d7b0b91d0`;
+generated C `37c3d95b2498573f4bbf30db46c5821e6d84d5d73852b34cecdc14df77d90205`.
+Frozen C, the private original closure and four compiled native/header/
+controller copies are retained. Original lift, phase-2 generator, saves,
+template and fixture pins are unchanged.
+
+All five arms pass **19,508 exact jobs / 58,195 transfers**, zero input changes
+and failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | INDEX_CONTROL | Control native/strict/fallback |
+|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline |
+| Independent control | 2 | 0 | 1 | 19,508/19,508/0 |
+| Combined native | 1 | 1 | 1 | 19,508/0/0 |
+| Combined checked | 2 | 1 | 1 | 19,508/19,508/0 |
+| Kernel checked | 1 | 1 | 2 | 19,508/19,508/0 |
+
+Every enabled arm has 9,745 zero-width + 7,211 low + 2,552 high roots, no empty/
+raw real roots and zero control fallback. Both JOB=2 arms pass all 19,508
+whole-job state/I/O checks. Independent control retains the prior data paths;
+combined arms execute all five new data regions: 9,763 unpack + 9,763 delta +
+19,508 expansion + 19,508 relocation + 19,508 triangle roots, zero fallback.
+They also retain 1,628 AF18, 6,113 weighted and 5,018 basic-direction roots.
+This is actual whole-index native composition on every captured image-41 job.
+
+Functional live runs use the same frozen EXE, JOB=1, all older flags=1,
+GEOMETRY=1 / Stage F=1 / leaf 827, fresh private saves, background/native
+mailbox/mute, with no compilation/CPU-test/profiling overlap:
+
+| Scene | JOB/INDEX_CONTROL | Frames / last elapsed ms | Control lower bounds |
+|---|---|---|---|
+| checked-menu | 1/2 | 1,401 / 59,586.336 | strict: empty>=0; raw>=0; zero>=80,000; low>=340,000; high>=35,000 |
+| menu | 1/1 | 2,291 / 74,947.213 | native: empty>=0; raw>=0; zero>=575,000; low>=2,370,000; high>=260,000 |
+| round | 1/1 | 6,044 / 196,221.646 | native: empty>=0; raw>=0; zero>=1,565,000; low>=4,265,000; high>=1,050,000 |
+
+Checked menu ran 60s, native menu 75s, native round 60s after navigation.
+Strict live root comparisons reach at least **455,000**, including >=256
+in each zero/low/high cohort. No differences, halts, unexpected continuations/
+capacity frontiers or first control fallback were observed. Periodic counts
+are lower bounds; forced shutdown provides no final fallback totals. Inspected
+1280x720 native readbacks show normal studio/menu/crowd and actual green-round
+host/player/score UI. Empty/raw paths and widths 1/12..16 remain distinguished
+as synthetic coverage where no real/live input was observed.
+
+Final interpreter, reversed same-frozen-EXE menu/round A/B and normalized
+worker/process cycles/time/default gates remain **OPEN**. These functional
+scenes make no FPS or CPU benefit claim. Repeatable CPU savings can justify
+enabling with flat FPS after all correctness/render gates. JOB=0 / leaf 827 /
+new flags=0 remain. Phase 3 and the continuing goal remain active: enclosing
+transform/ring/conversion/builtin stages, cold functions and final gates still
+require work. Strict Stage F reconstruction stays last.
+
+Private evidence uses `phase3/index-control-v1-*` and
+`analysis/vk-scene-p3-index-control-v1-*`. The finalized manifest binds committed
+sources/docs/tests, source/fixture/save pins, frozen EXE/map/C/native copies,
+private original closure, prior triangle proof, tests, five replays and scenes.

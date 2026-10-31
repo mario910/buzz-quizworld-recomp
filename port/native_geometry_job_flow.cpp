@@ -34,6 +34,7 @@
 #include "native_geometry_index_expand.h"
 #include "native_geometry_index_relocate.h"
 #include "native_geometry_index_triangles.h"
+#include "native_geometry_index_control.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -178,6 +179,51 @@ extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
+}
+
+extern "C" void buzz_geometry_job_index_control(spu_context* ctx,buzz_geometry_job_fn fallback,
+                                                buzz_geometry_job_fn reference,const buzz_geometry_index_functions* functions)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_index_control_enabled()){
+        fallback(ctx);return;
+    }
+    buzz::GeometryIndexControl plan;const char* reason=nullptr;
+    const bool complete=reference && functions && functions->unpack && functions->deltas && functions->expansion_setup &&
+        functions->expand && functions->relocate && functions->triangles && functions->publish;
+    if(!complete || !buzz::read_geometry_index_control(*ctx,plan,&reason)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_INDEX_CONTROL,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/index-control] first fallback: %s\n",reason?reason:"missing callback");
+        fallback(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_index_control_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        const unsigned link=ctx->gpr[0]._u32[0],stack=ctx->gpr[1]._u32[0],depth=ctx->host_depth;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;!(comparison->pc==link && comparison->gpr[1]._u32[0]==stack &&
+            g_spu_trampoline_fn==(depth?nullptr:spu_indirect_branch));++steps){
+            const auto next=g_spu_trampoline_fn;
+            if(!next || next==spu_indirect_branch || steps>=32)buzz_geometry_job_native_fail(ctx,"index control reference escaped root return");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    buzz::execute_geometry_index_control(*ctx,plan,*functions);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/index-control] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"index control strict state/frame/publication/return differs");
+        }
+        buzz_geometry_job_index_control_result(unsigned(plan.path),1);
+    }
+    buzz_geometry_job_index_control_result(unsigned(plan.path),0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_INDEX_CONTROL,1,0);
 }
 
 extern "C" void buzz_geometry_job_index_triangles(spu_context* ctx,buzz_geometry_job_fn fallback,

@@ -1,8 +1,8 @@
 # Image-41 compressed indices: implementation contract
 
-Status: audited; bit unpack, deltas, flag expansion, command relocation and triangle stitching
-implemented separately; **native whole-decoder implementation and acceptance OPEN**,
-2026-10-31. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
+Status: complete native control and five data-region implementations are opt-in;
+**final acceptance/performance/default gates OPEN**,
+2026-11-01. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
 for the next phase-3 implementation. The continuing objective remains active
 through subsequent native phases and final strict Stage F reconstruction.
 
@@ -135,10 +135,10 @@ It is a format proof, not acceptance of a new native kernel. The source/format
 audit at `ca88254` changed no production switch, default, kernel, driver or
 generated lift. Subsequent delta implementation and its full-state evidence
 are tracked in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
-The native whole-decoder implementation, full-state synthetic/real checks,
->=256 live calls, native menu/round rendering, interpreter checks, reversed
-same-EXE A/B and normalized worker/process cycles/time measurements remain
-OPEN. Repeatable CPU savings with flat FPS may justify a later default-on
+The complete native control and data implementations, strict synthetic/real
+checks, >=256 live root comparisons and native menu/round rendering now have
+separate evidence below. Final interpreter checks, reversed same-EXE A/B and
+normalized worker/process cycles/time/default gates remain OPEN. Repeatable CPU savings with flat FPS may justify a later default-on
 decision after the correctness/render gates; no benefit is claimed here.
 
 Private evidence resides under `analysis/native-geometry/phase3/index-audit-v1`.
@@ -157,7 +157,7 @@ Choose a fresh output filename; preserve the finalized v1 verdict and archive.
 
 | Region | Current implementation |
 |---|---|
-| AEA0 controller, 7390 frame/setup, 2738 publication | Complete native replacement OPEN |
+| AEA0/7390 frame/setup, zero width, 2738 and outer publication | Complete native control through exact root return, own `INDEX_CONTROL=0/1/2`, default 0; data switches independent; final performance/default gates OPEN |
 | 74F0/7640 and 7C20/7CD0 bit unpack | Complete native implementation through 7730/77F8, own `INDEX_UNPACK=0/1/2`, default 0; final performance/default gates OPEN |
 | 7730/7770 delta prefix | Complete native implementation, own `INDEX_DELTAS=0/1/2`, default 0; final performance/default gates OPEN |
 | 7838/78A8 flag expansion | Complete native region including final ABI and 79A8/7DCC handoff, own `INDEX_EXPAND=0/1/2`, default 0; final performance/default gates OPEN |
@@ -165,7 +165,8 @@ Choose a fresh output filename; preserve the finalized v1 verdict and archive.
 | 7A90 triangle reconstruction and frame restoration | Complete native region through queued 2738, own `INDEX_TRIANGLES=0/1/2`, default 0; final performance/default gates OPEN |
 
 The five native data regions call no original setup, step or final iteration.
-Their completion does not complete 7390, 2738 publication or the image-41 job flow.
+The complete control implementation below composes them while preserving their
+independent switches. Other image-41 stages and final acceptance gates remain open.
 
 ### Flag expansion and post-write capacity
 
@@ -260,3 +261,33 @@ checker exception. A separate numeric/control proof covers width16 at all
 are retained privately; strict lifted/native state checks were exact. No
 width-16 real jobs were captured, so this is a synthetic source-contract
 finding, not a claim about the retail format or real coverage of that width.
+
+
+### Complete control and pre-mutation eligibility
+
+`native_geometry_index_control.h` implements AEA0's empty/raw/decoded routes,
+64-byte and 432-byte frames, 7390/73A0 setup, 7428 metadata/extraction ABI,
+77D8/77E8 zero-width setup, 77F8 expansion setup, 2738 end publication, AEE8
+original-pointer publication and AEF8 root return. Selected data callbacks
+retain all five per-region switches. With those flags on, the recognized
+whole decoder executes no original control/setup/publication/data-final block.
+
+Before any write, eligibility bounds stack/manager/header accesses and every
+actual output span, including unpack warmups, mutable D120/DA30 offsets,
+delta padding, expansion/command warmups and triangle output. It checks all
+four error frontiers and protects the metadata/header reads and return frames
+needed by subsequent control. Manager/frame or output/manager/frame overlap,
+unsafe writes, unsupported widths/counts, misalignment and pending interrupts
+fall back before mutation, with no native-control credit. Data/input aliases
+remain supported where these protected regions are unaffected. Individual
+data regions still accept their wider documented alias contracts.
+
+An independent pinned reference closure contains all 22 original normal
+blocks with distinct traps at the four reporting frontiers; strict mode never
+executes reporting I/O twice. It compares all GPR/LS/architectural/control
+state and the actual root return PC/FN, stack, image, depth, policy and overlay.
+The original callback and fallback are separate. The root return check uses
+stack/FN identity as well as PC, including return links that name interior
+blocks. Native control replaces a preexisting incoming continuation exactly.
+The separate [phase-3 results](native-geometry-phase3-results.md) track the
+frozen proof, actual coverage, cold early paths and remaining gates.

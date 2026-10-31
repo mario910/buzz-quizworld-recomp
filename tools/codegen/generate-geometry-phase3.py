@@ -19,11 +19,22 @@ def main():
     if hashlib.sha256(parent_generator.read_bytes()).hexdigest() != PARENT_PIN:
         raise SystemExit("Unreviewed phase-2 adapter; audit before updating the parent pin")
     subprocess.run([sys.executable, str(parent_generator)], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-index-control-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    index_name = "buzz_job_6eba_spu_func_0000AEA0"
+    index_pattern = rf"(?ms)^void {index_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(index_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned index-controller root")
+    index_library = ",".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x74f0,0x7730,0x77f8,0x7838,0x79a8,0x7a90,0x2738))
+    source = re.sub(index_pattern, lambda m:
+        f"static void {index_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"static const buzz_geometry_index_functions {index_name}_library = {{{index_library}}};\n"
+        f"void {index_name}(spu_context* ctx) {{ buzz_geometry_job_index_control(ctx, {index_name}_fallback, buzz_index_control_original_0000AEA0, &{index_name}_library); }}",
+        source, count=1)
     triangles_name = "buzz_job_6eba_spu_func_00007A90"
     triangles_pattern = rf"(?m)^void {triangles_name}\(spu_context\* ctx\) \{{([^\n]*)\}}[ \t]*$"
     triangles_matches = list(re.finditer(triangles_pattern, source))
@@ -342,7 +353,8 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 30\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 31\n"
+    support += (DEST / "index-control-original.inc").read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

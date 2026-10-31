@@ -62,6 +62,8 @@ static int index_relocate_mode=0;
 static unsigned index_relocate_native=0,index_relocate_fallback=0,index_relocate_checked=0,index_relocate_references=0;
 static int index_triangles_mode=0;
 static unsigned index_triangles_native=0,index_triangles_fallback=0,index_triangles_checked=0,index_triangles_references=0,index_triangles_fallback_calls=0;
+static int index_control_mode=0;
+static unsigned index_control_native=0,index_control_fallback=0,index_control_checked=0,index_control_references=0,index_control_fallback_calls=0;
 static int index_unpack_mode=0;
 static unsigned index_unpack_native=0,index_unpack_fallback=0,index_unpack_checked=0,index_unpack_references=0;
 static int index_deltas_mode=0;
@@ -127,6 +129,8 @@ int buzz_geometry_job_index_relocate_enabled(){return index_relocate_mode;}
 void buzz_geometry_job_index_relocate_result(unsigned,int checked){if(checked)++index_relocate_checked;}
 int buzz_geometry_job_index_triangles_enabled(){return index_triangles_mode;}
 void buzz_geometry_job_index_triangles_result(unsigned,int checked){if(checked)++index_triangles_checked;}
+int buzz_geometry_job_index_control_enabled(){return index_control_mode;}
+void buzz_geometry_job_index_control_result(unsigned,int checked){if(checked)++index_control_checked;}
 int buzz_geometry_job_index_unpack_enabled(){return index_unpack_mode;}
 void buzz_geometry_job_index_unpack_result(unsigned,int checked){if(checked)++index_unpack_checked;}
 int buzz_geometry_job_index_deltas_enabled(){return index_deltas_mode;}
@@ -170,6 +174,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_INDEX_CONTROL){assert(routing_probe);if(native)++index_control_native;else ++index_control_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES){assert(routing_probe);if(native)++index_triangles_native;else ++index_triangles_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_INDEX_RELOCATE){assert(routing_probe);if(native)++index_relocate_native;else ++index_relocate_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_INDEX_EXPAND){assert(routing_probe);if(native)++index_expand_native;else ++index_expand_fallback;return;}
@@ -301,6 +306,7 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-index-expand-reference.inc"
 #include "../analysis/native-geometry/phase3/test-index-relocate-reference.inc"
 #include "../analysis/native-geometry/phase3/test-index-triangles-reference.inc"
+#include "../analysis/native-geometry/phase3/test-index-control-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-directions-reference.inc"
 static void skin_flow_trace(spu_context*,uint32_t){}
 static void skin_flow_model(spu_context*,uint32_t){abort();}
@@ -309,6 +315,8 @@ static void index_expand_reference(spu_context* ctx){++index_expand_references;c
 static void index_relocate_reference(spu_context* ctx){++index_relocate_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void index_triangles_fallback_call(spu_context* ctx){++index_triangles_fallback_calls;ctx->pc=ctx->gpr[0]._u32[0];}
 static void index_triangles_reference(spu_context* ctx){++index_triangles_references;index_triangles_oracle::buzz_job_6eba_spu_func_00007A90(ctx);}
+static void index_control_fallback_call(spu_context* ctx){++index_control_fallback_calls;ctx->pc=ctx->gpr[0]._u32[0];}
+static void index_control_reference(spu_context* ctx){++index_control_references;index_control_oracle::buzz_job_6eba_spu_func_0000AEA0(ctx);}
 static void index_unpack_reference(spu_context* ctx){++index_unpack_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void index_deltas_reference(spu_context* ctx){++index_deltas_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void skin_normalized_reference(spu_context* ctx){++skin_normalized_references;ctx->pc=ctx->gpr[0]._u32[0];}
@@ -607,6 +615,39 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        index_control_oracle::seed_tables(*ctx);ctx->gpr[1]=spu_ila(0x3d005);ctx->gpr[3]=spu_ila(0x39005);ctx->gpr[4]=spu_ila(0x10000);
+        auto* entry=buzz::clone_function_state(ctx);const auto& functions=index_control_oracle::library;
+        auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;
+            ctx->ls[0x3917c]=0;ctx->ls[0x3917d]=3;ctx->ls[0x3917e]=0x80;ctx->ls[0x3917f]=0;
+            ctx->ls[0x39180]=0;ctx->ls[0x39181]=12;ctx->ls[0x39006]=0x30;
+            memset(ctx->ls+0x10000,0,16);ctx->ls[0x10001]=32;ctx->ls[0x10005]=2;ctx->ls[0x10006]=4;
+        };
+        for(unsigned shape=0;shape<5;++shape)for(unsigned depth=0;depth<2;++depth)for(unsigned mode=0;mode<3;++mode){
+            reset();ctx->host_depth=depth?2:0;ctx->gpr[0]._u32[0]=depth?0xaf10:0xaea0;
+            if(shape==0)ctx->ls[0x39181]=0;else if(shape==1)ctx->ls[0x39006]=0xf0;
+            else if(shape==2){ctx->ls[0x10001]=0;ctx->ls[0x10006]=0;}else if(shape==4)ctx->ls[0x10006]=12;
+            flow_mode=mode==1?2:1;index_control_mode=mode==2?2:1;
+            g_spu_trampoline_fn=index_control_oracle::buzz_job_6eba_spu_func_0000AEE8;
+            buzz_geometry_job_index_control(ctx,index_control_fallback_call,index_control_reference,&functions);
+            assert(ctx->pc==(depth?0xaf10u:0xaea0u) && ctx->gpr[1]._u32[0]==0x3d005 && ctx->host_depth==(depth?2:0));
+            assert(g_spu_trampoline_fn==(depth?nullptr:spu_indirect_branch));
+        }
+        assert(index_control_native==30 && index_control_checked==20 && index_control_references==20 && !index_control_fallback && !index_control_fallback_calls);
+        flow_mode=1;reset();index_control_mode=0;buzz_geometry_job_index_control(ctx,index_control_fallback_call,index_control_reference,&functions);index_control_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_index_control(foreign,index_control_fallback_call,index_control_reference,&functions);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_index_control(ctx,index_control_fallback_call,index_control_reference,&functions);
+        for(unsigned failure=0;failure<15;++failure){reset();auto f=functions;const buzz_geometry_index_functions* fs=&f;auto ref=index_control_reference;
+            switch(failure){case 0:fs=nullptr;break;case 1:ref=nullptr;break;case 2:f.unpack=nullptr;break;case 3:f.deltas=nullptr;break;
+            case 4:f.expansion_setup=nullptr;break;case 5:f.expand=nullptr;break;case 6:f.relocate=nullptr;break;case 7:f.triangles=nullptr;break;case 8:f.publish=nullptr;break;
+            case 9:ctx->gpr[4]._u32[0]++;break;case 10:memset(ctx->ls+0x3917c,255,4);break;case 11:ctx->ls=entry->ls_store;break;
+            case 12:ctx->int_enable=1;ctx->event_status=ctx->event_mask=1;break;case 13:ctx->gpr[3]._u32[0]=0;break;case 14:ctx->gpr[1]._u32[0]=0;break;}
+            buzz_geometry_job_index_control(ctx,index_control_fallback_call,ref,fs);
+        }
+        assert(index_control_fallback_calls==18 && index_control_references==20 && index_control_fallback==15 && index_control_native==30 && index_control_checked==20);
+        index_control_mode=0;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         index_triangles_oracle::seed_tables(*ctx);ctx->gpr[83]=spu_ls_read128(ctx,0xd980);ctx->gpr[85]=spu_ilh(0x303);
@@ -1156,6 +1197,9 @@ int main(int argc, char** argv)
     index_triangles_mode=1;buzz_geometry_job_index_triangles(native.get(),index_triangles_fallback_call,index_triangles_reference,index_triangles_oracle::buzz_job_6eba_spu_func_00002738);
     assert(index_triangles_fallback_calls==13 && index_triangles_references==12 && index_triangles_native==18 && index_triangles_checked==12 && index_triangles_fallback==9);index_triangles_mode=0;
     puts("Complete index triangles routing:warmup/short/bulk,both strict modes,table/code/frame aliases,tail-PC collisions;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
+    index_control_mode=1;buzz_geometry_job_index_control(native.get(),index_control_fallback_call,index_control_reference,&index_control_oracle::library);
+    assert(index_control_fallback_calls==19 && index_control_references==20 && index_control_native==30 && index_control_checked==20 && index_control_fallback==15);index_control_mode=0;
+    puts("Complete index control routing:five paths,both strict modes/depths,biased stack/manager,return-PC collisions,incoming continuation;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
     index_unpack_mode=1;buzz_geometry_job_index_unpack(native.get(),index_unpack_reference,index_unpack_oracle::buzz_job_6eba_spu_func_00007730,index_unpack_oracle::buzz_job_6eba_spu_func_000077F8);
     assert(index_unpack_references==12 && index_unpack_native==18 && index_unpack_checked==12 && index_unpack_fallback==8);index_unpack_mode=0;
     puts("Complete index unpack routing: low/high,zero/nonzero,ordered aliases,both strict modes,tail collisions;owner/foreign/off/image/null-tail/invalid/post-scope PASS");
