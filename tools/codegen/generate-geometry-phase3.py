@@ -78,6 +78,14 @@ def main():
             f"static void {command_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
             f"void {command_name}(spu_context* ctx) {{ buzz_geometry_job_{hook}(ctx, {command_name}_reference); }}",
             source, count=1)
+    run_name = "buzz_job_6eba_spu_func_00007118"
+    run_pattern = rf"(?ms)^void {run_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(run_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned run-list root")
+    source = re.sub(run_pattern, lambda m:
+        f"static void {run_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {run_name}(spu_context* ctx) {{ buzz_geometry_job_run_lists(ctx, {run_name}_reference, buzz_job_6eba_spu_func_00007298); }}",
+        source, count=1)
     for command_pc, reset in ((0x20, 1), (0x100, 0)):
         command_name = f"buzz_job_6eba_spu_func_{command_pc:08X}"
         pattern = rf"(?ms)^void {command_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
@@ -227,7 +235,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 16\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 17\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

@@ -12,6 +12,20 @@ ignored `analysis/native-geometry/` and must not be committed.
 
 ## Groundwork and strictness
 
+The `0x7118/7298` in-place run-list format is now independently checked for
+all 65,536 control encodings. Inputs are r3=aligned LS base, r4=encoded byte
+count and r5=expanded halfword count. Each BE16 control `c` emits
+`(c & 31) + 1` BE16 offsets, starting at `(c >> 5) * 16` and increasing by 16.
+Runs are stored in their encoded order; expansion proceeds backward so it
+can overwrite the encoded prefix safely. The native preflight checks that
+the sum of run lengths equals r5 and that source/output spans and constant
+tables are valid before any mutation. Encoded count zero returns without
+reading base/count-dependent LS. The original clears padding in the final
+output quad and performs five-quad masked writes plus speculative look-ahead;
+the native root preserves those bytes, wrapped reads and full final ABI.
+`BUZZ_GEOMETRY_JOB_RUN_LISTS=0/1/2` defaults off. Empty roots have separate
+counters and do not establish nonempty data-path coverage.
+
 The opt-in native `0xBF8` list/blend flow preserves two scratch-buffer command
 quads at new SP+32/+48, with selector/size/start/capacity words. Weights are
 GET into `0xDF00`, eight-byte list descriptors into `0xE100`; count<=128 keeps
@@ -26,7 +40,8 @@ The stream header's first four words define payload sections following its
 32-byte header; word at +16 controls attribute processing. Manager+0x78 is
 updated to payload+32 before calling `0x7118` then, when nonempty, `0x7DF8`.
 The native enclosing loop preserves complete child-call ABI/spills and final
-root state; the original `0x7118` decoder remains separate required work.
+root state. Its `0x7118/7298` run-list decoder has a separate native switch
+and the independently checked format described above.
 
 For new synchronous roots that issue I/O, phase 3 additionally provides
 `buzz_geometry_job_io_root_begin/end`. Under the JOB=2 native shadow, this

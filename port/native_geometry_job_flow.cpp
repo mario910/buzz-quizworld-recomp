@@ -20,6 +20,7 @@
 #include "native_geometry_snorm_stream.h"
 #include "native_geometry_blend_scatter.h"
 #include "native_geometry_blend_lists.h"
+#include "native_geometry_run_lists.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -665,6 +666,47 @@ extern "C" void buzz_geometry_job_blend_scatter(spu_context* ctx,buzz_geometry_j
         buzz_geometry_job_blend_scatter_checked_result();
     }
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_BLEND_SCATTER,1,0);
+}
+
+extern "C" void buzz_geometry_job_run_lists(spu_context* ctx,buzz_geometry_job_fn reference,buzz_geometry_job_fn tail)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_run_lists_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometryRunList plan;const char* reason=tail?nullptr:"null tail";
+    if(!tail || !buzz::read_geometry_run_list(*ctx,plan,&reason)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RUN_LISTS,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/run-lists] first fallback: %s\n",reason);
+        reference(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected_next=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_run_lists_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        if(g_spu_trampoline_fn==tail){
+            if(comparison->pc!=0x7298)buzz_geometry_job_native_fail(ctx,"run-list reference tail escaped");
+            g_spu_trampoline_fn=nullptr;tail(comparison);
+        }
+        expected_next=comparison->host_depth?nullptr:spu_indirect_branch;
+        if(comparison->pc!=comparison->gpr[0]._u32[0] || g_spu_trampoline_fn!=expected_next)
+            buzz_geometry_job_native_fail(ctx,"run-list reference root return differs");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::expand_geometry_run_list(*ctx,plan);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected_next;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/run-lists] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"run-list strict root state/return differs");
+        }
+        buzz_geometry_job_run_lists_checked_result(plan.bytes!=0);
+    }
+    buzz_geometry_job_run_lists_native_result(plan.bytes!=0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RUN_LISTS,1,0);
 }
 
 extern "C" void buzz_geometry_job_decode_descriptors(spu_context* ctx,buzz_geometry_job_fn reference,

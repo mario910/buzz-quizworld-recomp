@@ -12,7 +12,8 @@ has a complete native implementation with strict real-corpus/live coverage.
 The four cold typed families still have open real-data/live gates, and
 enclosing pipeline bodies keep phase 3 open.
 Additional-stream BF8 orchestration is also native opt-in with strict
-corpus/live checks; its compressed-list data dependency `0x7118` is original.
+corpus/live checks. Its `0x7118/7298` run-list data decoder now has a native
+opt-in implementation; its separate validation is recorded below.
 
 ## Driver boundary audit
 
@@ -1399,8 +1400,8 @@ The required phase-3 data inventory after this increment is:
 | `0x8EA8`, storage 7 U8 integer | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
 | `0x9058` / `0xC810/C830/C910`, storage 8 fixed point | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0xC750/C7A8`, remapped weighted scatter | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
-| `0x0BF8`, list/blend stage | Native opt-in reverse selection, double-buffered DMA and caller restoration; corpus/live/render checks pass; explicit library data calls | Final performance/default decision; original `0x7118` data dependency below |
-| `0x7118`, compressed-list decoder called by `0x0BF8` | Original data implementation | Native decoder and strict coverage; an enclosing native caller will not close this dependency |
+| `0x0BF8`, list/blend stage | Native opt-in reverse selection, double-buffered DMA and caller restoration; corpus/live/render checks pass; explicit library data calls | Final performance/default decision; run-list data kernel validation below |
+| `0x7118/7298`, compressed run-list decoder called by `0x0BF8` | Complete native opt-in backward expansion; strict synthetic/corpus/live and native rendering checks pass | Final performance/default decision |
 | `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
 | `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
@@ -2005,7 +2006,8 @@ on the native path. All 128-bit ABI lanes and stack spills remain observable
 and exact, including at calls to the four explicit library data operations:
 `0x7118` compressed lists, `0x7DF8` typed attributes, `0x2780` normal pointer
 and `0x2C00` normalization. Their own native/original implementations and
-switches remain separate. In particular, `0x7118` is still original data work.
+switches remain separate. At this BF8 milestone, `0x7118` was original data
+work; the subsequent run-list implementation is described below.
 
 `BUZZ_GEOMETRY_JOB_BLEND_LISTS=0/1` selects original/native, default **0**.
 Ownership remains scoped to the native image-41 pipeline; original reference,
@@ -2114,6 +2116,117 @@ save and archived evidence hashes are bound by private
 `phase3/blend-lists-v1-build.json`.
 
 These are correctness/render observations, not matched FPS or CPU results.
-The original `0x7118` data dependency, four cold typed-family gates, remaining
-enclosing bodies and final interpreter/performance/default decisions keep
-phase 3 open. BLEND_LISTS and the whole-job driver remain default-off.
+The subsequent run-list section addresses the `0x7118` data dependency.
+Four cold typed-family gates, remaining enclosing bodies and final
+interpreter/performance/default decisions still keep phase 3 open.
+BLEND_LISTS and the whole-job driver remain default-off.
+
+## Complete native run-list decoder 7118/7298 (2026-10-31)
+
+`port/native_geometry_run_lists.h` implements the complete in-place data
+decoder called once per selected BF8 stream. A BE16 control contains an
+11-bit starting index and a five-bit run length minus one; it expands to
+successive BE16 offsets multiplied by 16. Native preflight verifies source
+and output ranges, the total expanded count and the original constant tables
+before mutation. Count zero preserves the original early-return contract,
+including arbitrary unused base/count arguments.
+
+The host walks the captured controls backward and writes the output ramps
+directly. The final two pipeline steps reconstruct every observable ABI
+vector, load and masked store, preserving original in-place aliases, initial
+tail padding and wrapped speculative reads. All upper GPR lanes retain their
+entry dependencies; neither the native body nor its final steps dispatches
+lifted `0x7118/7298` blocks. The lexical fallthrough to `0x7390` after the
+unconditional SPU_RET is unreachable and is excluded from the oracle's
+dependency closure.
+
+`BUZZ_GEOMETRY_JOB_RUN_LISTS=0/1/2` selects original/native/strict root,
+default **0**. Mode 2 also checks a native JOB=1 invocation without requiring
+whole-job shadow I/O because this root performs no DMA or channel operations.
+JOB=2 automatically checks it from the same full input. All GPRs, all LS,
+architectural controls, return PC/FN, image/depth/policy/overlay must match;
+there is no new exception. Return-tail identity and an early return whose
+link equals `0x7298` are both handled. Owner/foreign/original/off routing is
+retained, and unsupported inputs fall back before writes. Adapter protocol
+**17** and stage counter 22 route this additional kernel independently of BF8.
+
+Separate counters report native/strict **nonempty expansions** and **empty
+returns**. A successful empty root does not validate the data path.
+
+Validation:
+
+```powershell
+.\tests\scripts\test-geometry-run-lists.ps1
+.\tests\scripts\test-geometry-job-runtime.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+```
+
+PASS: **10,774 strict root and independent numeric cases**, including every
+one of the **65,536 control encodings**, mixed run lengths, single/two-run
+tails, lists up to 4,096 controls, full GPR entropy, both host depths,
+return-link/tail collision, zero early returns with invalid unused arguments,
+and speculative reads wrapping at the end of LS. **17 unchanged-state/no-I/O
+rejects** cover ranges/counts, all nine table rows, the shuffle mask and a
+foreign LS. The pinned private oracle contains two complete original blocks
+with no reachable external callees.
+
+Driver tests cover owner/off/foreign/null-tail/unsupported/post-scope routing,
+strict JOB=2/RUN_LISTS=1 and JOB=1/RUN_LISTS=2, and separate empty/nonempty
+accounting, alongside 1,024 existing pipeline models and all 19,508 real
+entries. The 43 controller scenarios and **168 production-getter cases** pass.
+The configuration test script now returns success after deliberate rejection
+tests instead of retaining their final expected nonzero process exit code.
+
+Frozen `build-vulkan-phase3-run-lists-v1`:
+EXE SHA-256 `88acbc3924ccedd808d7a3fdc08a4a6d60a7bef8a99a0c04f33c09e9046a144a`;
+map SHA-256 `d21c5c501855ecd938ee70c79174f20c6deb6bd91f7478a6da30787943049b13`.
+Private generated source: `phase3/frozen-run-lists-v1-source.c`.
+
+All five corpus configurations pass **19,508 exact jobs / 58,195 transfers**,
+zero changed-input jobs and zero failures, with Stage F=2, mask 827 and no
+replay-contract override:
+
+| Configuration | JOB | Other new flags | RUN_LISTS | Native expansions / empty / fallback | Strict expansions / empty |
+|---|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline | 0 / 0 |
+| Independent | 2 | 0 | 1 | 895 / 303 / 0 | 895 / 303 |
+| Combined native | 1 | 1 | 1 | 895 / 303 / 0 | 0 / 0 |
+| Combined checked | 2 | 1 | 1 | 895 / 303 / 0 | 895 / 303 |
+| Kernel checked | 1 | 1 | 2 | 895 / 303 / 0 | 895 / 303 |
+
+Both JOB=2 configurations also pass 19,508 complete outer-job/I/O comparisons.
+BF8 remains native for all 328 roots in combined configurations, without
+fallback; previous codec coverage is unchanged. The four cold typed families
+remain zero-call real-data paths with their gates explicitly open.
+
+Native/live/render checks use that same frozen EXE, fresh private saves,
+all earlier new stage flags=1, GEOMETRY=1, Stage F=1 and leaf mask 827:
+
+- JOB=1/RUN_LISTS=1 menu, 75 seconds: 2,284 CSV frames through 74,836.890 ms;
+  inspected native readback shows the normal menu, studio, crowd and UI.
+- JOB=1/RUN_LISTS=1 round, 60 seconds after `round_start_s=136.6`: 6,048
+  CSV frames through 196,312.309 ms. Logged native counters reach at least
+  **540,000 nonempty expansions** and **245,000 empty returns**. The readback
+  shows an actual round question, answers, timer, host/player and green stage.
+
+- JOB=1/RUN_LISTS=2 strict round, 90 seconds after `round_start_s=147.1`:
+  6,254 CSV frames through 236,645.880 ms. It records at least **580,000
+  strict nonempty expansions** and **260,000 strict empty returns**, without
+  differences. The final inspected native readback shows an actual question,
+  answers/timer, host and animated player on the round stage. Empty calls
+  are reported separately and do not count toward the 256-call data gate.
+
+All runs completed. No compilation, CPU tests or profiling overlap these
+functional checks. The original save (`54f28fdc...`) and canonical private
+template (`92ed9caf...`) hashes are unchanged. Private CSV/stderr pairs use
+`analysis/vk-scene-p3-run-lists-v1-{menu,round,kernel-checked-round}.*`, and
+renderer PPM/PNG readbacks use the corresponding tags under `phase3`.
+Private `phase3/run-lists-v1-build.json` binds source/test/document hashes,
+the frozen EXE/map/generated C, original save pins and archived evidence.
+
+These are correctness/render observations, not matched FPS or CPU-cycle
+results. RUN_LISTS and JOB remain default-off pending final performance/
+default work. Required built-in raw formats 1..5, remaining enclosing stage
+bodies, the four cold typed-family live gates, interpreter counts and
+reversed same-EXE FPS/normalized worker/process CPU measurements keep
+phase 3 unfinished. Strict Stage F cleanup remains final phase 7.

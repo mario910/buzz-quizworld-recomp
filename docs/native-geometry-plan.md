@@ -431,8 +431,20 @@ zero fallback. Strict live checks pass at least 40,000 BF8 roots, with normal
 native menu/round readbacks; the first fixed-timing checked diagnostic stopped
 at a profile prompt and is not counted as round coverage. The successful
 retry and final performance/default gates are tracked in the separate results
-document. Its original `0x7118` decoder remains a separate data dependency;
-native enclosing control does not close it. No FPS/CPU benefit is claimed.
+document. Its `0x7118` decoder is separately implemented and validated below;
+native enclosing control alone does not establish native data coverage.
+No FPS/CPU benefit is claimed.
+
+The complete `0x7118/7298` run-list decoder now uses backward host expansion
+and exact final pipeline ABI, with an independent default-off
+`BUZZ_GEOMETRY_JOB_RUN_LISTS=0/1/2`. Tests pass 10,774 strict/numeric cases,
+including all 65,536 control encodings, plus 17 unchanged-state/no-I/O rejects.
+Five frozen corpus configurations each pass 19,508 exact jobs / 58,195
+transfers. Enabled paths have 1,198 native roots without fallback: 895
+nonempty expansions and 303 empty returns, counted separately. The strict
+live data gate passes at least 580,000 nonempty expansions (plus 260,000
+empty calls), with normal native menu/round readbacks. Final performance/
+default gates remain open; full evidence is in the phase-3 results.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -645,6 +657,8 @@ See the separate
 | 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own0/1/2 default0;152configuration cases;phase3open |
 
 | 2026-10-31 | Phase 3 native BF8 additional-stream orchestration | Strict synthetic, four frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 2,672 strict +15 rejects;328 native roots/0fallback per enabled corpus arm;each19,508exact/58,195transfers;>=40,000 strict BF8 live roots;160 configuration cases;own0/1 default0;7118data dependency and final performance gates open |
+
+| 2026-10-31 | Phase 3 complete 7118/7298 run-list decoder | Strict/numeric tests, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 10,774 strict/numeric cases inclall65,536encodings +17rejects;1,198native/0fallback =895expanded+303empty;each19,508exact/58,195transfers;>=580,000strict nonemptylive+260,000empty;168configcases;own0/1/2 default0;phase3open |
 
 ## Risks
 
