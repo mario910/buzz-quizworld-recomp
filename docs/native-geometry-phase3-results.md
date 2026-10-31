@@ -161,6 +161,37 @@ entry. It does not start after the last staged input. Invalid command-prefix
 ranges are rejected. These host helpers are not wired as a native whole-job
 path yet and provide no native-driver coverage or performance claim.
 
+## Semantic native context initialization
+
+`port/native_geometry_context.h` initializes configuration, table pointers,
+allocator bounds, DMA tags, counts, optional viewport/object data and custom
+descriptor words using host values and direct memory operations. It retains
+the host configuration/table view for later pipeline stages and preserves
+every unnamed LS byte. Invalid, wrapping, unaligned or context-aliasing source
+ranges are rejected before any mutation or publication of host state.
+
+```powershell
+.\tests\scripts\test-geometry-context.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+```
+
+PASS: **19,508 original driver preambles and initializer calls** produce the
+same entire 256 KiB LS; **1,024 randomized synthetic initializer cases** cover
+all 1..16 table counts, zero/boundary/maximum vertex counts and all optional
+viewport/object/custom combinations; **13 rejection cases** preserve the
+complete context and output object. The oracle is source-pinned and executes
+the original preamble up to the `0x2F80` call, so actual arguments and custom
+stack data come from the lift independently of the native model. None of the
+real preambles issues the optional `0x24F0` metadata GET. Private log:
+`analysis/native-geometry/phase3/context-test.log`.
+
+This is an internal native-driver operation, not a callable replacement for
+the original `0x2F80` SPU ABI. It leaves GPRs and controls unchanged; a future
+native driver must supply its callees' inputs and reproduce the strict full
+job exit/IO state. No temporary-register exception has been added. The helper
+is not wired into live execution yet. Table pointers are initialized even
+when their implied payload would exceed scratch, as in the original setup;
+whole-pipeline eligibility must prove payload capacity before decoding.
+
 ## Remaining phase-3 gates
 
 - Add the independent off/native/checked job switch and an eligibility check

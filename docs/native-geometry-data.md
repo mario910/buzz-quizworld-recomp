@@ -366,6 +366,15 @@ The float4-table allocation count is `(config[0] & 15) + 1`; each table has
 stride `align_up(vertexCount, 8) * 16`, including zero-sized tables when the
 vertex count is zero.
 
+Initialization copies 128 viewport bytes to `+0xD0..+0x14F` and 48 object
+bytes to `+0xA0..+0xCF` when supplied. The custom-state pointer supplies words
+0/4/8/16/20/24/28/32/36 for context `+0x6C/70/74/7C/80/84/88/8C/90`;
+`+0x78` is zero, and unused `+0x94..+0x9F` bytes retain their previous values.
+The null-custom case zeroes those selected fields, not the whole region.
+Only the first halfword of mutable counts at `+0x180` is set to index count;
+its remaining 14 bytes are preserved. Full-LS comparisons against original
+`0x2F80..0x3268` cover these boundaries and optional copies.
+
 For the first menu sample, SPURS scratch starts at `0x11000`, float4 tables
 are `0x11000`, `0x12980`, `0x14300` (408 vertices each), and geometry context
 is `0x18460`. Compressed indices start at `0xE8F0`; their decoded triangle
