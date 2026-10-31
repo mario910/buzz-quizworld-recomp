@@ -21,7 +21,8 @@ static unsigned scenario;
 static const char* current_case = "synthetic";
 static bool emit_enabled = false, full_enabled = false;
 static bool attributes_enabled = false;
-static bool codecs_enabled = false;
+static bool codecs_enabled = false,unit_vectors_enabled=false;
+static unsigned unit_references=0,unit_native=0,unit_fallback=0,unit_checked=0;
 static unsigned color_references = 0, color_native = 0, color_fallback = 0;
 static int flow_mode = 1;
 static unsigned color_region_checked = 0;
@@ -64,6 +65,8 @@ int buzz_geometry_job_commands_enabled() { return commands_enabled; }
 int buzz_geometry_job_full_commands_enabled() { return full_enabled; }
 int buzz_geometry_job_attributes_enabled() { return attributes_enabled; }
 int buzz_geometry_job_codecs_enabled() { return codecs_enabled; }
+int buzz_geometry_job_unit_vectors_enabled(){return unit_vectors_enabled;}
+void buzz_geometry_job_unit_vectors_checked_result(){++unit_checked;}
 int buzz_geometry_job_descriptors_enabled() { return descriptors_enabled; }
 void buzz_geometry_job_descriptor_checked_result() { abort(); }
 void buzz_geometry_job_descriptor_dispatched(unsigned) { abort(); }
@@ -72,6 +75,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_UNIT_VECTORS){assert(routing_probe);if(native)++unit_native;else ++unit_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_DESCRIPTORS){
         assert(routing_probe);if(native)++descriptor_native;else ++descriptor_fallback;return;
     }
@@ -163,10 +167,27 @@ static void emit_reference(spu_context* ctx) { ++emit_references; ctx->pc = ctx-
 static void attribute_reference(spu_context* ctx) { ++attribute_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_reference(spu_context* ctx) { ++color_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_zero_reference(spu_context* ctx) { ctx->pc = 0x83c8; g_spu_trampoline_fn = color_reference; }
+static void unit_reference(spu_context* ctx){++unit_references;ctx->pc=ctx->gpr[0]._u32[0];}
+static void unit_zero_reference(spu_context* ctx){ctx->pc=0x83c8;g_spu_trampoline_fn=unit_reference;}
 static void descriptor_reference(spu_context* ctx){++descriptor_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void attribute_routing(spu_context* ctx)
 {
     auto backup = std::make_unique<spu_context>(); memcpy(backup.get(), ctx, sizeof(*ctx));
+    unit_vectors_enabled=true;ctx->gpr[121]._u32[0]=0;
+    buzz_geometry_job_decode_unit_vectors(ctx,unit_reference,unit_reference);
+    assert(unit_native==1 && !unit_references && ctx->pc==0x83c8 && g_spu_trampoline_fn==unit_reference);
+    g_spu_trampoline_fn=nullptr;flow_mode=2;
+    buzz_geometry_job_decode_unit_vectors(ctx,unit_zero_reference,unit_reference);
+    assert(unit_checked==1 && unit_native==2 && g_spu_trampoline_fn==unit_reference);
+    g_spu_trampoline_fn=nullptr;flow_mode=1;
+    buzz_geometry_job_decode_unit_vectors(ctx,unit_reference,nullptr);
+    unit_vectors_enabled=false;buzz_geometry_job_decode_unit_vectors(ctx,unit_reference,unit_reference);unit_vectors_enabled=true;
+    auto unit_foreign=std::make_unique<spu_context>();memcpy(unit_foreign.get(),ctx,sizeof(*ctx));unit_foreign->ls=unit_foreign->ls_store;
+    buzz_geometry_job_decode_unit_vectors(unit_foreign.get(),unit_reference,unit_reference);
+    ctx->gpr[121]._u32[0]=1;ctx->gpr[107]._u32[0]=17;
+    buzz_geometry_job_decode_unit_vectors(ctx,unit_reference,unit_reference);
+    assert(unit_references==4 && unit_fallback==2 && unit_native==2);
+    memcpy(ctx,backup.get(),sizeof(*ctx));
     descriptors_enabled=true;ctx->gpr[7]._u32[0]=0;
     buzz_geometry_descriptor_functions descriptor_functions{};
     for(auto& fn:descriptor_functions.codec)fn=descriptor_reference;
@@ -381,6 +402,8 @@ int main(int argc, char** argv)
     codecs_enabled = false;
     buzz_geometry_job_decode_descriptors(native.get(),descriptor_reference,nullptr);
     assert(descriptor_references==6 && descriptor_native==1 && descriptor_fallback==3);descriptors_enabled=false;
+    buzz_geometry_job_decode_unit_vectors(native.get(),unit_reference,unit_reference);
+    assert(unit_references==5 && unit_native==2 && unit_fallback==2 && unit_checked==1);unit_vectors_enabled=false;
     attributes_enabled = false;
     puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;

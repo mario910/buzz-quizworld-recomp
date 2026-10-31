@@ -1,6 +1,7 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_descriptors.h"
 #include "../port/native_geometry_color.h"
+#include "../port/native_geometry_unit_vectors.h"
 #include "../port/native_function_check.h"
 #include <cassert>
 #include <cstdio>
@@ -71,6 +72,11 @@ static void native_color(spu_context* ctx)
     GeometryColorStream p;assert(read_geometry_color(*ctx,p));decode_geometry_color(*ctx,p);
     ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
 }
+static void native_unit_vectors(spu_context* ctx)
+{
+    GeometryUnitStream p;const char* reason=nullptr;if(!read_geometry_unit_vectors(*ctx,p,&reason)){fprintf(stderr,"descriptor unit preflight trial%u: %s\n",current_trial,reason);abort();}
+    decode_geometry_unit_vectors(*ctx,p);ctx->pc=0x83c8;g_spu_trampoline_fn=buzz_job_6eba_spu_func_000083C8;
+}
 static void compare(spu_context& native,spu_context& reference,unsigned trial)
 {
     current_trial=trial;
@@ -80,7 +86,7 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial)
     buzz_geometry_descriptor_functions functions{{buzz_job_6eba_spu_func_000085E8,buzz_job_6eba_spu_func_000087CC,
         buzz_job_6eba_spu_func_00008378,trial&256?native_color:buzz_job_6eba_spu_func_000089B0,
         buzz_job_6eba_spu_func_00008B94,buzz_job_6eba_spu_func_00008D34,buzz_job_6eba_spu_func_00008EA8,
-        buzz_job_6eba_spu_func_00009058,buzz_job_6eba_spu_func_00009114},buzz_job_6eba_spu_func_0000C750,buzz_job_6eba_spu_func_000083C8};
+        buzz_job_6eba_spu_func_00009058,trial&512?native_unit_vectors:buzz_job_6eba_spu_func_00009114},buzz_job_6eba_spu_func_0000C750,buzz_job_6eba_spu_func_000083C8};
     decode_geometry_descriptor_stream(native,p,functions);native.pc=native.gpr[0]._u32[0];
     const auto diff=compare_function_state(native,reference);
     if(!diff.exact()){

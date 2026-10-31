@@ -1329,3 +1329,124 @@ a new default.
 
 The active phase-3 goal remains unfinished. Subsequent native phases continue
 under the user's standing authorization once these requirements are met.
+
+## Complete storage-9 unit-vector data decoder (2026-10-31)
+
+`port/native_geometry_unit_vectors.h` replaces the entire `0x9114` entry,
+`0x9148` setup and `0x92A0` pipeline on supported streams. Host column/batch
+loops decode packed coordinates with eight-lane AVX2 SPU RTZ arithmetic.
+The final two groups reproduce the complete pipeline state with native math
+and memory operations; the old lifted last-column callback is absent. This
+completes actual storage-9 data work beyond the earlier phase-2 inner leaf
+and the native descriptor controller. Half, float32, fixed-point and the
+remaining typed handlers and weighted scatter remain required work.
+
+The independent `BUZZ_GEOMETRY_JOB_UNIT_VECTORS=0/1` switch defaults to 0.
+It routes only the current native pipeline owner; JOB=0, disabled,
+foreign/reference clones, null continuation and unsupported inputs retain
+the lifted entry before writes. Existing `BUZZ_GEOMETRY_JOB_CODECS=1` still
+means U8 color only. The phase-3 generator/CMake routing protocol is 10;
+the fourteen outer-driver callees and all previous switches are unchanged.
+New stage 12 reports unit-vector native/fallback coverage separately.
+
+JOB=2 compares all 128 GPRs, all 256 KiB LS, architectural controls, exact
+0x83C8 continuation, host depth and image identity immediately at the codec
+exit, in addition to the enclosing strict whole-job/I/O comparison. No new
+exception or replay-contract override is introduced. The narrowly accepted
+Stage F baseline contract remains temporary until final phase 7.
+
+A pinned three-block original oracle and private RO fixture validate 8,256
+strict cases: 4,096 column/stride/bias/count/sentinel variants, 64 zero-count
+entries with unused invalid pointers, 3,072 coordinate/selector combinations
+and 1,024 arbitrary reserved-selector padded tails. Twenty-three rejected
+inputs leave state unchanged and perform no I/O. The descriptor's 4,192-case
+all-family matrix now mixes original and complete-native unit-vector callees
+as well as native color; 28 unchanged-state rejects pass. Owner/off/foreign/
+null/unsupported/post-scope routing, 1,024 driver models and all 19,508 real
+entries pass; the 43 controller scenarios remain passing.
+
+The first diagnostic replay was state-exact but exposed a coverage guard
+that incorrectly demanded active-vector selectors in unused padded reads.
+The final native ABI handles their actual table outcomes. The second probe
+passes all 19,508 jobs / 58,195 transfers with 12,067 native unit-vector
+regions, zero fallback, 12,067 strict region comparisons and 19,508 strict
+whole-job/I/O comparisons. Final frozen replay/live evidence follows below;
+these diagnostic timings are not performance measurements.
+
+The required phase-3 data inventory after this increment is:
+
+| Region | Native status | Remaining work |
+|---|---|---|
+| `0x93F0`, storage 0 raw float3 | Complete, opt-in | Final aggregate performance/default gates |
+| `0x89B0..8B90`, storage 4 U8 color | Complete, opt-in | Final aggregate performance/default gates |
+| `0x9114/9148/92A0`, storage 9 unit vectors | Complete data implementation, opt-in | Final aggregate performance/default gates |
+| `0x85E8`, storage 1 SNORM16 | Original typed handler | Complete native data path and validation |
+| `0x87CC`, storage 2 float32 | Original typed handler | Complete native data path and validation |
+| `0x8378` / `0xCAC0` family, storage 3 half | Inner leaf validated; enclosing handler original | Complete native data path and validation |
+| `0x8B94`, storage 5 I16 | Original typed handler | Complete native data path and validation |
+| `0x8D34`, storage 6 CMP | Original typed handler | Complete native data path and validation |
+| `0x8EA8`, storage 7 U8 integer | Original typed handler | Complete native data path and validation |
+| `0x9058` / `0xC810`, storage 8 fixed point | Original typed handler | Complete native data path and validation |
+| `0xC750`, remapped weighted scatter | Original data kernel | Native blend math/scatter and validation |
+| `0x0BF8`, list/blend stage | Original enclosing stage | Native enclosing flow and validation |
+| `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
+| `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
+| `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
+| `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
+| `0x54E8`, vertex conversion | Validated inner leaves; enclosing stage original | Complete native conversion stage and validation |
+
+Native control and native inner leaves are distinct from complete native data
+handlers in this inventory. None of the remaining rows is considered done
+because its caller or a callee is already native. Original fallback remains
+available for unsupported paths, and every new implementation keeps its own
+switch and strict checks. Phase 3 remains open until the required path and
+final interpreted-count, reversed FPS/frame-time and normalized worker/
+process CPU-cycle/time gates are satisfied.
+
+### Frozen complete-unit-vector replay and live evidence
+
+`phase3/unit-vectors-build.json` binds the unchanged native sources, tests,
+private constant fixture policy, saves and frozen
+`build-vulkan-phase3-unit-vectors` EXE SHA256
+`41f595d9820ce3878b18c14295e93c43c742005cc4cf2a04fce0ce84c4ab4cb1`;
+map SHA256 `74f9d3e72c081e66f31f2075413268593dd9521a883ca4fc5846c9c885048d50`.
+`phase3/frozen-unit-vectors-source.c` preserves the generated adapter.
+
+All four `unit-vectors-corpus-{off,independent,native,checked}.log` arms pass
+**19,508 exact jobs / 58,195 transfers**, zero concurrent input changes and
+zero failures. Leaf mask 827 and Stage F mode 2 preserve the accepted narrow
+baseline contract without a replay override. The independent arm uses JOB=2
+and UNIT_VECTORS=1 with all older stage switches off; combined JOB=1/JOB=2
+arms enable all stage switches. Every native arm covers **12,067 complete
+unit-vector regions with zero fallback**. Both JOB=2 arms check all 12,067
+region exits and all 19,508 whole-job/I/O transcripts. Combined descriptor
+coverage stays 12,309/0 fallback, with 109/0 native U8 regions; prior command
+and publication counts remain unchanged. The off arm confirms that UNIT=1
+cannot route a context outside the native owner scope.
+
+The same frozen EXE then runs Stage F=1 / GEOMETRY=1 / all stage switches=1
+against fresh private save copies, muted in the background with the native
+buzzer mailbox. There is no concurrent compilation, CPU test or profiling.
+`p3-unit-vectors-checked` runs for 105 seconds and logs at least **350,000
+strict unit-region comparisons**, 355,000 descriptor-function comparisons,
+525,000 strict whole-job/I/O comparisons and at least 256 strict U8 checks.
+Actual-native menu runs for 75 seconds and round for 30 seconds after a
+136.5-second navigation/load. All three live arms exceed 256 native unit
+calls, with no unit fallback, mismatch, halt or early exit.
+
+Renderer frame 2,500 of the menu and frame 6,500 of the round are saved as
+`phase3/p3-unit-vectors-{menu,round}.ppm/.png` and visually inspected: normal
+menu cards, studio monitors/control desk, host geometry, green instruction
+screen and lighting. Live CSV evidence is respectively 2139,
+3141 and 7586 frames, ending at
+104425.173, 74880.561 and
+166218.486 ms. It establishes duration and scene
+coverage, not a matched FPS/CPU benefit. Original and canonical template save
+hashes remain unchanged; the verifier checks code/EXE/map/source/save/proof
+bindings again after the commit.
+
+The unit-vector switch remains default-off. Same-frozen reversed menu/round
+A/B, interpreted-SPU counts and normalized worker/process CPU-cycle/time
+measurements remain final phase-3 gates after the required data inventory is
+implemented. A repeatable reduction in CPU cost can justify default-on even
+with flat FPS; raw CPU percentage and diagnostic replay timing cannot.

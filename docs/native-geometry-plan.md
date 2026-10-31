@@ -334,6 +334,23 @@ Native control does not close their inventory or phase 3. Corpus/live/render
 evidence and the runtime dispatch counts are recorded in the phase-3 results
 and data-map documents. New defaults and FPS/CPU claims remain gated.
 
+The complete storage-9 unit-vector handler (`0x9114/9148/92A0`) now has
+native data decoding behind the independent
+`BUZZ_GEOMETRY_JOB_UNIT_VECTORS=0/1` switch (default 0). Host AVX2 batches and
+the last two native pipeline iterations preserve every register, speculative
+read and sentinel-store byte, without the old lifted final-column callback.
+Tests pass 8,256 strict cases and 23 unchanged-state rejects; the all-family
+descriptor matrix additionally exercises original/native unit callees.
+All four frozen corpus arms pass 19,508 jobs / 58,195 transfers; the native
+arms cover all 12,067 unit regions with zero fallback and JOB=2 checks every
+region plus the whole job/I/O stream. This completes storage-9 data beyond
+the earlier phase-2 leaf. The existing leaf default mask stays 827/0x33B;
+remaining typed handlers, weighted scatter and other pipeline bodies remain
+open. Live checking passes at least 350,000 strict unit-region and 525,000
+whole-job/I/O comparisons; actual-native menu/round images look normal.
+Evidence is in the phase-3 results document; final performance/default
+decisions remain gated.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -534,6 +551,7 @@ See the separate
 | 2026-10-31 | Packed-output CPU cost | Menu 40-98 s | n/a | n/a | Same series; pool cycles/frame -0.25% (pairs -0.09%, -0.40%), process cycles -0.24% (pairs -0.36%, -0.12%); CPU-time pairs mixed; on for repeated cycle/round benefit |
 | 2026-10-31 | Index CPU cost | Menu 40-98 s | n/a | n/a | Same series; pool/process cycles +0.11%/+0.17%, pool/process CPU time +0.12%/+0.34%; CPU time higher in both pairs; off |
 | 2026-10-31 | Final phase 2 default 827 / 0x33B | Full corpus, live, menu and round | no aggregate FPS claim; isolated results above | native menu/round frames normal | Seven groups on, four opt-in; checked/native replay 19,508 exact each, 58,195 transfers, zero failures; >=256 live strict matches per selected group without mask override; phase 2 complete |
+| 2026-10-31 | Phase 3 complete unit-vector decoder 9114/9148/92A0 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/round frames | 8,256 strict unit cases +23 rejects; 12,067 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=350,000 strict unit +525,000 whole-job/I/O; own switch default0, leaf827 unchanged; phase3 remains open |
 
 ## Risks
 

@@ -392,6 +392,32 @@ is an explanatory approximation, not a bit-exact replacement. Four decoded
 sample vectors were checked at paired `0x9148` entry / `0x92A0` exit snapshots;
 their source offsets and float4 destinations agree with this bit layout.
 
+The complete storage-9 region (`0x9114/9148/92A0`) now has a native
+implementation in `port/native_geometry_unit_vectors.h`, independently
+controlled by `BUZZ_GEOMETRY_JOB_UNIT_VECTORS=0/1` (default 0). Host loops
+process columns and batches of eight decoded vectors. The final two groups
+materialize the pipeline ABI with native SPU math and loads/stores; no
+original setup or final-column callback is used on the supported path.
+
+Logical output cursors may be biased within an aligned quad. Compare them
+against the signed preferred limit before applying physical STQD alignment;
+out-of-range rows write the context's sentinel in the original row order.
+The last group is one past the preferred limit, and its final iteration
+reads two further input groups. Those padded bytes may contain reserved
+selectors. They are not active unit vectors: native ABI reconstruction uses
+the actual sixteen selector-table outcomes for these final reads, retaining
+every speculative register and scratch-store byte. Only the bulk batches
+require selectors 0..11. Five setup-only registers (2,23,46,47,48) retain the
+first group's values even when the final group contains different data.
+
+Preflight validates the complete source/lookahead range, math/gather and
+selector tables, output/sentinel physical extents, per-lane steps and
+immutable stack metadata before any mutation. The designated stack sentinel
+at SP+0x20 is allowed; other stack metadata aliases retain the lift. Zero
+vertices preserve the original immediate continuation without inspecting
+unused pointers. JOB=2 additionally compares the complete region at 0x83C8,
+before common descriptor code can overwrite volatile state.
+
 ### Skinning
 
 Flavor 1 uses 8 bytes per vertex:
