@@ -4,7 +4,7 @@ Status: **in progress**, 2026-10-31. Phase 2 ended at `ef906be`, with default
 geometry mask 827 (`0x33B`). The continuing objective in
 [native-geometry-plan.md](native-geometry-plan.md) authorizes advancing through
 subsequent phases after their gates, with strict Stage F reconstruction last.
-This report does not claim that the native whole-job driver exists yet.
+The driver is partially native; the complete native pipeline remains open.
 
 ## Driver boundary audit
 
@@ -158,8 +158,8 @@ Two driver details are now explicit: `0x2F80/0x30E8` allocates
 `(config[0] & 15) + 1` float4 tables, and the reusable input workspace starts
 at `io_lsa + input[0].size_flags`, using the whole first word of the command
 entry. It does not start after the last staged input. Invalid command-prefix
-ranges are rejected. These host helpers are not wired as a native whole-job
-path yet and provide no native-driver coverage or performance claim.
+ranges are rejected. The reader now feeds the experimental native setup path
+described below; this does not complete the native pipeline.
 
 ## Semantic native context initialization
 
@@ -188,8 +188,8 @@ This is an internal native-driver operation, not a callable replacement for
 the original `0x2F80` SPU ABI. It leaves GPRs and controls unchanged; a future
 native driver must supply its callees' inputs and reproduce the strict full
 job exit/IO state. No temporary-register exception has been added. The helper
-is not wired into live execution yet. Table pointers are initialized even
-when their implied payload would exceed scratch, as in the original setup;
+is now selected inside the experimental setup path. Table pointers are
+initialized even when their implied payload would exceed scratch, as in the original setup;
 whole-pipeline eligibility must prove payload capacity before decoding.
 
 ## Native driver preamble
@@ -207,25 +207,129 @@ must be decided before selecting the whole native driver.
 The same `test-geometry-context.ps1 -Corpus ...` command now compares the
 native preamble's **entire LS** with the original driver's pre-initializer
 state, then compares native context initialization. All **19,508 real jobs**
-pass both comparisons. An additional **128 synthetic preambles** cover all
-combinations of the six relevant flag bits and present/empty stream-B input,
+pass both comparisons. An additional **512 synthetic preambles** cover all
+combinations of the six relevant flag bits, present/empty stream-B input and
+command-header pipeline selections (absent, 2304, 2305 and unknown),
 with randomized initial LS, padding and GPR words. **Seven additional rejected
 preambles** leave the entire context and host result unchanged. The prior
 1,024 initializer cases and 13 context rejection cases still pass.
 
-The preamble preserves GPRs/controls and supplies host state; it does not yet
-materialize the register arguments and saved internal values needed by the
-remaining SPU-ABI callees. Neither helper is selected by the runtime driver.
-Next work is that native orchestration/call boundary, followed by strict
-whole-job comparison. Existing adapter evidence and default mask 827 remain
-unchanged; this increment is not whole-job native coverage or a speed claim.
+`port/native_geometry_job_call.h` materializes the first call's complete
+argument vectors, stack/link and nonvolatile GPRs 80..109, preserving 126.
+Those vectors match the independent original preamble on the full corpus and
+all 512 cases; the helper changes no LS, controls or unrelated GPRs. The native
+initializer omits internal dead temporary GPR computation. Its caller must
+still pass the complete strict whole-job check, without any field waiver.
+
+## Experimental native setup in the real driver
+
+`BUZZ_GEOMETRY_JOB` is independent of the leaf-kernel switches:
+
+| Value | Execution |
+|---|---|
+| 0 (default) | Retain the original driver; optional `BUZZ_GEOMETRY_JOB_AUDIT=1` still audits reference versus reference |
+| 1 | Native C++ preamble, call-register boundary and context initialization; join the retained pipeline at `0x2088` |
+| 2 | Run the original job once with real I/O, replay the same inputs into the native setup flow, and compare strict whole-job exit and I/O; retain original state |
+
+Mode 2 checks every eligible job, without the reference-audit attempt cap.
+The diagnostic AUDIT option and nonzero JOB mode are mutually exclusive.
+An unavailable native adapter rejects a nonzero mode. Entry eligibility is
+checked on the original context before any mutation or clone; unsupported
+metadata-GET/STOP/source families retain the complete original flow. Unknown
+shadow steps and every supported comparison mismatch abort, never fall back
+or satisfy coverage. Unrecordable reference input changes do not count as
+successful native comparisons.
+
+The controller passes **43 scenarios**: 20 reference-audit
+scenarios, 21 native checked scenarios (including unsupported original entry,
+external LS, asynchronous/unstable inputs and deliberately wrong shadows),
+actual-native dispatch and disabled dispatch. Tests establish distinct
+reference/native callback selection, exactly one real guest output and
+nonzero-check accounting. Command:
+`tests/scripts/test-geometry-job-runtime.ps1`.
+
+On frozen `build-vulkan-phase3-setup-snapshot`, all three modes pass the complete corpus:
+
+| Driver / leaf configuration | Result |
+|---|---|
+| JOB=0, GEOMETRY=1, STAGEF=2 | 19,508 exact jobs / 58,195 transfers; retained driver, zero input divergence/failures |
+| JOB=2, GEOMETRY=2, STAGEF=2 | 19,508 exact jobs / 58,195 transfers; 19,508 strict setup-flow checks, zero fallback/differences/input divergence/failures |
+| JOB=1, GEOMETRY=1, STAGEF=2 | 19,508 exact jobs / 58,195 transfers; 19,508 actual setup-flow executions, zero fallback/input divergence/failures |
+
+All keep the default leaf mask 827. Private logs are
+`phase3/setup-snapshot-corpus-mode{0,1,2}.log`; `phase3/setup-snapshot-build.json` binds the frozen
+EXE/map, preserved generated C and native source hashes. Stage F checked mode
+retains its established baseline state; its final strict cleanup is unchanged.
+
+The final frozen EXE SHA256 is
+`d1e8731c742137eb95e7435339d7600bebb915b7bf9a5b16f43211fca8f576da`.
+The native `native_geometry_job_flow.cpp` module uses the reviewed SPU
+optimization/ISA flags. The controller and its pre-main constructors remain
+on the baseline ISA, before the application's CPU checks. Actual mode 1
+preserves ordinary trampoline scheduling. Paired checks drain the job up to
+its saved link without adding an artificial host frame; controller tests
+assert the original zero entry depth. Earlier builds are preliminary.
+
+Two 65 s live runs on this final build use native geometry groups, native
+Stage F and fresh private saves. The unlimited reference/reference audit logs
+**at least 445,000 strict matches**; JOB=2 logs **at least 450,000 strict
+native setup-flow matches**, with rendering through CSV elapsed time 64.4 s
+in both runs. No comparison differences occur. Externally changed reference
+inputs are rejected before the trial and are not counted as matches. Logs:
+`analysis/vk-scene-p3-snapshot-{audit,native-checked}.{csv,stderr.log}`.
+These are functional checks, not FPS/CPU measurements or visual frame gates.
+
+A separate JOB=1 run on the same frozen EXE also completes 65 s with native
+Stage F and geometry groups, retaining renderer output through elapsed time
+**64.7 s** (2,844 recorded frames) and no driver difference or HALT diagnostic:
+`analysis/vk-scene-p3-snapshot-native-actual.{csv,stderr.log}`. Original player
+save, private save-template and lifted-source hashes remain unchanged.
+
+### Live reservation race and scene-runner correction
+
+Unlimited checking initially aborted near the first menu in both the
+reference/reference and native setup runs. An unbuffered reproduction showed
+`resv_valid` differing at `0x3D34`. Recording did not check external changes
+before the first channel, and later checked live controls separately from
+capturing them. A peer could invalidate a reservation between those reads.
+
+The recorder now retains entry controls and checks the exact frozen
+before-snapshot against entry or the preceding after-snapshot. Unstable
+reference input is marked unrecordable before starting a shadow. The checker
+still rejects every supported shadow control difference; negative tests alter
+the first shadow event/reservation state and require an abort with only one
+real guest output. New tests also cover event, reservation and queue changes
+before the reference's first channel. No control field is excluded or restored
+to hide a native mismatch.
+
+The scene runner now holds a process handle, detects early exit and reports
+failure while retaining the log. Previously it could wait out the requested
+duration after the game had already aborted. Difference diagnostics flush
+stderr before abort so buffered live logging cannot lose the reason. The
+early-exit reproduction fails as expected; the corrected unlimited live runs
+complete their full duration and continue rendering past the prior failure.
+
+| Remaining driver segment | Current implementation |
+|---|---|
+| Entry/input setup and geometry-context initialization | Native C++ with host input/configuration/table state and explicit call-register materialization |
+| Allocation/setup after `0x2088` (`0x1AD8`) | Retained driver and callee |
+| Attribute decode/secondary path (`0xAC68`, `0x2578`) | Retained orchestration with existing per-kernel replacements |
+| Index/skin/transform/cull flow (`0x20F8`, `0x2390`) | Retained orchestration with existing per-kernel replacements |
+| Output/command flow (`0x2228`, `0x2258`, optional summaries) | Retained orchestration with existing per-kernel replacements |
+| Driver epilogue (`0x22A0`) | Retained |
+
+This is measured correctness coverage of **native setup plus the retained
+pipeline**. Driver blocks after `0x2088` still orchestrate decode, skin,
+transform, cull and output through their original flow and the existing leaf
+switches. Host state across those stages, remaining native control flow and
+final eligibility are still required for phase 3. This increment makes no
+FPS/CPU saving or default-on claim.
 
 ## Remaining phase-3 gates
 
-- Add the independent off/native/checked job switch and an eligibility check
-  for supported descriptor families on the original entry before mutation.
-  Preserve per-kernel switches and whole-job fallback. The diagnostic audit
-  switch above is not the native-path switch.
+- Extend the independent job switch and original-entry eligibility from the
+  experimental setup to the complete supported native pipeline. Preserve
+  per-kernel switches and whole-job fallback.
 - Implement the native descriptor/pipeline flow using the validated routines.
   Keep host state between stages where all observable LS/GPR/IO effects remain
   exact. A renamed or merged lift alone does not complete this requirement.

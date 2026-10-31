@@ -169,17 +169,23 @@ whole-job corpus bit-exact, interpreted count unchanged, menu/round A/B.
 Implementation and current evidence are tracked in
 [native-geometry-phase3-results.md](native-geometry-phase3-results.md).
 The driver boundary audit and reference/shadow I/O harness are validated on
-the full corpus and at least 256 live jobs. The native pipeline flow, its
-switch/descriptor eligibility, and its correctness/render/performance gates
+the full corpus and at least 256 live jobs. The complete native pipeline and
+its correctness/render/performance gates
 remain open; the harness baseline is not a native implementation.
 The native host input reader now matches the original 21-pointer setup on
 all 19,508 corpus entries and 256 synthetic entries, with 14 mutation-free
-rejection checks. It remains unwired pending native pipeline implementation.
+rejection checks. It now feeds the experimental native setup flow.
 The native C++ preamble and context initializer also match the entire LS on
-all 19,508 entries. Synthetic checks cover 128 preamble combinations and
-1,024 initializer cases. Call-register materialization, remaining stage flow
-and runtime selection are still open; these internal helpers preserve GPRs
-and do not constitute a callable SPU function replacement or completed driver.
+all 19,508 entries. Synthetic checks cover 512 preamble/call combinations and
+1,024 initializer cases. `BUZZ_GEOMETRY_JOB=0/1/2` (default 0) now selects
+retained/native-setup/checked-setup execution. Both checked and actual setup
+flow pass all 19,508 whole jobs / 58,195 transfers, with no setup fallback or
+failure. The flow after `0x2088` remains retained code; host orchestration of
+the remaining stages, final eligibility and live/render/performance gates
+still need completion. The corrected live recorder also passes at least
+450,000 strict native setup-flow comparisons in a complete 65 s menu run;
+changed reference reservations are rejected before trial, without relaxing
+the shadow checker. These results do not complete phase 3.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):

@@ -1,5 +1,5 @@
-/* Reference/reference whole-driver audit. Real I/O executes once. This proves
- * the shadow checker before the native whole-job implementation is selected. */
+/* Whole-driver shadow I/O and incremental native flow. Real I/O executes once.
+ * The native setup currently joins the retained pipeline after 0x2F80. */
 #include "native_geometry_job.h"
 #include "native_geometry_job_io.h"
 #include "spu_dma.h"
@@ -19,10 +19,14 @@ extern int buzz_geometry_debug;
 #ifndef BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE
 #define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 0
 #endif
+#ifndef BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE
+#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 0
+#endif
 
 namespace {
 using namespace buzz;
 std::atomic<unsigned long long> attempted{0}, checked{0}, skipped{0}, failures{0}, drawn{0}, culled{0};
+std::atomic<unsigned long long> native_attempted{0}, native_executed{0}, native_compared{0}, native_fallback{0};
 unsigned long long maximum = 512;
 
 struct Recording {
@@ -31,6 +35,7 @@ struct Recording {
     std::atomic<const char*> unsupported{nullptr};
     std::atomic<const void*> owner{nullptr};
     GeometryJobIoOperation* current = nullptr;
+    GeometryJobControls entry;
     std::vector<GeometryJobIoOperation> operations;
     size_t transfers = 0;
 };
@@ -50,6 +55,7 @@ void unsupported(Recording& r, const char* reason)
 {
     ++failures;
     std::fprintf(stderr, "[geometry-job-audit] DIFF pc=%05X: %s\n", ctx->pc, reason);
+    std::fflush(stderr); // abort does not flush the normal buffered live log.
     std::abort();
 }
 
@@ -59,7 +65,8 @@ Recording* recording_for(const spu_context* ctx)
     return recording && recording->context.load(std::memory_order_acquire) == ctx ? recording : nullptr;
 }
 
-bool external_change(const GeometryJobControls& previous, const spu_context& ctx)
+template<class Current>
+bool external_change(const GeometryJobControls& previous, const Current& ctx)
 {
     return previous.event_status != ctx.event_status || previous.resv_valid != ctx.resv_valid ||
            previous.resv_ea != ctx.resv_ea || memcmp(previous.resv_line, ctx.resv_line, sizeof(ctx.resv_line)) ||
@@ -78,21 +85,21 @@ GeometryJobIoOperation* begin(spu_context* ctx, GeometryJobIoKind kind, uint32_t
         unsupported(*r, "nested/oversized channel transcript");
         return nullptr;
     }
-    if (!r->operations.empty()) {
-        const auto& previous = r->operations.back().after;
-        // The pinned lift assigns only GPR/PC/status/stop/int_enable directly.
-        // Reservation/event changes outside a channel are external inputs.
-        if (external_change(previous, *ctx)) {
-            unsupported(*r, "concurrent external control/channel input");
-            return nullptr;
-        }
+    const auto before = GeometryJobControls::capture(*ctx);
+    const auto& previous = r->operations.empty() ? r->entry : r->operations.back().after;
+    // Check the exact snapshot that is recorded, including before the first
+    // channel. A second read here would race peer reservation invalidation
+    // between admission and capture, then incorrectly fail an exact shadow.
+    if (external_change(previous, before)) {
+        unsupported(*r, "concurrent external control/channel input");
+        return nullptr;
     }
     r->operations.emplace_back();
     auto& op = r->operations.back();
     op.kind = kind;
     op.channel = channel;
     op.argument = argument;
-    op.before = GeometryJobControls::capture(*ctx);
+    op.before = before;
     if (kind == GeometryJobIoKind::write && channel == MFC_Cmd && mfc_is_list(argument)) {
         const uint32_t lsa = ctx->mfc_eal & SPU_LS_MASK;
         const uint32_t size = (ctx->mfc_size / 8) * 8;
@@ -117,17 +124,21 @@ void end(spu_context* ctx, GeometryJobIoOperation* op, u128 result = {})
 u128 consume(spu_context* ctx, GeometryJobIoKind kind, uint32_t channel, uint32_t argument = 0)
 {
     u128 result{};
-    if (!replay || !replay->consume(*ctx, kind, channel, argument, result))
+    if (!replay || !replay->consume(*ctx, kind, channel, argument, result)) {
+        std::fprintf(stderr, "[geometry-job-audit] channel operation=%zu channel=%u argument=%08X\n",
+                     replay ? replay->consumed() : 0, channel, argument);
         mismatch(replay && replay->error() ? replay->error() : "missing shadow transcript", ctx);
+    }
     return result;
 }
 
 void run_group(spu_context* ctx, buzz_geometry_job_fn reference, uint32_t return_pc)
 {
-    ++ctx->host_depth;
+    // The driver enters at depth zero. Its ordinary SPU_RET queues the saved
+    // link; drain_call recognizes that link without executing the parent.
+    // An artificial extra frame changes live scheduler behavior in the menu.
     reference(ctx);
     spu_drain_call(ctx, return_pc);
-    --ctx->host_depth;
 }
 
 bool eligible(const spu_context* ctx)
@@ -143,6 +154,14 @@ struct Init {
     {
         const char* option = std::getenv("BUZZ_GEOMETRY_JOB_AUDIT");
         if (option && ((option[0] != '0' && option[0] != '1') || option[1])) std::abort();
+        if (buzz_geometry_job_mode()) {
+            if (!BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE || buzz_geometry_job_audit_enabled()) {
+                std::fprintf(stderr, "[geometry-job] native setup adapter unavailable, or AUDIT conflicts with JOB mode\n");
+                std::abort();
+            }
+            std::fprintf(stderr, "[geometry-job] mode=%d: native setup + retained pipeline, experimental/default off\n",
+                         buzz_geometry_job_mode());
+        }
         if (!buzz_geometry_job_audit_enabled()) return;
         if (!BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE) {
             std::fprintf(stderr, "[geometry-job-audit] unavailable: build the phase-3 adapter\n");
@@ -157,6 +176,17 @@ struct Init {
     }
 } init;
 } // namespace
+
+extern "C" int buzz_geometry_job_mode()
+{
+    static const int mode = [] {
+        const char* value = std::getenv("BUZZ_GEOMETRY_JOB");
+        if (!value) return 0;
+        if (value[0] < '0' || value[0] > '2' || value[1]) std::abort();
+        return value[0] - '0';
+    }();
+    return mode;
+}
 
 extern "C" int buzz_geometry_job_audit_enabled()
 {
@@ -247,17 +277,19 @@ extern "C" void buzz_geometry_job_step(spu_context* ctx, uint32_t pc)
     }
 }
 
-extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_fn reference)
+static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
+                        buzz_geometry_job_fn trial, bool native_trial)
 {
-    if (!buzz_geometry_job_audit_enabled()) { reference(ctx); return; }
     const auto attempt = attempted.fetch_add(1);
-    if ((maximum && attempt >= maximum) || !eligible(ctx)) { ++skipped; reference(ctx); return; }
+    if ((!native_trial && maximum && attempt >= maximum) || !eligible(ctx)) {
+        ++skipped; reference(ctx); return false;
+    }
     Recording* r = nullptr;
     for (auto& slot : recordings) {
         bool idle = false;
         if (slot.busy.compare_exchange_strong(idle, true)) { r = &slot; break; }
     }
-    if (!r) { ++skipped; reference(ctx); return; }
+    if (!r) { ++skipped; reference(ctx); return false; }
     auto* copy = buzz::clone_function_state(ctx);
     copy->mfc_private = nullptr;
     copy->ch_out_mbox.lock = copy->ch_in_mbox.lock = copy->ch_out_intr_mbox.lock = 0;
@@ -266,6 +298,7 @@ extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_
     r->owner.store(&owner_token);
     r->unsupported.store(nullptr);
     r->current = nullptr;
+    r->entry = GeometryJobControls::capture(*copy);
     r->transfers = 0;
     r->operations.clear();
     r->context.store(ctx, std::memory_order_release);
@@ -281,12 +314,13 @@ extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_
     auto* expected = buzz::clone_function_state(ctx);
     if (!r->operations.empty() && external_change(r->operations.back().after, *expected))
         unsupported(*r, "concurrent external control/channel input at driver exit");
+    bool matched = false;
     if (!r->unsupported.load() && !r->operations.empty()) {
         GeometryJobIoReplay io(r->operations);
         shadow = copy;
         replay = &io;
         g_spu_trampoline_fn = nullptr;
-        run_group(copy, reference, return_pc);
+        run_group(copy, trial, return_pc);
         shadow = nullptr;
         replay = nullptr;
         if (!io.finish()) mismatch(io.error(), ctx);
@@ -300,7 +334,9 @@ extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_
         (r->transfers > 1 ? drawn : culled).fetch_add(1);
         const auto n = checked.fetch_add(1) + 1;
         if (n == 256 || n % 5000 == 0)
-            std::fprintf(stderr, "[geometry-job-audit] strict full-state + I/O %llu PASS\n", n);
+            std::fprintf(stderr, "[%s] strict full-state + I/O %llu PASS\n",
+                         native_trial ? "geometry-job/setup-native" : "geometry-job-audit", n);
+        matched = true;
     } else {
         const auto n = skipped.fetch_add(1);
         if (n < 8) std::fprintf(stderr, "[geometry-job-audit] unrecordable: %s\n",
@@ -310,15 +346,53 @@ extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_
     buzz::release_function_state(copy);
     r->busy.store(false);
     g_spu_trampoline_fn = continuation ? continuation : spu_indirect_branch;
+    return matched;
+}
+
+extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_fn reference)
+{
+    if (!buzz_geometry_job_audit_enabled()) { reference(ctx); return; }
+    audit_pair(ctx, reference, reference, false);
+}
+
+extern "C" void buzz_geometry_job_native_fail(spu_context* ctx, const char* reason)
+{
+    mismatch(reason, ctx);
+}
+
+extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn reference,
+                                      buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn supports)
+{
+    const int mode = buzz_geometry_job_mode();
+    if (!mode) { buzz_geometry_job_audit_run(ctx, reference); return; }
+    ++native_attempted;
+    // Always test the original entry. Cloning an external LS or letting the
+    // preamble mutate before this decision cannot turn a fallback into native.
+    if (!eligible(ctx) || !supports(ctx)) { ++native_fallback; reference(ctx); return; }
+    if (mode == 2) {
+        if (audit_pair(ctx, reference, native, true)) { ++native_compared; ++native_executed; }
+        else ++native_fallback;
+        return;
+    }
+    // Keep the normal entry's depth and trampoline scheduling in actual
+    // execution. Only paired checking needs to synchronously drain a job.
+    native(ctx);
+    ++native_executed;
 }
 
 extern "C" void buzz_geometry_job_audit_report()
 {
+    if (buzz_geometry_job_mode())
+        std::fprintf(stderr, "[geometry-job/setup-native] mode=%d attempted=%llu executed=%llu checked=%llu fallback=%llu failed=%llu\n",
+                     buzz_geometry_job_mode(), native_attempted.load(), native_executed.load(),
+                     native_compared.load(), native_fallback.load(), failures.load());
     if (buzz_geometry_job_audit_enabled())
         std::fprintf(stderr, "[geometry-job-audit] checked=%llu drawn=%llu culled=%llu skipped=%llu failed=%llu\n",
                      checked.load(), drawn.load(), culled.load(), skipped.load(), failures.load());
 }
 extern "C" int buzz_geometry_job_audit_failures()
 {
+    if (buzz_geometry_job_mode())
+        return failures.load() || (buzz_geometry_job_mode() == 2 ? !native_compared.load() : !native_executed.load());
     return buzz_geometry_job_audit_enabled() && (!checked.load() || failures.load());
 }

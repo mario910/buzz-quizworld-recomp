@@ -12,8 +12,8 @@ struct GeometryJobSetup {
     GeometryContextInit initialization;
 };
 
-inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
-                                 const char** reason = nullptr)
+inline bool read_geometry_job_setup(const spu_context& ctx, GeometryJobSetup& output,
+                                    const char** reason = nullptr)
 {
     auto reject = [&](const char* value) { if (reason) *reason = value; return false; };
     GeometryJobSetup setup;
@@ -34,6 +34,19 @@ inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
     setup.initialization = {entry.geometry_context_lsa, entry.input[16].lsa,
         entry.scratch_lsa, entry.scratch_bytes, entry.workspace_lsa, entry.workspace_bytes,
         entry.dma_tag, viewport.lsa, object.lsa, entry.frame_lsa + 0xb0};
+    output = setup;
+    if (reason) *reason = nullptr;
+    return true;
+}
+
+inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
+                                 const char** reason = nullptr)
+{
+    GeometryJobSetup setup;
+    if (!read_geometry_job_setup(ctx, setup, reason)) return false;
+    const auto& entry = setup.entry;
+    const auto& object = entry.input[GeometryJobEntry::object];
+    const auto& descriptor = entry.input[GeometryJobEntry::output_descriptor];
     // Eligibility is complete for this preamble before the first write. The
     // whole driver's codec, allocator and output paths need further checks.
     const uint32_t frame = entry.frame_lsa, sp = ctx.gpr[1]._u32[0];

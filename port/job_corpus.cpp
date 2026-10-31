@@ -226,7 +226,7 @@ void capture_end(spu_context* ctx, int, uint32_t)
 struct CorpusInit {
     CorpusInit()
     {
-        if (buzz_geometry_job_audit_enabled()) {
+        if (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2) {
             g_spu_dma_observer = observe;
             g_spu_step_observer = buzz_geometry_job_step;
         }
@@ -425,7 +425,7 @@ int replay_job(const std::string& path, const Job& job, const std::vector<Seed>&
     g_replay_ctx = ctx;
     g_steps.clear();
     g_spu_step_observer = g_trace_steps ? replay_step :
-        buzz_geometry_job_audit_enabled() ? buzz_geometry_job_step : nullptr;
+        (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2) ? buzz_geometry_job_step : nullptr;
     double start = seconds_now();
     spurs_job_run_prepared(entry, job.image, ctx);
     const int drawn = job.transfers.size() > 1;

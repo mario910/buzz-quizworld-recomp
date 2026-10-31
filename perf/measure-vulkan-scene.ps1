@@ -28,6 +28,7 @@ if ($Env) { foreach ($kv in $Env -split ';') { $extra += ($kv -split '=', 2)[0] 
 $previous = @{}
 foreach ($key in $keys + $extra) { $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process') }
 $procId = 0
+$sceneProcess = $null
 $cpuObserver = $null
 $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
 if ($CpuBinding -and -not $CpuOutput) { throw 'CpuBinding requires a fresh CpuOutput path' }
@@ -48,6 +49,8 @@ try {
     if ($Scene -eq 'Menu') { $env:BUZZ_SCRIPT = '12:0x01,25:0x01' } else { Remove-Item Env:BUZZ_SCRIPT -ErrorAction SilentlyContinue }
     $r = & .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap -SkipVideo -Mute -Background -BuildDirectory $BuildDirectory | Out-String
     $procId = [int]([regex]::Match($r, 'PID=(\d+)').Groups[1].Value)
+    $sceneProcess = Get-Process -Id $procId -ErrorAction Stop
+    $null = $sceneProcess.Handle # Keep a handle so an early exit code remains readable.
     $log = [regex]::Match($r, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
     $t0 = Get-Date
     if ($CpuBinding) {
@@ -99,7 +102,11 @@ try {
         Shot 'round'
         $end = $roundStart + $RoundSeconds
     }
-    while (((Get-Date) - $t0).TotalSeconds -lt $end) { Start-Sleep -Milliseconds 500 }
+    while (((Get-Date) - $t0).TotalSeconds -lt $end) {
+        $sceneProcess.Refresh()
+        if ($sceneProcess.HasExited) { throw "Scene process exited early (code $($sceneProcess.ExitCode)); inspect $prefix.stderr.log" }
+        Start-Sleep -Milliseconds 500
+    }
     if ($Scene -eq 'Round') { Shot 'end' }
     Phase 'end'
     if ($cpuObserver) {
@@ -115,6 +122,7 @@ try {
         if ($p -and $p.Path -eq $exe) { Stop-Process -Id $procId -Force; Start-Sleep -Milliseconds 500 }
         if ($log -and (Test-Path -LiteralPath $log)) { Copy-Item -LiteralPath $log ($prefix + '.stderr.log') }
     }
+    if ($sceneProcess) { $sceneProcess.Dispose() }
     foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process') }
     Pop-Location
 }

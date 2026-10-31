@@ -3,6 +3,7 @@
 #include "../ps3recomp/runtime/spu/spu_dma.h"
 #include "../port/native_geometry_context.h"
 #include "../port/native_geometry_job_setup.h"
+#include "../port/native_geometry_job_call.h"
 #include "zlib.h"
 #include <cassert>
 #include <cstdio>
@@ -150,6 +151,22 @@ static void compare_preamble(spu_context& native, spu_context& reference)
     assert(in.context == entry.geometry_context_lsa && in.configuration == entry.input[16].lsa);
     assert(in.scratch == entry.scratch_lsa && in.scratch_bytes == entry.scratch_bytes);
     assert(in.workspace == entry.workspace_lsa && in.workspace_bytes == entry.workspace_bytes);
+    auto call_before = std::vector<uint8_t>(reinterpret_cast<uint8_t*>(&native),
+        reinterpret_cast<uint8_t*>(&native) + sizeof native);
+    buzz::materialize_geometry_job_initial_call(native, setup);
+    memcpy(call_before.data() + offsetof(spu_context, pc), &native.pc, sizeof native.pc);
+    assert(native.pc == reference.pc);
+    for (unsigned reg = 0; reg < 128; ++reg) {
+        if (!(reg <= 1 || (reg >= 3 && reg <= 12) || (reg >= 80 && reg <= 109) || reg == 126)) continue;
+        if (memcmp(&native.gpr[reg], &reference.gpr[reg], 16)) {
+            fprintf(stderr, "%s: initial-call r%u native=%08X,%08X,%08X,%08X reference=%08X,%08X,%08X,%08X\n",
+                current_case, reg, native.gpr[reg]._u32[0], native.gpr[reg]._u32[1], native.gpr[reg]._u32[2], native.gpr[reg]._u32[3],
+                reference.gpr[reg]._u32[0], reference.gpr[reg]._u32[1], reference.gpr[reg]._u32[2], reference.gpr[reg]._u32[3]);
+            abort();
+        }
+        memcpy(call_before.data() + offsetof(spu_context, gpr) + reg * 16, &native.gpr[reg], 16);
+    }
+    assert(!memcmp(call_before.data(), &native, sizeof native));
     compare(native, reference, in);
 }
 
@@ -171,7 +188,9 @@ static void synthetic_job(spu_context& ctx, unsigned trial)
         put(0x3fc30 + i * 8, size); put(0x3fc34 + i * 8, 0x100000 + i * 256);
         cursor += size;
     }
-    put(0xe800, 0); // No command-summary pipeline override.
+    static const uint32_t modes[] = {0, 2304, 2305, 17};
+    put(0xe800, trial / 128 ? 1 : 0);
+    put(0xe824, modes[trial / 128]);
     static const uint32_t flags[] = {0x10000000, 0x80, 0x100, 8, 32, 64};
     uint32_t flag_word = 0;
     for (unsigned i = 0; i < 6; ++i) if (trial & (1 << i)) flag_word |= flags[i];
@@ -220,7 +239,7 @@ int main(int argc, char** argv)
         assert(!memcmp(native.get(), before.data(), before.size()));
         assert(!memcmp(&state, &output_before, sizeof state));
     }
-    for (unsigned trial = 0; trial < 128; ++trial) {
+    for (unsigned trial = 0; trial < 512; ++trial) {
         synthetic_job(*native, trial);
         compare_preamble(*native, *reference);
     }
@@ -271,5 +290,5 @@ int main(int argc, char** argv)
         ++corpus;
     }
     if (argc > 1) assert(corpus);
-    printf("Native setup/context: 1024 initializer cases, 128 preamble flag/secondary cases, 13+7 unchanged-state rejections, %u real native preambles/initializers full-LS exact, %u recorded metadata GETs PASS\n", corpus, preamble_reads);
+    printf("Native setup/context: 1024 initializer cases, 512 preamble/call flag/secondary/command cases, 13+7 unchanged-state rejections, %u real native preambles/initializers and call vectors exact, %u recorded metadata GETs PASS\n", corpus, preamble_reads);
 }

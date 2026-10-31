@@ -39,7 +39,7 @@ struct GeometryJobChannel {
         memcpy(state.q, channel.q, sizeof(state.q));
         return state;
     }
-    bool matches(const spu_channel& channel) const
+    template<class Channel> bool matches(const Channel& channel) const
     {
         if (count != channel.count || value != channel.value) return false;
         for (unsigned i = 0; i < count && i < SPU_CHANNEL_CAP; ++i)
