@@ -670,6 +670,12 @@ base. Scratch capacity is checked against geometry context `+0x17C` before
 expansion. The final aligned spill is significant. This is why slot 2's
 small compressed entry payload can later hold much larger index intermediates.
 
+The phase-3 [index implementation audit](native-geometry-index-audit.md) adds
+the exact frame/continuation contract, the four error frontiers, observed
+width cohorts and the eight independent u16 delta chains with warmup and
+lookahead. Its scalar reconstruction matches all registers/LS of one captured
+7770 call. This is format evidence; full native-decoder acceptance remains open.
+
 ## Vertex and index streams
 
 The existing, validated intermediate stage F representation is a BE float4

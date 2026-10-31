@@ -52,6 +52,12 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
+Current next implementation: the complete image-41 `AEA0/7390` compressed-index
+decoder. Its [source/format audit](native-geometry-index-audit.md) now binds
+19,508 original real replays and distinguishes the four data stages, error
+frontiers, alias ordering and remaining native gates. This audit is preparation;
+it does not count as a completed native decoder or close phase 3.
+
 ## Why these jobs
 
 Profiles from 2026-10-30 (EU 1.00, Vulkan, Ryzen 9 7900, studio menu; see

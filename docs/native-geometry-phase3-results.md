@@ -26,6 +26,12 @@ complete; cold coverage and final validation/default gates remain open.
 The complete B880 weighted-data replacement passes strict real replay/live
 and native rendering below; final performance/default gates remain open.
 
+The next complete decoder, `AEA0/7390`, now has a separate
+[implementation contract and real-input audit](native-geometry-index-audit.md).
+The original tracer passes all 19,508 jobs/58,195 transfers; a scalar delta
+model matches one complete captured register/LS pair. This is preparation for
+native implementation, with all new decoder acceptance/default gates open.
+
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
 Historical statements that no fallback appears in a live log mean none was
