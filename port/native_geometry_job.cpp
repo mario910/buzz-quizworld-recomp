@@ -574,6 +574,52 @@ extern "C" void buzz_geometry_job_native_fail(spu_context* ctx, const char* reas
     mismatch(reason, ctx);
 }
 
+struct buzz_geometry_io_root_check {
+    spu_context* input;
+    spu_context* owner;
+    buzz::GeometryJobIoReplay* parent;
+    size_t first;
+    buzz_geometry_job_fn continuation;
+};
+
+extern "C" buzz_geometry_io_root_check* buzz_geometry_job_io_root_begin(spu_context* ctx)
+{
+    if (!is_shadow(ctx)) return nullptr;
+    if (!replay || replay->error()) mismatch("I/O root without valid parent transcript", ctx);
+    return new buzz_geometry_io_root_check{buzz::clone_function_state(ctx), ctx, replay,
+                                          replay->consumed(), g_spu_trampoline_fn};
+}
+
+extern "C" void buzz_geometry_job_io_root_end(spu_context* ctx, buzz_geometry_io_root_check* check,
+                                               buzz_geometry_job_fn reference_runner)
+{
+    if (!check) return; // JOB=1 and original/reference contexts have no transcript.
+    if (!is_shadow(ctx) || replay != check->parent || ctx != check->owner || !reference_runner)
+        mismatch("I/O root checkpoint owner/runner", ctx);
+    auto io = replay->slice(check->first, replay->consumed());
+    if (io.error()) mismatch(io.error(), ctx);
+    const auto continuation = g_spu_trampoline_fn;
+    shadow = check->input;
+    replay = &io;
+    g_spu_trampoline_fn = check->continuation;
+    reference_runner(check->input);
+    if (!io.finish()) mismatch(io.error(), check->input);
+    const auto difference = buzz::compare_function_state(*check->input, *ctx);
+    if (!difference.exact() || check->input->image_id != ctx->image_id ||
+        check->input->host_depth != ctx->host_depth || check->input->policy_mode != ctx->policy_mode ||
+        check->input->resident_ovl != ctx->resident_ovl || continuation != g_spu_trampoline_fn) {
+        std::fprintf(stderr, "[geometry-job/io-root] r%d byte%d LS=%05X bytes=%u controls=%s\n",
+                     difference.first_register, difference.first_register_byte, difference.first_ls,
+                     difference.ls_bytes, difference.first_state ? difference.first_state : "equal");
+        mismatch("strict I/O root exit state/continuation", ctx);
+    }
+    shadow = ctx;
+    replay = check->parent;
+    g_spu_trampoline_fn = continuation;
+    buzz::release_function_state(check->input);
+    delete check;
+}
+
 extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn reference,
                                       buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn supports)
 {

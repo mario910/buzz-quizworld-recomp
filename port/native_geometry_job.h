@@ -88,6 +88,13 @@ void buzz_geometry_job_run(spu_context*, buzz_geometry_job_fn reference, buzz_ge
 int buzz_geometry_job_native_eligible(const spu_context*);
 void buzz_geometry_job_native_start(spu_context*, const buzz_geometry_job_functions*);
 void buzz_geometry_job_native_fail(spu_context*, const char* reason);
+/* Strict synchronous I/O-root checkpoint inside JOB=2's native shadow.
+ * Outside a replay shadow begin returns NULL (no comparison was performed).
+ * The reference runner must stop exactly at the root's return boundary,
+ * including its original return trampoline; it must use audited I/O hooks. */
+typedef struct buzz_geometry_io_root_check buzz_geometry_io_root_check;
+buzz_geometry_io_root_check* buzz_geometry_job_io_root_begin(spu_context*);
+void buzz_geometry_job_io_root_end(spu_context*, buzz_geometry_io_root_check*, buzz_geometry_job_fn reference_runner);
 void buzz_geometry_job_wrch(spu_context*, uint32_t, u128);
 u128 buzz_geometry_job_rdch(spu_context*, uint32_t);
 uint32_t buzz_geometry_job_rchcnt(spu_context*, uint32_t);

@@ -194,7 +194,36 @@ int main()
         assert(changed->ch_out_intr_mbox.lock == 13);
         assert(changed->ch_sig_notify[0].lock == 14 && changed->ch_sig_notify[1].lock == 15);
     }
-    printf("Geometry job I/O: full exit state, ordered/overlapping DMA, six atomic/transfer kinds, "
+    {
+        auto changed = context();
+        std::vector<GeometryJobIoOperation> simple(3);
+        for (unsigned i = 0; i < 3; ++i) {
+            simple[i].channel = i;
+            simple[i].before = simple[i].after = GeometryJobControls::capture(*changed);
+        }
+        GeometryJobIoReplay parent(simple);
+        assert(parent.consume(*changed, GeometryJobIoKind::write, 0, 0, result));
+        assert(parent.consume(*changed, GeometryJobIoKind::write, 1, 0, result));
+        auto slice = parent.slice(1, 2);
+        assert(slice.consumed() == 1 && !slice.error());
+        assert(slice.consume(*changed, GeometryJobIoKind::write, 1, 0, result));
+        assert(slice.finish() && parent.consumed() == 2);
+        assert(!slice.consume(*changed, GeometryJobIoKind::write, 2, 0, result));
+        assert(!slice.finish()); // Cannot consume the caller's following operation.
+        auto short_slice = parent.slice(0, 2);
+        assert(!short_slice.finish());
+        auto empty = parent.slice(2, 2);
+        assert(empty.finish());
+        auto future = parent.slice(1, 3);
+        auto reversed = parent.slice(2, 1);
+        auto outside = parent.slice(0, SIZE_MAX);
+        auto earlier = empty.slice(1, 2);
+        assert(future.error() && reversed.error() && outside.error() && earlier.error());
+        assert(!future.consume(*changed, GeometryJobIoKind::write, 1, 0, result));
+        assert(parent.consume(*changed, GeometryJobIoKind::write, 2, 0, result) && parent.finish());
+        assert(parent.consumed() == 3 && commits == 1 && guest == published);
+    }
+    printf("Geometry job I/O: bounded root slices, full exit state, ordered/overlapping DMA, six atomic/transfer kinds, "
            "no repeated guest commit, %u rejected corruptions, missing/extra channels and read/count PASS\n",
            rejected);
 }

@@ -12,6 +12,16 @@ ignored `analysis/native-geometry/` and must not be committed.
 
 ## Groundwork and strictness
 
+For new synchronous roots that issue I/O, phase 3 additionally provides
+`buzz_geometry_job_io_root_begin/end`. Under the JOB=2 native shadow, this
+checks the original root from the same full input against a bounded fragment
+of already-recorded channel/DMA operations. No guest transfer executes twice;
+the parent transcript cursor remains unchanged by the reference recheck.
+All GPRs/LS/architectural controls and root return/image/depth/dispatch state
+must match before the caller continues. Outside a replay shadow, no ticket
+or strict pass is produced. This supplements the final whole-job check and
+does not replace a root's corpus, live, render or performance gates.
+
 `port/native_function_check.h` runs a synchronous, DMA-free reference and
 native function from identical registers, active LS and channel state. The
 reference result is retained. It compares all 128 registers, every LS byte,

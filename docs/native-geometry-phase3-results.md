@@ -1284,6 +1284,8 @@ the accepted Stage F exception is unchanged, with strict cleanup last in phase 7
 
 ## Remaining pipeline inventory
 
+This earlier boundary inventory predates the complete typed decoders and
+weighted scatter; their sections below record the subsequent implementations.
 This table tracks the outer driver's library boundaries explicitly. Completing
 a row still requires its supported formats/paths and normal gates; native
 coverage of one leaf does not make the entire enclosing stage native.
@@ -1396,6 +1398,7 @@ The required phase-3 data inventory after this increment is:
 | `0x9058` / `0xC810/C830/C910`, storage 8 fixed point | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0xC750/C7A8`, remapped weighted scatter | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0x0BF8`, list/blend stage | Original enclosing stage | Native enclosing flow and validation |
+| `0x7118`, compressed-list decoder called by `0x0BF8` | Original data implementation | Native decoder and strict coverage; an enclosing native caller will not close this dependency |
 | `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
 | `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
@@ -1936,4 +1939,56 @@ vertex-conversion bodies still require native implementations. Final
 interpreted-SPU counts, reversed same-frozen menu/round A/B and normalized
 worker/process cycles and CPU time per completed frame/job still gate phase
 3 and default selection. CPU savings can justify a routine with flat FPS.
+
+## Strict replay checkpoints for I/O roots (2026-10-31)
+
+`0x0BF8` is the next enclosing stage. It fetches weights/list descriptors,
+double-buffers GETL payloads, filters streams, invokes `0x7118` and the typed
+descriptor controller, and optionally normalizes the result. The audit adds
+`0x7118` explicitly to the remaining inventory: replacing its caller alone
+will not make the compressed-list data implementation native.
+
+The controller now provides `buzz_geometry_job_io_root_begin/end` for strict
+root checks inside JOB=2's native shadow. Begin clones the actual root input
+and captures the parent transcript position and entry trampoline. End runs
+the original root on that clone against a bounded, already-consumed fragment
+of the transcript. The reference receives the same recorded GETs and channel
+results and must reproduce list inputs, output payloads and operation order;
+it cannot consume the caller's following operations or publish another guest
+write. Parent replay position, shadow ownership and native return trampoline
+are restored after the check, including for nested checkpoints.
+
+The comparison covers all 128 GPRs, all 256 KiB LS, architectural controls,
+exact return PC/trampoline, image, host depth, policy mode and resident overlay.
+There are no new state exclusions. A difference is fatal even if the caller
+would overwrite it before the final whole-job comparison. The API returns no
+ticket outside a replay shadow; that is not a strict pass or native coverage.
+Each integration must provide a synchronous original runner that stops at
+its own exact return boundary and uses the audited channel hooks.
+
+Validation:
+
+```powershell
+.\tests\scripts\test-geometry-io-root.ps1
+.\tests\scripts\test-geometry-job-io.ps1
+.\tests\scripts\test-geometry-job-runtime.ps1
+```
+
+PASS: **23 controller cases**: ordinary, empty-I/O and nested roots in JOB
+0/1/2; rejection of GPR, LS, control, PC, image, depth, policy, overlay and
+continuation differences, missing/extra operations, changed DMA-list input,
+foreign owner and missing reference runner. Real channel calls occur once,
+and the caller resumes on the untouched parent transcript. The I/O unit test
+also checks slice bounds, sticky failures, empty slices and unchanged parent
+cursor. Existing **43 controller scenarios and 152 configuration cases** pass.
+Private logs are `phase3/io-root-{controller-test,regression-io,
+regression-runtime}.log` under `analysis/native-geometry`.
+The private `phase3/io-root-v1-proof/manifest.json` binds the tested sources,
+archived logs and original lift pin; it is an infrastructure proof, not a
+frozen game-build or live/native coverage manifest.
+
+This is checking infrastructure, with no BF8 native implementation, switch,
+corpus/live coverage or performance claim yet. JOB default 0, leaf mask 827,
+stage defaults, adapter protocol 15 and the existing Stage F exception are
+unchanged. BF8 implementation and all its gates remain open.
 Strict Stage F reconstruction remains mandatory final phase 7.

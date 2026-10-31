@@ -420,6 +420,14 @@ the separate phase-3 results document. Default/performance gates, enclosing
 pipeline implementations and the four cold typed-family live gates remain
 open; this does not close phase 3.
 
+The next phase-3 enclosing target is `0x0BF8` (list/blend and double-buffered
+DMA). Its original `0x7118` compressed-list decoder is a separate remaining
+data dependency. Strict root checkpoint infrastructure now replays bounded
+I/O transcript fragments inside JOB=2 without repeating guest transfers:
+23 controller cases, I/O slice checks, existing 43 controller scenarios and
+152 configuration cases pass. This infrastructure does not implement BF8 or
+close any native/live gate; see the separate phase-3 results for its contract.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.

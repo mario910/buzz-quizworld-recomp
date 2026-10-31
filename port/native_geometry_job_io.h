@@ -131,13 +131,25 @@ public:
     // shadow. A consume/finish error is a sticky comparison failure, never a
     // reason to relabel an incorrect native execution as reference fallback.
     explicit GeometryJobIoReplay(const std::vector<GeometryJobIoOperation>& operations)
-        : operations_(operations) {}
+        : operations_(operations), limit_(operations.size()) {}
+
+    // Recheck an already consumed root without rewinding the parent's cursor.
+    // A slice cannot consume any operation belonging to its caller/siblings.
+    GeometryJobIoReplay slice(size_t first, size_t last) const
+    {
+        GeometryJobIoReplay result(operations_);
+        result.start_ = result.cursor_ = first;
+        result.limit_ = last;
+        if (error_ || first < start_ || first > last || last > cursor_)
+            result.fail("invalid channel transcript slice");
+        return result;
+    }
 
     bool consume(spu_context& ctx, GeometryJobIoKind kind, uint32_t channel,
                  uint32_t argument, u128& result)
     {
         if (error_) return false;
-        if (cursor_ == operations_.size()) return fail("extra channel operation");
+        if (cursor_ >= limit_) return fail("extra channel operation");
         const auto& op = operations_[cursor_];
         if (kind != op.kind || channel != op.channel) return fail("channel operation/order");
         // wrch consumes only the preferred word. Upper source-register lanes
@@ -172,7 +184,7 @@ public:
     bool finish()
     {
         if (error_) return false;
-        return cursor_ == operations_.size() || fail("missing channel operation");
+        return cursor_ == limit_ || fail("missing channel operation");
     }
     const char* error() const { return error_; }
     size_t consumed() const { return cursor_; }
@@ -184,7 +196,7 @@ private:
     }
     bool fail(const char* reason) { error_ = reason; return false; }
     const std::vector<GeometryJobIoOperation>& operations_;
-    size_t cursor_ = 0;
+    size_t start_ = 0, cursor_ = 0, limit_;
     const char* error_ = nullptr;
 };
 } // namespace buzz
