@@ -59,6 +59,11 @@ FLOAT3 = {
     18: (0x04050607, 0x08090a0b, 0x0c0d0e0f, 0x10111213),
     21: (0x3f800000,) * 4, 22: (0, 0, 0, 0xffffffff),
 }
+EMIT = {
+    45: (0xfff0,) * 4, 47: (0x00010203,) * 4, 48: (12,) * 4,
+    49: (0x10111213, 0x14151617, 0x18191a1b, 0x1c1d1e1f),
+    54: (0, 4, 8, 12), 63: (0x00010203, 0x04050607, 0x08090a0b, 0x0c0d0e0f),
+}
 
 
 def constant_declarations(values=UNIT24):
@@ -82,7 +87,7 @@ def main():
     support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 5415\n'
+    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 5927\n'
     support += constants_guard()
     support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
     support += constants_guard("skin", SKIN)
@@ -96,9 +101,11 @@ def main():
     support += f'#include "{(ROOT / "port/native_geometry_fill.h").as_posix()}"\n'
     support += constants_guard("float3", FLOAT3)
     support += f'#include "{(ROOT / "port/native_geometry_float3.h").as_posix()}"\n'
+    support += constants_guard("emit", EMIT)
+    support += f'#include "{(ROOT / "port/native_geometry_emit.h").as_posix()}"\n'
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
-    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0", "97A8"):
+    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0", "97A8", "46FC", "4750", "4808", "47F0"):
         name = "buzz_job_6eba_spu_func_0000" + pc
         pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
         match = re.search(pattern, source)
@@ -152,6 +159,13 @@ def main():
     float3_native = f"static __attribute__((noinline)) int {float3_name}_native(spu_context* ctx) {{ return buzz_float3_native(ctx, {float3_name}_reference); }}\n"
     float3_wrapper = f"void {float3_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 256)) {{ {float3_name}_reference(ctx); return; }} buzz_geometry_run(ctx, {float3_name}_reference, {float3_name}_native, 8); }}"
     source = re.sub(rf"(?ms)^void {float3_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: float3_reference + float3_native + float3_wrapper, source, count=1)
+    emit_name = "buzz_job_6eba_spu_func_000046FC"
+    emit_setup = f"static void {emit_name}_setup(spu_context* ctx) {{{bodies['46FC']}}}\n"
+    def emit_functions(straddled, aligned, step):
+        return (f"static __attribute__((noinline)) void {emit_name}_reference(spu_context* ctx) {{ do {{ g_spu_trampoline_fn = 0; {emit_name}_setup(ctx); g_spu_trampoline_fn = 0; if (ctx->pc == 0x4750) {straddled}(ctx); else {aligned}(ctx); g_spu_trampoline_fn = 0; {step}(ctx); }} while (ctx->pc == 0x46FC); }}\n"
+                f"static __attribute__((noinline)) int {emit_name}_native(spu_context* ctx) {{ return buzz_emit_native(ctx, {emit_name}_reference); }}\n")
+    emit_wrapper = f"void {emit_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 512)) {{ {emit_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {emit_name}_reference, {emit_name}_native, 9); }}"
+    source = re.sub(rf"(?ms)^void {emit_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: emit_setup + emit_functions("buzz_job_6eba_spu_func_00004750", "buzz_job_6eba_spu_func_00004808", "buzz_job_6eba_spu_func_000047F0") + emit_wrapper, source, count=1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
@@ -189,7 +203,14 @@ def main():
     float3_tests += "static void float3_seed_constants(spu_context* ctx) {\n" + constant_declarations(FLOAT3) + "\n"
     float3_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in FLOAT3) + "\n}\n"
     (DEST / "test-float3-kernels.inc").write_text(float3_tests)
-    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n28F0: bit 12; BE word fill, exact reference final word\n97A8: bit 8; raw float3 decoder, exact reference final group\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
+    emit_tests = constants_guard("emit", EMIT) + f'#include "{(ROOT / "port/native_geometry_emit.h").as_posix()}"\n'
+    for pc in ("4750", "4808", "47F0"):
+        emit_tests += f"static void buzz_job_6eba_spu_func_0000{pc}_reference(spu_context* ctx) {{{bodies[pc]}}}\n"
+    emit_tests += emit_setup + emit_functions("buzz_job_6eba_spu_func_00004750_reference", "buzz_job_6eba_spu_func_00004808_reference", "buzz_job_6eba_spu_func_000047F0_reference")
+    emit_tests += "static void emit_seed_constants(spu_context* ctx) {\n" + constant_declarations(EMIT) + "\n"
+    emit_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in EMIT) + "\n}\n"
+    (DEST / "test-emit-kernels.inc").write_text(emit_tests)
+    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n28F0: bit 12; BE word fill, exact reference final word\n97A8: bit 8; raw float3 decoder, exact reference final group\n46FC/4750/4808/47F0: bit 9; raw float3 output, exact reference final column\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
     print(f"Generated phase-2 geometry kernels -> {DEST}")
 
 

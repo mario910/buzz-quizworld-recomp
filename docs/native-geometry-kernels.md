@@ -333,6 +333,29 @@ decoder matches and no differences. Bit 8 stays default-off while renderer
 and scene measurements are pending. On the private `pc_97A8.bin` sample, the
 local reversed benchmark is roughly 48..53 ns lifted versus 33..35 ns native.
 
+## Bit 9: raw float3 output (`0x46FC/4750/4808/47F0`), in validation
+
+`4750` and `4808` are the straddled/aligned arms of the same remaining-column
+operation, entered at `46FC` and exiting at `4610`. They share bit 9 rather
+than two independent replacements. The prefix copies twelve raw bytes into
+each field, preserving the nominal field offset even when routing to the
+sentinel. The guard proves bounded input/output and separates input, normal
+output and sentinel ranges. It accepts supported interleaved strides,
+unaligned input, mixed sentinel routing and overlapping output groups.
+
+The original final column reconstructs temporary registers. One additional
+carry matters: aligned arm `4808` does not write `r12`, so the prefix retains
+the padded load from the most recent straddled column. The adapter consumes
+the queued continuation before every direct block call. Tests cover 440 full
+states, both alignment arms, sentinel/padding effects, output overlap and
+twenty unchanged-state rejections. Checked and actual-native replay pass all
+19,508 jobs: 4,975 exact groups and 2,226 fallback, with zero divergences or
+failures. The private `pc_4808.bin` sample can also seed this `46FC` entry:
+its setup inputs have not changed. Local whole-column timing is roughly
+164..177 ns lifted versus 109..115 ns native. Bit 9 remains default-off;
+renderer/performance gates are pending. The same 60 s live run records at
+least 256 strict output-group matches with no differences.
+
 ## Isolated kernel batches
 
 The measurement runner accepts one to three `-KernelMask` values. A batch
