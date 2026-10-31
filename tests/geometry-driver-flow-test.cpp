@@ -60,6 +60,8 @@ static int index_expand_mode=0;
 static unsigned index_expand_native=0,index_expand_fallback=0,index_expand_checked=0,index_expand_references=0;
 static int index_relocate_mode=0;
 static unsigned index_relocate_native=0,index_relocate_fallback=0,index_relocate_checked=0,index_relocate_references=0;
+static int index_triangles_mode=0;
+static unsigned index_triangles_native=0,index_triangles_fallback=0,index_triangles_checked=0,index_triangles_references=0,index_triangles_fallback_calls=0;
 static int index_unpack_mode=0;
 static unsigned index_unpack_native=0,index_unpack_fallback=0,index_unpack_checked=0,index_unpack_references=0;
 static int index_deltas_mode=0;
@@ -123,6 +125,8 @@ int buzz_geometry_job_index_expand_enabled(){return index_expand_mode;}
 void buzz_geometry_job_index_expand_result(unsigned,int checked,int){if(checked)++index_expand_checked;}
 int buzz_geometry_job_index_relocate_enabled(){return index_relocate_mode;}
 void buzz_geometry_job_index_relocate_result(unsigned,int checked){if(checked)++index_relocate_checked;}
+int buzz_geometry_job_index_triangles_enabled(){return index_triangles_mode;}
+void buzz_geometry_job_index_triangles_result(unsigned,int checked){if(checked)++index_triangles_checked;}
 int buzz_geometry_job_index_unpack_enabled(){return index_unpack_mode;}
 void buzz_geometry_job_index_unpack_result(unsigned,int checked){if(checked)++index_unpack_checked;}
 int buzz_geometry_job_index_deltas_enabled(){return index_deltas_mode;}
@@ -166,6 +170,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES){assert(routing_probe);if(native)++index_triangles_native;else ++index_triangles_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_INDEX_RELOCATE){assert(routing_probe);if(native)++index_relocate_native;else ++index_relocate_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_INDEX_EXPAND){assert(routing_probe);if(native)++index_expand_native;else ++index_expand_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_INDEX_UNPACK){assert(routing_probe);if(native)++index_unpack_native;else ++index_unpack_fallback;return;}
@@ -295,12 +300,15 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-index-unpack-reference.inc"
 #include "../analysis/native-geometry/phase3/test-index-expand-reference.inc"
 #include "../analysis/native-geometry/phase3/test-index-relocate-reference.inc"
+#include "../analysis/native-geometry/phase3/test-index-triangles-reference.inc"
 #include "../analysis/native-geometry/phase3/test-skin-directions-reference.inc"
 static void skin_flow_trace(spu_context*,uint32_t){}
 static void skin_flow_model(spu_context*,uint32_t){abort();}
 #include "../analysis/native-geometry/phase3/test-skin-flow-reference.inc"
 static void index_expand_reference(spu_context* ctx){++index_expand_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void index_relocate_reference(spu_context* ctx){++index_relocate_references;ctx->pc=ctx->gpr[0]._u32[0];}
+static void index_triangles_fallback_call(spu_context* ctx){++index_triangles_fallback_calls;ctx->pc=ctx->gpr[0]._u32[0];}
+static void index_triangles_reference(spu_context* ctx){++index_triangles_references;index_triangles_oracle::buzz_job_6eba_spu_func_00007A90(ctx);}
 static void index_unpack_reference(spu_context* ctx){++index_unpack_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void index_deltas_reference(spu_context* ctx){++index_deltas_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void skin_normalized_reference(spu_context* ctx){++skin_normalized_references;ctx->pc=ctx->gpr[0]._u32[0];}
@@ -599,6 +607,36 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        index_triangles_oracle::seed_tables(*ctx);ctx->gpr[83]=spu_ls_read128(ctx,0xd980);ctx->gpr[85]=spu_ilh(0x303);
+        ctx->gpr[18]=spu_ila(0xe805);ctx->gpr[5]=spu_il(0);ctx->gpr[20]=spu_ila(0x1a005);ctx->gpr[31]=spu_ila(0x16002);
+        ctx->gpr[24]=spu_ila(0xd690);ctx->gpr[27]=spu_ila(0xd790);ctx->gpr[28]=spu_il(-2);ctx->gpr[22]=spu_il(8);
+        ctx->gpr[33]=spu_ls_read128(ctx,0xd180);ctx->gpr[34]=spu_ls_read128(ctx,0xd170);ctx->gpr[35]=spu_ls_read128(ctx,0xd160);
+        ctx->gpr[36]=spu_ila(0xf000);ctx->gpr[37]=spu_il(3840);ctx->gpr[38]=spu_ila(0xaaaa);ctx->gpr[1]=spu_ila(0x39000-432);
+        auto* entry=buzz::clone_function_state(ctx);const auto tail=index_triangles_oracle::buzz_job_6eba_spu_func_00002738;
+        auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=nullptr;};
+        for(unsigned shape=0;shape<3;++shape)for(unsigned alias=0;alias<2;++alias)for(unsigned mode=0;mode<3;++mode){
+            reset();ctx->gpr[22]._u32[0]=shape==0?1:shape==1?3:8;ctx->gpr[0]._u32[0]=0x2738;
+            if(alias){ctx->gpr[24]._u32[0]=ctx->gpr[27]._u32[0]=ctx->gpr[18]._u32[0];ctx->gpr[31]._u32[0]=ctx->gpr[18]._u32[0]+2;
+                ctx->gpr[1]._u32[0]=ctx->gpr[18]._u32[0]+0x190-432;}
+            flow_mode=mode==1?2:1;index_triangles_mode=mode==2?2:1;
+            buzz_geometry_job_index_triangles(ctx,index_triangles_fallback_call,index_triangles_reference,tail);
+            assert(ctx->pc==0x2738 && g_spu_trampoline_fn==tail);
+        }
+        assert(index_triangles_native==18 && index_triangles_checked==12 && index_triangles_references==12 && !index_triangles_fallback && !index_triangles_fallback_calls);
+        flow_mode=1;reset();index_triangles_mode=0;buzz_geometry_job_index_triangles(ctx,index_triangles_fallback_call,index_triangles_reference,tail);index_triangles_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_index_triangles(foreign,index_triangles_fallback_call,index_triangles_reference,tail);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_index_triangles(ctx,index_triangles_fallback_call,index_triangles_reference,tail);
+        for(unsigned failure=0;failure<9;++failure){reset();auto t=tail;auto ref=index_triangles_reference;switch(failure){
+            case 0:ref=nullptr;break;case 1:t=nullptr;break;case 2:ctx->gpr[18]._u32[0]=0;break;case 3:ctx->gpr[18]._u32[0]=0xe670;break;
+            case 4:ctx->gpr[18]._u32[0]=SPU_LS_SIZE;break;case 5:ctx->gpr[22]._u32[0]=0;break;case 6:ctx->gpr[22]._u32[0]=0xffffffff;break;
+            case 7:ctx->gpr[18]._u32[0]=SPU_LS_SIZE-32;break;case 8:ctx->ls=entry->ls_store;break;}
+            buzz_geometry_job_index_triangles(ctx,index_triangles_fallback_call,ref,t);
+        }
+        assert(index_triangles_fallback_calls==12 && index_triangles_references==12 && index_triangles_fallback==9 && index_triangles_native==18 && index_triangles_checked==12);
+        index_triangles_mode=0;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         index_relocate_oracle::seed_tables(*ctx);ctx->gpr[83]=spu_ls_read128(ctx,0xd980);ctx->gpr[85]=spu_ilh(0x303);
@@ -1115,6 +1153,9 @@ int main(int argc, char** argv)
     index_relocate_mode=1;buzz_geometry_job_index_relocate(native.get(),index_relocate_reference,index_relocate_oracle::buzz_job_6eba_spu_func_00007A90);
     assert(index_relocate_references==11 && index_relocate_native==18 && index_relocate_checked==12 && index_relocate_fallback==7);index_relocate_mode=0;
     puts("Complete index relocation routing:warmup/short/bulk,both strict modes,aliases,tail-PC collisions;owner/foreign/off/image/null/invalid/post-scope PASS");
+    index_triangles_mode=1;buzz_geometry_job_index_triangles(native.get(),index_triangles_fallback_call,index_triangles_reference,index_triangles_oracle::buzz_job_6eba_spu_func_00002738);
+    assert(index_triangles_fallback_calls==13 && index_triangles_references==12 && index_triangles_native==18 && index_triangles_checked==12 && index_triangles_fallback==9);index_triangles_mode=0;
+    puts("Complete index triangles routing:warmup/short/bulk,both strict modes,table/code/frame aliases,tail-PC collisions;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
     index_unpack_mode=1;buzz_geometry_job_index_unpack(native.get(),index_unpack_reference,index_unpack_oracle::buzz_job_6eba_spu_func_00007730,index_unpack_oracle::buzz_job_6eba_spu_func_000077F8);
     assert(index_unpack_references==12 && index_unpack_native==18 && index_unpack_checked==12 && index_unpack_fallback==8);index_unpack_mode=0;
     puts("Complete index unpack routing: low/high,zero/nonzero,ordered aliases,both strict modes,tail collisions;owner/foreign/off/image/null-tail/invalid/post-scope PASS");

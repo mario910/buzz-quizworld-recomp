@@ -24,6 +24,15 @@ def main():
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    triangles_name = "buzz_job_6eba_spu_func_00007A90"
+    triangles_pattern = rf"(?m)^void {triangles_name}\(spu_context\* ctx\) \{{([^\n]*)\}}[ \t]*$"
+    triangles_matches = list(re.finditer(triangles_pattern, source))
+    if len(triangles_matches) != 1 or "buzz_geometry_run" not in triangles_matches[0][1]:
+        raise SystemExit("Expected one pinned single-line phase-2 triangle wrapper")
+    source = re.sub(triangles_pattern, lambda m:
+        f"static void {triangles_name}_phase2(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {triangles_name}(spu_context* ctx) {{ buzz_geometry_job_index_triangles(ctx, {triangles_name}_phase2, {triangles_name}_reference, buzz_job_6eba_spu_func_00002738); }}",
+        source, count=1)
     relocate_name = "buzz_job_6eba_spu_func_000079A8"
     relocate_pattern = rf"(?ms)^void {relocate_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(relocate_pattern, source))) != 1:
@@ -333,7 +342,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 29\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 30\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

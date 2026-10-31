@@ -1,6 +1,6 @@
 # Image-41 compressed indices: implementation contract
 
-Status: audited; bit unpack, deltas, flag expansion and command relocation
+Status: audited; bit unpack, deltas, flag expansion, command relocation and triangle stitching
 implemented separately; **native whole-decoder implementation and acceptance OPEN**,
 2026-10-31. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
 for the next phase-3 implementation. The continuing objective remains active
@@ -162,10 +162,10 @@ Choose a fresh output filename; preserve the finalized v1 verdict and archive.
 | 7730/7770 delta prefix | Complete native implementation, own `INDEX_DELTAS=0/1/2`, default 0; final performance/default gates OPEN |
 | 7838/78A8 flag expansion | Complete native region including final ABI and 79A8/7DCC handoff, own `INDEX_EXPAND=0/1/2`, default 0; final performance/default gates OPEN |
 | 79A8/79C8 command relocation | Complete native region through 7A90, own `INDEX_RELOCATE=0/1/2`, default 0; final performance/default gates OPEN |
-| 7A90 triangle reconstruction and frame restoration | Phase-2 native prefix retains original final iteration; complete replacement OPEN |
+| 7A90 triangle reconstruction and frame restoration | Complete native region through queued 2738, own `INDEX_TRIANGLES=0/1/2`, default 0; final performance/default gates OPEN |
 
-The native bit-unpack, delta, flag-expansion and command-relocation regions call no original setup, step or final
-iteration. Completing those regions does not complete 7390 or the image-41 job flow.
+The five native data regions call no original setup, step or final iteration.
+Their completion does not complete 7390, 2738 publication or the image-41 job flow.
 
 ### Flag expansion and post-write capacity
 
@@ -214,6 +214,33 @@ and nonterminating unsigned-count cases fall back without native credit.
 The final D160/D170/D180 table loads, relocated offsets, triangle count and
 LUT bases remain exact; no original setup, step or final iteration runs.
 The 7A90 body and enclosing controller remain separate unfinished work.
+
+### Triangle stitching, mutable tables and final frame
+
+The full `7A90` region now has a native implementation through queued 2738.
+It consumes the incoming cached quads, previous output and selection masks as
+supplied, without replacing them with LS reloads. Code/input/LUT reads retain
+SPU wrap/floor semantics. The first output advance comes from r5; later steps
+advance 48 bytes. Every physical output span is bounded at/above E680 before
+mutation, including separate first and following spans and wrapped u32 sums.
+Zero/oversized counts fall back before native writes, without native credit.
+
+Each iteration reads five LUT quads and all next input quads before storing
+output at +0, +16 and +32. It then reads the two high-nibble LUT controls AFTER
+all three stores. Input/code/table/output feedback is retained. A tagged
+32-entry lookup cache prepares byte selectors for protected physical quads
+below E680; those quads cannot be changed by this region's writes. High-LS
+tables are reread and prepared on every access, including post-store reads.
+Arbitrary incoming masks/table bases/upper lanes remain supported.
+
+The final native iteration reconstructs every changed volatile register. After
+all stores, the footer adds 432 to r1, copies the old r95 manager to r3, forms
+the aligned publication pointer in r4, then restores r126, r0 and r80..r103
+from the final LS frame in original order. Output/frame aliases therefore
+change the restored values exactly. The checker stops at 2738; it executes
+neither publication nor return twice. The older phase-2 bit3 prefix remains
+independent when the new switch is off or eligibility fails. New strict
+checks use the complete original body rather than that prefix's wrapper.
 
 ### Width-16 source compatibility
 

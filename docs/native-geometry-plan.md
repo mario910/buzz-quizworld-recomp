@@ -669,6 +669,23 @@ native menu and actual round frames are normal. See the
 reversed same-EXE A/B, normalized worker/process CPU and default gates remain
 OPEN; JOB=0 / leaf 827 / new flags=0 are unchanged. Strict Stage F stays last.
 
+### Complete native triangle stitching and frame restoration
+
+All of 7A90 is now native through queued 2738: cached inputs, full body/final
+iteration, post-store LUT feedback and late 432-byte-frame restoration.
+`BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2` defaults to 0; the phase-2 bit3
+fallback remains independent. Tests pass 4,993 strict cases, including 80
+independent frame models and 32 mutable-LUT proofs, nine unchanged rejects,
+separate fallback/reference routing and 272 configuration cases. Five corpus
+arms each pass 19,508 exact jobs / 58,195 transfers, all 19,508 triangle calls
+native / zero fallback (0 warmup, 6,833 short, 12,675 bulk). Combined arms retain the preceding
+four native index regions. Strict live comparisons reach at least 465,000;
+native menu and actual round frames look normal. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-triangle-stitching-and-frame-restoration-7a90).
+Whole index control/setup/publication and other enclosing paths remain open.
+Final interpreter/reversed A/B/normalized worker/process CPU/default gates
+remain OPEN; JOB=0 / leaf 827 / new flags=0 are unchanged. Strict Stage F is last.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -797,6 +814,7 @@ subject to the kernel gates before replacement.
 | 0x74F0/7640/7C20/7CD0/77E8 bit unpack | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0 | 5,378 strict incl256 numeric +10 rejects; five arms: 19,508 exact / 58,195 transfers; 9,763 native/0 fallback | >=545,000 strict low +55,000 strict high; native scenes in report | not measured | |
 | 0x7838/78A8 complete flag expansion | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0 | 4,691 strict including 64 numeric merges + 2 capacity reversals; seven rejects; five arms: 19,508 exact / 58,195 transfers; 19,508 native/0 fallback | >=130,000 strict short +330,000 strict bulk; native scenes in report | not measured | |
 | 0x79A8/79C8 command relocation | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2`, default 0 | 5,777 strict including 1,152 byte models; eight rejects; five arms 19,508 exact / 58,195 transfers; all 19,508 native / 0 fallback | >=460,000 strict live; native scene frames normal | not measured | |
+| 0x7A90 complete triangles/frame | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2`, default 0 | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=465,000 strict live; native scene frames normal | not measured | |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
@@ -848,6 +866,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Complete 7A90 triangles/frame | Menu/actual round (functional) | not measured | not measured | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; 272 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=465,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-10-31 | Complete 79A8/79C8 command relocation | Menu/actual round (functional) | not measured | not measured | 5,777 strict including 1,152 byte models; eight rejects; 264 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=460,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-10-31 | Complete 7838/78A8 flag expansion | Menu/actual round (functional) | not measured | not measured | 4,691 strict including 64 scalar merges + 2 capacity reversals; seven rejects; 256 configuration cases; each replay: 19,508 exact / 58,195 transfers, all 19,508 native / 0 fallback; >=130,000 strict short +330,000 strict bulk live; own 0/1/2, default 0; final gates OPEN |
 | 2026-10-31 | Complete 74F0/7640/7C20/7CD0/77E8 bit unpack | Menu/actual round (functional) | not measured | not measured | 5,378 strict incl256 independent numeric cases +10 rejects; 248 configuration cases; 9,763 native/0 fallback, each replay19,508 exact/58,195 transfers; >=545,000 strict low +55,000 strict high live; own 0/1/2 default0; width16 source behavior documented; final gates OPEN |

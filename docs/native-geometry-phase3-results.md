@@ -35,11 +35,13 @@ The complete `7730/7770` delta region is now native opt-in, independently
 checked and documented below. Other regions of the decoder remain unfinished.
 The full low/high bit-unpack region is now independently native as well;
 its source-compatible width-16 behavior and evidence are recorded below.
+Complete native 7A90 stitching and frame restoration now reaches queued 2738;
+publication and the enclosing controller remain unfinished.
 Full `79A8/79C8` command relocation is now independently native through queued
 7A90; its overlapping-window contract and evidence are recorded below.
 Full `7838/78A8` flag expansion is also native opt-in through its actual
 post-write capacity decision, with separate evidence below. Whole-index control
-and complete triangle final state remain unfinished.
+and publication remain unfinished.
 
 Functional scene runs use forced shutdown. Their periodic successful native
 and strict counters are lower bounds; final fallback totals are unavailable.
@@ -3544,3 +3546,124 @@ Private evidence uses `phase3/index-relocate-v1-*` and
 `analysis/vk-scene-p3-index-relocate-v1-*`; the finalized manifest binds the
 committed sources/docs/tests, source/fixture/save pins, frozen EXE/map/C/native
 copies, prior expansion proof, tests, five replays and three scenes.
+
+
+## Complete triangle stitching and frame restoration (7A90)
+
+`port/native_geometry_index_triangles.h` replaces the entire 7A90 loop and
+final frame restoration through queued 2738. Host vectors retain incoming
+cached quads, previous output, pointers, populations, remaining count and
+selection masks. Prepared constant shuffles and a tagged 32-slot cache avoid
+repeated selector preparation for immutable physical LUT quads below E680.
+All high-LS LUT accesses are reread/prepared, preserving output/table feedback.
+No original setup, step or final iteration runs in the new native region.
+
+The output advance starts with incoming r5, then becomes 48. Eligibility
+checks the first 48-byte physical span and all later spans before mutation,
+including biased addresses, separate initial/following outputs and u32 sum
+wrap. Code/input/LUT reads retain SPU wrap/floor behavior. Zero/oversized
+counts and unsafe writes fall back before mutation without native credit.
+Initial cached values remain distinct from LS, and arbitrary upper lanes,
+alignment/shuffle masks, population masks and LUT bases remain supported.
+
+Every step reads five LUT quads and four next input quads before ordered
+stores at +0/+16/+32, then reads both next high-nibble LUT controls AFTER all
+three stores. The final native step reconstructs every changed volatile GPR.
+After all writes the footer adds 432 to r1, copies the old manager r95 to r3,
+forms the aligned publication pointer in r4, then restores r126, r0 and
+r80..r103 from the final LS frame in original order. Output/frame aliases
+therefore affect restored values. The checker stops before 2738 publication.
+
+`BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares all 128 GPRs/all LS, architectural/channel/control state, PC/FN and
+image/depth/policy/overlay with the complete original 7A90 body. It uses the
+original body directly; the separate phase-2 bit3 wrapper remains the fallback
+when the new switch is off or eligibility fails. No exclusions, tolerance or
+Stage F waiver are added. Stage 35 / 36 counters / protocol 30 track coverage.
+The generator matches exactly the pinned single-line phase-2 wrapper and
+preserves its underlying original and legacy native functions.
+
+**4,993 strict full-state/LS cases** pass: 4,096 randomized entries, 768 targeted
+input/code/table/frame alias and wrapped-address cases, 16 maximum-span cases
+(4,225 iterations), one pinned real entry, **80 independent frame models** and
+**32 mutable-LUT proofs**. Random cases include arbitrary initial caches,
+upper lanes and control/population masks. Targets include high/low/wrapped/
+biased LUT bases, custom separated output spans, code/output feedback,
+wrapped stack spills and frame/output overlap. Nine rejects preserve state.
+There were no strict native/reference differences or numeric fixture failures.
+
+The independent frame models start from zero source/control bytes, so every
+output quad is zero. They apply those writes to a byte model BEFORE loading
+all return/nonvolatile spills. Five frame placements and all 16 biases cover
+ordinary, wrapped, return-address, r126 and nonvolatile aliases. They verify
+all 262,144 LS bytes, r0/r126/r80..r103, every r1/r4 lane and the old manager
+value in r3. The mutable-LUT proofs force zero pack outputs over previously
+nonzero high tables; both next-prefetch and post-store GPR controls must become
+zero. They cover both table aliases at every byte bias and reject stale caching.
+
+Real-owner API routing passes 18 native / 12 strict calls, 12 original-body
+checker calls and nine counted fallbacks. Warmup-only/short/bulk, both strict
+modes, table/code/frame aliases, tail-PC collisions, off/foreign/image/null
+reference/null continuation/invalid fields/foreign LS/post-scope are covered.
+Fallback and original-reference functions are separate; checks prove that the
+new native mode executes no original body outside strict comparison. The
+1,024 outer models, 19,508 real-entry models, 43 runtime controller scenarios,
+**272 production-getter cases** and durable first-fallback check pass.
+
+Frozen `build-vulkan-phase3-index-triangles-v1`:
+EXE `de456e7b2856d32f8f6c9bbbed5d5bf9992a1053345332dc149949fabb24e5ac`;
+map `9d6575a5cd8b61b8a3b83f51384fb73bcb4dfc4f6ccc8bcec34df3e675897f02`;
+generated C `36c22c69ea9db3b1f20ede3812e0152ca85f6b938c7b72b77942b3b3c0b6beb8`.
+The production build, generated C and four compiled native/header/controller
+copies are preserved. The original lift, phase-2 generator and source/save/
+fixture pins are unchanged.
+
+All five corpus arms pass **19,508 exact jobs / 58,195 transfers**, zero input
+changes and failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | INDEX_TRIANGLES | Triangles native/strict/fallback |
+|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline |
+| Independent | 2 | 0 | 1 | 19,508/19,508/0 |
+| Combined native | 1 | 1 | 1 | 19,508/0/0 |
+| Combined checked | 2 | 1 | 1 | 19,508/19,508/0 |
+| Kernel checked | 1 | 1 | 2 | 19,508/19,508/0 |
+
+Every enabled arm has 0 warmup, 6,833 short, 12,675 bulk, zero fallback. Both JOB=2
+arms pass all 19,508 whole-job state/I/O checks. Combined arms retain all
+9,763 unpack roots, 9,763 deltas, 19,508 flag expansions and 19,508 command
+relocations, plus 1,628 AF18, 6,113 weighted and 5,018 basic-direction roots,
+zero fallback. All five completed index data regions compose on actual inputs.
+The enclosing controller, zero-width/setup paths and publication remain
+separate unfinished work in the [inventory](native-geometry-index-audit.md#native-implementation-inventory).
+
+Functional live runs use the same frozen EXE, fresh private saves, all older
+flags=1 including unpack/deltas/expansion/relocation, GEOMETRY=1 / Stage F=1 /
+leaf 827, JOB=1, background/native mailbox/mute. There is no compilation,
+CPU-test or profiling overlap:
+
+| Scene | JOB/INDEX_TRIANGLES | Frames / last elapsed ms | Triangle lower bounds |
+|---|---|---|---|
+| checked-menu | 1/2 | 1,432 / 59,371.571 | strict: warmup>=0; short>=120,000; bulk>=345,000 |
+| menu | 1/1 | 2,278 / 75,016.413 | native: warmup>=0; short>=790,000; bulk>=2,345,000 |
+| round | 1/1 | 6,085 / 195,889.107 | native: warmup>=0; short>=1,320,000; bulk>=5,765,000 |
+
+Checked menu ran 60s, native menu 75s, and native round 60s after navigation.
+Strict live comparisons reach at least **465,000**. No differences, halts or
+first triangle fallback were observed. Periodic counters are lower bounds;
+forced shutdown provides no final fallback totals. Inspected 1280x720 native
+readbacks show normal studio/menu/crowd and actual green-round host/player/
+score UI. Zero real/live shape counts remain distinguished from synthetic tests.
+
+Final interpreter, reversed same-frozen-EXE menu/round A/B and normalized
+worker/process cycles/time/default gates remain **OPEN**. These functional
+scenes make no FPS or CPU benefit claim. Repeatable CPU savings can justify
+enabling with flat FPS after all correctness/render gates. JOB=0 / leaf 827 /
+new flags=0 remain. Phase 3 and the continuing goal stay active; full index
+control/setup/publication, other enclosing paths, builtins and cold coverage
+remain required. Strict Stage F reconstruction stays last.
+
+Private evidence uses `phase3/index-triangles-v1-*` and
+`analysis/vk-scene-p3-index-triangles-v1-*`; the finalized manifest binds the
+committed sources/docs/tests, source/fixture/save pins, frozen EXE/map/C/native
+copies, prior relocation proof, tests, five replays and three scenes.

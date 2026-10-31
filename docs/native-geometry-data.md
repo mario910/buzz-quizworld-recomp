@@ -1266,3 +1266,18 @@ against both original blocks. Eligibility bounds every write before mutation;
 unsupported input falls back without native credit. See the
 [source contract](native-geometry-index-audit.md#command-relocation-and-overlapping-windows)
 and [phase-3 results](native-geometry-phase3-results.md) for coverage and gates.
+
+
+### Complete native index triangle stitching
+
+`native_geometry_index_triangles.h` replaces the complete 7A90 body and final
+432-byte-frame restoration through queued 2738. It preserves initial cached
+quads, arbitrary control masks, ordered stores, post-store LUT reads and
+input/code/table/frame aliases. Only protected low-LS LUT quads are cached;
+mutable high tables are always reread. Every write is bounded before mutation.
+`BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares all GPR/LS/architectural/control state and exact continuation against
+the complete original body; the phase-2 bit3 wrapper remains the separate
+fallback. The 2738 publication body and enclosing controller remain unfinished.
+See the [source contract](native-geometry-index-audit.md#triangle-stitching-mutable-tables-and-final-frame)
+and [phase-3 results](native-geometry-phase3-results.md) for coverage and gates.
