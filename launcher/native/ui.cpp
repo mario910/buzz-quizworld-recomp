@@ -282,6 +282,11 @@ void display_settings(App& app) {
         if(ImGui::SliderInt("FSR sharpness",&sharp,0,100,"%d%%")){pc.fsr_sharpness=unsigned(sharp);app.settings.pc_configured=true;}
     }
     ImGui::TextDisabled("How the frame is scaled into the window. FSR 1 applies when the window is larger than the internal resolution (e.g. 720p or 1080p into 1440p/4K); otherwise the frame is scaled bilinearly. Applies live.");
+    ImGui::Spacing();
+    if(ImGui::Checkbox("Use texture packs",&pc.texture_replace))app.settings.pc_configured=true;
+    if(ImGui::Checkbox("Dump textures (for making packs; slow)",&pc.texture_dump))app.settings.pc_configured=true;
+    ImGui::TextWrapped("Texture folder: %s",utf8(app.root/"runtime"/"textures").c_str());
+    ImGui::TextDisabled("PNGs in replace/ (any size, e.g. 4x upscales of the dump) are used in place of the game's textures with the same name. Dumping writes each new texture to dump/. Both require restarting the game.");
 }
 void game_tab(App& app,SDL_Window* window) {
     heading("YOUR PREPARED GAME","Run a locally built copy directly. This launcher never downloads or builds game content.");

@@ -21,6 +21,10 @@ struct Preferences {
     unsigned render_scale = 100;
     Upscaler upscaler = Upscaler::bilinear;
     unsigned fsr_sharpness = 80; // 0-100; RCAS strength
+    // Texture packs in <game folder>/textures: replace/ is loaded in place of
+    // matching game textures, dump/ receives every new texture. Restart-only.
+    bool texture_replace = true;
+    bool texture_dump = false;
     bool offline = true;
     Renderer renderer = Renderer::automatic;
     bool phone_buzzers = false;
@@ -31,11 +35,11 @@ inline bool operator!=(const Preferences& a,const Preferences& b){return !(a==b)
 bool validate(const Preferences&,std::string& error);
 std::string serialize(const Preferences&);
 bool parse(const std::string&,Preferences&,std::string& error);
-// The game's startup read. A file whose only problem is its display keys
-// (window size / internal resolution) still loads, with those keys at their
-// defaults; display_reset reports it. Anything else fails as parse() does.
+// The game's startup read. A file whose only problem is its version-2 keys
+// (display and texture pack) still loads, with those keys at their defaults;
+// display_reset reports it. Anything else fails as parse() does.
 bool parse_with_display_fallback(const std::string&,Preferences&,std::string& error,bool& display_reset);
-enum Restart : uint32_t { no_restart = 0, network_restart = 1, renderer_restart = 2, resolution_restart = 4 };
+enum Restart : uint32_t { no_restart = 0, network_restart = 1, renderer_restart = 2, resolution_restart = 4, texture_restart = 8 };
 struct Size {unsigned width,height;};
 // Window size presets offered by the UIs; any other valid size is "custom".
 inline constexpr Size window_presets[] = {{1280,720},{1920,1080},{2560,1440},{3840,2160}};

@@ -70,7 +70,7 @@ bool buzz_pc_runtime_init() {
             std::string text{std::istreambuf_iterator<char>(in),{}},error;
             bool display_reset=false;
             if(!buzz_pc::parse_with_display_fallback(text,p,error,display_reset))throw std::runtime_error(error);
-            if(display_reset)fprintf(stderr,"[pc-settings] %s; using the default window size and internal resolution\n",error.c_str());
+            if(display_reset)fprintf(stderr,"[pc-settings] %s; using the default display and texture pack settings\n",error.c_str());
             if(!renderer_available(p.renderer))throw std::runtime_error("Requested renderer is not available in this build");
 #ifdef _WIN32
             if(_putenv_s("BUZZ_OFFLINE",p.offline?"1":"0"))throw std::runtime_error("Cannot select offline policy");
@@ -81,8 +81,16 @@ bool buzz_pc_runtime_init() {
             // Read once by the renderer when it creates its targets.
             ps3_host_set_render_scale(p.render_scale);
         }
+        // Read once by the renderer's first texture upload. Defaults apply
+        // without a settings file too: an empty or missing folder costs nothing.
+        {
+            const unsigned flags=(p.texture_replace?PS3_HOST_TEXPACK_REPLACE:0u)|(p.texture_dump?PS3_HOST_TEXPACK_DUMP:0u);
+            const auto dir=(fs::current_path()/"textures").u8string();
+            if(!ps3_host_set_texture_pack(reinterpret_cast<const char*>(dir.c_str()),flags))
+                fprintf(stderr,"[pc-settings] texture pack folder path is too long; texture packs disabled\n");
+        }
         state=std::make_unique<buzz_pc::State>(p);
-        fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%%\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale);
+        fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%% texture_replace=%d texture_dump=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale,p.texture_replace,p.texture_dump);
         return true;
     }catch(const std::exception& e){fprintf(stderr,"[pc-settings] %s\n",e.what());return false;}
 }

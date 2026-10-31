@@ -100,6 +100,7 @@ void apply_live() {
     auto change=buzz_pc_apply_preferences(preferences,false);
     if(!change.accepted)status=change.error;
     else if(change.restart&buzz_pc::resolution_restart)status="Internal resolution changes take effect after restarting the game.";
+    else if(change.restart&buzz_pc::texture_restart)status="Texture pack changes take effect after restarting the game.";
     else if(change.restart)status="Online/renderer changes take effect after restarting the game.";
     else status="Applied. Choose Save settings to keep changes after restart.";
 }

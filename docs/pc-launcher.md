@@ -221,10 +221,38 @@ both UIs:
   translator) presentation stays bilinear. Temporal upscalers (DLSS, FSR 2/3,
   XeSS) are not offered: the game provides no motion vectors or jitter.
 
-A version-1 `pc-settings.ini` loads unchanged with the display defaults, and
-default display settings are still written as the exact version-1 file. If
-only the display keys of a file are invalid, the game starts with the default
-window size and internal resolution and logs why; the launcher still reports
+### Texture packs (upscaled textures)
+
+`runtime/textures/` beside `pc-settings.ini` holds texture packs
+(`ps3recomp/libs/video/rsx_texture_pack.h`, both renderers):
+
+- **Dump textures** (`texture_dump=1`) writes every new 2D colour texture the
+  game uploads to `textures/dump/` as a PNG named after its contents:
+  `<64-bit hash>_<width>x<height>_<format>.png`. The name is the same in every
+  run and on both renderers. Dumping costs a PNG encode per new texture, so it
+  is for making packs, not for playing; an address whose contents keep
+  changing (video, rendered surfaces) stops being dumped after four images,
+  and a run stops after 16384 files.
+- **Use texture packs** (`texture_replace=1`, the default) loads any PNG under
+  `textures/replace/` (subfolders allowed) in place of the texture with the
+  same name, at the PNG's own size; a full mip chain is built from it. Upscale
+  the dump offline (Real-ESRGAN or similar, or by hand), keep the file names,
+  and copy the results to `replace/`. An empty or missing folder costs nothing.
+- Only images are eligible: B8, G8B8, the ARGB/packed 16-bit colour formats
+  and DXT1/23/45, not cube maps, volumes, normal maps, depth or float
+  textures. The game's channel remap still applies, so a B8 font atlas stays
+  one channel (grey PNG) and G8B8 two (grey + alpha PNG); DXT is replaced by
+  uncompressed RGBA. A PNG whose aspect ratio differs from the original is
+  used stretched, with a log line.
+- Both are read at startup and are restart-only. `RSX_TEXPACK_DIR`,
+  `RSX_TEXPACK_DUMP=0/1` and `RSX_TEXPACK_REPLACE=0/1` override them for
+  diagnosis. They are set in the launcher's Game tab and the settings file,
+  not the in-game menu.
+
+A version-1 `pc-settings.ini` loads unchanged with the display and texture
+pack defaults, and default settings are still written as the exact version-1
+file. If only the version-2 keys of a file are invalid, the game starts with
+the default display and texture pack settings and logs why; the launcher still reports
 the file for repair. The native launcher reads and writes these
 same files, including custom controller mappings and offline policy. Its Game
 tab also exposes volume, frame lock, display mode, window size, internal

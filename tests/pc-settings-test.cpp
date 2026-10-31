@@ -53,6 +53,13 @@ int main() {
             display.upscaler=Upscaler::fsr1;display.fsr_sharpness=35;
             check(parse(serialize(display),decoded,error)&&decoded==display);
             check(parse("version=2\nupscale_filter=fsr1",decoded,error)&&decoded.upscaler==Upscaler::fsr1&&decoded.fsr_sharpness==80);
+            Preferences packs;packs.texture_replace=false;packs.texture_dump=true;
+            check(serialize(packs).find("version=2\n")!=std::string::npos&&parse(serialize(packs),decoded,error)&&decoded==packs);
+            check(parse("version=2\ntexture_dump=1",decoded,error)&&decoded.texture_dump&&decoded.texture_replace);
+            check(Preferences{}.texture_replace&&!Preferences{}.texture_dump);
+            bool reset=false;
+            check(parse_with_display_fallback("version=2\nvolume=9\ntexture_dump=yes",decoded,error,reset)&&reset&&
+                  decoded.volume_percent==9&&!decoded.texture_dump);
         }
         p.volume_percent=42;p.fullscreen=true;p.fps_limit=0;p.offline=false;p.renderer=Renderer::vulkan;p.phone_buzzers=true;p.phone_port=65535;
         check(parse(serialize(p),decoded,error)&&decoded==p);
@@ -60,7 +67,8 @@ int main() {
         for(const char* bad:{"version=0","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10",
             "version=3","version=1\nwindow_width=1920\nwindow_height=1080","version=2\nwindow_width=1920","version=2\nwindow_width=100\nwindow_height=100",
             "version=2\nwindow_width=99999\nwindow_height=1080","version=2\nrender_scale=50","version=2\nrender_scale=301","version=2\nrender_scale=1.5",
-            "version=2\nupscale_filter=dlss","version=2\nfsr_sharpness=101","version=1\nupscale_filter=fsr1"}) {
+            "version=2\nupscale_filter=dlss","version=2\nfsr_sharpness=101","version=1\nupscale_filter=fsr1",
+            "version=2\ntexture_replace=2","version=2\ntexture_dump=on","version=1\ntexture_dump=1"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));
@@ -77,6 +85,9 @@ int main() {
         p.render_scale=200;result=state.apply(p);
         check(result.accepted&&result.restart==resolution_restart&&state.active().render_scale==100&&state.requested().render_scale==200);
         p.render_scale=100;p.window_width=0;p.window_height=0;check(state.apply(p).restart==no_restart);
+        p.texture_dump=true;result=state.apply(p);
+        check(result.restart==texture_restart&&!state.active().texture_dump&&state.requested().texture_dump);
+        p.texture_dump=false;check(state.apply(p).restart==no_restart);
         std::thread writer([&]{for(unsigned i=0;i<10000;++i){Preferences q;q.volume_percent=i%101;state.apply(q);}});
         for(unsigned i=0;i<10000;++i)check(state.active().volume_percent<=100);
         writer.join();
