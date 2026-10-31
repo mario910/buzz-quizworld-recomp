@@ -172,6 +172,9 @@ The driver boundary audit and reference/shadow I/O harness are validated on
 the full corpus and at least 256 live jobs. The native pipeline flow, its
 switch/descriptor eligibility, and its correctness/render/performance gates
 remain open; the harness baseline is not a native implementation.
+The native host input reader now matches the original 21-pointer setup on
+all 19,508 corpus entries and 256 synthetic entries, with 14 mutation-free
+rejection checks. It remains unwired pending native pipeline implementation.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):

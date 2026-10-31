@@ -214,7 +214,7 @@ These are the 21 *descriptor* input entries, before any job-issued DMA:
 
 | Config byte | Meaning | Observed |
 |---|---|---|
-| 0 | low nibble = float4 uniform-table count; `0x80` = extra table for skin/blend; `0x10` = static fast path | Table count varies |
+| 0 | low nibble + 1 = allocated float4-table count; `0x80` = extra table for skin/blend; `0x10` = static fast path | Table count varies; 0x2F80/30E8 allocates at least one |
 | 1 | Command/routing control | Keep numeric; do not infer a new vertex format from it |
 | 2,3 | Input format IDs A/B | A=0 (BE float3 position), B=0 or `0xFF` |
 | 4 | Output format ID | `0xFF` (custom) |
@@ -358,6 +358,13 @@ matrix, `+0x120..0x13F` viewport scale/bias, and `+0x150/+0x154` DMA tags.
 Allocator boundaries are `+0x170` (uniform/scratch start), `+0x174` (uniform/scratch end),
 `+0x178` (input workspace start), `+0x17C` (input workspace end); `+0x180`
 starts the mutable count block. Unnamed/reserved context fields are preserved.
+
+At initialization, the input workspace starts at the I/O base plus the whole
+first word of input-list entry 0 (the retained command-template prefix size),
+not at the end of the staged input list. Its end is the declared I/O end.
+The float4-table allocation count is `(config[0] & 15) + 1`; each table has
+stride `align_up(vertexCount, 8) * 16`, including zero-sized tables when the
+vertex count is zero.
 
 For the first menu sample, SPURS scratch starts at `0x11000`, float4 tables
 are `0x11000`, `0x12980`, `0x14300` (408 vertices each), and geometry context

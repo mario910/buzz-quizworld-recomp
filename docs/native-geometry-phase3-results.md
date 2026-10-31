@@ -133,6 +133,34 @@ preserved generated C, map and frozen `build-vulkan-phase3-io` EXE SHA256
 Original game-save and lifted-source hashes are unchanged. Preliminary audit
 builds/logs are superseded by this frozen set.
 
+## Native input model
+
+`port/native_geometry_job_input.h` decodes the reviewed 21-input descriptor
+family into host values before any mutation. It checks the context/descriptor
+ABI, LS ownership, declared region arithmetic, stack frame, staged input
+addresses and configuration alignment. Rejection leaves both the SPU context
+and the caller's output object unchanged. This reader is not the complete
+native-path eligibility filter: codec/pipeline support still needs its own
+decision before native execution.
+
+```powershell
+.\tests\scripts\test-geometry-job-input.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+```
+
+PASS: **19,508 real entries**, **256 synthetic cases**, and **14 unchanged-state
+rejections**. A source-pinned private oracle executes the original DMA-free
+`0x08A8` setup and checks all 21 input pointers, including empty inputs and
+every EA low nibble, plus preserved pointer-table padding. Reading the host
+view leaves the entire input context byte-for-byte unchanged. Log:
+`analysis/native-geometry/phase3/job-input-test.log`.
+
+Two driver details are now explicit: `0x2F80/0x30E8` allocates
+`(config[0] & 15) + 1` float4 tables, and the reusable input workspace starts
+at `io_lsa + input[0].size_flags`, using the whole first word of the command
+entry. It does not start after the last staged input. Invalid command-prefix
+ranges are rejected. These host helpers are not wired as a native whole-job
+path yet and provide no native-driver coverage or performance claim.
+
 ## Remaining phase-3 gates
 
 - Add the independent off/native/checked job switch and an eligibility check
