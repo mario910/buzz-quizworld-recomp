@@ -11,6 +11,8 @@ families, plus the primary raw float3 path. Remapped weighted scatter also
 has a complete native implementation with strict real-corpus/live coverage.
 The four cold typed families still have open real-data/live gates, and
 enclosing pipeline bodies keep phase 3 open.
+Additional-stream BF8 orchestration is also native opt-in with strict
+corpus/live checks; its compressed-list data dependency `0x7118` is original.
 
 ## Driver boundary audit
 
@@ -1397,7 +1399,7 @@ The required phase-3 data inventory after this increment is:
 | `0x8EA8`, storage 7 U8 integer | Complete native implementation; strict synthetic/routing checks pass; default-off | Real corpus/live coverage and >=256 strict live gate OPEN; final performance/default gates open |
 | `0x9058` / `0xC810/C830/C910`, storage 8 fixed point | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
 | `0xC750/C7A8`, remapped weighted scatter | Complete native opt-in; strict synthetic/corpus/live checks pass | Final performance/default decision |
-| `0x0BF8`, list/blend stage | Original enclosing stage | Native enclosing flow and validation |
+| `0x0BF8`, list/blend stage | Native opt-in reverse selection, double-buffered DMA and caller restoration; corpus/live/render checks pass; explicit library data calls | Final performance/default decision; original `0x7118` data dependency below |
 | `0x7118`, compressed-list decoder called by `0x0BF8` | Original data implementation | Native decoder and strict coverage; an enclosing native caller will not close this dependency |
 | `0x09F8`, skinning stage | Validated inner leaf; enclosing stage original | Native enclosing flow and validation |
 | `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
@@ -1987,8 +1989,131 @@ The private `phase3/io-root-v1-proof/manifest.json` binds the tested sources,
 archived logs and original lift pin; it is an infrastructure proof, not a
 frozen game-build or live/native coverage manifest.
 
-This is checking infrastructure, with no BF8 native implementation, switch,
-corpus/live coverage or performance claim yet. JOB default 0, leaf mask 827,
-stage defaults, adapter protocol 15 and the existing Stage F exception are
-unchanged. BF8 implementation and all its gates remain open.
+At that infrastructure checkpoint there was no BF8 native implementation,
+switch or corpus/live coverage. JOB default 0, leaf mask 827, stage defaults,
+adapter protocol 15 and the existing Stage F exception were unchanged.
+The subsequent BF8 implementation is tracked below.
 Strict Stage F reconstruction remains mandatory final phase 7.
+
+## Native additional-stream list/blend flow BF8..12E8 (2026-10-31)
+
+`port/native_geometry_blend_lists.h` owns reverse stream selection,
+double-buffered GETL scheduling, capacity deferral, buffer resets, optional
+reset-count updates, stream argument construction and caller restoration.
+It uses a host loop over selected streams; no lifted BF8 control block runs
+on the native path. All 128-bit ABI lanes and stack spills remain observable
+and exact, including at calls to the four explicit library data operations:
+`0x7118` compressed lists, `0x7DF8` typed attributes, `0x2780` normal pointer
+and `0x2C00` normalization. Their own native/original implementations and
+switches remain separate. In particular, `0x7118` is still original data work.
+
+`BUZZ_GEOMETRY_JOB_BLEND_LISTS=0/1` selects original/native, default **0**.
+Ownership remains scoped to the native image-41 pipeline; original reference,
+foreign and disabled calls retain the lift. Supported entries use a physical
+LS, bounded aligned stack and at most 128 streams; nonempty scratch buffers
+must be aligned, valid and disjoint from manager/stack. Eligibility precedes
+register changes, spills and channel operations. Unsupported entries retain
+the original stage, without being counted as native success.
+
+Under JOB=2, the I/O-root checker clones the actual BF8 input and re-executes
+the complete original root against its bounded parent transcript slice.
+It compares all GPRs, all LS, controls, image/depth and exact return PC/FN
+before the native caller resumes. The reference drains by `0xD04` tail
+identity, so a return link equal to that interior PC is still checked.
+JOB=1 executes the native root without replaying its I/O. This flag has no
+independent mode 2: strict I/O-root checking requires the JOB=2 transcript.
+
+Adapter protocol **16** routes BF8 with its five boundary callbacks (four
+data operations and the original return tail). The adapter also registers
+six exact original lexical suffixes reached by interrupt-thunk `r2+8`
+branches: `0xDE8/EE8/F48/111C/1240/12C0`. This preserves the original reference
+instructions while making those computed entries available to compiled
+lookup. Neither the original lift nor the phase-2 generator pin changes.
+
+Validation:
+
+```powershell
+.\tests\scripts\test-geometry-blend-lists.ps1
+.\tests\scripts\test-geometry-job-runtime.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+.\tests\scripts\test-geometry-io-root.ps1
+```
+
+PASS: **2,672 strict root/call-ABI/I/O cases and 15 unchanged/no-I/O rejects**.
+The pinned oracle retains 39 original blocks plus six original interior
+suffixes, with four bounded test callees. Tests check all GPRs, caller stack,
+PC/depth/image and architectural controls at every callee entry; the callees
+spill all high registers and clobber volatile registers. Root exits compare
+full GPR/LS/control/continuation state. Coverage includes 0..128 streams,
+both interrupt states and host depths, return-link/tail collision, null and
+present reset counters, normal-pointer variants, zero/low-weight filtering,
+capacity deferral and 512 raw-FP weight/scale cases around the threshold,
+denormals, signed zero and SPU exceptional encodings. There are **33,307 GETLs,
+5,415 resets and 579 fully filtered nonempty cases** in this synthetic suite.
+These are synthetic controller tests, not real native data-callee coverage.
+
+PASS: **160 production-getter configuration cases**, 43 existing controller
+scenarios and 23 I/O-root cases. Driver tests check owner/disabled/foreign/
+null-library/unsupported BF8 routing alongside existing native routes,
+1,024 pipeline models and all 19,508 real driver entries.
+
+Frozen candidate: `build-vulkan-phase3-blend-lists-v1`.
+EXE SHA-256: `8e6a41c59a38c43c15643e8f2b8cc55a8240e1bd1a397e4664adc57291fb58d6`.
+Map SHA-256: `d8617bfdcc1f3c9269f0a847a399224b3c342c5676754beec4f5cddd72abc162`.
+The private frozen generated source is `phase3/frozen-blend-lists-v1-source.c`.
+
+All four frozen corpus configurations pass **19,508 exact jobs / 58,195
+transfers**, zero changed-input jobs and zero failures, with Stage F=2,
+geometry leaf mask 827 and no replay-contract override:
+
+| Configuration | JOB | Other new stage flags | BF8 native / fallback | Strict BF8 roots |
+|---|---|---|---|---|
+| Off | 0 | 0 | No native pipeline | 0 |
+| Independent | 2 | 0 | 328 / 0 | 328 |
+| Combined native | 1 | 1 | 328 / 0 | 0 |
+| Combined checked | 2 | 1 | 328 / 0 | 328 |
+
+BLEND_LISTS is 1 in all four configurations, proving it cannot activate the
+native stage through an original JOB=0 caller. Both JOB=2 configurations also
+check the complete state and I/O of all 19,508 outer jobs. Combined native
+codecs retain all previous real coverage, including 2,326 scatter calls,
+12 float32 and three fixed-point calls without fallback. Cold typed families
+still have zero real calls; they are not counted as validated live coverage.
+Private logs: `phase3/blend-lists-v1-corpus-{off,independent,native,checked}.log`.
+
+Native menu/round functional checks use the same frozen EXE, all new stage
+flags=1, leaf mask 827, GEOMETRY=1, Stage F=1 and fresh private save copies:
+
+- JOB=1 menu, 75 seconds: 2,231 CSV frames through 74,687.511 ms. The native
+  renderer readback shows the normal studio/menu UI, crowd and stage.
+- JOB=1 round, 60 seconds after `round_start_s=136.5`: 6,023 CSV frames through
+  195,875.684 ms and at least **140,000 native BF8 roots**. The final renderer
+  readback shows the actual round's green stage, host, player and scoreboard.
+
+- The first combined JOB=2 fixed-timing diagnostic records 2,534 frames
+  through 236,427.243 ms but its readback is a profile prompt. It performs
+  only **one** strict BF8 root. It is retained as a navigation diagnostic,
+  not round coverage or a passed 256-call BF8 gate.
+- The JOB=2 retry isolates BLEND_LISTS=1 with the other new stage flags=0,
+  leaving leaf mask 827, GEOMETRY=1 and Stage F=1 unchanged. Native buzzer
+  commands are spaced 1.5 seconds apart. The private helper can recover
+  profile selection with further native mailbox commands until the strict
+  counter reaches 256; no recovery attempt was needed in the successful run.
+  `round_start_s=160.4` and `bf8_strict_gate_s=160.4` are both recorded.
+  It then runs another 60 seconds, recording 3,283 frames through
+  219,797.958 ms, **at least 40,000 strict/native BF8 roots** and **2,175,000
+  strict whole-job/I/O comparisons**, without differences. The readback shows
+  an actual round question with the host/player, stage, answers and timer.
+
+All sessions completed. No compilation, CPU tests or profiling overlap these
+functional runs. The original save (`54f28fdc...`) and canonical private
+template (`92ed9caf...`) hashes are unchanged. Private CSV/stderr pairs are
+`analysis/vk-scene-p3-blend-lists-v1-{menu,round,checked-round,root-retry}.*`;
+renderer PPM/PNG readbacks use the same tags under `phase3`. Source, EXE/map,
+save and archived evidence hashes are bound by private
+`phase3/blend-lists-v1-build.json`.
+
+These are correctness/render observations, not matched FPS or CPU results.
+The original `0x7118` data dependency, four cold typed-family gates, remaining
+enclosing bodies and final interpreter/performance/default decisions keep
+phase 3 open. BLEND_LISTS and the whole-job driver remain default-off.

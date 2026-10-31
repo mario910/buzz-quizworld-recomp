@@ -19,6 +19,7 @@
 #include "native_geometry_u8_integer_stream.h"
 #include "native_geometry_snorm_stream.h"
 #include "native_geometry_blend_scatter.h"
+#include "native_geometry_blend_lists.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -31,6 +32,44 @@ struct NativePipelineScope {
     explicit NativePipelineScope(spu_context* ctx) : previous(native_pipeline_context) { native_pipeline_context = ctx; }
     ~NativePipelineScope() { native_pipeline_context = previous; }
 };
+struct BlendListReference {
+    buzz_geometry_job_fn entry, tail;
+};
+thread_local const BlendListReference* blend_list_reference = nullptr;
+void run_blend_list_reference(spu_context* ctx)
+{
+    const auto* original = blend_list_reference;
+    if (!original) buzz_geometry_job_native_fail(ctx, "missing list/blend reference scope");
+    g_spu_trampoline_fn = nullptr; original->entry(ctx);
+    // Return by identity: r0 may itself equal D04 or another interior PC.
+    for (unsigned steps = 0; g_spu_trampoline_fn != original->tail; ++steps) {
+        if (!g_spu_trampoline_fn || steps >= 1000000)
+            buzz_geometry_job_native_fail(ctx, "list/blend reference escaped root tail");
+        auto next = g_spu_trampoline_fn; g_spu_trampoline_fn = nullptr; next(ctx);
+    }
+    g_spu_trampoline_fn = nullptr; original->tail(ctx);
+}
+}
+
+extern "C" void buzz_geometry_job_blend_lists(spu_context* ctx, buzz_geometry_job_fn reference,
+                                               const buzz_geometry_blend_list_functions* functions)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_blend_lists_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryBlendLists plan;
+    if (!functions || !functions->unpack || !functions->attributes || !functions->normal_pointer ||
+        !functions->normalize || !functions->tail || !buzz::read_geometry_blend_lists(*ctx, plan)) {
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_BLEND_LISTS, 0, 0); reference(ctx); return;
+    }
+    auto* check = buzz_geometry_job_io_root_begin(ctx);
+    buzz::blend_geometry_lists(*ctx, plan, *functions);
+    const BlendListReference original{reference, functions->tail};
+    const auto* previous = blend_list_reference; blend_list_reference = &original;
+    buzz_geometry_job_io_root_end(ctx, check, run_blend_list_reference);
+    blend_list_reference = previous;
+    if (check) buzz_geometry_job_blend_lists_checked_result();
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_BLEND_LISTS, 1, 0);
 }
 
 extern "C" void buzz_geometry_job_prepare_commands(spu_context* ctx, buzz_geometry_job_fn reference)

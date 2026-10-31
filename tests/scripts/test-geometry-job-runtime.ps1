@@ -40,7 +40,7 @@ try {
     'Disabled controller PASS'
     $env:BUZZ_GEOMETRY_JOB_AUDIT = '0'
     $geometryOptionCases = 0
-    foreach ($geometryOption in @('PUBLISH','LAYOUT','VERTEX','COMMANDS','COMMAND_PUBLISH','EMIT','FULL_COMMANDS','ATTRIBUTES','CODECS','DESCRIPTORS','UNIT_VECTORS','HALF_STREAM','FLOAT32_STREAM','FIXED_STREAM','SNORM_STREAM','I16_STREAM','CMP_STREAM','U8_INTEGER_STREAM','BLEND_SCATTER')) {
+    foreach ($geometryOption in @('PUBLISH','LAYOUT','VERTEX','COMMANDS','COMMAND_PUBLISH','EMIT','FULL_COMMANDS','ATTRIBUTES','CODECS','DESCRIPTORS','UNIT_VECTORS','HALF_STREAM','FLOAT32_STREAM','FIXED_STREAM','SNORM_STREAM','I16_STREAM','CMP_STREAM','U8_INTEGER_STREAM','BLEND_SCATTER','BLEND_LISTS')) {
         $geometryOptionKey = 'BUZZ_GEOMETRY_JOB_' + $geometryOption
         $geometryOptionPrevious = [Environment]::GetEnvironmentVariable($geometryOptionKey, 'Process')
         try {

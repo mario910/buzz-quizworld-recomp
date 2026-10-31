@@ -420,13 +420,19 @@ the separate phase-3 results document. Default/performance gates, enclosing
 pipeline implementations and the four cold typed-family live gates remain
 open; this does not close phase 3.
 
-The next phase-3 enclosing target is `0x0BF8` (list/blend and double-buffered
-DMA). Its original `0x7118` compressed-list decoder is a separate remaining
-data dependency. Strict root checkpoint infrastructure now replays bounded
-I/O transcript fragments inside JOB=2 without repeating guest transfers:
-23 controller cases, I/O slice checks, existing 43 controller scenarios and
-152 configuration cases pass. This infrastructure does not implement BF8 or
-close any native/live gate; see the separate phase-3 results for its contract.
+The `0x0BF8` list/blend stage now has native reverse selection, double-buffered
+DMA/prefetch, capacity deferral/reset and caller restoration. Its independent
+`BUZZ_GEOMETRY_JOB_BLEND_LISTS=0/1` defaults off; JOB=2 checks the strict root
+against a bounded I/O transcript without repeating guest transfers. Tests pass
+2,672 strict root/call-ABI/I/O cases plus 15 unchanged-state/no-I/O rejects,
+including 5,415 buffer resets. All four frozen replay configurations pass
+19,508 exact jobs / 58,195 transfers; enabled paths have 328 BF8 roots and
+zero fallback. Strict live checks pass at least 40,000 BF8 roots, with normal
+native menu/round readbacks; the first fixed-timing checked diagnostic stopped
+at a profile prompt and is not counted as round coverage. The successful
+retry and final performance/default gates are tracked in the separate results
+document. Its original `0x7118` decoder remains a separate data dependency;
+native enclosing control does not close it. No FPS/CPU benefit is claimed.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -637,6 +643,8 @@ See the separate
 | 2026-10-31 | Phase 3 remaining typed implementations 1/5/6/7 | Strict synthetic/routing and frozen replay/scene checks | functional only; no FPS/CPU claim | normal native menu/round | 30,208 strict +108 rejects;144 configuration cases;5 replay arms each19,508 exact/58,195 transfers;0new corpus dispatches;SNORM16 live gate OPEN; I16 live gate OPEN; CMP live gate OPEN; U8 integer live gate OPEN; own0/1/2 switches default0;phase3open |
 
 | 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own0/1/2 default0;152configuration cases;phase3open |
+
+| 2026-10-31 | Phase 3 native BF8 additional-stream orchestration | Strict synthetic, four frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 2,672 strict +15 rejects;328 native roots/0fallback per enabled corpus arm;each19,508exact/58,195transfers;>=40,000 strict BF8 live roots;160 configuration cases;own0/1 default0;7118data dependency and final performance gates open |
 
 ## Risks
 

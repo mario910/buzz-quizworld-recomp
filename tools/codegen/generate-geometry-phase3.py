@@ -33,6 +33,42 @@ def main():
     source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
     source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
                             "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
+    # Original interrupt thunks branch to r2+8, sometimes a lexical suffix
+    # omitted from the lift's public entry table. Compile those exact suffixes
+    # too, so strict BF8 replay never falls through to interpreted instructions.
+    interior_entries = {0xde8: (0xde0, "        ctx->gpr[6] = spu_ilhu"),
+                        0xee8: (0xee0, "        ctx->gpr[47] = spu_ila"),
+                        0xf48: (0xf40, "        ctx->gpr[81] = spu_il"),
+                        0x111c: (0x1114, "        ctx->gpr[11] = spu_il"),
+                        0x1240: (0x1238, "        { ctx->pc = 0x1160"),
+                        0x12c0: (0x12b8, "        { ctx->pc = 0x1018")}
+    extra_functions = ""
+    extra_table = ""
+    for pc, (parent_pc, marker) in interior_entries.items():
+        parent_name = f"buzz_job_6eba_spu_func_{parent_pc:08X}"
+        match = re.search(rf"(?ms)^void {parent_name}\(spu_context\* ctx\) \{{(.*?)^\}}", source)
+        if not match or match[1].count(marker) != 1:
+            raise SystemExit(f"Unreviewed list/blend interior {pc:x}")
+        suffix = match[1][match[1].index(marker):]
+        extra_name = f"buzz_job_6eba_spu_func_{pc:08X}"
+        if re.search(rf"\bvoid {extra_name}\(", source):
+            raise SystemExit(f"Duplicate interior {pc:x}")
+        extra_functions += f"static void {extra_name}(spu_context* ctx) {{\n{suffix}}}\n"
+        extra_table += f'    {{ 0x{pc:08X}u, {extra_name}, "{extra_name}" }},\n'
+    table_marker = "static const spu_func_entry spu_function_table[] = {"
+    if source.count(table_marker) != 1:
+        raise SystemExit("Unreviewed image-41 function table")
+    source = source.replace(table_marker, extra_functions + "\n" + table_marker + "\n" + extra_table, 1)
+    list_name = "buzz_job_6eba_spu_func_00000BF8"
+    list_pattern = rf"(?ms)^void {list_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(list_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned list/blend root")
+    list_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x7118, 0x7df8, 0x2780, 0x2c00, 0xd04))
+    source = re.sub(list_pattern, lambda m:
+        f"static const buzz_geometry_blend_list_functions {list_name}_library = {{{list_library}}};\n"
+        f"static void {list_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {list_name}(spu_context* ctx) {{ buzz_geometry_job_blend_lists(ctx, {list_name}_reference, &{list_name}_library); }}",
+        source, count=1)
     for command_pc, hook in ((0x32c8, "prepare_commands"), (0x27a0, "publish_commands")):
         command_name = f"buzz_job_6eba_spu_func_{command_pc:08X}"
         command_pattern = rf"(?ms)^void {command_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
@@ -191,7 +227,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 15\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 16\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

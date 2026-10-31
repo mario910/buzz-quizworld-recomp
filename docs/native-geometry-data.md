@@ -12,6 +12,22 @@ ignored `analysis/native-geometry/` and must not be committed.
 
 ## Groundwork and strictness
 
+The opt-in native `0xBF8` list/blend flow preserves two scratch-buffer command
+quads at new SP+32/+48, with selector/size/start/capacity words. Weights are
+GET into `0xDF00`, eight-byte list descriptors into `0xE100`; count<=128 keeps
+these spans within their separate scratch regions. Reverse selection uses
+SPU multiplication/comparison with threshold `0x3CCCCCCC`, and skips an entry
+when its first two descriptor words are both zero. Selected payloads use
+GETL command 68 and tag from manager+0x154. Initial buffer bounds come from
+manager+0x58 and manager+0x17C. When the next payload does not fit, its fetch
+is deferred until after processing the current payload and resetting buffers;
+the optional BE counter passed in r8 is incremented for that reset.
+The stream header's first four words define payload sections following its
+32-byte header; word at +16 controls attribute processing. Manager+0x78 is
+updated to payload+32 before calling `0x7118` then, when nonempty, `0x7DF8`.
+The native enclosing loop preserves complete child-call ABI/spills and final
+root state; the original `0x7118` decoder remains separate required work.
+
 For new synchronous roots that issue I/O, phase 3 additionally provides
 `buzz_geometry_job_io_root_begin/end`. Under the JOB=2 native shadow, this
 checks the original root from the same full input against a bounded fragment
