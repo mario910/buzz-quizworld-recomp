@@ -12,7 +12,7 @@ tracker are in [native-geometry-plan.md](native-geometry-plan.md).
 ## Correctness evidence
 
 The full image-41 corpus contains 19,508 jobs and 58,195 transfers. Both
-checked execution and separate actual-native execution of all eight implemented
+checked execution and separate actual-native execution of all eleven implemented
 groups pass every job, with zero input divergences or failures. The existing
 Stage F baseline is held in checked mode for these whole-job checks; its
 temporary volatile-register exception is unchanged. Every new kernel is
@@ -28,23 +28,32 @@ checked against the full register, LS, control and continuation state.
 | Raw float3 decoder `97A8` | 8 | 18,968 / 540 | >=256 | `cc9c877` |
 | Raw float3 output `46FC/4750/4808/47F0` | 9 | 4,975 / 2,226 | >=256 | `eee46de` |
 | BE word fill `28F0` | 12 | 19,068 / 435 | >=256 | `f23c3c7` |
+| Triangle stitching `7A90` | 3 | 12,675 / 6,833 | >=256 | `7d0f413` |
+| Index expansion `78A8` | 6 | 12,385 / 7,123 | >=256 | `4cddd99` |
+| Packed 11/11/10 output `5008/51E0/51C8` | 4 | 2,665 / 1,759 | >=256 | `e18619a` |
 
 Group counts are invocations, not unique jobs. Unsupported inputs retain the
 lift and are not counted as successful native comparisons. Synthetic tests
 also cover non-IEEE FP edges, wrapping pointers/counters, padding, sentinels,
 host returns and unchanged-state rejection of unsupported inputs.
 
-Latest private corpus logs: `analysis/native-geometry/phase2/raw-fill-mode{2,1}.log`.
-The new groups' live log is `analysis/vk-scene-p2-raw-fill-live.stderr.log`;
-their source/executable binding is `phase2/raw-fill-build.json`. Renderer
-and A/B gates remain open for these three groups; their defaults are off.
-In-progress series `p2-batch2-ab` has normal native menu dumps for all three
-groups and the default mask. Its original bit-8 menu reverse run
+Latest private corpus logs: `analysis/native-geometry/phase2/final11-mode{2,1}.log`.
+The final three groups' live log is `analysis/vk-scene-p2-final11-live.stderr.log`;
+their source/executable binding is `phase2/final11-build.json`. All 13 ranked
+blocks are now covered by eleven groups, without counting `9148/92A0` or
+`4750/4808` twice. Final-three renderer/A/B gates remain open.
+
+Series `p2-batch2-ab` has normal native menu/round dumps for raw float3 input,
+raw float3 output and word fill, plus the default mask. Its bit-8 menu reverse run
 `p2-batch2-ab-menu-7-1` is invalid because a standalone compile/test overlapped
-the timed window. All original bit-8 menu results will be replaced by a fresh
-four-run menu A/B/B/A; original round results and other kernels' valid runs
-can be retained. The private `p2-batch2-ab/exclusions.json` records the
-timestamps and scope. This series is not yet performance evidence.
+the timed window. All original bit-8 menu results were replaced by the fresh
+four-run `p2-batch2-float-menu-clean` A/B/B/A; valid original rounds and other
+kernels' menu results were retained. `p2-batch2-ab/exclusions.json` records
+the timestamps/scope. The corrected report `phase2/batch2-corrected-ab-report.json`
+validates both source sets and all EXE/save/readback hashes. Its private
+reproduction script is `phase2/batch2-corrected-report.py`; the invalid row
+does not contribute to any result. Source EXE SHA256:
+`cd9b242b577ed41e92252f8bbcf5eecc198973ae5708a1d53b5e0d6e9206b4fb`.
 The original game save remains unchanged; tests use private saves.
 
 ## Completed scene measurements
@@ -60,6 +69,9 @@ sessions should not be compared as an accumulated improvement.
 | Halfword encoder | 31.73 -> 31.93 (+0.65%) | 39.69 -> 40.16 (+1.18%) | off pending CPU evidence; one menu pair negative |
 | Halfword decoder | 31.73 -> 32.10 (+1.18%) | 39.69 -> 40.75 (+2.66%) | on |
 | Input pointers | 31.73 -> 31.94 (+0.67%) | 39.69 -> 40.26 (+1.44%) | off pending CPU evidence; one round pair negative |
+| Raw float3 input | 32.52 -> 32.62 (+0.28%) | 41.19 -> 41.29 (+0.23%) | off pending CPU series/final selection |
+| Raw float3 output | 32.32 -> 32.73 (+1.25%) | 41.19 -> 42.06 (+2.09%) | off pending CPU series/final selection; all FPS pairs positive |
+| BE word fill | 32.32 -> 32.44 (+0.36%) | 41.19 -> 40.91 (-0.69%) | off; mixed FPS, CPU series pending |
 
 Both groups have normal menu/round native renderer dumps and completed
 reversed pairs. Private reports are `phase2/unit24-ab-report.json` and
@@ -77,6 +89,9 @@ The executable and initial save hashes were checked throughout the series.
 | Halfword encoder | -0.45%, +1.75% | +1.94%, +0.44% |
 | Halfword decoder | +0.07%, +2.31% | +4.36%, +1.02% |
 | Input pointers | +0.25%, +1.09% | +3.10%, -0.17% |
+| Raw float3 input | +0.30%, +0.26% | +0.09%, +0.37% |
+| Raw float3 output | +0.97%, +1.55% | +2.85%, +1.33% |
+| BE word fill | -0.55%, +1.28% | -0.04%, -1.33% |
 
 These small effects have visible run-to-run variation; a positive average
 does not establish a repeatable gain for every kernel. Decoder reversal
@@ -106,6 +121,8 @@ processes more frames. Measure CPU time and cycle counters independently;
 do not convert elapsed microbenchmark time into claimed CPU cycles.
 
 The local kernel microbenchmarks do not by themselves justify defaults.
+They call the kernel directly; scene/CPU figures also include the runtime
+dispatch and per-group atomic accounting used by checked/native selection.
 Existing RIP samplers read cycle counters while suspending threads and are
 explicitly diagnostic; CPU-cost comparisons need counters collected without
 suspending workers. Run them separately from the existing frozen FPS series.
@@ -136,11 +153,14 @@ measured CPU benefit, not an energy claim. Encoder and pointer measurements
 do not show repeatable savings; both remain off. The decoder's all-positive
 FPS pairs support enabling it.
 
+A separate CPU series `p2-cpu-raw-menu` is now collecting bits 8/9/12 against
+baseline 35, with no readbacks, the same frozen raw2 EXE and an exact map
+binding. No CPU benefit is claimed for those three groups before it finishes.
+
 ## Remaining work before phase closure
 
-- Resolve `7A90`, `51E0` and `78A8`; private
-  prototypes are not counted as completed replacements.
-- Finish raw float3 input/output and fill renderer/A/B gates and default decisions.
+- Finish `7A90`, `51E0` and `78A8` renderer/A/B gates and default decisions.
+- Finish raw float3 input/output and fill CPU measurements/default decisions.
 - Validate the final selected defaults again when the remaining phase kernels resolve.
 - Collect matched CPU-cost evidence wherever the default decision relies on
   CPU savings rather than an FPS gain.

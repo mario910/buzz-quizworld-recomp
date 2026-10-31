@@ -315,7 +315,7 @@ quadword padding and continuation exactly. Counter subtraction retains
 The guard requires at least four remaining words, a four-byte aligned,
 bounded output at or above `0xE680`, private LS, and no pending interrupt or
 debug probe. Smaller or unsupported fills keep the lift. Bit 12 is opt-in;
-renderer and performance gates are still pending. The public
+final default selection is pending. The public
 test covers 440 full states, 4..8192 words, all four word positions in a
 quadword, exact end-of-LS writes, zero/all-one/random values, counter wrap
 and eleven unchanged-state rejection cases.
@@ -327,7 +327,9 @@ Checked and actual-native replay both pass all 19,508 image-41 jobs and
 state replay. A 60 s live run with all eight groups selected records at least
 256 strict fill matches and no differences (`vk-scene-p2-raw-fill-live.stderr.log`
 under private `analysis/`). `phase2/raw-fill-build.json` binds the sources
-and frozen executable. Renderer and A/B gates remain pending.
+and frozen executable. Native menu/round images are normal. Reversed pairs
+measure menu +0.36% (-0.55%, +1.28%) and round -0.69% (-0.04%, -1.33%).
+CPU measurements are in progress; bit 12 stays off.
 
 ## Bit 8: raw float3 decoder (`0x97A8`), implementation in validation
 
@@ -343,8 +345,11 @@ The test compares 440 full states up to 512 groups, aliases and random XYZ
 bits, then sixteen unchanged-state rejections. Full checked and actual-native
 replay pass all 19,508 jobs: 18,968 exact groups and 540 fallback, with zero
 divergences or failures. The same 60 s live run records at least 256 strict
-decoder matches and no differences. Bit 8 stays default-off while renderer
-and scene measurements are pending. On the private `pc_97A8.bin` sample, the
+decoder matches and no differences. Native menu/round images are normal.
+After replacing the contaminated original menu set with a fresh A/B/B/A,
+menu improves +0.28% (pairs +0.30%, +0.26%) and round +0.23% (+0.09%, +0.37%).
+Bit 8 remains off pending CPU measurements/final selection.
+On the private `pc_97A8.bin` sample, the
 local reversed benchmark is roughly 48..53 ns lifted versus 33..35 ns native.
 
 ## Bit 9: raw float3 output (`0x46FC/4750/4808/47F0`), in validation
@@ -367,8 +372,10 @@ twenty unchanged-state rejections. Checked and actual-native replay pass all
 failures. The private `pc_4808.bin` sample can also seed this `46FC` entry:
 its setup inputs have not changed. Local whole-column timing is roughly
 164..177 ns lifted versus 109..115 ns native. Bit 9 remains default-off;
-renderer/performance gates are pending. The same 60 s live run records at
-least 256 strict output-group matches with no differences.
+final default selection is pending. The same 60 s live run records at
+least 256 strict output-group matches with no differences. Native menu/round
+images are normal; reversed pairs improve menu +1.25% (+0.97%, +1.55%) and
+round +2.09% (+2.85%, +1.33%). CPU measurements are in progress.
 
 ## Bit 3: triangle stitching (`0x7A90`), implementation in validation
 
