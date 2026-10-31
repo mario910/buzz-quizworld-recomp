@@ -285,8 +285,16 @@ void display_settings(App& app) {
     ImGui::Spacing();
     if(ImGui::Checkbox("Use texture packs",&pc.texture_replace))app.settings.pc_configured=true;
     if(ImGui::Checkbox("Dump textures (for making packs; slow)",&pc.texture_dump))app.settings.pc_configured=true;
-    ImGui::TextWrapped("Texture folder: %s",utf8(app.root/"runtime"/"textures").c_str());
-    ImGui::TextDisabled("PNGs in replace/ (any size, e.g. 4x upscales of the dump) are used in place of the game's textures with the same name. Dumping writes each new texture to dump/. Both require restarting the game.");
+    if(ImGui::Checkbox("Upscale textures automatically (Real-ESRGAN, 4x)",&pc.texture_auto_upscale))app.settings.pc_configured=true;
+    const auto textures=app.root/"runtime"/"textures";
+    ImGui::TextWrapped("Texture folder: %s",utf8(textures).c_str());
+    if(pc.texture_auto_upscale) {
+        const auto upscaler=textures/"upscaler"/"realesrgan-ncnn-vulkan.exe";
+        std::error_code ec;
+        if(std::filesystem::is_regular_file(upscaler,ec))ImGui::TextDisabled("Upscaler found: %s",utf8(upscaler).c_str());
+        else ImGui::TextColored(ImVec4(1.0f,0.75f,0.3f,1.0f),"Upscaler missing: unpack realesrgan-ncnn-vulkan (with its models folder) into %s",utf8(upscaler.parent_path()).c_str());
+    }
+    ImGui::TextDisabled("PNGs in replace/ (any size, e.g. 4x upscales of the dump) are used in place of the game's textures with the same name. Dumping writes each new texture to dump/. Automatic upscaling dumps, upscales each new texture in the background into replace/auto and uses it the next time the game loads that texture; upscales are kept for later runs. All require restarting the game.");
 }
 void game_tab(App& app,SDL_Window* window) {
     heading("YOUR PREPARED GAME","Run a locally built copy directly. This launcher never downloads or builds game content.");

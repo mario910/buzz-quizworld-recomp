@@ -244,7 +244,23 @@ both UIs:
   one channel (grey PNG) and G8B8 two (grey + alpha PNG); DXT is replaced by
   uncompressed RGBA. A PNG whose aspect ratio differs from the original is
   used stretched, with a log line.
-- Both are read at startup and are restart-only. `RSX_TEXPACK_DIR`,
+- **Upscale textures automatically** (`texture_auto_upscale=1`) does the
+  above while you play: it turns on dumping, and a background thread feeds
+  each new dump through Real-ESRGAN (4x, `realesrgan-x4plus`) into
+  `textures/replace/auto/`. The renderer rescans `replace/` as files arrive,
+  so an upscale applies the next time the game loads that texture (usually
+  the next screen or round); upscales are kept, so later runs start with
+  them. Unpack the `realesrgan-ncnn-vulkan` release (the executable with its
+  `models/` folder) into `runtime/textures/upscaler/`; the launcher shows
+  whether it is found. It runs at below-normal priority, one texture at a
+  time, on the GPU, and skips textures whose upscale would exceed 4096
+  pixels and any texture with a hand-made replacement, which always wins
+  over `replace/auto/`. Delete `replace/auto/` to redo the upscales.
+  `BUZZ_TEXTURE_UPSCALER` (executable path), `BUZZ_TEXTURE_UPSCALER_MODEL`
+  and `BUZZ_TEXTURE_UPSCALER_SCALE` (2-4, matching the model) override the
+  defaults. After five failures in a row (no Vulkan GPU, missing model) it
+  stops for the run and logs why.
+- All are read at startup and are restart-only. `RSX_TEXPACK_DIR`,
   `RSX_TEXPACK_DUMP=0/1` and `RSX_TEXPACK_REPLACE=0/1` override them for
   diagnosis. They are set in the launcher's Game tab and the settings file,
   not the in-game menu.

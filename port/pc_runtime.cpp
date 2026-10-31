@@ -1,5 +1,6 @@
 #include "pc_runtime.h"
 #include "pc_settings_file.h"
+#include "pc_texture_upscaler.h"
 #include "ps3emu/host_controls.h"
 #include <chrono>
 #include <cstdio>
@@ -84,13 +85,15 @@ bool buzz_pc_runtime_init() {
         // Read once by the renderer's first texture upload. Defaults apply
         // without a settings file too: an empty or missing folder costs nothing.
         {
-            const unsigned flags=(p.texture_replace?PS3_HOST_TEXPACK_REPLACE:0u)|(p.texture_dump?PS3_HOST_TEXPACK_DUMP:0u);
+            // Automatic upscaling feeds on the dump and loads through replace/.
+            const bool upscale=p.texture_auto_upscale&&buzz_pc::start_texture_upscaler(fs::current_path()/"textures");
+            const unsigned flags=(p.texture_replace||upscale?PS3_HOST_TEXPACK_REPLACE:0u)|(p.texture_dump||upscale?PS3_HOST_TEXPACK_DUMP:0u);
             const auto dir=(fs::current_path()/"textures").u8string();
             if(!ps3_host_set_texture_pack(reinterpret_cast<const char*>(dir.c_str()),flags))
                 fprintf(stderr,"[pc-settings] texture pack folder path is too long; texture packs disabled\n");
         }
         state=std::make_unique<buzz_pc::State>(p);
-        fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%% texture_replace=%d texture_dump=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale,p.texture_replace,p.texture_dump);
+        fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%% texture_replace=%d texture_dump=%d texture_auto_upscale=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale,p.texture_replace,p.texture_dump,p.texture_auto_upscale);
         return true;
     }catch(const std::exception& e){fprintf(stderr,"[pc-settings] %s\n",e.what());return false;}
 }

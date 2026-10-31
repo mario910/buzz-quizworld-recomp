@@ -10,12 +10,13 @@ bool operator==(const Preferences& a,const Preferences& b) {
         a.phone_buzzers==b.phone_buzzers && a.phone_port==b.phone_port &&
         a.window_width==b.window_width && a.window_height==b.window_height && a.render_scale==b.render_scale &&
         a.upscaler==b.upscaler && a.fsr_sharpness==b.fsr_sharpness &&
-        a.texture_replace==b.texture_replace && a.texture_dump==b.texture_dump;
+        a.texture_replace==b.texture_replace && a.texture_dump==b.texture_dump &&
+        a.texture_auto_upscale==b.texture_auto_upscale;
 }
 namespace {
 // Keys a version-1 file may not carry, and the startup fallback drops.
 constexpr const char* v2_keys[]={"window_width","window_height","render_scale","upscale_filter","fsr_sharpness",
-                                 "texture_replace","texture_dump"};
+                                 "texture_replace","texture_dump","texture_auto_upscale"};
 bool is_v2_key(const std::string& key){for(const char* k:v2_keys)if(key==k)return true;return false;}
 }
 bool valid_window_size(unsigned w,unsigned h) {
@@ -41,14 +42,15 @@ std::string serialize(const Preferences& p) {
     // Version 2 only adds display and texture pack keys. Defaults keep writing
     // the exact version-1 file, so older builds sharing it still load it.
     const bool display=p.window_width||p.window_height||p.render_scale!=100||p.upscaler!=Upscaler::bilinear||p.fsr_sharpness!=80||
-                       !p.texture_replace||p.texture_dump;
+                       !p.texture_replace||p.texture_dump||p.texture_auto_upscale;
     s<<"# Buzz PC preferences v"<<(display?2:1)<<". Restart-only options are not live switches.\n"
       <<"version="<<(display?2:1)<<"\nvolume="<<p.volume_percent<<"\nfps_limit="<<p.fps_limit
       <<"\nfullscreen="<<p.fullscreen<<"\noffline="<<p.offline<<"\nrenderer="<<renderer
       <<"\nphone_buzzers="<<p.phone_buzzers<<"\nphone_port="<<p.phone_port<<'\n';
     if(display)s<<"window_width="<<p.window_width<<"\nwindow_height="<<p.window_height<<"\nrender_scale="<<p.render_scale
                 <<"\nupscale_filter="<<(p.upscaler==Upscaler::fsr1?"fsr1":"bilinear")<<"\nfsr_sharpness="<<p.fsr_sharpness
-                <<"\ntexture_replace="<<p.texture_replace<<"\ntexture_dump="<<p.texture_dump<<'\n';
+                <<"\ntexture_replace="<<p.texture_replace<<"\ntexture_dump="<<p.texture_dump
+                <<"\ntexture_auto_upscale="<<p.texture_auto_upscale<<'\n';
     return s.str();
 }
 bool parse(const std::string& text,Preferences& output,std::string& error) {
@@ -70,7 +72,10 @@ bool parse(const std::string& text,Preferences& output,std::string& error) {
         else if(key=="volume"){if(!number()||n>100)return fail();p.volume_percent=n;}
         else if(key=="fps_limit"){if(!number()||(n!=0&&n!=30))return fail();p.fps_limit=n;}
         else if(key=="fullscreen"||key=="offline") {if(value!="0"&&value!="1")return fail();(key=="fullscreen"?p.fullscreen:p.offline)=value=="1";}
-        else if(key=="texture_replace"||key=="texture_dump") {if(value!="0"&&value!="1")return fail();(key=="texture_replace"?p.texture_replace:p.texture_dump)=value=="1";}
+        else if(key=="texture_replace"||key=="texture_dump"||key=="texture_auto_upscale") {
+            if(value!="0"&&value!="1")return fail();
+            (key=="texture_replace"?p.texture_replace:key=="texture_dump"?p.texture_dump:p.texture_auto_upscale)=value=="1";
+        }
         else if(key=="renderer") {if(value=="auto")p.renderer=Renderer::automatic;else if(value=="d3d12")p.renderer=Renderer::d3d12;else if(value=="vulkan")p.renderer=Renderer::vulkan;else return fail();}
         else if(key=="phone_buzzers") {if(value!="0"&&value!="1")return fail();p.phone_buzzers=value=="1";}
         else if(key=="phone_port") {if(!number()||n<1024||n>65535)return fail();p.phone_port=n;}
@@ -120,7 +125,8 @@ Change State::apply(const Preferences& p) {
     if(active_.offline!=p.offline)restart|=network_restart;
     if(active_.renderer!=p.renderer)restart|=renderer_restart;
     if(active_.render_scale!=p.render_scale)restart|=resolution_restart;
-    if(active_.texture_replace!=p.texture_replace||active_.texture_dump!=p.texture_dump)restart|=texture_restart;
+    if(active_.texture_replace!=p.texture_replace||active_.texture_dump!=p.texture_dump||
+       active_.texture_auto_upscale!=p.texture_auto_upscale)restart|=texture_restart;
     return {true,restart,revision_,{}};
 }
 void MenuInputGate::set_open(bool open) {

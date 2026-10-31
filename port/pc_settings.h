@@ -25,6 +25,9 @@ struct Preferences {
     // matching game textures, dump/ receives every new texture. Restart-only.
     bool texture_replace = true;
     bool texture_dump = false;
+    // Dump, upscale with Real-ESRGAN (textures/upscaler) into replace/auto and
+    // load the results while playing. Implies dumping. Restart-only.
+    bool texture_auto_upscale = false;
     bool offline = true;
     Renderer renderer = Renderer::automatic;
     bool phone_buzzers = false;

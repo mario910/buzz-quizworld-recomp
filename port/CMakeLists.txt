@@ -326,6 +326,7 @@ add_executable(${PROJECT_NAME}
     frame_limit.cpp
     pc_settings_file.cpp
     pc_overlay.cpp
+    pc_texture_upscaler.cpp
     ../third_party/qrcodegen/qrcodegen.cpp
     ${host_boot_trace}
     ${host_frontend_policy}

@@ -56,7 +56,9 @@ int main() {
             Preferences packs;packs.texture_replace=false;packs.texture_dump=true;
             check(serialize(packs).find("version=2\n")!=std::string::npos&&parse(serialize(packs),decoded,error)&&decoded==packs);
             check(parse("version=2\ntexture_dump=1",decoded,error)&&decoded.texture_dump&&decoded.texture_replace);
-            check(Preferences{}.texture_replace&&!Preferences{}.texture_dump);
+            check(Preferences{}.texture_replace&&!Preferences{}.texture_dump&&!Preferences{}.texture_auto_upscale);
+            Preferences upscale;upscale.texture_auto_upscale=true;
+            check(serialize(upscale).find("texture_auto_upscale=1\n")!=std::string::npos&&parse(serialize(upscale),decoded,error)&&decoded==upscale);
             bool reset=false;
             check(parse_with_display_fallback("version=2\nvolume=9\ntexture_dump=yes",decoded,error,reset)&&reset&&
                   decoded.volume_percent==9&&!decoded.texture_dump);
@@ -68,7 +70,8 @@ int main() {
             "version=3","version=1\nwindow_width=1920\nwindow_height=1080","version=2\nwindow_width=1920","version=2\nwindow_width=100\nwindow_height=100",
             "version=2\nwindow_width=99999\nwindow_height=1080","version=2\nrender_scale=50","version=2\nrender_scale=301","version=2\nrender_scale=1.5",
             "version=2\nupscale_filter=dlss","version=2\nfsr_sharpness=101","version=1\nupscale_filter=fsr1",
-            "version=2\ntexture_replace=2","version=2\ntexture_dump=on","version=1\ntexture_dump=1"}) {
+            "version=2\ntexture_replace=2","version=2\ntexture_dump=on","version=1\ntexture_dump=1",
+            "version=2\ntexture_auto_upscale=yes","version=1\ntexture_auto_upscale=1"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));
@@ -88,6 +91,8 @@ int main() {
         p.texture_dump=true;result=state.apply(p);
         check(result.restart==texture_restart&&!state.active().texture_dump&&state.requested().texture_dump);
         p.texture_dump=false;check(state.apply(p).restart==no_restart);
+        p.texture_auto_upscale=true;check(state.apply(p).restart==texture_restart);
+        p.texture_auto_upscale=false;check(state.apply(p).restart==no_restart);
         std::thread writer([&]{for(unsigned i=0;i<10000;++i){Preferences q;q.volume_percent=i%101;state.apply(q);}});
         for(unsigned i=0;i<10000;++i)check(state.active().volume_percent<=100);
         writer.join();
