@@ -87,6 +87,17 @@ def main():
         f"static void {color_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {color_name}(spu_context* ctx) {{ buzz_geometry_job_decode_color(ctx, {color_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
         source, count=1)
+    descriptor_name = "buzz_job_6eba_spu_func_00007DF8"
+    descriptor_pattern = rf"(?ms)^void {descriptor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(descriptor_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned descriptor decoder entry")
+    codec_functions = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in
+        (0x85e8,0x87cc,0x8378,0x89b0,0x8b94,0x8d34,0x8ea8,0x9058,0x9114))
+    source = re.sub(descriptor_pattern, lambda m:
+        f"static const buzz_geometry_descriptor_functions {descriptor_name}_library = {{{{{codec_functions}}}, buzz_job_6eba_spu_func_0000C750, buzz_job_6eba_spu_func_000083C8, buzz_geometry_job_descriptor_dispatched}};\n"
+        f"static void {descriptor_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {descriptor_name}(spu_context* ctx) {{ buzz_geometry_job_decode_descriptors(ctx, {descriptor_name}_reference, &{descriptor_name}_library); }}",
+        source,count=1)
     name = "buzz_job_6eba_spu_func_00001C18"
     # Retain the public library wrappers and their per-kernel switches. No
     # original main-driver block is a continuation of the native path.
@@ -108,7 +119,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 8\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 9\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

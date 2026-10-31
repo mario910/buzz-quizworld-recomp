@@ -1159,6 +1159,123 @@ same-EXE menu/round FPS and normalized worker/process CPU/cycles per completed
 job/frame, and the default-on decision remain open. Strict Stage F stays the
 mandatory final phase 7; its temporary exception is not expanded here.
 
+## Native descriptor control, position padding and blend orchestration (`0x7DF8`)
+
+`BUZZ_GEOMETRY_JOB_DESCRIPTORS=0/1`, default **0**, selects native descriptor
+iteration, slot selection, routing/pointer updates, position padding and blend
+orchestration. `port/native_geometry_descriptors.h` preserves the original
+1,056-byte frame, all 48 nonvolatile vectors and complete exit ABI. Its host
+attribute loop replaces the original control dispatch; its data loop fills
+missing position components across the rounded vertex range, preserving the
+extra 64-byte lookahead and final volatile state. A zero vertex count retains
+the original no-data path without reading unused descriptor/blend inputs.
+
+The runtime uses an explicit nine-handler table plus the retained `0xC750`
+blend kernel and `0x83C8` region continuation. Typed handlers may use their
+existing validated leaves; the independent CODECS switch selects the complete
+native U8 handler. The descriptor-control switch does not claim that the
+remaining typed handlers or blend data kernel are native. Separate
+`descriptor-dispatch` counters record handler selection without labeling it
+native coverage. The 14-entry outer job table is unchanged. The new descriptor
+table requires routing protocol 9; CMake rejects an older adapter.
+
+The native owner alone takes the new control route. JOB=2's retained original,
+foreign contexts, disabled switches, invalid function tables and unsupported
+inputs retain the original before mutation. JOB=2 also runs an isolated
+DMA-free original `0x7DF8` comparison from the identical entry, checking all
+GPR/LS/control/return state plus host depth and image identity before the caller
+can overwrite the exit ABI. It additionally retains the whole-job/I/O check.
+No new checker exception is introduced.
+
+Preflight checks context/frame/descriptor/table ranges, supported attribute
+shapes and dispatch constants, free/existing routing slots, temporary and
+destination arrays and their separation from immutable metadata. Positive
+blend factors require the original context flag and a valid BE-u16 byte-offset
+remap. The destination geometry count can exceed the additional-stream count;
+used remap offsets are checked against that destination extent. Original
+typed data callbacks and the blend kernel remain explicit boundaries.
+
+Standalone validation:
+
+```powershell
+.\tests\scripts\test-geometry-descriptors.ps1
+.\tests\scripts\test-geometry-driver-flow.ps1 -Corpus analysis/native-geometry/replay-final/all/image41
+.\tests\scripts\test-geometry-job-runtime.ps1
+```
+
+PASS: **4,192 strict full-state descriptor cases and 28 unchanged-state/no-I/O
+rejections**. The matrix covers all nine storage families with real original
+typed and blend callees, original/native U8 callees, odd/even strides, column
+counts, partial/empty groups, position-only filtering, missing/repeated routing,
+normal/blend paths, remap guards, random upper lanes and SPU blend-factor edge
+patterns. Its reference retains 64 original blocks; the sole external assertion
+handler aborts if reached. A pinned private RO-data fixture supports the original
+computed dispatch and math tables. The fixture and all derived code stay under
+`analysis/`; its SHA256 is checked before test generation. Owner/foreign/off/
+null/unsupported/post-scope routing, 1,024 outer model cases, all 19,508 real
+model entries and 43 controller scenarios pass. The prior 4,544 U8 and
+720 raw + 704 attribute cases, with their rejection checks, also pass.
+
+Frozen build: `build-vulkan-phase3-descriptors`, EXE SHA256
+`d52af6775a0e059399d0085bcef7f8f5ba526a00f71ed5b8ca53db01818d089f`.
+Private `phase3/descriptors-build.json` binds sources, adapter, map and saves;
+`phase3/frozen-descriptors-source.c` preserves the generated source. Four
+corpus arms each pass **19,508 exact jobs / 58,195 transfers**, with zero input
+divergences/failures:
+
+| Arm | Configuration and control coverage |
+|---|---|
+| Original | JOB=0, DESCRIPTORS=1, all older stage flags 0: native owner inactive |
+| Independent descriptor control | JOB=2, DESCRIPTORS=1, all older stage flags 0: 12,309 native function calls, zero fallback, all 12,309 strict function-exit comparisons and 19,508 whole-job/I/O checks pass |
+| Combined actual native | JOB=1, all stage flags 1: same control coverage, 109 native U8 regions, existing attribute/output/command counts preserved |
+| Combined checked | JOB=2, all stage flags 1: same counts plus all 12,309 strict descriptor-function exits, 109 strict U8 exits and 19,508 whole-job/I/O checks |
+
+Logs: `phase3/descriptors-corpus-{off,independent,native,checked}.log`.
+Handler selections are 12 float32, 12,431 half, 109 U8, three fixed-point and
+12,067 unit-vector calls; IDs 1/5/6/7 have no observed dispatches. These are
+explicit callback selections, not native-data coverage. The fixed-point calls
+come from additional streams and refine the earlier primary-position-only
+inventory. See the updated data map.
+
+Combined runs still report 19,508 native attribute controls/raw streams and
+11,414 raw-stream fallbacks: those fallbacks mean the original `0x93F0` format
+selector delegates to the now-native `0x7DF8` control. They do not indicate a
+failed descriptor-control replacement, nor do they establish native typed-data
+coverage. Output/command counts remain 7,201 size/index/vertex/binding/reset
+stages each, 5,078 full and 2,123 position emissions and 19,508 preparations/
+publications each, with zero stage fallback. Mask 827 and the Stage F baseline
+exception are unchanged; replay timings do not prove CPU/FPS savings.
+
+On that same EXE, the 105 s checked menu run passes **at least 450,000 strict
+descriptor-function comparisons** and **665,000 strict whole-job/I/O checks**.
+Its CSV records 2,191 frames through 104.452 s. This verifies the function exit
+before callers can overwrite volatile state, together with the enclosing job
+and ordered side effects. Actual native Stage F and geometry are used
+(`BUZZ_STAGEF=1`, `BUZZ_GEOMETRY=1`), without an override or new exception.
+
+Actual-native functional runs complete normally: menu records 3,129 frames
+through 74.569 s; the round starts at 136.4 s, continues for 30 s and records
+7,503 frames through 166.084 s. Renderer readbacks at frames 2,500 and 6,500
+were converted to 1280x720 PNGs and visually inspected. Menu UI, monitors and
+studio geometry are normal; the round-introduction host, green instruction
+display and lighting look normal. These are functional observations, not
+matched performance measurements.
+
+Logs: `analysis/vk-scene-p3-descriptors-{checked,menu,round}.{csv,stderr.log}`.
+Images: `phase3/p3-descriptors-{menu,round}.{ppm,png}`. Each run uses all new
+stage flags 1, a fresh private save, muted background rendering and the native
+buzzer mailbox. There is no compile/CPU-test/profiling overlap and no DIFF/HALT/
+mismatch/early-exit diagnostic. Frozen code/EXE/map/source bindings, original
+save and private template were verified afterwards. The old U8 region also
+retains at least 256 strict live matches with the new enclosing control.
+
+Native descriptor control and padding are now implemented across the captured
+paths. Complete typed data handlers, the blend data kernel and other pipeline
+bodies remain required phase-3 work. Final interpreted-SPU counts, reversed
+same-EXE menu/round FPS and normalized worker/process CPU/cycles per completed
+job/frame, and the default decision remain open. New switches stay default 0;
+the accepted Stage F exception is unchanged, with strict cleanup last in phase 7.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -1169,7 +1286,9 @@ coverage of one leaf does not make the entire enclosing stage native.
 |---|---|---|
 | `0xAC68` | Primary/secondary attribute decode | Native opt-in control; descriptor decoder and stride getter remain explicit original callees |
 | `0x93F0`, format 0 | Raw float3 stream | Native opt-in complete decoder, including allocation, small groups and exact final ABI |
-| `0x7DF8` and codec dispatch | Descriptor attribute streams | Retained outer decoder; complete native U8 color handler and validated unit/half leaves do not complete this row |
+| `0x7DF8` control and codec dispatch | Descriptor attribute streams | Native opt-in iteration, slot/routing/padding/blend control; typed data and blend callees tracked separately |
+| `0x85E8`, `0x87CC`, `0x8378`, `0x8B94`, `0x8D34`, `0x8EA8`, `0x9058`, `0x9114` | Remaining typed descriptor data handlers | Original bodies, with validated inner leaves where available; whole handlers still required |
+| `0xC750` | Weighted scatter into existing vertex tables | Original data kernel called by native blend orchestration |
 | `0x89B0..0x8B90` | U8 normalized-color descriptor handler | Complete native opt-in column/batch loop and continuation; other typed handlers remain original |
 | `0x93F0`, formats 1..5 | Other built-in input streams | Retained original, no corpus native-coverage claim |
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |

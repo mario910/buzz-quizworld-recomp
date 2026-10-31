@@ -253,7 +253,7 @@ scalar width (unit vectors occupy three bytes; CMP occupies four).
 | 5 | `0x8B94`, signed 16-bit integer components | Unexercised input selector |
 | 6 | `0x8D34`, signed CMP 11/11/10 | Output normals |
 | 7 | `0x8EA8`, unsigned byte integer components | Unexercised input selector |
-| 8 | `0x9058` -> `0xC810`, variable-bit fixed point plus fixed offsets | Compressed-position-capable path; **not used by captured positions** |
+| 8 | `0x9058` -> `0xC810`, variable-bit fixed point plus fixed offsets | Not used by captured primary positions; runtime descriptor dispatch observes 3 additional-stream calls |
 | 9 | `0x9114` -> `0x9148/92A0`, 24-bit unit vector | Input normals/tangents |
 
 Storage dispatch is at `0x8354`. Routing IDs observed are 1=position,
@@ -304,6 +304,52 @@ separating integer/fractional parts. `0xC910` uses CSFLT
 155 for the signed integer and CUFLT 123 for the shifted fraction, then FA.
 Those instructions, including shifts and padding accesses, remain the
 authoritative contract for this unexercised path; it has no corpus-exact claim.
+
+### Descriptor iteration, routing and blend inputs
+
+The native `0x7DF8` control saves/restores the original 1,056-byte frame and
+all 48 nonvolatile vectors. Its descriptor header supplies attribute count
+and interleaved stride; the vertex count is argument r7. The stride's first
+four trailing-zero tests determine the number of processing columns and the
+source/output group steps. These shapes are part of the typed-handler ABI,
+not just a description of the logical vertex stream.
+
+For ordinary decoding, the first free byte of context+`0x160` selects a
+float4 table and later records its routing ID. Routing IDs 1..4 publish the
+selected pointer at context+`0x5C`, `+0x60`, `+0x64`, `+0x68`; other IDs still
+mark their slot without changing those pointer fields. The position-only
+context bit skips attributes whose routing ID is not 1. Position attributes
+with at most three components fill missing lanes with `(0,0,0,1)`; the
+blend path uses zeros instead. Padding covers the rounded four-vertex range
+and loads another 64 bytes at the end for the original return state.
+
+A positive SPU blend factor in r8 selects the existing slot for each routing
+ID and decodes into the temporary table selected by the context's low nibble.
+Missing routing IDs are skipped. This path requires context bit `0x80`;
+otherwise the original asserts. Argument r9 is a packed BE-u16 **byte-offset
+remap**, not a component mask. `0xC750` scatters the weighted temporary data
+into the existing geometry table. Its destination count comes from the
+geometry context and may exceed the additional stream's r7 count. Preflight
+validates the used remap entries, destination ranges, immutable descriptor/
+context/frame data and remap/output separation before mutation. The blend
+data kernel itself remains a separately tracked original callee.
+
+The new runtime dispatch inventory covers the actual `0x7DF8` paths, including
+additional/blend streams, rather than only the primary A/B format inventory:
+
+| Storage ID | Observed handler selections in 19,508 jobs |
+|---|---:|
+| 1 / 5 / 6 / 7 | 0 each |
+| 2, BE float32 | 12 |
+| 3, binary16 | 12,431 |
+| 4, normalized U8 | 109 |
+| 8, variable-bit fixed point | 3 |
+| 9, packed unit vector | 12,067 |
+
+These are callback-selection counts, **not** native-codec coverage. They span
+12,309 descriptor-control calls. The three fixed-point dispatches refine the
+earlier primary-position-only observation: all primary positions remain raw
+format 0, while additional streams also reach the fixed-point decoder.
 
 ### U8 normalized-color decoder and physical stores
 

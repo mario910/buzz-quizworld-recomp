@@ -317,6 +317,23 @@ descriptor control, other codecs and remaining pipeline stages stay open.
 The phase-3 results document records corpus/live/render evidence; reversed
 FPS/CPU, interpreter-count and default-selection gates remain required.
 
+Descriptor iteration, table routing, position padding and blend orchestration
+(`0x7DF8`) now have native control behind `BUZZ_GEOMETRY_JOB_DESCRIPTORS`,
+default 0. The host attribute/padding loops preserve the full frame/return ABI
+and call explicitly tracked typed handlers and blend data kernel. Tests pass
+4,192 strict cases across all nine storage families and 28 unchanged-state
+rejects. JOB=2 checks the complete function exit in addition to whole-job/I/O
+state. The remaining typed handlers and `0xC750` data kernel remain required;
+all four frozen corpus arms pass 19,508 jobs / 58,195 transfers, with 12,309
+native descriptor-control calls and zero fallback. JOB=2 checks all 12,309
+function exits strictly. Live checking passes at least 450,000 descriptor-
+function and 665,000 whole-job/I/O comparisons; actual-native menu/round
+readbacks look normal. Runtime dispatch also observes three fixed-point
+additional-stream calls, refining the earlier primary-position inventory.
+Native control does not close their inventory or phase 3. Corpus/live/render
+evidence and the runtime dispatch counts are recorded in the phase-3 results
+and data-map documents. New defaults and FPS/CPU claims remain gated.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.

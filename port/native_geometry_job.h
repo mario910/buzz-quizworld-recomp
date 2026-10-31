@@ -17,6 +17,10 @@ typedef struct buzz_geometry_command_functions {
 typedef struct buzz_geometry_attribute_functions {
     buzz_geometry_job_fn stream, stride;
 } buzz_geometry_attribute_functions;
+typedef struct buzz_geometry_descriptor_functions {
+    buzz_geometry_job_fn codec[9], blend, continuation;
+    void (*dispatched)(unsigned storage);
+} buzz_geometry_descriptor_functions;
 int buzz_geometry_job_audit_enabled(void);
 int buzz_geometry_job_mode(void);
 int buzz_geometry_job_publish_enabled(void);
@@ -26,7 +30,7 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
        BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
-       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10 };
+       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11 };
 int buzz_geometry_job_layout_enabled(void);
 int buzz_geometry_job_vertex_enabled(void);
 int buzz_geometry_job_commands_enabled(void);
@@ -35,6 +39,7 @@ int buzz_geometry_job_emit_enabled(void);
 int buzz_geometry_job_full_commands_enabled(void);
 int buzz_geometry_job_attributes_enabled(void);
 int buzz_geometry_job_codecs_enabled(void);
+int buzz_geometry_job_descriptors_enabled(void);
 void buzz_geometry_job_output_result(unsigned stage, int native, int reused_layout);
 void buzz_geometry_job_prepare_commands(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_publish_commands(spu_context*, buzz_geometry_job_fn reference);
@@ -45,6 +50,9 @@ void buzz_geometry_job_decode_attributes(spu_context*, buzz_geometry_job_fn refe
 void buzz_geometry_job_decode_stream(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_decode_color(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
 void buzz_geometry_job_color_checked_result(void);
+void buzz_geometry_job_decode_descriptors(spu_context*, buzz_geometry_job_fn reference, const buzz_geometry_descriptor_functions*);
+void buzz_geometry_job_descriptor_checked_result(void);
+void buzz_geometry_job_descriptor_dispatched(unsigned storage);
 void buzz_geometry_job_audit_run(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_run(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn native,
                            buzz_geometry_job_eligibility_fn);

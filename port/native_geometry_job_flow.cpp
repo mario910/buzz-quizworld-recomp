@@ -10,6 +10,7 @@
 #include "native_geometry_full_commands.h"
 #include "native_geometry_attributes.h"
 #include "native_geometry_color.h"
+#include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
 #include <cstdio>
@@ -172,6 +173,41 @@ extern "C" void buzz_geometry_job_decode_color(spu_context* ctx, buzz_geometry_j
         buzz_geometry_job_color_checked_result();
     }
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_COLOR_CODEC,1,0);
+}
+
+extern "C" void buzz_geometry_job_decode_descriptors(spu_context* ctx,buzz_geometry_job_fn reference,
+                                                      const buzz_geometry_descriptor_functions* functions)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_descriptors_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometryDescriptorStream plan;
+    bool supported=functions && functions->blend && functions->continuation;
+    if(supported)for(auto fn:functions->codec)if(!fn)supported=false;
+    supported=supported && buzz::read_geometry_descriptor_stream(*ctx,plan);
+    if(!supported){buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_DESCRIPTORS,0,0);reference(ctx);return;}
+    spu_context* comparison=nullptr;
+    if(buzz_geometry_job_mode()==2){
+        comparison=buzz::clone_function_state(ctx);auto scheduled=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;
+        const uint32_t link=comparison->gpr[0]._u32[0];reference(comparison);spu_drain_call(comparison,link);
+        if(g_spu_trampoline_fn)buzz_geometry_job_native_fail(ctx,"descriptor reference continuation remains pending");
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::decode_geometry_descriptor_stream(*ctx,plan,*functions);
+    ctx->pc=ctx->gpr[0]._u32[0];g_spu_trampoline_fn=nullptr;
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool controls=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !controls){
+            std::fprintf(stderr,"[geometry-job/descriptor-control] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"descriptor control strict state/return differs");
+        }
+        buzz_geometry_job_descriptor_checked_result();
+    }
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_DESCRIPTORS,1,0);
+    SPU_RET(ctx);
 }
 
 extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)

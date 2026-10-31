@@ -25,6 +25,8 @@ static bool codecs_enabled = false;
 static unsigned color_references = 0, color_native = 0, color_fallback = 0;
 static int flow_mode = 1;
 static unsigned color_region_checked = 0;
+static bool descriptors_enabled=false;
+static unsigned descriptor_references=0,descriptor_native=0,descriptor_fallback=0;
 static unsigned attribute_references = 0, attribute_native[2]{}, attribute_fallback[2]{};
 static unsigned emit_references = 0, emit_native[4]{}, emit_fallback[4]{};
 static bool routing_probe = false, commands_enabled = false, command_publish_enabled = false;
@@ -62,11 +64,17 @@ int buzz_geometry_job_commands_enabled() { return commands_enabled; }
 int buzz_geometry_job_full_commands_enabled() { return full_enabled; }
 int buzz_geometry_job_attributes_enabled() { return attributes_enabled; }
 int buzz_geometry_job_codecs_enabled() { return codecs_enabled; }
+int buzz_geometry_job_descriptors_enabled() { return descriptors_enabled; }
+void buzz_geometry_job_descriptor_checked_result() { abort(); }
+void buzz_geometry_job_descriptor_dispatched(unsigned) { abort(); }
 int buzz_geometry_job_mode() { return flow_mode; }
 void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_DESCRIPTORS){
+        assert(routing_probe);if(native)++descriptor_native;else ++descriptor_fallback;return;
+    }
     if (stage == BUZZ_GEOMETRY_JOB_COLOR_CODEC) {
         assert(routing_probe);
         if (native) ++color_native; else ++color_fallback;
@@ -155,9 +163,25 @@ static void emit_reference(spu_context* ctx) { ++emit_references; ctx->pc = ctx-
 static void attribute_reference(spu_context* ctx) { ++attribute_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_reference(spu_context* ctx) { ++color_references; ctx->pc = ctx->gpr[0]._u32[0]; }
 static void color_zero_reference(spu_context* ctx) { ctx->pc = 0x83c8; g_spu_trampoline_fn = color_reference; }
+static void descriptor_reference(spu_context* ctx){++descriptor_references;ctx->pc=ctx->gpr[0]._u32[0];}
 static void attribute_routing(spu_context* ctx)
 {
     auto backup = std::make_unique<spu_context>(); memcpy(backup.get(), ctx, sizeof(*ctx));
+    descriptors_enabled=true;ctx->gpr[7]._u32[0]=0;
+    buzz_geometry_descriptor_functions descriptor_functions{};
+    for(auto& fn:descriptor_functions.codec)fn=descriptor_reference;
+    descriptor_functions.blend=descriptor_functions.continuation=descriptor_reference;
+    buzz_geometry_job_decode_descriptors(ctx,descriptor_reference,&descriptor_functions);
+    assert(descriptor_native==1 && !descriptor_references);
+    auto descriptor_foreign=std::make_unique<spu_context>();memcpy(descriptor_foreign.get(),ctx,sizeof(*ctx));descriptor_foreign->ls=descriptor_foreign->ls_store;
+    buzz_geometry_job_decode_descriptors(descriptor_foreign.get(),descriptor_reference,&descriptor_functions);
+    descriptors_enabled=false;buzz_geometry_job_decode_descriptors(ctx,descriptor_reference,&descriptor_functions);descriptors_enabled=true;
+    buzz_geometry_job_decode_descriptors(ctx,descriptor_reference,nullptr);
+    const auto retained_blend=descriptor_functions.blend;descriptor_functions.blend=nullptr;
+    buzz_geometry_job_decode_descriptors(ctx,descriptor_reference,&descriptor_functions);descriptor_functions.blend=retained_blend;
+    ctx->gpr[3]._u32[0]=3;buzz_geometry_job_decode_descriptors(ctx,descriptor_reference,&descriptor_functions);
+    assert(descriptor_references==5 && descriptor_native==1 && descriptor_fallback==3);
+    memcpy(ctx,backup.get(),sizeof(*ctx));
     codecs_enabled = true; ctx->gpr[121]._u32[0] = 0;
     buzz_geometry_job_decode_color(ctx,color_reference,color_reference);
     assert(color_native == 1 && !color_references && ctx->pc == 0x83c8 && g_spu_trampoline_fn == color_reference);
@@ -355,6 +379,8 @@ int main(int argc, char** argv)
     buzz_geometry_job_decode_color(native.get(),color_reference,color_reference);
     assert(color_references == 5 && color_native == 2 && color_fallback == 2 && color_region_checked == 1);
     codecs_enabled = false;
+    buzz_geometry_job_decode_descriptors(native.get(),descriptor_reference,nullptr);
+    assert(descriptor_references==6 && descriptor_native==1 && descriptor_fallback==3);descriptors_enabled=false;
     attributes_enabled = false;
     puts("Attribute routing: owner native; foreign/disabled/null-table/unsupported/post-scope PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = false;
