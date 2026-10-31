@@ -7,8 +7,8 @@ subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 
 Complete native data handlers now cover raw float3, normalized U8 color,
-packed unit vectors and halfword attributes. The latest halfword increment
-passes the full corpus and live/render gates below; remaining typed data,
+packed unit vectors, halfword and float32 attributes. The latest float32
+increment passes the full corpus and live/render gates below; remaining typed data,
 weighted scatter and enclosing pipeline bodies still keep phase 3 open.
 
 ## Driver boundary audit
@@ -1387,7 +1387,7 @@ The required phase-3 data inventory after this increment is:
 | `0x89B0..8B90`, storage 4 U8 color | Complete, opt-in | Final aggregate performance/default gates |
 | `0x9114/9148/92A0`, storage 9 unit vectors | Complete data implementation, opt-in | Final aggregate performance/default gates |
 | `0x85E8`, storage 1 SNORM16 | Original typed handler | Complete native data path and validation |
-| `0x87CC`, storage 2 float32 | Original typed handler | Complete native data path and validation |
+| `0x87CC`, storage 2 float32 | Complete, opt-in | Final aggregate performance/default gates |
 | `0x8378` / `0xCAC0` family, storage 3 half | Complete, opt-in | Final aggregate performance/default gates |
 | `0x8B94`, storage 5 I16 | Original typed handler | Complete native data path and validation |
 | `0x8D34`, storage 6 CMP | Original typed handler | Complete native data path and validation |
@@ -1490,7 +1490,7 @@ native half, unit-vector and color callees with original typed/blend code;
 4,192 strict all-family cases and 28 rejects pass. Driver routing additionally
 checks the new region against its actual four-block original oracle in
 JOB=2, alongside owner/off/foreign/null/unsupported/post-scope cases,
-1,024 models and all 19,508 real driver entries. All 43 controller cases pass.
+1,024 models and all 19,508 real driver entries. All 43 controller cases and 104 production-getter configuration cases pass.
 
 The preliminary combined JOB=2 replay passes all 19,508 jobs / 58,195
 transfers with **12,431 complete native half regions / zero fallback**,
@@ -1545,3 +1545,119 @@ remain open. Interpreted-SPU counts, same-frozen reversed menu/round A/B and
 normalized worker/process cycles and CPU time per completed frame/job are
 still required before the final phase-3 default decision. Repeatable CPU
 savings can justify enabling a correct routine even with flat FPS.
+
+## Complete storage-2 float32 attribute decoder (2026-10-31)
+
+`port/native_geometry_float32_stream.h` replaces the full `0x87CC` entry,
+`0x8800` setup, both `0x8878/8928` loops and `0x8910` continuation control.
+Host byte-vector loops preserve raw float payloads without arithmetic;
+only each column's final iteration materializes the pipeline ABI. No lifted
+setup, loop or final-column callback remains. Within-quad rotation and
+cross-quad copying stay distinct, including unused components, initial
+following-quads and disjoint volatile registers retained from earlier paths.
+All clipped rows use the sentinel's preferred word, rather than separate
+per-row sentinel lanes. Full-register tests deliberately vary unused sentinel
+lanes to prove that distinction.
+
+`BUZZ_GEOMETRY_JOB_FLOAT32_STREAM=0/1/2` is independent and defaults to 0:
+lift, native or strict region comparison. Its mode 2 performs the same full
+state comparison with native JOB=1 as with JOB=2.
+Routing stays owner-scoped; disabled, JOB=0, foreign/reference, null and
+unsupported paths retain the lift before mutation. Adapter/CMake protocol
+is 12; stage 14 separately records float32 coverage, and rare-path logs also
+show its first native/strict call. JOB=2 compares all 128 GPRs, all 256 KiB LS,
+controls, exact 0x83C8 continuation, host depth and image identity immediately
+at the region exit, in addition to the enclosing whole-job/I/O transcript.
+The region is DMA-free, so its clone never repeats guest I/O. There is no
+relaxed-state exception for this decoder. Stage F's temporary
+baseline contract, leaf mask 827 and all existing switch defaults are unchanged.
+
+A pinned five-block private original oracle passes **5,440 strict cases**:
+4,096 shape/stride/width/count/bias variants, 256 partial-count mixed-path
+cases, 1,024 raw float-bit cases and 64 zero-count entries with unused invalid
+pointers. Twenty-five rejected inputs leave the context unchanged and perform
+no I/O. The 4,192-case descriptor matrix / 28 rejects mixes original and
+native float32/half/unit/color callees. Driver routing checks both JOB=2 /
+FLOAT32=1 and JOB=1 / FLOAT32=2 against the actual five-block float32 oracle,
+with owner/off/foreign/null/unsupported/
+post-scope cases, 1,024 models and all 19,508 real driver entries. All 43
+controller cases and 104 production-getter configuration cases pass.
+
+The preliminary combined JOB=2 replay passes all 19,508 jobs / 58,195
+transfers, including **12 complete native float32 regions / zero fallback**
+and 12 strict float32 comparisons. Existing half/unit/descriptor/U8 coverage
+stays 12,431/0, 12,067/0, 12,309/0 and 109/0. These twelve corpus calls alone
+do not establish the required 256 live calls; frozen/live evidence is tracked
+below, and the new default remains off.
+
+### Provisional float32 runs retained for audit
+
+V1 and V2 replay/live logs remain private evidence, distinct from the final
+V3 build below. The first combined replay/live PowerShell process retained
+an empty REPLAY_CORPUS variable and exited before rendering; final scene
+runs use a fresh process and explicitly remove the variable. Full JOB=2
+round validation did not reach storage 2 during bounded navigation. The
+independent FLOAT32=2 mode solves this with the same strict fields and real
+round invocations, without counting repeated checker clones as live calls.
+
+V2 passed its valid-input proofs, but review found the existing publication
+option's validation predicate had accidentally widened while adding float32
+mode 2. It is restored to its original 0/1 contract. All thirteen production
+getters now have 104 configuration checks, including invalid values; only
+FLOAT32 accepts 2. V2 is not the final source-bound proof. Its frame-6,500
+readback also showed profile presentation, so actual round rendering is
+verified through periodic 500-frame readbacks instead.
+
+### Final float32 V3 source-bound evidence
+
+The final build is `build-vulkan-phase3-float32-stream-v3`, bound by
+`phase3/float32-stream-v3-build.json` and preserved generated source
+`phase3/frozen-float32-stream-v3-source.c`. EXE SHA256 is
+`82ef9094ad955e7db3e36983d5e165b977d85523ad6fc72f100a1bcf67d3eb9f`; map SHA256
+`c3e089fd6902d1bb420ff519b802d3001b2315ffc0f330eb7a1c2b3a6f21d0ae`.
+
+All five final replay arms (off, independent, native, checked and
+kernel-checked) pass **19,508 exact jobs / 58,195 transfers each**, with zero
+concurrent input changes and zero failures. They use mask 827 / Stage F=2,
+without a replay-contract override. All four native arms execute **12 complete
+float32 regions / zero fallback**. JOB=2 compares twelve strict float32 exits
+and all 19,508 whole-job/I/O transcripts; JOB=1 / FLOAT32=2 independently
+compares all twelve float32 exits. Combined half/unit/descriptor/U8 native
+counts remain 12,431/12,067/12,309/109, all with zero fallback. The initial
+independent replay process was interrupted; its partial log is retained,
+and the completed proof is `float32-stream-v3-corpus-independent-resumed.log`.
+
+The same final EXE runs Stage F=1 / GEOMETRY=1 / older native flags=1 against
+fresh private saves, muted/background with native buzzer input. No builds,
+CPU tests or profiling overlap these functional runs:
+
+| Final live arm | Mode | Verified coverage |
+|---|---|---|
+| `p3-float32-v3-checked`, menu 45 s | JOB=2 / FLOAT32=1 | **>=70,000 strict whole-job/I/O**; >=50,000 half, >=50,000 unit and >=50,000 descriptor comparisons; float32 absent |
+| `p3-float32-v3-menu-render`, 75 s | JOB=1 / FLOAT32=1 | Actual-native menu, periodic 500-frame renderer readbacks; float32 absent |
+| `p3-float32-v3-kernel-checked-round`, 60 s after 136.4 s navigation/load | JOB=1 / FLOAT32=2 | **>=20,000 strict float32 region comparisons** and >=20,000 native calls; identical full-state fields, no whole-job pairing in this arm |
+| `p3-float32-v3-round-render`, 45 s after 141.8 s navigation/load | JOB=1 / FLOAT32=1 | **>=10,000 actual-native float32 calls**; periodic 500-frame renderer readbacks show the actual round |
+
+The CSVs contain 1280, 2315, 6112, 5795 frames respectively, ending at
+44326.826, 74597.514, 195876.049, 186235.555 ms. These are functional
+duration/scene checks, not matched performance results.
+
+There are no differences, halts, float32 fallbacks or early exits. The
+256-call float32 gate uses actual round-sequence invocations independently
+of the menu's whole-job gate. The first V3 menu run ended at frame 2,257,
+before its scheduled frame-2,500 dump; it is retained and not counted as
+render evidence. The final fresh menu run uses periodic readbacks instead.
+
+`phase3/p3-float32-v3-menu-render.ppm/.png` and
+`phase3/p3-float32-v3-round-render.ppm/.png` are visually inspected: normal
+menu cards/studio control desk, and the actual green round stage with host,
+player and score screen. Original and canonical template save hashes remain
+unchanged. EXE, map, generated source, code, tests, fixture, saves and 150
+archived proof logs are verified and bound to the source commit.
+
+FLOAT32 remains default-off. Phase 3 stays open for fixed-point/other typed
+handlers, weighted scatter and enclosing stages. Final interpreted-SPU counts,
+reversed same-frozen menu/round A/B and normalized worker/process cycles and
+CPU time per completed frame/job still gate completion and defaults.
+Repeatable CPU savings can justify enabling a correct routine even when FPS
+stays flat. Strict Stage F reconstruction remains mandatory final phase 7.

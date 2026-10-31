@@ -367,6 +367,21 @@ least 280,000 strict half-region and 425,000 whole-job/I/O comparisons; native
 menu/round readbacks look normal. Evidence is recorded in the phase-3
 results document.
 
+The complete storage-2 float32 handler (`0x87CC/8800/8878/8910/8928`) now
+copies raw payloads natively, preserving cross-quad and circular within-quad
+behavior, unused components and full branch-specific register state. Its
+independent `BUZZ_GEOMETRY_JOB_FLOAT32_STREAM=0/1/2` switch defaults to 0;
+mode 2 strictly compares this DMA-free region even with native JOB=1. This
+allows real round calls to be checked without slow whole-job validation
+preventing timed navigation. No comparison fields are relaxed. The corpus
+contains only 12 calls; all are native with zero fallback in five frozen
+replay arms, including independent kernel-checked JOB=1 / FLOAT32=2. Tests
+pass 5,440 strict cases and 25 unchanged-state rejects. Final live coverage
+passes at least 20,000 strict float32 calls in the round sequence and 70,000
+whole-job/I/O checks in the menu; native menu/actual-round readbacks look
+normal. Evidence is in the phase-3 results document; phase 3 and performance/
+default gates stay open.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -569,6 +584,7 @@ See the separate
 | 2026-10-31 | Final phase 2 default 827 / 0x33B | Full corpus, live, menu and round | no aggregate FPS claim; isolated results above | native menu/round frames normal | Seven groups on, four opt-in; checked/native replay 19,508 exact each, 58,195 transfers, zero failures; >=256 live strict matches per selected group without mask override; phase 2 complete |
 | 2026-10-31 | Phase 3 complete unit-vector decoder 9114/9148/92A0 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/round frames | 8,256 strict unit cases +23 rejects; 12,067 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=350,000 strict unit +525,000 whole-job/I/O; own switch default0, leaf827 unchanged; phase3 remains open |
 | 2026-10-31 | Phase 3 complete halfword stream 8378/CAC0/CAD8/CB78 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/crowd/round frames | 8,192 strict cases covering all65,536half encodings +23 rejects; 12,431 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=280,000 strict half +425,000 whole-job/I/O; independent default0, leaf827 unchanged; phase3 remains open |
+| 2026-10-31 | Phase 3 complete float32 stream 87CC/8800/8878/8910/8928 | Five frozen corpus arms and scene-specific same-EXE live checks | functional evidence; no FPS/CPU claim | normal native menu and actual round | 5,440 strict cases +25 rejects; all12corpus float calls native/0fallback; each replay19,508 exact/58,195 transfers; >=20,000 strict live float32 in round sequence and 70,000 whole-job/I/O in menu; final V3 parser +104 configuration checks; own0/1/2switch default0, leaf827 unchanged; phase3open |
 
 ## Risks
 

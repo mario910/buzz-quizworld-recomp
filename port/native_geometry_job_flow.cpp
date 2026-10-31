@@ -12,6 +12,7 @@
 #include "native_geometry_color.h"
 #include "native_geometry_unit_vectors.h"
 #include "native_geometry_half_stream.h"
+#include "native_geometry_float32_stream.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -275,6 +276,56 @@ extern "C" void buzz_geometry_job_decode_half_stream(spu_context* ctx, buzz_geom
         buzz_geometry_job_half_stream_checked_result();
     }
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_HALF_STREAM,1,0);
+}
+
+extern "C" void buzz_geometry_job_decode_float32_stream(spu_context* ctx, buzz_geometry_job_fn reference,
+                                               buzz_geometry_job_fn continuation)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_float32_stream_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryFloat32Stream plan;
+    const char* reason=continuation?nullptr:"null continuation";
+    const bool supported = continuation && buzz::read_geometry_float32_stream(*ctx,plan,&reason);
+    if (!supported) {
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FLOAT32_STREAM,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/float32-stream] first fallback: %s\n",reason);
+        reference(ctx); return;
+    }
+    spu_context* comparison = nullptr;
+    if (buzz_geometry_job_mode() == 2 || buzz_geometry_job_float32_stream_enabled() == 2) {
+        // The codec is DMA-free. Compare its full region exit as well as the
+        // enclosing job, before common descriptor control can overwrite ABI.
+        comparison = buzz::clone_function_state(ctx);
+        auto scheduled = g_spu_trampoline_fn; g_spu_trampoline_fn = nullptr;
+        reference(comparison);
+        unsigned steps = 0;
+        while (comparison->pc != 0x83c8) {
+            if (!g_spu_trampoline_fn || ++steps > 65536)
+                buzz_geometry_job_native_fail(ctx,"float32-stream reference continuation escaped region");
+            auto next = g_spu_trampoline_fn; g_spu_trampoline_fn = nullptr; next(comparison);
+        }
+        if (g_spu_trampoline_fn != continuation)
+            buzz_geometry_job_native_fail(ctx,"float32-stream reference continuation differs");
+        g_spu_trampoline_fn = scheduled;
+    }
+    buzz::decode_geometry_float32_stream(*ctx,plan);
+    // This codec is a region inside 7DF8, not a callable SPU root. Schedule
+    // its exact original continuation; changing r0/host depth would be wrong.
+    ctx->pc = 0x83c8; g_spu_trampoline_fn = continuation;
+    if (comparison) {
+        const auto diff = buzz::compare_function_state(*ctx,*comparison);
+        const bool controls = ctx->host_depth == comparison->host_depth && ctx->image_id == comparison->image_id;
+        buzz::release_function_state(comparison);
+        if (!diff.exact() || !controls) {
+            std::fprintf(stderr,"[geometry-job/float32-stream] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"float32-stream codec strict state/continuation differs");
+        }
+        buzz_geometry_job_float32_stream_checked_result();
+    }
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FLOAT32_STREAM,1,0);
 }
 
 extern "C" void buzz_geometry_job_decode_descriptors(spu_context* ctx,buzz_geometry_job_fn reference,

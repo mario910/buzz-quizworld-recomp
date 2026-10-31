@@ -10,6 +10,7 @@
 
 static const char* scenario = "pass";
 static unsigned calls = 0, guest_writes = 0;
+static bool expected_config_reject=false;
 static unsigned reference_calls = 0, native_calls = 0, eligibility_calls = 0;
 static spu_context* retained = nullptr;
 static bool selected(const char* name) { return !strcmp(scenario, name); }
@@ -89,6 +90,7 @@ static int supports(const spu_context* ctx)
 
 static void expected_abort(int)
 {
+    if(expected_config_reject){std::fputs("[config] rejected\n",stderr);std::fflush(stderr);std::_Exit(75);}
     // Even a failed shadow must not publish another real output.
     std::_Exit(guest_writes == 1 && calls == 2 ? 73 : 74);
 }
@@ -97,6 +99,26 @@ int main(int argc, char** argv)
 {
     if (argc > 1) scenario = argv[1];
     std::signal(SIGABRT, expected_abort);
+    if(selected("option")){
+        assert(argc==4);
+        struct Option {const char* name;int(*get)();};
+        const Option options[]={
+            {"PUBLISH",buzz_geometry_job_publish_enabled},{"LAYOUT",buzz_geometry_job_layout_enabled},
+            {"VERTEX",buzz_geometry_job_vertex_enabled},{"COMMANDS",buzz_geometry_job_commands_enabled},
+            {"COMMAND_PUBLISH",buzz_geometry_job_command_publish_enabled},{"EMIT",buzz_geometry_job_emit_enabled},
+            {"FULL_COMMANDS",buzz_geometry_job_full_commands_enabled},{"ATTRIBUTES",buzz_geometry_job_attributes_enabled},
+            {"CODECS",buzz_geometry_job_codecs_enabled},{"DESCRIPTORS",buzz_geometry_job_descriptors_enabled},
+            {"UNIT_VECTORS",buzz_geometry_job_unit_vectors_enabled},{"HALF_STREAM",buzz_geometry_job_half_stream_enabled},
+            {"FLOAT32_STREAM",buzz_geometry_job_float32_stream_enabled}};
+        for(const auto& option:options)if(!strcmp(argv[2],option.name)){
+            expected_config_reject=!strcmp(argv[3],"reject");
+            const int actual=option.get();
+            if(expected_config_reject)return 76;
+            assert(actual==std::atoi(argv[3]));puts("[config] accepted PASS");return 0;
+        }
+        return 77;
+    }
+
     auto ctx = std::make_unique<spu_context>();
     memset(ctx.get(), 0, sizeof(*ctx));
     ctx->ls = ctx->ls_store;

@@ -38,6 +38,32 @@ try {
     & .\analysis\native-geometry\phase3\job-runtime-test.exe off *> analysis/native-geometry/phase3/runtime-off.log
     if ($LASTEXITCODE) { throw 'Disabled native controller failed' }
     'Disabled controller PASS'
+    $env:BUZZ_GEOMETRY_JOB_AUDIT = '0'
+    $geometryOptionCases = 0
+    foreach ($geometryOption in @('PUBLISH','LAYOUT','VERTEX','COMMANDS','COMMAND_PUBLISH','EMIT','FULL_COMMANDS','ATTRIBUTES','CODECS','DESCRIPTORS','UNIT_VECTORS','HALF_STREAM','FLOAT32_STREAM')) {
+        $geometryOptionKey = 'BUZZ_GEOMETRY_JOB_' + $geometryOption
+        $geometryOptionPrevious = [Environment]::GetEnvironmentVariable($geometryOptionKey, 'Process')
+        try {
+            foreach ($geometryValue in @('unset','0','1','2','3','00','1x','x')) {
+                if ($geometryValue -eq 'unset') { Remove-Item "Env:$geometryOptionKey" -ErrorAction SilentlyContinue }
+                else { Set-Item "Env:$geometryOptionKey" $geometryValue }
+                $geometryValid = $geometryValue -in @('unset','0','1') -or ($geometryOption -eq 'FLOAT32_STREAM' -and $geometryValue -eq '2')
+                $geometryWant = if (-not $geometryValid) { 'reject' } elseif ($geometryValue -eq 'unset') { '0' } else { $geometryValue }
+                $geometryConfigLog = "analysis/native-geometry/phase3/runtime-option-$geometryOption-$geometryValue.log"
+                & .\analysis\native-geometry\phase3\job-runtime-test.exe option $geometryOption $geometryWant *> $geometryConfigLog
+                $geometryCode = if ($geometryValid) { 0 } else { 75 }
+                if ($LASTEXITCODE -ne $geometryCode) { throw "Option $geometryOption=$geometryValue returned $LASTEXITCODE expected $geometryCode" }
+                $geometryDiagnostic = if ($geometryValid) { '[config] accepted PASS' } else { '[config] rejected' }
+                if (-not (Select-String -LiteralPath $geometryConfigLog -SimpleMatch $geometryDiagnostic)) { throw "Missing option diagnostic: $geometryConfigLog" }
+                $geometryOptionCases++
+            }
+        } finally {
+            if ($null -eq $geometryOptionPrevious) { Remove-Item "Env:$geometryOptionKey" -ErrorAction SilentlyContinue }
+            else { Set-Item "Env:$geometryOptionKey" $geometryOptionPrevious }
+        }
+    }
+    "Configuration options: $geometryOptionCases production-getter cases PASS"
+
 } finally {
     $env:BUZZ_GEOMETRY_JOB = $geometryPreviousJob
     $env:BUZZ_GEOMETRY_JOB_AUDIT = $geometryPreviousAudit

@@ -375,6 +375,40 @@ the order of overlapping scratch writes, including columns with no ordinary
 output destination. Per-column final ABI materialization is needed because
 the two loop variants leave different volatile registers behind.
 
+### Float32 descriptor attribute stream
+
+Storage 2 uses the complete `0x87CC/8800/8878/8910/8928` region, separate
+from the primary format-0 raw float3 path. Its native implementation in
+`port/native_geometry_float32_stream.h` is independently controlled by
+`BUZZ_GEOMETRY_JOB_FLOAT32_STREAM=0/1/2` (default 0): lift, native or strict
+region comparison. Mode 2 also works with the native whole-job JOB=1, so rare
+round paths can be checked without the whole-job checker slowing navigation.
+The per-region fields and comparison remain identical to JOB=2. Host byte-vector batches
+copy the raw payload without floating-point arithmetic, preserving zero,
+denormal, extended and NaN-like bit patterns.
+
+The descriptor byte width in r25 selects between two paths for each column:
+`(offset&15)+width>16` copies sixteen bytes across adjacent input quads;
+otherwise all sixteen result bytes rotate within the same aligned input
+quad. Unused components also retain this circular behavior. Both paths
+preload the next group, write one final group past the preferred limit and
+preserve every surviving setup/loop register. Their disjoint volatile-register
+sets require retaining state left by an earlier column's other path.
+
+Unlike the color/unit/half paths, float32 shifts each row cursor before
+clipping it against the same sentinel vector. Every clipped row therefore
+uses r82's preferred word; the other sentinel lanes are not physical store
+addresses. Row store order is 0,1,2,3. Logical byte bias is retained until
+physical STQD alignment. Setup-only registers and unused following-quads on
+the within-quad path remain anchored to group zero, not the final group.
+
+Preflight validates shapes, gather registers, source plus lookahead,
+physical output/sentinel bounds and immutable stack metadata before writes,
+allowing the designated SP+0x20 sentinel. The r121=0 immediate continuation
+preserves state without inspecting unused pointers. JOB=2 additionally
+compares the complete region at 0x83C8 before common descriptor code can
+hide a volatile-state difference.
+
 ### Halfword attribute stream
 
 The complete storage-3 region (`0x8378` -> `0xCAC0/CAD8/CB78`) now has native

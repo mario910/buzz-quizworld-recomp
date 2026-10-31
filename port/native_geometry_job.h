@@ -30,7 +30,7 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
        BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
-       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13 };
+       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14 };
 int buzz_geometry_job_layout_enabled(void);
 int buzz_geometry_job_vertex_enabled(void);
 int buzz_geometry_job_commands_enabled(void);
@@ -42,6 +42,10 @@ int buzz_geometry_job_codecs_enabled(void);
 int buzz_geometry_job_descriptors_enabled(void);
 int buzz_geometry_job_unit_vectors_enabled(void);
 int buzz_geometry_job_half_stream_enabled(void);
+/* Float32: 0 lift, 1 native, 2 strict region (also with native JOB=1). */
+int buzz_geometry_job_float32_stream_enabled(void);
+void buzz_geometry_job_float32_stream_checked_result(void);
+void buzz_geometry_job_decode_float32_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
 void buzz_geometry_job_half_stream_checked_result(void);
 void buzz_geometry_job_decode_half_stream(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn continuation);
 void buzz_geometry_job_unit_vectors_checked_result(void);
