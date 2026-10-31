@@ -259,7 +259,10 @@ both UIs:
   `BUZZ_TEXTURE_UPSCALER` (executable path), `BUZZ_TEXTURE_UPSCALER_MODEL`
   and `BUZZ_TEXTURE_UPSCALER_SCALE` (2-4, matching the model) override the
   defaults. After five failures in a row (no Vulkan GPU, missing model) it
-  stops for the run and logs why.
+  stops for the run and logs why. A running upscale ends with the game, on
+  every exit: a Windows job object, and on Linux the child's parent-death
+  signal plus an exit handler (other POSIX systems have the exit handler
+  only, so a crash there can leave one upscale to finish).
 - All are read at startup and are restart-only. `RSX_TEXPACK_DIR`,
   `RSX_TEXPACK_DUMP=0/1` and `RSX_TEXPACK_REPLACE=0/1` override them for
   diagnosis. They are set in the launcher's Game tab and the settings file,

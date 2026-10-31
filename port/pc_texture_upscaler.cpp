@@ -11,9 +11,13 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
-#include <spawn.h>
+#include <atomic>
+#include <csignal>
 #include <sys/wait.h>
-extern char** environ;
+#include <unistd.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 #endif
 
 namespace fs=std::filesystem;
@@ -30,6 +34,16 @@ bool texture_name(const std::string& name,unsigned& w,unsigned& h) {
     unsigned long long hash=0;unsigned fmt=0;int used=0;
     return name.size()>=26&&sscanf(name.c_str(),"%16llx_%ux%u_%2x.png%n",&hash,&w,&h,&fmt,&used)==4&&used==int(name.size());
 }
+
+#ifndef _WIN32
+// The upscaler running now, killed when the game exits normally. Linux also
+// kills it when the game dies any other way (PR_SET_PDEATHSIG in the child).
+std::atomic<pid_t> running_child{0};
+void kill_running_child() {
+    const pid_t pid=running_child.load();
+    if(pid>0)kill(pid,SIGKILL);
+}
+#endif
 
 // Exit code, or -1 when the process cannot start.
 int run(const fs::path& exe,const Args& args) {
@@ -53,13 +67,41 @@ int run(const fs::path& exe,const Args& args) {
     DWORD code=1;GetExitCodeProcess(pi.hProcess,&code);CloseHandle(pi.hProcess);
     return int(code);
 #else
+    static const bool registered=std::atexit(kill_running_child)==0;(void)registered;
+    // Everything the child needs is built before fork: after it, only
+    // async-signal-safe calls until exec.
     std::vector<char*> argv{const_cast<char*>(exe.c_str())};
     for(const auto& a:args)argv.push_back(const_cast<char*>(a.c_str()));
     argv.push_back(nullptr);
-    pid_t pid;
-    if(posix_spawn(&pid,exe.c_str(),nullptr,nullptr,argv.data(),environ))return -1;
-    int status=0;
-    if(waitpid(pid,&status,0)<0)return -1;
+    const std::string cwd=exe.parent_path().native();
+#ifdef __linux__
+    const pid_t parent=getpid();
+#endif
+    const pid_t pid=fork();
+    if(pid<0)return -1;
+    if(pid==0) {
+#ifdef __linux__
+        // Sent when the forking thread ends, and the worker thread only ends
+        // with the game (it returns with no child running). Covers crashes
+        // and SIGKILL, which skip atexit. Re-check the parent in case the
+        // game died before prctl took effect.
+        if(prctl(PR_SET_PDEATHSIG,SIGKILL)!=0||getppid()!=parent)_exit(127);
+#endif
+        if(!cwd.empty()&&chdir(cwd.c_str())!=0)_exit(127);
+        if(nice(5)==-1){}
+        execv(exe.c_str(),argv.data());
+        _exit(127);
+    }
+    running_child.store(pid);
+    // The same five-minute bound as on Windows.
+    int status=0;pid_t done=0;
+    for(int waited=0;(done=waitpid(pid,&status,WNOHANG))==0;waited+=100) {
+        if(waited>=5*60*1000){kill(pid,SIGKILL);done=waitpid(pid,&status,0);break;}
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    running_child.store(0);
+    if(done<0)return -1;
+    if(WIFEXITED(status)&&WEXITSTATUS(status)==127)return -1; // could not exec
     return WIFEXITED(status)?WEXITSTATUS(status):1;
 #endif
 }
