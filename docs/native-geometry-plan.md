@@ -175,6 +175,11 @@ remain open; the harness baseline is not a native implementation.
 The native host input reader now matches the original 21-pointer setup on
 all 19,508 corpus entries and 256 synthetic entries, with 14 mutation-free
 rejection checks. It remains unwired pending native pipeline implementation.
+The native C++ preamble and context initializer also match the entire LS on
+all 19,508 entries. Synthetic checks cover 128 preamble combinations and
+1,024 initializer cases. Call-register materialization, remaining stage flow
+and runtime selection are still open; these internal helpers preserve GPRs
+and do not constitute a callable SPU function replacement or completed driver.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):

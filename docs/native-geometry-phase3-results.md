@@ -192,6 +192,34 @@ is not wired into live execution yet. Table pointers are initialized even
 when their implied payload would exceed scratch, as in the original setup;
 whole-pipeline eligibility must prove payload capacity before decoding.
 
+## Native driver preamble
+
+`port/native_geometry_job_setup.h` now prepares the complete reviewed preamble
+in C++, without dispatching translated blocks: save the caller's frame,
+publish the 21 input pointers and setup quadwords, stage default/object
+records, construct the custom descriptor stack block and apply the
+position-only output-descriptor edits. Its host result carries the input view
+and the initializer's arguments. It rejects the optional metadata-GET path,
+the driver's STOP flag and unsupported source sizes/alignments before writes.
+This eligibility is for the preamble only; remaining pipeline/output support
+must be decided before selecting the whole native driver.
+
+The same `test-geometry-context.ps1 -Corpus ...` command now compares the
+native preamble's **entire LS** with the original driver's pre-initializer
+state, then compares native context initialization. All **19,508 real jobs**
+pass both comparisons. An additional **128 synthetic preambles** cover all
+combinations of the six relevant flag bits and present/empty stream-B input,
+with randomized initial LS, padding and GPR words. **Seven additional rejected
+preambles** leave the entire context and host result unchanged. The prior
+1,024 initializer cases and 13 context rejection cases still pass.
+
+The preamble preserves GPRs/controls and supplies host state; it does not yet
+materialize the register arguments and saved internal values needed by the
+remaining SPU-ABI callees. Neither helper is selected by the runtime driver.
+Next work is that native orchestration/call boundary, followed by strict
+whole-job comparison. Existing adapter evidence and default mask 827 remain
+unchanged; this increment is not whole-job native coverage or a speed claim.
+
 ## Remaining phase-3 gates
 
 - Add the independent off/native/checked job switch and an eligibility check

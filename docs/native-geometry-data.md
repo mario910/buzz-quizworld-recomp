@@ -375,6 +375,21 @@ Only the first halfword of mutable counts at `+0x180` is set to index count;
 its remaining 14 bytes are preserved. Full-LS comparisons against original
 `0x2F80..0x3268` cover these boundaries and optional copies.
 
+The main driver's `0x520`-byte frame saves all GPRs 80..109 at old-SP
+`-0x10..-0x1E0`, GPR 126 at `-0x1F0`, the caller link at old-SP `+0x10`, and
+the old SP quadword at the frame base. The native preamble preserves all
+words of these values and the globals at `0xE570..0xE5AF`, not just their
+preferred scalar words. It builds custom state at frame `+0xB0`, clears
+`+0xC0..+0xCF` and only the first eight bytes of `+0xD0..+0xDF`.
+
+The blend flag (`0x10000000` in descriptor `+0xEC`) first saves the original
+48-byte object input in frame `+0xE0..+0x10F` and creates additional records
+at `+0x110..+0x15F`. It leaves the default records at `+0x160..+0x18F`
+intact; those defaults overwrite the first 48 bytes of the staged object
+input on both branches. The position-only bit (`0x80`) edits the output
+descriptor's first three bytes to `1,12,1`. Full-LS preamble tests cover both
+flags and preserve the unused frame/pointer-table padding.
+
 For the first menu sample, SPURS scratch starts at `0x11000`, float4 tables
 are `0x11000`, `0x12980`, `0x14300` (408 vertices each), and geometry context
 is `0x18460`. Compressed indices start at `0xE8F0`; their decoded triangle

@@ -2,6 +2,7 @@
 #include "../ps3recomp/runtime/spu/spu_helpers.h"
 #include "../ps3recomp/runtime/spu/spu_dma.h"
 #include "../port/native_geometry_context.h"
+#include "../port/native_geometry_job_setup.h"
 #include "zlib.h"
 #include <cassert>
 #include <cstdio>
@@ -119,6 +120,64 @@ static void clone(spu_context& destination, const spu_context& source)
     memcpy(&destination, &source, sizeof source); destination.ls = destination.ls_store;
 }
 
+static void compare_preamble(spu_context& native, spu_context& reference)
+{
+    buzz::GeometryJobEntry entry;
+    assert(buzz::read_geometry_job_entry(native, entry));
+    clone(reference, native);
+    buzz::GeometryJobSetup setup;
+    const char* reason = nullptr;
+    const auto before = std::vector<uint8_t>(reinterpret_cast<uint8_t*>(&native),
+        reinterpret_cast<uint8_t*>(&native) + sizeof native);
+    if (!buzz::prepare_geometry_job(native, setup, &reason)) {
+        fprintf(stderr, "%s: native preamble rejected %s\n", current_case, reason); abort();
+    }
+    auto unchanged = before;
+    memcpy(unchanged.data() + offsetof(spu_context, ls_store), native.ls, SPU_LS_SIZE);
+    assert(!memcmp(&native, unchanged.data(), unchanged.size()));
+    reference.host_depth = 1; g_spu_trampoline_fn = nullptr;
+    buzz_job_6eba_spu_func_00001C18(&reference); drain(&reference);
+    assert(reference.pc == 0x2f80);
+    if (memcmp(native.ls, reference.ls, SPU_LS_SIZE)) {
+        for (unsigned at = 0; at < SPU_LS_SIZE; ++at) if (native.ls[at] != reference.ls[at]) {
+            fprintf(stderr, "%s: preamble LS[%05X] native=%02X reference=%02X flags=%08X frame=%X\n",
+                current_case, at, native.ls[at], reference.ls[at], entry.flags, entry.frame_lsa); break;
+        }
+        abort();
+    }
+    const auto in = arguments(reference);
+    assert(!memcmp(&in, &setup.initialization, sizeof in));
+    assert(in.context == entry.geometry_context_lsa && in.configuration == entry.input[16].lsa);
+    assert(in.scratch == entry.scratch_lsa && in.scratch_bytes == entry.scratch_bytes);
+    assert(in.workspace == entry.workspace_lsa && in.workspace_bytes == entry.workspace_bytes);
+    compare(native, reference, in);
+}
+
+static void synthetic_job(spu_context& ctx, unsigned trial)
+{
+    fill(ctx, trial + 1);
+    ctx.gpr[3]._u32[0] = 0x3fbc0; ctx.gpr[4]._u32[0] = 0x3fc00;
+    ctx.gpr[1]._u32[0] = 0x137e0;
+    auto put = [&](unsigned at, uint32_t value) { buzz::geometry_job_put32(ctx.ls + at, value); };
+    memset(ctx.ls + 0x3fbc0, 0, 0x140);
+    put(0x3fbc0, 0xe800); put(0x3fbd4, 0x2003fbf0);
+    put(0x3fbd8, 21 << 16); put(0x3fbdc, 0x10800); put(0x3fbe0, 0x10800); put(0x3fbe4, 20);
+    put(0x3fc08, 0x0e6800a8); put(0x3fc14, 8192); put(0x3fc1c, 256);
+    const uint32_t constants[] = {0, 0x7fff, 0, 0, 0x04050607, 0x80808080, 0x0c0d0e0f, 0x80808080};
+    for (unsigned i = 0; i < 8; ++i) put(0xcd10 + i * 4, constants[i]);
+    unsigned cursor = 0xe800;
+    for (unsigned i = 0; i < 21; ++i) {
+        const unsigned size = i == 0 ? 64 : i == 11 && (trial & 64) ? 0 : i == 14 ? 128 : i == 15 ? 64 : i == 16 ? 16 : 32;
+        put(0x3fc30 + i * 8, size); put(0x3fc34 + i * 8, 0x100000 + i * 256);
+        cursor += size;
+    }
+    put(0xe800, 0); // No command-summary pipeline override.
+    static const uint32_t flags[] = {0x10000000, 0x80, 0x100, 8, 32, 64};
+    uint32_t flag_word = 0;
+    for (unsigned i = 0; i < 6; ++i) if (trial & (1 << i)) flag_word |= flags[i];
+    put(0x3fcec, flag_word);
+}
+
 int main(int argc, char** argv)
 {
     auto native = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
@@ -161,6 +220,32 @@ int main(int argc, char** argv)
         assert(!memcmp(native.get(), before.data(), before.size()));
         assert(!memcmp(&state, &output_before, sizeof state));
     }
+    for (unsigned trial = 0; trial < 128; ++trial) {
+        synthetic_job(*native, trial);
+        compare_preamble(*native, *reference);
+    }
+    for (unsigned fault = 0; fault < 7; ++fault) {
+        synthetic_job(*native, 0);
+        auto put = [&](unsigned at, uint32_t value) { buzz::geometry_job_put32(native->ls + at, value); };
+        switch (fault) {
+        case 0: put(0x3fcf4, 0x100000); break;
+        case 1: native->ls[0x3fcfa] = 1; break;
+        case 2: put(0x3fc30 + 15 * 8, 32); break;
+        case 3: put(0x3fc30 + 14 * 8, 64); break;
+        case 4: put(0x3fc34 + 15 * 8, 0x100001); break;
+        case 5: put(0x3fc34 + 14 * 8, 0x100001); break;
+        case 6: put(0x3fcec, 0x80); put(0x3fc30 + 1 * 8, 0); break;
+        }
+        buzz::GeometryJobSetup setup; memset(&setup, 0xa5, sizeof setup);
+        const auto output_before = std::vector<uint8_t>(reinterpret_cast<uint8_t*>(&setup),
+            reinterpret_cast<uint8_t*>(&setup) + sizeof setup);
+        const auto before = std::vector<uint8_t>(reinterpret_cast<uint8_t*>(native.get()),
+            reinterpret_cast<uint8_t*>(native.get()) + sizeof(*native));
+        const char* reason = nullptr;
+        assert(!buzz::prepare_geometry_job(*native, setup, &reason) && reason);
+        assert(!memcmp(&setup, output_before.data(), output_before.size()));
+        assert(!memcmp(native.get(), before.data(), before.size()));
+    }
     unsigned corpus = 0;
     if (argc > 1) for (const auto& path : std::filesystem::directory_iterator(argv[1])) {
         if (path.path().extension() != ".gz" || path.path().string().find(".bjc.gz") == std::string::npos) continue;
@@ -182,19 +267,9 @@ int main(int argc, char** argv)
             transfers.push_back(std::move(t));
         }
         gzclose(file);
-        buzz::GeometryJobEntry entry;
-        assert(buzz::read_geometry_job_entry(*native, entry));
-        native->host_depth = 1; g_spu_trampoline_fn = nullptr;
-        buzz_job_6eba_spu_func_00001C18(native.get()); drain(native.get());
-        assert(native->pc == 0x2f80);
-        const auto in = arguments(*native);
-        assert(in.context == entry.geometry_context_lsa && in.configuration == entry.input[16].lsa);
-        assert(in.scratch == entry.scratch_lsa && in.scratch_bytes == entry.scratch_bytes);
-        assert(in.workspace == entry.workspace_lsa && in.workspace_bytes == entry.workspace_bytes);
-        clone(*reference, *native);
-        compare(*native, *reference, in);
+        compare_preamble(*native, *reference);
         ++corpus;
     }
     if (argc > 1) assert(corpus);
-    printf("Native context: 1024 full-LS oracle cases, 13 unchanged-state rejections, %u real preambles/initializers exact, %u recorded metadata GETs PASS\n", corpus, preamble_reads);
+    printf("Native setup/context: 1024 initializer cases, 128 preamble flag/secondary cases, 13+7 unchanged-state rejections, %u real native preambles/initializers full-LS exact, %u recorded metadata GETs PASS\n", corpus, preamble_reads);
 }
