@@ -289,6 +289,32 @@ pointer-table comparisons and no differences:
 Renderer/A/B gates are pending; bit 10 remains default-off at this
 implementation checkpoint.
 
+## Bit 12: BE word fill (`0x28F0`), implementation in validation
+
+The pure region enters at `0x28F0` and exits at `0x2910`. The native prefix
+fills all but the final word with the BE representation of `r9.word0` using
+AVX2 stores and a word tail. It advances every lane of the pointer/counter,
+then executes the original final iteration to restore temporary registers,
+quadword padding and continuation exactly. Counter subtraction retains
+32-bit wrap; bounds are checked in 64 bits before any mutation.
+
+The guard requires at least four remaining words, a four-byte aligned,
+bounded output at or above `0xE680`, private LS, and no pending interrupt or
+debug probe. Smaller or unsupported fills keep the lift. Bit 12 is opt-in;
+renderer and performance gates are still pending. The public
+test covers 440 full states, 4..8192 words, all four word positions in a
+quadword, exact end-of-LS writes, zero/all-one/random values, counter wrap
+and eleven unchanged-state rejection cases.
+
+Checked and actual-native replay both pass all 19,508 image-41 jobs and
+58,195 transfers, with zero divergences or failures. The fill compares
+19,068 groups exactly and falls back on 435. Private full eight-kernel logs:
+`phase2/raw-fill-mode{2,1}.log`; Stage F stays in checked mode for full exit
+state replay. A 60 s live run with all eight groups selected records at least
+256 strict fill matches and no differences (`vk-scene-p2-raw-fill-live.stderr.log`
+under private `analysis/`). `phase2/raw-fill-build.json` binds the sources
+and frozen executable. Renderer and A/B gates remain pending.
+
 ## Isolated kernel batches
 
 The measurement runner accepts one to three `-KernelMask` values. A batch

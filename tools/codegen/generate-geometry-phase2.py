@@ -76,7 +76,7 @@ def main():
     support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 1063\n'
+    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 5159\n'
     support += constants_guard()
     support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
     support += constants_guard("skin", SKIN)
@@ -87,9 +87,10 @@ def main():
     support += f'#include "{(ROOT / "port/native_geometry_half_decode.h").as_posix()}"\n'
     support += constants_guard("pointers", POINTERS)
     support += f'#include "{(ROOT / "port/native_geometry_pointers.h").as_posix()}"\n'
+    support += f'#include "{(ROOT / "port/native_geometry_fill.h").as_posix()}"\n'
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
-    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0"):
+    for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0"):
         name = "buzz_job_6eba_spu_func_0000" + pc
         pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
         match = re.search(pattern, source)
@@ -133,6 +134,11 @@ def main():
                 f"static __attribute__((noinline)) int {pointers_name}_native(spu_context* ctx) {{ return buzz_pointers_native(ctx, {pointers_name}_reference); }}\n")
     pointers_wrapper = f"void {pointers_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 1024)) {{ {pointers_name}_setup(ctx); return; }} buzz_geometry_run(ctx, {pointers_name}_reference, {pointers_name}_native, 10); }}"
     source = re.sub(rf"(?ms)^void {pointers_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: pointers_setup + pointers_functions("buzz_job_6eba_spu_func_000009E0") + pointers_wrapper, source, count=1)
+    fill_name = "buzz_job_6eba_spu_func_000028F0"
+    fill_reference = f"static __attribute__((noinline)) void {fill_name}_reference(spu_context* ctx) {{{bodies['28F0']}}}\n"
+    fill_native = f"static __attribute__((noinline)) int {fill_name}_native(spu_context* ctx) {{ return buzz_fill_native(ctx, {fill_name}_reference); }}\n"
+    fill_wrapper = f"void {fill_name}(spu_context* ctx) {{ if (!(buzz_geometry_active & 4096)) {{ {fill_name}_reference(ctx); return; }} buzz_geometry_run(ctx, {fill_name}_reference, {fill_name}_native, 12); }}"
+    source = re.sub(rf"(?ms)^void {fill_name}\(spu_context\* ctx\) \{{.*?^\}}", lambda m: fill_reference + fill_native + fill_wrapper, source, count=1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
@@ -165,7 +171,8 @@ def main():
     pointers_tests += "static void pointers_seed_constants(spu_context* ctx) {\n" + constant_declarations(POINTERS) + "\n"
     pointers_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in POINTERS) + "\n}\n"
     (DEST / "test-pointers-kernels.inc").write_text(pointers_tests)
-    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
+    (DEST / "test-fill-kernels.inc").write_text(f'#include "{(ROOT / "port/native_geometry_fill.h").as_posix()}"\n' + fill_reference + fill_native)
+    (DEST / "contracts.txt").write_text(digest + "\n9148/92A0: bit 0; AVX2 unit-vector decoder, exact reference final column\nB880/B934/B940: bit 1; AVX2 skinning prefix, exact reference final pair\n4AB0: bit 2; AVX2 half encoder, exact reference final iteration\nCAD8/CB78: bit 5; AVX2 half decoder, exact reference final column\n0988/09E0: bit 10; input pointer table, exact reference final entry\n28F0: bit 12; BE word fill, exact reference final word\n" + "\n".join(f"{pc}: body SHA256 {hashlib.sha256(body.encode()).hexdigest()}" for pc, body in bodies.items()) + "\n")
     print(f"Generated phase-2 geometry kernels -> {DEST}")
 
 
