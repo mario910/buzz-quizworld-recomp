@@ -414,6 +414,34 @@ actual-native replay pass all 19,508 jobs: 12,385 exact groups and 7,123
 fallback, zero divergences or failures. The same 60 s live run records at
 least 256 strict index matches. Bit 6 remains default-off pending scene gates.
 
+## Bit 4: packed 11/11/10 output (`0x5008/51E0/51C8`), in validation
+
+The replacement covers remaining columns, entered at `0x5008` and exiting
+at `0x4610`. AVX2 pairs preserve SPU RTZ FMA followed by CFLTS scale 31 and
+the exact 11/11/10 bit packing. Exponent-255 lanes use the scalar SPU repair.
+The guard requires ten canonical controls, word-aligned fields, supported
+strides and separate bounded input, normal output and sentinel ranges.
+Other alignments retain the `0x50C8` path through the reference group.
+
+The value comes from source group `g`, while its routing comparison uses
+the cursor for `g+1`. Bounds include the final speculative prefetch. Stores
+retain the nominal field's low nibble even on a sentinel route. The lifted
+final column reconstructs all temporary state; the prefix advances every
+lane of `r44/r47`. Direct reference calls consume the queued continuation
+before each block, matching normal dispatch. Public tests pass 440 full
+states, including explicit non-IEEE FP edges, overlapping output groups and
+mixed sentinel routes. Normal dispatch is compared with the grouped reference
+for all 440 cases and three straddled fallback shapes; 22 rejection cases
+leave state/continuation unchanged. Checked and actual-native replay pass
+all 19,508 jobs: 2,665 exact groups and 1,759 fallback, zero divergences or
+failures. The same 60 s live run records at least 256 strict packed-output
+matches. Bit 4 stays default-off pending scene gates.
+
+Private eleven-kernel logs: `phase2/final11-mode{2,1}.log` and
+`analysis/vk-scene-p2-final11-live.stderr.log`. The frozen executable and
+all source hashes are bound by `phase2/final11-build.json`; the original
+game save is unchanged. Renderer and isolated scene reversals remain open.
+
 ## Isolated kernel batches
 
 The measurement runner accepts one to three `-KernelMask` values. A batch
