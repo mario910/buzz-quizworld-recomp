@@ -79,6 +79,14 @@ def main():
         f"static void {attribute_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {attribute_name}(spu_context* ctx) {{ buzz_geometry_job_decode_attributes(ctx, {attribute_name}_reference, &{attribute_name}_library); }}",
         source, count=1)
+    color_name = "buzz_job_6eba_spu_func_000089B0"
+    color_pattern = rf"(?ms)^void {color_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(color_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned U8 color codec entry")
+    source = re.sub(color_pattern, lambda m:
+        f"static void {color_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {color_name}(spu_context* ctx) {{ buzz_geometry_job_decode_color(ctx, {color_name}_reference, buzz_job_6eba_spu_func_000083C8); }}",
+        source, count=1)
     name = "buzz_job_6eba_spu_func_00001C18"
     # Retain the public library wrappers and their per-kernel switches. No
     # original main-driver block is a continuation of the native path.
@@ -100,7 +108,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 7\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 8\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

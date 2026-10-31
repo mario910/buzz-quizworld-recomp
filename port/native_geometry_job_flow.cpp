@@ -9,6 +9,8 @@
 #include "native_geometry_position_commands.h"
 #include "native_geometry_full_commands.h"
 #include "native_geometry_attributes.h"
+#include "native_geometry_color.h"
+#include "native_function_check.h"
 #include <atomic>
 #include <cstdio>
 
@@ -123,6 +125,53 @@ extern "C" void buzz_geometry_job_decode_stream(spu_context* ctx, buzz_geometry_
     if (!supported) { reference(ctx); return; }
     buzz::decode_geometry_raw_stream(*ctx, plan);
     SPU_RET(ctx);
+}
+
+extern "C" void buzz_geometry_job_decode_color(spu_context* ctx, buzz_geometry_job_fn reference,
+                                               buzz_geometry_job_fn continuation)
+{
+    if (ctx != native_pipeline_context || ctx->image_id != 41 || !buzz_geometry_job_codecs_enabled()) {
+        reference(ctx); return;
+    }
+    buzz::GeometryColorStream plan;
+    const bool supported = continuation && buzz::read_geometry_color(*ctx,plan);
+    if (!supported) {
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_COLOR_CODEC,0,0);
+        reference(ctx); return;
+    }
+    spu_context* comparison = nullptr;
+    if (buzz_geometry_job_mode() == 2) {
+        // The codec is DMA-free. Compare its full region exit as well as the
+        // enclosing job, before common descriptor control can overwrite ABI.
+        comparison = buzz::clone_function_state(ctx);
+        auto scheduled = g_spu_trampoline_fn; g_spu_trampoline_fn = nullptr;
+        reference(comparison);
+        unsigned steps = 0;
+        while (comparison->pc != 0x83c8) {
+            if (!g_spu_trampoline_fn || ++steps > 65536)
+                buzz_geometry_job_native_fail(ctx,"color reference continuation escaped region");
+            auto next = g_spu_trampoline_fn; g_spu_trampoline_fn = nullptr; next(comparison);
+        }
+        if (g_spu_trampoline_fn != continuation)
+            buzz_geometry_job_native_fail(ctx,"color reference continuation differs");
+        g_spu_trampoline_fn = scheduled;
+    }
+    buzz::decode_geometry_color(*ctx,plan);
+    // This codec is a region inside 7DF8, not a callable SPU root. Schedule
+    // its exact original continuation; changing r0/host depth would be wrong.
+    ctx->pc = 0x83c8; g_spu_trampoline_fn = continuation;
+    if (comparison) {
+        const auto diff = buzz::compare_function_state(*ctx,*comparison);
+        const bool controls = ctx->host_depth == comparison->host_depth && ctx->image_id == comparison->image_id;
+        buzz::release_function_state(comparison);
+        if (!diff.exact() || !controls) {
+            std::fprintf(stderr,"[geometry-job/color-codec] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"color codec strict state/continuation differs");
+        }
+        buzz_geometry_job_color_checked_result();
+    }
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_COLOR_CODEC,1,0);
 }
 
 extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)

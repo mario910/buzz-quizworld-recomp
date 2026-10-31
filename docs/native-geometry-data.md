@@ -305,6 +305,30 @@ separating integer/fractional parts. `0xC910` uses CSFLT
 Those instructions, including shifts and padding accesses, remain the
 authoritative contract for this unexercised path; it has no corpus-exact claim.
 
+### U8 normalized-color decoder and physical stores
+
+The storage-4 descriptor handler starts at `0x89B0`, iterates columns at
+`0x89E8`, chooses cross-quad/within-quad loops `0x8A60`/`0x8B08`, and exits to
+the descriptor decoder's common continuation at `0x83C8`. It is a region of
+`0x7DF8`, not a callable root: replacing it must preserve r0, host depth and
+the scheduled continuation rather than issuing an SPU return.
+
+The first column-group preload always gathers from two consecutive quads.
+Subsequent groups use the descriptor byte-size boundary test. Within-quad
+gathers repeat the same quad as both operands: an unused fourth RGB byte may
+therefore wrap to byte 0 instead of reading the next quad. All four lanes
+still undergo CUFLT 139 and the original FMA with the scale/bias vectors.
+Their values and unused output lanes remain part of the exact contract.
+
+Logical output cursors may carry a one-byte bias. Comparisons use that full
+logical address, while STQD rounds the physical write down to 16 bytes.
+There is a final iteration beyond the preferred output limit, whose writes
+use the scratch/sentinel vectors in row order; the next input group is still
+loaded. Preflight and native host batching must account for those reads and
+the order of overlapping scratch writes, including columns with no ordinary
+output destination. Per-column final ABI materialization is needed because
+the two loop variants leave different volatile registers behind.
+
 ### 24-bit unit vectors
 
 Read three bytes as BE u24. `qU=(word>>14)&1023`, `qV=(word>>4)&1023`;

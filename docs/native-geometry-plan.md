@@ -302,6 +302,21 @@ native menu/round-introduction renderer readbacks look normal. Evidence is
 recorded in the phase-3 results document; no CPU/FPS benefit or new default is
 claimed. Remaining data stages and final validation keep phase 3 open.
 
+The complete U8 normalized-color descriptor handler (`0x89B0..0x8B90`) now
+has a native host column/batch loop behind `BUZZ_GEOMETRY_JOB_CODECS`, default
+0. It preserves the internal `0x83C8` continuation, full state, biased logical
+cursors, physical aligned stores, scratch aliases and speculative lookahead.
+Standalone validation passes 4,544 strict cases and 18 unchanged-state rejects.
+Four frozen corpus arms pass all 19,508 jobs / 58,195 transfers, with 109 native
+color calls and zero fallback. JOB=2 also matches the full region exit on all
+109 real calls, before the common descriptor continuation overwrites state.
+Live checking passes at least 5,000 strict color-region and 975,000 whole-job/
+I/O comparisons; actual-native menu/round-introduction readbacks look normal.
+This is one complete typed data handler inside `0x7DF8`; the enclosing
+descriptor control, other codecs and remaining pipeline stages stay open.
+The phase-3 results document records corpus/live/render evidence; reversed
+FPS/CPU, interpreter-count and default-selection gates remain required.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.

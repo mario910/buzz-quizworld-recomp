@@ -1051,6 +1051,114 @@ handlers, followed by the other retained pipeline stages. The complete-data-
 path interpreter-count, reversed menu/round FPS and normalized CPU-cost gates
 and the final default decision remain open. No new default is enabled.
 
+## Complete descriptor U8 color codec (`0x89B0`)
+
+The next descriptor-decoder increment implements storage 4's complete color
+region `0x89B0..0x8B90`, behind **`BUZZ_GEOMETRY_JOB_CODECS=0/1`, default 0**.
+`port/native_geometry_color.h` owns column/batch iteration and SIMD conversion
+with the reviewed SPU RTZ FMA. Per-column final ABI materialization reproduces
+every volatile vector, lookahead and scratch write; it does not execute an
+original final iteration. This closes one complete typed data handler inside
+`0x7DF8`; the enclosing decoder and its other handlers remain required work.
+
+The original handler is an internal region, not a callable SPU root. Its native
+hook preserves r0 and host depth, schedules the original `0x83C8` continuation
+and runs only for the native pipeline owner. JOB=2's retained reference, foreign
+contexts and disabled switches stay original. Null continuation or unsupported
+input retains the original before mutation. Routing protocol 8 is required by
+both generator and CMake. The new `color-codec` counter is separate from whole
+descriptor-control coverage; the existing `raw-stream` retained-call count does
+not become native success merely because an inner typed handler is native.
+Output-stage diagnostics now report the 256-call milestone as well as each
+5,000 calls, so live coverage of a rare codec is observable.
+
+JOB=2 additionally clones the DMA-free codec entry and runs the original five
+blocks only up to `0x83C8`. All 128 GPRs, all LS, architectural controls,
+continuation, host depth and image identity must match the native region exit
+before the enclosing decoder can overwrite anything. A strict difference
+fails immediately; it cannot be reported as fallback. Only a completed strict
+region match increments `strict-checked`, independently of the whole-job/I/O
+comparison. JOB=1 keeps the native path without this comparison cost.
+
+Preflight covers the gather constants, group/column shapes, source pointers,
+lookahead, biased logical output cursors, physical aligned writes, scratch and
+nonaliasing ranges. Comparisons retain the logical cursor, including its low
+bits; STQD's physical alignment applies only to memory writes. Initial gathers
+always use the next quad; later within-quad gathers may wrap an unused RGB W
+byte. The extra final group and the order of writes to aliased scratch remain
+exact. See the U8 section in [the data map](native-geometry-data.md).
+
+Reproduce the standalone check with:
+
+```powershell
+.\tests\scripts\test-geometry-color.ps1
+```
+
+PASS: **4,544 strict full-GPR/LS/control/continuation cases**, including 4,096
+normal combinations, 256 short/no-ordinary-output column cases, 64 no-data
+returns with unused invalid stack, and 128 FMA edge-vector cases. Tests vary
+all 16 logical cursor biases, attribute offsets, byte sizes, column counts,
+within/cross-quad paths, aliased/distinct scratch destinations and random
+nonpreferred lanes. Eighteen range/shape/gather/alias rejections preserve all
+state. The pinned private oracle contains the five complete original blocks;
+its `0x83C8` boundary is trapped, so the test checks the exact continuation
+without silently running the rest of the descriptor decoder. All channel and
+unexpected call stubs abort. The 1,024 outer model cases, all 19,508 real model
+entries, owner/foreign/disabled/null/reject/post-scope routing, 43 controller
+scenarios and the earlier raw/attribute tests also pass.
+
+The final frozen build is `build-vulkan-phase3-color-v4`, EXE SHA256
+`b22efd6b88a8686d56df52547f72406fa01e6f8179231b7ff759afe4a3e4be69`.
+`phase3/color-v4-build.json` binds source, adapter, map and saves; the private
+generated source is `phase3/frozen-color-v4-source.c`. Four arms each pass
+**19,508 exact jobs / 58,195 transfers**, zero input divergences/failures:
+
+| Arm | Configuration and color-codec evidence |
+|---|---|
+| Original | JOB=0, CODECS=1, all older stage flags 0; native-owner hook inactive |
+| Independent codec | JOB=2, CODECS=1, all older stage flags 0; 109 native color regions, zero fallback, all 109 strict region comparisons and all 19,508 whole-job/I/O checks pass |
+| Combined actual native | JOB=1, all stage flags 1; 109 native color regions, zero fallback; existing attribute/output/command counts unchanged |
+| Combined checked | JOB=2, all stage flags 1; same native counts, all 109 strict region comparisons and all 19,508 whole-job/I/O checks pass |
+
+Logs: `phase3/color-v4-corpus-{off,independent,native,checked}.log`. Combined
+arms retain 19,508 native attribute controls/raw streams, 11,414 explicitly
+retained descriptor-stream calls, 5,078 full and 2,123 position emissions,
+7,201 binding/reset/size/index/vertex stages each and 19,508 preparations/
+publications each. A native typed handler does not close the retained stream
+or whole-pipeline inventory. Mask 827 and the accepted Stage F baseline
+exception are unchanged. Replay elapsed time is diagnostic, not performance
+evidence. The native codec remains opt-in pending the final FPS/CPU decision.
+
+The 105 s checked menu run on that same frozen EXE passes **at least 5,000
+strict color-region comparisons** and **975,000 strict whole-job/I/O checks**.
+Native attribute control/raw streams and command preparation/publication also
+reach at least 975,000 calls each. Its CSV records 2,318 frames through
+104.650 s. The codec's own strict counter proves the live function-exit gate,
+independently of whether later descriptor code could hide a volatile-register
+difference. Both checks use actual native Stage F and geometry (`F=1`,
+`GEOMETRY=1`), without a contract override or new exception.
+
+Actual-native functional runs complete normally: menu records 3,146 frames
+through 74.675 s; the round starts at 136.5 s, continues for 30 s and records
+7,651 frames through 166.164 s. Renderer readbacks at frames 2,500 and 6,500
+were converted to 1280x720 PNGs and visually inspected: menu UI/monitors/studio
+geometry and the round-introduction host, green instruction display and lighting
+look normal. These functional observations are not matched performance results.
+
+Logs: `analysis/vk-scene-p3-color-v4-{checked,menu,round}.{csv,stderr.log}`.
+Images: `phase3/p3-color-v4-{menu,round}.{ppm,png}`. Each run uses all new stage
+flags 1, a fresh private save, muted background rendering and the native buzzer
+mailbox. No compilation, CPU tests or profiling overlap. There is no DIFF/HALT/
+mismatch/early-exit diagnostic. Frozen code/EXE/map/source bindings, original
+save and private template were verified afterwards.
+
+This increment completes the supported U8 color data region. `0x7DF8` control,
+other typed handlers and the remaining pipeline bodies still require native
+implementation and their own evidence. Final interpreted-SPU counts, reversed
+same-EXE menu/round FPS and normalized worker/process CPU/cycles per completed
+job/frame, and the default-on decision remain open. Strict Stage F stays the
+mandatory final phase 7; its temporary exception is not expanded here.
+
 ## Remaining pipeline inventory
 
 This table tracks the outer driver's library boundaries explicitly. Completing
@@ -1061,7 +1169,8 @@ coverage of one leaf does not make the entire enclosing stage native.
 |---|---|---|
 | `0xAC68` | Primary/secondary attribute decode | Native opt-in control; descriptor decoder and stride getter remain explicit original callees |
 | `0x93F0`, format 0 | Raw float3 stream | Native opt-in complete decoder, including allocation, small groups and exact final ABI |
-| `0x7DF8` and codec dispatch | Descriptor attribute streams | Retained whole decoder; validated format leaves inside do not complete this row |
+| `0x7DF8` and codec dispatch | Descriptor attribute streams | Retained outer decoder; complete native U8 color handler and validated unit/half leaves do not complete this row |
+| `0x89B0..0x8B90` | U8 normalized-color descriptor handler | Complete native opt-in column/batch loop and continuation; other typed handlers remain original |
 | `0x93F0`, formats 1..5 | Other built-in input streams | Retained original, no corpus native-coverage claim |
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
 | `0x09F8` | Palette/skinning flow | Retained library; validated skin kernel inside |
