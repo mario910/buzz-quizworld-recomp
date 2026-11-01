@@ -5,6 +5,7 @@
 #pragma once
 #include "native_geometry_job.h"
 #include "spu_helpers.h"
+#include "native_geometry_output_admission.h"
 namespace buzz {
 struct GeometryFloatOutput { unsigned columns=0,groups=0,cross_columns=0; };
 inline void open_geometry_float_output(u128* r)
@@ -35,6 +36,11 @@ inline bool read_geometry_float_output(const spu_context& c,GeometryFloatOutput&
     if(!arguments[77]._u32[0]){out={};return true;}
     const unsigned columns=arguments[60]._u32[0]?arguments[60]._u32[0]:1;
     if(columns>256)return reject("float output column budget");
+    // Closed-form proof first: open/prepare keep r52..r55/r29..r31 and set the
+    // cursor to col*16+r52 against r3, routes as the integer walk, bases r67/r76.
+    {GeometryOutputWalk w;w.r=arguments;w.cursor=arguments[52]._u32[0];w.limit=arguments[3]._u32[0];
+     w.step=arguments[29]._u32[0];w.first=arguments[67]._u32[0];w.second=arguments[76]._u32[0];unsigned total=0,cross_columns=0;
+     if(prove_geometry_output_walk(w,columns,total,cross_columns)){out={columns,total,cross_columns};return true;}}
     u128 r[128];memcpy(r,arguments,sizeof r);open_geometry_float_output(r);unsigned total=0,cross_columns=0;
     for(unsigned col=0;col<columns;++col){
         const bool cross=prepare_geometry_float_output_column(r);cross_columns+=cross;unsigned groups=0;

@@ -10,7 +10,7 @@ namespace buzz {
 struct GeometryUnitColumn { uint32_t offset=0,groups=0; };
 struct GeometryUnitStream {
     uint32_t columns=0,input_step=0,output_step=0,limit=0;
-    std::vector<GeometryUnitColumn> column;
+    GeometryUnitColumn column[16]{}; // columns<=16 is an admission bound; no per-call heap
 };
 inline u128 geometry_unit_row(unsigned selector)
 {
@@ -89,7 +89,7 @@ inline bool read_geometry_unit_vectors(const spu_context& ctx,GeometryUnitStream
                 if((destination&~15ull)<stack+0xd0 && stack<(std::min(last,uint64_t(p.limit))&~15ull)+16)
                     return reject("destination/stack metadata alias");}
         }
-        p.column.push_back(c);
+        p.column[column]=c;
     }
     if(output_begin<0xe680 || output_end>SPU_LS_SIZE ||
         (input_begin<output_end && output_begin<input_end))return reject("output/source/stack alias");

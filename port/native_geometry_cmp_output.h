@@ -3,6 +3,7 @@
 #pragma once
 #include "native_geometry_job.h"
 #include "spu_helpers.h"
+#include "native_geometry_output_admission.h"
 namespace buzz {
 struct GeometryCmpOutput { unsigned columns=0,groups=0,cross_columns=0; };
 struct GeometryCmpOutputPack { u128 input[4],scaled[4],integer[4],shifted[4],first[2],second[2],packed[2],rotated[2]; };
@@ -29,6 +30,8 @@ inline bool read_geometry_cmp_output(const spu_context& c,GeometryCmpOutput& out
     const unsigned columns=arguments[60]._u32[0]?arguments[60]._u32[0]:1;
     if(columns>256)return reject("CMP output column budget");
     const auto* r=arguments;const auto limit=spu_a(spu_xshw(r[29]),r[3]);unsigned total=0,cross_columns=0;
+    // Closed-form proof first; anything it cannot prove takes the exact walk.
+    if(prove_geometry_output_walk(geometry_integer_output_walk(r),columns,total,cross_columns)){out={columns,total,cross_columns};return true;}
     for(unsigned col=0;col<columns;++col){
         auto cursor=spu_a(spu_a(spu_il(col*16),r[52]),r[29]);auto route=spu_mpya(r[55],spu_a(spu_il(col),r[54]),r[53]);
         const bool cross=spu_cgti(spu_a(spu_andi(route,15),r[48]),16)._u32[0]!=0;cross_columns+=cross;unsigned groups=0;
