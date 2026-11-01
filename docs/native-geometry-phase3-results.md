@@ -6199,3 +6199,28 @@ at least45,000 strict whole-job/I/O and35,000 strict formatter returns,without
 DIFF,first-fallback or unrecordable errors. Periodic live counts are lower
 bounds,not final fallback totals. These correctness checks do not replace
 cold real/live,interpreter or new-EXE performance/default gates.
+
+
+## Isolated formatter span proof: completed round FPS reversal
+
+The new3df8d057 frozen EXE completes all four SPANS0/1/1/0 round FPS arms,
+with actual JOB1/all other production options1 in every arm. The public report
+passes complete200..270s windows,EXE/MAP/save/settings/hash/native coverage,
+exactly one pre-window GPU capture with readback0,lossless PPM/PNG and four
+manually inspected actual-round scenes. There are no DIFF,first-fallback or
+unrecordable markers. The earlier black PrintWindowV1 remains rejected.
+
+Mean FPS30.93 ->31.52,+1.91%;both reversed pairs improve(+2.87%,+0.96%).
+Frame-time tails are mixed:the third native run has p99=54.80ms versus44.06ms
+in its paired control,while the first native pair improves43.58ms versus44.18ms.
+Questions and camera phases differ,and one navigation marker is later;all
+images still prove actual round content before the fixed measurement window.
+The mean result does not close the tail gate or establish a cause for p99.
+See the [full performance report](native-geometry-phase3-performance.md).
+
+No new CPU result or aggregate JOB0/JOB1 benefit is claimed. Separate round
+CPU,repeat menu FPS/CPU on the same new EXE and round tail follow-up remain
+required. JOB0/geometry827/newflags0/SPANS0 remain defaults;strict checkers,
+ABI48/61 stages and the StageF exception are unchanged. Phase3 and subsequent
+phases stay active,with strict StageF7 last. Private report and scene QA are
+`spans-fps-round-v2-report.json` and`spans-fps-round-v2/scene-qa.json`.

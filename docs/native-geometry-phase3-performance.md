@@ -212,3 +212,48 @@ at least45,000 strict whole-job/I/O and35,000 strict formatter returns,without
 DIFF,first-fallback or unrecordable errors. Periodic live counts are lower
 bounds,not final fallback totals. These correctness checks do not replace
 cold real/live,interpreter or new-EXE performance/default gates.
+
+
+## Isolated formatter span proof: round FPS
+
+Four complete fresh runs on the capture-enabled3df8d057 EXE/MAP9b027e64
+use SPANS0/1/1/0,with actual JOB1 in every arm and all other production options1,
+audit0,geometry827/StageF1 and the same initial private save. This measures
+one option within the native driver. It does not measure aggregate JOB0/JOB1.
+The window is200..270s;FPS has no CPU/interpreter observer or concurrent
+build,test or diagnostic profiler. Each run has one190s GPU readback,completed
+and converted before the window;its retained continuous-readback setting is0.
+
+All four hash-bound native PPM/PNG images were inspected and are normal actual
+rounds. Three show the green result arena/host/Adam/Poprawne0;the third run also
+shows the question about Nice in France. Questions/cameras vary,so this is not
+a deterministic identical-frame workload. The first control's navigation
+round marker occurs at171.20s,the others near155.1s;all have proven actual
+round content before200s. Every measured window is complete and monotonic,
+with nonzero actual native whole-job/raw0 coverage and no DIFF,unrecordable or
+first-fallback marker.
+
+Mean FPS: **30.93 ->31.52 (+1.91%)**;pair changes **+2.87%,+0.96%**.
+
+| Order | SPANS | FPS | Median interval(ms) | p90(ms) | p99(ms) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 30.74 | 31.78 | 39.41 | 44.18 |
+| 2 | 1 | 31.62 | 31.16 | 38.45 | 43.58 |
+| 3 | 1 | 31.43 | 31.12 | 37.60 | 54.80 |
+| 4 | 0 | 31.13 | 31.61 | 38.91 | 44.06 |
+
+The higher average is consistent across these two reversed pairs,but the tail
+result is mixed. Native run3 has p99=54.80ms versus44.06ms in its paired final
+control,while the first native pair improves43.58ms versus44.18ms. Its median
+and p90 improve. The isolated mean benefit does **not** close acceptance of
+frame-time tails;do not attribute the one-run p99 increase to a cause without
+further matched evidence. Keep the option default0 pending separate round CPU,
+repeat menu FPS/CPU on this same3df EXE and follow-up round tail checks.
+The earlier B95 menu result remains separately bound;no same-EXE combined
+menu/round performance gate is claimed yet. JOB0/geometry827/new flags0 remain.
+
+Private evidence:`spans-fps-round-v2-report.json`,the complete series progress,
+phase/raw log/CSV/readback set and`spans-fps-round-v2/scene-qa.json`. The public
+reporter recomputes FPS and validates the capture timing/frame/RGB/inspection
+bindings. Phase3,cold real/live,round interpreted-count and final default gates
+remain open. Next is the separate round CPU reversal on this same frozen EXE.
