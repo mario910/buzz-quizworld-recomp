@@ -52,17 +52,17 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: separate formatter-SPANS round CPU reversal on the
-3df8d057 freeze,then repeat menu FPS/CPU there and investigate round frame-time
-tails. The round FPS reversal now passes scene/capture/runtime/window validation:
-30.93 ->31.52FPS(+1.91%),pairs+2.87/+0.96%. One native run has worsep99
-(54.80vs44.06ms in its control);tail acceptance remains open. The
-[performance report](native-geometry-phase3-performance.md) records all runs,
-variable questions/cameras and the isolated-option scope(actualJOB1 in all arms).
-The earlier B95 menu benefit remains valid but separately bound;it does not
-establish the new-EXE menu or aggregate JOB0/JOB1 result. SPANS stays default0.
-Round interpreted counts and cold real/live gates remain OPEN;inputs1..5
-remain real/live0. Whole-job/default decisions and strict StageF7 remain open.
+Current next milestone: repeat formatter-SPANS menu FPS and separate CPU on
+the3df8d057 freeze,then investigate round FPS tails. Its separate round CPU
+reversal now passes:worker cycles/frame-4.01%,process-2.82%,CPU ms-4.45%/-3.38%,
+with both pairs agreeing for all metrics. The separate round FPS mean improves
+1.91%(pairs+2.87/+0.96),but one native run has worsep99(54.80vs44.06ms);tail
+acceptance remains open. The [performance report](native-geometry-phase3-performance.md)
+records scope(actualJOB1 allarms),variable questions/cameras and exact costs.
+All8 round captures/conversions are bound and finish before the timing window.
+The earlier B95 menu result is separately bound and does not establish new-EXE
+menu or aggregate JOB0/JOB1 benefit. SPANS remains default0. Round interpreted
+counts,cold real/live,whole-job/default decisions and strict StageF7 stay open.
 All five standard input decoders and the complete standard93F0 controller
 are implemented and integrated behind independent default-off switches.
 Their standalone and production-routing checks pass; real coverage of the
@@ -977,7 +977,7 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
-| Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | opt-in;menu/round mean FPS benefit;newCPU/menu/tails/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O;normal native menu/actual question on b95e457f | B95 menu25.01 ->25.73,worker CPF-3.17%/process-2.07%;3df round30.93 ->31.52(+1.91%);newCPU/menu/tails pending | c8e8e22 |
+| Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | opt-in;round CPU saving;new-EXE menu/tails/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O;normal native menu/actual question on b95e457f | B95 menu25.01 ->25.73,worker CPF-3.17%/process-2.07%;3df round30.93 ->31.52(+1.91%),worker CPF-4.01%/process-2.82%;newmenu/tails pending | c8e8e22 |
 | Whole-job driver | n/a | ABI48 opt-in; measured menu CPU/FPS regression; cold/round/final gates OPEN | `BUZZ_GEOMETRY_JOB=0/1/2`, default0 | Five arms19,508exact/58,195transfers;enabled19,508native/0whole-job fallback;strict synthetic/routing proofs in results | >=45,000strict whole-job/I/O on current freeze;normal native menu/actual question | Menu27.74 ->25.30;worker cycles/frame+15.92%;default-off | 272a375 |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x2B80 output sizing | n/a | native opt-in; shared host layout; final gates open | `BUZZ_GEOMETRY_JOB_LAYOUT=0/1`, default 0 | 7,201 native sizes, zero fallback; independent/combined 19,508-job replay exact; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
@@ -1079,6 +1079,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | Formatter SPANS isolated round CPU | Same3df8d057;actualJOB1 all4 arms;SPANS0/1/1/0;200..270s;separate fromFPS | new-EXE menu pending | CPU series contextual | Worker cycles/frame-4.01%(pairs-3.28/-4.74),process-2.82%(-2.48/-3.17);CPUms-4.45%/-3.38%,bothpairs lower;4normal native scenes;8runclockalignment corroborated;newMenu/FPS-tail/default gates OPEN |
 | 2026-11-01 | Formatter SPANS isolated round FPS | New3df8d057;actualJOB1 all4 arms;SPANS0/1/1/0;200..270s;4normal native scenes | new-EXE menu pending | 30.93 ->31.52 | FPS+1.91%(pairs+2.87/+0.96);mixedtails nativep99=43.58/54.80vscontrols44.18/44.06ms;oneGPUcapture190s/continuousreadback0;CPU,newMenu,tail/default gates OPEN |
 | 2026-11-01 | One-shot pre-window scene proof repair | New3df8d057 freeze;rejected black roundV1;13GPU+13report tests;normal native menu/actual round | not measured | not measured | 6arms19,508exact/58,195transfers;unchanged ledgers/SPANS0vs1;>=45,000strict whole-job/I/O+35,000formatter;one190sGPU capture/readback0 andlosslessRGB;new-EXE reversed timings/default gates OPEN |
 | 2026-11-01 | Formatter SPANS isolated menu +native frames | JOB1 in all arms;SPANS0/1/1/0;4FPS+4separateCPU runs;40..98s | 25.01 ->25.73 | pending | FPS+2.88%(pairs+3.19/+2.58);worker cycles/frame-3.17%(-3.42/-2.91),process-2.07%(-2.36/-1.77);CPUms-4.25%/-2.40%;normal menu+actual-question readbacks;round/final/default pending;no aggregate JOB0 claim |

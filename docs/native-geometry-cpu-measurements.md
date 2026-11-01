@@ -107,3 +107,19 @@ This is a measured individual-option saving;it does not reverse or supersede
 the earlier aggregate JOB0/JOB1 regression. Round checks remain open and the
 option stays default0. Exact method and per-pair values are in the
 [phase3 performance report](native-geometry-phase3-performance.md#formatter-span-proof-isolated-menu-measurements).
+
+
+## Isolated span proof: round CPU on the capture-enabled EXE
+
+Four separate SPANS0/1/1/0 round CPU runs on3df8d057/MAP9b027e64 keep actual
+JOB1 and every other production option enabled. Worker cycles/frame fall4.01%,
+process2.82%;worker CPU ms/frame falls4.45%,process3.38%. Both reversed pairs
+agree for every metric. Raw OS counters,stable lane identities,boundaries,
+completed-frame denominators and inspected native round readbacks validate.
+
+This is normalized CPU evidence for one option within the native driver.
+It does not supersede the separately bound V3 aggregate JOB0/JOB1 regression.
+The primary separate round FPS series improves1.91% on average but has a mixed
+p99;CPU-series frame times are contextual. Same-EXE menu FPS/CPU and round tail
+follow-up remain required. SPANS stays default0. See the
+[round CPU table](native-geometry-phase3-performance.md#isolated-formatter-span-proof-round-cpu).

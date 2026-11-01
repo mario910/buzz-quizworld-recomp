@@ -6224,3 +6224,35 @@ required. JOB0/geometry827/newflags0/SPANS0 remain defaults;strict checkers,
 ABI48/61 stages and the StageF exception are unchanged. Phase3 and subsequent
 phases stay active,with strict StageF7 last. Private report and scene QA are
 `spans-fps-round-v2-report.json` and`spans-fps-round-v2/scene-qa.json`.
+
+
+## Isolated formatter span proof: completed round CPU reversal
+
+Four separate CPU runs on the same3df8d057 EXE use SPANS0/1/1/0 with actual
+JOB1/all other production options1 throughout,common827/StageF1 and initial
+save. The public report recomputes raw map-bound200..270s snapshots,checks
+stable named lane identities/creation times,boundaries/frame uncertainty and
+all hashes,and accepts four inspected normal native round images. Each has
+one pre-window GPU readback,continuous readback0 and exact PPM/PNG pixels.
+No DIFF,unrecordable or first-fallback marker appears.
+
+Worker cycles/frame fall4.01%(pairs-3.28/-4.74),worker CPU ms/frame4.45%
+(-3.38/-5.51);whole-process cycles/frame fall2.82%(-2.48/-3.17),CPU ms/frame
+3.38%(-2.96/-3.80). Both pairs agree for all four metrics. This is an isolated
+option saving,not an aggregate JOB0/JOB1 result or power measurement. The
+separate FPS mean is+1.91%;its mixed p99 remains unresolved. CPU-series p99
+is lower in both native arms,but this contextual result does not replace
+independent FPS tail follow-up. The [performance report](native-geometry-phase3-performance.md)
+contains the exact cost table and per-pair values.
+
+The suspected phase/renderer timing offset was checked against original file
+UTC metadata for all8 round runs:PNG conversion completed194.76..194.97s after
+CSV creation,before200s. Monotonic native capture/frame timing remains primary;
+the filesystem check is supplementary and is preserved with hashes.
+
+New-EXE menu FPS/CPU,round tail follow-up,cold real/live,round interpreted counts
+and final defaults remain open. JOB0/geometry827/allnewflags0/SPANS0 and all
+strict checkers remain unchanged. Phase3 and the continuing objective stay
+active,with mandatory strict StageF7 last. Private evidence includes
+`spans-cpu-round-v2-report.json`,`spans-cpu-round-v2/scene-qa.json` and
+`spans-round-v2-clock-alignment.json`.

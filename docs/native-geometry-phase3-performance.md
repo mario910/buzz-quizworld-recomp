@@ -257,3 +257,50 @@ phase/raw log/CSV/readback set and`spans-fps-round-v2/scene-qa.json`. The public
 reporter recomputes FPS and validates the capture timing/frame/RGB/inspection
 bindings. Phase3,cold real/live,round interpreted-count and final default gates
 remain open. Next is the separate round CPU reversal on this same frozen EXE.
+
+
+## Isolated formatter span proof: round CPU
+
+A separate four-run CPU reversal on the same3df8d057 EXE/MAP9b027e64 retains
+JOB1/all other production options1,audit0,geometry827/StageF1 and the same
+private initial save;only SPANS changes0/1/1/0. The map-bound observer reads
+OS CPU/cycle counters at200/270 renderer seconds and normalizes by completed
+presentations. Raw snapshots recompute successfully,with four stable named
+SPURS lane identities per run,valid boundaries/frame uncertainty and no reset.
+No build,CPU tests,diagnostic profiler or other game ran concurrently.
+
+All four native readbacks were inspected after the series:normal green
+challenge/result arenas,host,Adam robot and Poprawne0;two include the normal
+Adam0 portrait panel. Exactly one GPU copy per run completes before195s,
+continuous readback stays0,and the lossless PPM/PNG and timing-row/QA hashes
+pass. There are no DIFF,first-fallback or unrecordable markers.
+
+| CPU cost per completed frame | Span0 | Span1 | Change | Reversed pair changes |
+| --- | --- | --- | --- | --- |
+| SPURS workers: million cycles | 411.08 | 394.60 | -4.01% | -3.28%, -4.74% |
+| SPURS workers: CPU ms | 111.67 | 106.70 | -4.45% | -3.38%, -5.51% |
+| Whole process: million cycles | 673.35 | 654.35 | -2.82% | -2.48%, -3.17% |
+| Whole process: CPU ms | 182.93 | 176.75 | -3.38% | -2.96%, -3.80% |
+
+Both reversed pairs reduce worker and whole-process cycles **and** CPU time
+per completed frame. This establishes an observed repeatable CPU saving for
+the isolated span option in these round runs. It does not establish aggregate
+JOB0/JOB1 savings or an energy/power measurement. Questions/cameras still vary.
+CPU-series FPS is contextual(+2.16%);the primary separate FPS result remains
++1.91%. Contextual p99 here is44.27/43.84/43.54/44.25ms in run order;this does
+not close follow-up of the separate FPS run3's54.80ms tail.
+
+Original filesystem UTC metadata for all eight FPS/CPU round runs corroborates
+PNG completion194.76..194.97s after CSV creation,which occurs immediately before
+the renderer epoch is initialized. Phase-file creation precedes CSV creation
+by0.34..0.42s. This checks the suspected helper/renderer clock offset and finds
+no overlapping conversion. It supplements the monotonic native capture/frame
+binding;filesystem UTC is not an independent QPC measurement of conversion.
+Raw attributes and hashes are preserved in`spans-round-v2-clock-alignment.json`.
+
+Private CPU evidence:`spans-cpu-round-v2-report.json`,the complete progress,
+raw snapshots/log/CSV/phase/readback set and`spans-cpu-round-v2/scene-qa.json`.
+Next:repeat menu FPS and separate CPU reversals on this same3df frozen EXE,
+then resolve round FPS tails before default acceptance. JOB0/geometry827/all
+new flags0/SPANS0 remain unchanged. Phase3,cold real/live,round interpreted
+counts and aggregate whole-job/default gates remain open.
