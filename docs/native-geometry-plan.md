@@ -52,8 +52,8 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: remaining output payloads (UNORM8 `4B9C`,
-then I16/U8), shared formatter `4178` and enclosing conversion `54E8`, followed
+Current next implementation: remaining output payloads I16 `4DD0` and U8
+integer `52B4`, shared formatter `4178` and enclosing conversion `54E8`, followed
 by built-in output/input formats after source/contract audits. The [output-conversion audit](native-geometry-conversion-audit.md)
 includes its shared `4178` formatter, seven storage payloads and four output
 built-ins: 73 standard non-reporting blocks, still requiring complete native
@@ -75,8 +75,12 @@ exact corpus arms, with 4,424 native roots/zero fallback per enabled arm.
 SNORM16 `4478` now also has a complete five-block encoder: 7,471 strict
 cases, 131,088 independent dyadic components, 256 special-FP roots and five
 exact corpus arms with 1,104 mixed native roots/zero fallback per enabled arm.
-Strict mixed live checks and native menu/round frames pass. Three storage
-payloads remain; UNORM8 `4B9C` is next. Shared `4178`,
+Strict mixed live checks and native menu/round frames pass.
+UNORM8 `4B9C` also has a complete five-block path: 7,471 strict cases,
+131,088 independent components, 256 special-FP roots and five exact corpus
+arms with 36 mixed native roots/zero fallback per enabled arm. Dedicated
+strict UNORM live checks and actual-native frames pass. I16 and U8 integer
+are the two remaining storage payloads; I16 `4DD0` is next. Shared `4178`,
 outer-control production integration and output built-ins remain required.
 Custom callback boundaries are now
 excluded from paired replay until independently audited; they execute once
@@ -963,6 +967,7 @@ subject to the kernel gates before replacement.
 | 4880 complete binary16 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_HALF_OUTPUT=0/1/2`, default0 | 7,215 strict;1,024 mixed/alias;1,048,576 scalar inputs;9 rejects;five exact arms,4,513 native/0 fallback | >=25,000 single+256 mixed strict live;>=40,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
 | 4FDC complete packed CMP output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_CMP_OUTPUT=0/1/2`, default0 | 7,471 strict;1,024 mixed/alias;32,772 independent encodings;256 special-FP;9 rejects;five exact arms,4,424 native/0 fallback | >=20,000 single+180,000 mixed strict live;>=175,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
 | 4478 complete SNORM16 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_SNORM_OUTPUT=0/1/2`, default0 | 7,471 strict;1,024 mixed/alias;131,088 independent components;256 special-FP;9 rejects;five exact arms,1,104 mixed native/0 fallback | >=256 mixed strict live;>=35,000 whole-job;normal native menu/round;skip/single/all-double cold OPEN | not measured | implementation in git log |
+| 4B9C complete UNORM8 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_UNORM_OUTPUT=0/1/2`, default0 | 7,471 strict;1,024 mixed/alias;131,088 independent components;256 special-FP;9 rejects;five exact arms,36 mixed native/0 fallback | >=10,000 mixed strict live;>=35,000 whole-job;normal native menu/round;skip/single/all-double cold OPEN | not measured | implementation in git log |
 | Custom callback comparison boundaries | n/a | guarded; unaudited callback jobs skip paired replay | ABI37; existing driver switch | 53 runtime +320 configuration cases;3 full-corpus arms exact, all stage ledgers unchanged | callback real/live coverage OPEN | not measured | guard in git log |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
@@ -1018,6 +1023,7 @@ See the separate
 | 2026-11-01 | Complete 4880 binary16 output data | Menu/actual round (functional) | not measured | not measured | 7,215 strict/9 rejects;1,048,576 scalar inputs;five arms19,508exact/58,195transfers;4,513native/0fallback;>=25,000single+256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4FDC CMP output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;32,772 independent encodings;256 special-FP;five arms19,508exact/58,195transfers;4,424native/0fallback;>=20,000single+180,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
+| 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 46D0 float32 output data | Menu/actual round (functional) | not measured | not measured | V2:6,177 strict/9 rejects;256 byte models;five arms19,508exact/58,195transfers;7,201native/0fallback;>=256single+30,000mixed strict live;native frames normal;own0/1/2 default0;allIRQ contexts retained;final performance/default gates OPEN |
 | 2026-11-01 | Complete alternate cull data | Menu/actual round (compatibility) | not measured | not measured | 5,448 strict;288 numeric+288 composed;256 special FP;312 configs;five exact compatibility arms;new real/live0 OPEN;>=45,000 strict whole-job native-StageF live;own0/1/2 default0;phase3open |
 | 2026-11-01 | Complete native enclosing 6608 control | Menu/actual round (functional) | not measured | not measured | 5,505 strict;8 child/baseline combinations;256 byte models;9 rejects;304 configs;five V2 arms19,508exact/58,195transfers;allnative/0fallback;>=455,000strict live;own0/1/2 default0;alternate data/cold/final gates OPEN |

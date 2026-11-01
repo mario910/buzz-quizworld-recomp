@@ -4883,3 +4883,112 @@ arms, three scene logs and two actual-native frame inspections. Raw/derived
 artifacts remain ignored. Three storage payloads remain: UNORM8 `4B9C` is next,
 followed by I16/U8, shared `4178`, existing outer-control production integration
 and built-ins.
+
+## Complete UNORM8 output storage 4B9C
+
+The [storage-4
+encoder](native-geometry-conversion-audit.md#complete-unorm8-output-storage-4b9c)
+now replaces all five blocks `4B9C/4BC8/4C50/4D18/4D30`: every column and
+iteration, both scatter arms, initial conversion and final post-store prefetch/
+full scratch ABI. It queues exactly `4610`, or `4618` for r77=0. Five of seven
+storage payloads have complete opt-in implementations; I16 and U8 integer,
+shared formatter/control integration and built-ins remain required.
+
+Canonical conversion uses SPU FMA `x * 255 + 0.5`, unsigned32 conversion scaled
+by 2^24 and big-endian high-byte selection. The real captured field has three
+bytes; the canonical shuffle can select four components followed by zero
+padding. General vectors/masks and RTZ/extended-range behavior remain exact.
+All old destination quads are fetched before ordered stores. Fresh input reads
+then observe modified LS even on the final sentinel iteration. The straddled
+terminal ABI retains an old second-destination quad and pre-increment input
+cursor, unlike SNORM16; every scratch vector is computed or retained natively.
+No lifted final iteration or reference-state repair supplies terminal values.
+
+Own `BUZZ_GEOMETRY_JOB_UNORM_OUTPUT=0/1/2` defaults to **0**. Mode 2 or JOB=2
+checks all GPR/LS/architectural/channel/control/PC state, queued function and
+image/depth/policy/overlay against the pinned five-block original graph.
+Admission rejects IRQ contexts, foreign LS, protected writes and excessive
+loops before mutation. Unsupported entries retain original execution without
+native credit. ABI 42 has 47 counters; stage 46 separates skip/single/double/
+mixed roots. Older encoders and the existing Stage F exception are unchanged.
+
+Validation passes **7,471 strict cases**: 1,792 alias/wrap, 1,024 mixed/alias,
+256 independent byte models, column/signed-step and zero-work edges, 256
+exceptional-FP roots, one real root and nine unchanged rejects. An independent
+integer model checks **131,088 dyadic components** with distinct permutations
+for each component/record. Its FMA numerator `255*n+1024` on the n/2048 grid
+fits the single significand exactly; it independently applies scale24,
+unsigned32 saturation and high-byte selection.
+
+The real captured input is `multi-private_job_41_0088`, with sixteen columns
+and three-byte fields; snapshot SHA256 is
+`cc422028e1cc75bb049cac44b1d38f760e85b17574a53ad7214bacd5c401d8f6`.
+Snapshots capture GPR/LS; architectural/channel controls are modeled identical
+inputs in standalone comparisons. Driver routing passes 25 native/17 strict
+calls, ten counted unsupported fallbacks, 1,024 pipeline models and 19,508 real
+entry models. Runtime passes 53 controller/360 configuration cases and durable
+fallback logging; seven audit tests and the production build pass. Initial
+build diagnostics for stale helper/type names are retained privately; no state
+comparison or numerical tolerance was changed to address them.
+
+Frozen `build-vulkan-phase3-unorm-output-v1`:
+EXE `5add7f072b7224bb9793c43583f5b7a15db70f6ad75e7c8e38626ce9858fe10b`;
+map `231942c604b5bf043f36295116243c0894a13c7d747e3ac5d31ec43d6977ab79`;
+generated C `4955154c6afd85fed44cbe5587f3bff18187aff8f60d693cf56b5f6170755c7f`.
+
+All five UNORM-output frozen corpus arms pass 19,508 exact jobs / 58,195
+transfers each, zero input changes/failures, Stage F=2 / leaf 827 and no
+contract override:
+
+| Arm | JOB / UNORM_OUTPUT | Native UNORM roots | Strict UNORM roots | Strict whole jobs |
+|---|---|---|---|---|
+| Driver off | 0/1 | 0 | 0 | 0 |
+| Independent, every older switch 0 including SNORM/CMP/FLOAT/HALF | 2/1 | 36 | 36 | 19,508 |
+| Combined native | 1/1 | 36 | 0 | 0 |
+| Combined checked | 2/1 | 36 | 36 | 19,508 |
+| Combined original UNORM | 2/0 | 0 | 0 | 19,508 |
+
+Every enabled arm has 36 mixed roots and zero UNORM fallback. Skip, single-quad
+and all-double roots remain cold; mixed roots exercise both scatter arms. All
+older stage ledgers match the parent SNORM build exactly; the independent arm
+has only the new UNORM ledger.
+
+Functional scenes use the same frozen EXE, actual-native Stage F=1 / GEOMETRY=1
+/ leaf 827 / all older native switches=1, fresh private saves and
+mailbox/background/mute. No compilation, CPU tests or profiling overlaps a game
+run:
+
+| Scene | JOB / UNORM_OUTPUT | Frames / last elapsed ms | Mixed native / strict lower bounds | Whole-job strict lower bound |
+|---|---|---|---|---|
+| checked-menu | 2/1 | 1,170 / 59,804.747 | 1 / 1 | 35,000 |
+| menu | 1/1 | 2,286 / 75,058.508 | 10,000 / 0 | 0 |
+| round | 1/1 | 6,068 / 195,941.671 | 20,000 / 0 | 0 |
+| kernel-checked-menu | 1/2 | 2,247 / 74,559.794 | 10,000 / 10,000 | 0 |
+
+The whole-job checked menu runs 60s, native menu 75s and native round 60s after
+136.4s navigation. Whole-job checking slows the menu enough that its UNORM
+periodic count remains below 256. A separate 75s JOB=1 / UNORM_OUTPUT=2 menu
+therefore supplies at least 10,000 full-state UNORM checks, using the same
+checker fields and frozen executable.
+
+Both inspected actual-native 1280x720 readbacks show a normal menu/studio/crowd
+and actual green round with host/player and readable UI. No mismatch, halt,
+unexpected continuation/capacity or first UNORM fallback is observed. Forced
+shutdown means periodic lower bounds, not final live fallback totals.
+Skip/single/all-double roots remain cold and their gates remain OPEN.
+
+Defaults JOB=0 / leaf 827 / new flags=0 stay unchanged. No FPS/CPU benefit is
+claimed from functional runs or replay microtimings. Final interpreter counts,
+reversed same-frozen-EXE menu/round A/B, normalized worker/process cycles/time
+and default-on gates remain OPEN. Repeatable CPU savings with flat FPS can
+justify enabling a function after all correctness/render gates pass. Phase 3 and
+the continuing objective remain active; strict Stage F reconstruction stays
+LAST.
+
+Private `unorm-output-v1-*` evidence binds committed sources, original
+source/generator/save/template pins, the original real fixture and audit
+provenance, frozen EXE/map/C/native copies, tests/oracles and logs, five replay
+arms, all four executed scene logs and two actual-native frame inspections.
+Raw/derived artifacts remain ignored. I16 `4DD0` and U8 integer `52B4` are the
+two remaining storage payloads, followed by shared `4178`, existing
+outer-control production integration and built-ins.
