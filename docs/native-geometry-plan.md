@@ -52,8 +52,12 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: implement shared host-register output execution in
-the formatter,starting with standalone register-bank encoder cores. The
+Current next milestone: integrate shared host-register output execution in
+the formatter. All seven standalone register-bank encoder cores now pass
+50,811 strict original-oracle cases with poisoned physical GPRs, alongside
+50,811 unchanged ABI-wrapper comparisons and the enclosing suites. This is
+CPU-test evidence only; production bank-copy removal and fresh game gates
+remain pending. The
 [current phase3 audit](native-geometry-phase3-remaining.md) identifies the
 remaining host-data requirement;SPU-ABI wrappers and LS streams still remain.
 The independent round FPS repetition improves2.22%(pairs+2.61/+1.84),with
@@ -977,6 +981,7 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
+| External-bank output cores/all7 | n/a | standalone exact; formatter integration and fresh game gates OPEN | internal API; existing switches/defaults unchanged | 50,811 poisoned-GPR original-oracle cases +50,811 ABI comparisons; enclosing suites pass | no new executable/live claim | not measured | implementation in git log |
 | Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | validated opt-in;mean/CPU gains;tail repetition complete;parent/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O;normal native menu/actual question on b95e457f | Same3df menu25.00 ->25.64,worker CPF-2.99%/process-1.84%;round30.93 ->31.52,worker-4.01%/process-2.82%;round tails open | c8e8e22 |
 | Whole-job driver | n/a | ABI48 opt-in; measured menu CPU/FPS regression; cold/round/final gates OPEN | `BUZZ_GEOMETRY_JOB=0/1/2`, default0 | Five arms19,508exact/58,195transfers;enabled19,508native/0whole-job fallback;strict synthetic/routing proofs in results | >=45,000strict whole-job/I/O on current freeze;normal native menu/actual question | Menu27.74 ->25.30;worker cycles/frame+15.92%;default-off | 272a375 |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
@@ -1074,6 +1079,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | External-bank cores/all7 output encoders | CPU correctness suites only | not measured | not measured | 50,811 poisoned-physical-GPR strict original-oracle cases plus50,811 existing ABI comparisons;formatter/conversion/routing pass;no production fusion/new-game acceptance or performance claim;next formatter integration;phase3 OPEN |
 | 2026-11-01 | Complete 4880 binary16 output data | Menu/actual round (functional) | not measured | not measured | 7,215 strict/9 rejects;1,048,576 scalar inputs;five arms19,508exact/58,195transfers;4,513native/0fallback;>=25,000single+256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4FDC CMP output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;32,772 independent encodings;256 special-FP;five arms19,508exact/58,195transfers;4,424native/0fallback;>=20,000single+180,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |

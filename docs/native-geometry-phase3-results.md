@@ -60,6 +60,50 @@ this distinction and use suitable instrumentation for live fallback totals.
 The later rigid-skin build adds a flushed first-fallback notification per
 stage; it does not retroactively add instrumentation to older frozen runs.
 
+## External register-bank output cores
+
+The seven output encoders now expose an execution core accepting an admitted
+plan and an external bank of 128 vectors. The existing SPU-ABI wrappers retain
+their empty-path behavior, local bank copies and exact `4610`/`4618`
+continuations. Arithmetic, ordered LS reads/writes, prefetch and dummy/final
+iterations are unchanged. The core itself preserves physical `c.gpr`, PC and
+the trampoline; the caller publishes the bank at its chosen ABI boundary.
+
+Each original-oracle fixture now also runs the core with a separate bank and
+poisons all physical GPRs. It checks that the poison, entry PC and sentinel
+continuation survive, then publishes the bank and compares all GPRs, LS,
+architectural/channel state, continuation and image/depth/policy/overlay with
+the independent lifted result. The original ABI-wrapper comparisons remain.
+
+| Encoder | Strict external-bank cases | Strict ABI-wrapper cases |
+| --- | ---: | ---: |
+| FLOAT | 6,177 | 6,177 |
+| HALF | 7,215 | 7,215 |
+| CMP | 7,471 | 7,471 |
+| SNORM | 7,471 | 7,471 |
+| UNORM | 7,471 | 7,471 |
+| I16 | 7,503 | 7,503 |
+| U8 integer | 7,503 | 7,503 |
+| Total | 50,811 | 50,811 |
+
+All seven suites pass, including their existing alias/wrap, boundary, numeric
+model and rejection checks. Enclosing tests also pass: 1,908 strict formatter
+cases, 50,000 independent column-proof models, 4,195 conversion-control cases,
+1,853 native conversion cases, 15,988 builtin conversion roots and production
+routing/1,024 mock outer-driver scenarios. Run the existing
+`tests/scripts/test-geometry-<type>-output.ps1`, formatter, conversion-control,
+conversion-native and driver-flow scripts; assertions remain enabled.
+
+This is a standalone refactor, **not production shared-bank formatter
+integration**. The formatter still publishes and reloads the physical bank
+around callbacks, and the other pipeline streams still use LS. No switch,
+default, checker, oracle or Stage F exception changed. No new game executable,
+corpus/live/render acceptance or FPS/CPU benefit is claimed for this increment;
+the previous frozen executable's evidence remains specific to that executable.
+The next increment connects these cores to the formatter with independent
+switching and strict child boundaries, then repeats the relevant full gates.
+Phase 3 and the continuing objective remain open.
+
 ## Driver boundary audit
 
 The registered image-41 workload starts at `0x0010` and reaches its main

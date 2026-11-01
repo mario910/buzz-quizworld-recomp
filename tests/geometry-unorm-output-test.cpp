@@ -2,6 +2,7 @@
 #include "../port/native_geometry_unorm_output.h"
 #include "../port/native_geometry_context.h"
 #include "../port/native_function_check.h"
+#include "geometry-output-register-test.h"
 #include <cassert>
 #include <cstdio>
 #include <memory>
@@ -55,7 +56,9 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial){
     const auto finish=unorm_output_oracle::buzz_job_6eba_spu_func_00004610,skip=unorm_output_oracle::buzz_job_6eba_spu_func_00004618;
     g_spu_trampoline_fn=nullptr;unorm_output_oracle::buzz_job_6eba_spu_func_00004B9C(&reference);
     for(unsigned steps=0;g_spu_trampoline_fn!=finish && g_spu_trampoline_fn!=skip;++steps){assert(steps<2048 && g_spu_trampoline_fn);auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(&reference);}
-    const auto expected=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;emit_geometry_unorm_output(native,plan,finish,skip);
+    const auto expected=g_spu_trampoline_fn;
+    geometry_output_register_test::compare("unorm",native,reference,plan,finish,skip,expected,trial,emit_geometry_unorm_output_registers);
+    g_spu_trampoline_fn=nullptr;emit_geometry_unorm_output(native,plan,finish,skip);
     const auto d=compare_function_state(native,reference);
     if(!d.exact()){
         fprintf(stderr,"UNORM output trial%u cols%u groups%u r%d byte%d LS%X/%u state%s\n",trial,plan.columns,plan.groups,d.first_register,d.first_register_byte,d.first_ls,d.ls_bytes,d.first_state?d.first_state:"equal");
@@ -149,5 +152,6 @@ int main(){
         copy(*reference,*native);compare(*native,*reference,50000+trial);
     }
     assert(patterns==131088);
+    geometry_output_register_test::report(exact);
     printf("PASS complete UNORM output: %u strict full-state/LS/FN cases;1792 alias/wrap cases;1024 mixed/alias cases;256 independent byte models;131088 independent dyadic components;256 special-FP roots;one real root;9 unchanged rejects\n",exact);
 }

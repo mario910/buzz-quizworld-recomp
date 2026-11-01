@@ -1,6 +1,8 @@
 # Phase3 completion audit and next implementation
 
-Current source:114786d,ABI48/61 stages,capture-enabled3df8d057 EXE.
+Current baseline:2bf1ef7,ABI48/61 stages,capture-enabled3df8d057 EXE.
+The subsequent standalone encoder-core refactor has CPU-test evidence only;
+the frozen game's corpus/live/render/performance evidence is unchanged.
 This is a current-state audit against the phase3 objective;the chronological
 proofs remain in [the results](native-geometry-phase3-results.md).
 
@@ -36,9 +38,12 @@ Retain independent encoder switches and full checked boundaries;publish the
 bank when a strict boundary needs a complete physical context. Never count a
 skipped child comparison as a strict success.
 
-First validate standalone register-bank cores against the independent original
-oracles,including a poisoned physical `c.gpr` to detect accidental use of that
-bank. Then integrate an independent default-off formatter path and validate
+Standalone register-bank cores for all seven encoders now pass 50,811 strict
+original-oracle cases with a poisoned physical `c.gpr`; all 50,811 existing
+ABI-wrapper comparisons and enclosing formatter/conversion/routing suites pass.
+These cores preserve physical GPRs, PC and continuation until the caller
+publishes their result. No production bank-copy removal is claimed yet.
+Next integrate an independent default-off formatter path and validate
 full formatter/job state and I/O,corpus/live coverage,rendering and measurements.
 The parent admission must still prove eligibility before mutation;an unexpected
 child rejection cannot turn partially changed state into a fallback.

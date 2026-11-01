@@ -76,15 +76,25 @@ inline void step_geometry_float_output(spu_context& c,u128* r,bool cross)
     }
     r[23]=next_route;r[21]=next_source;
 }
-inline void emit_geometry_float_output(spu_context& c,const GeometryFloatOutput& p,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip)
+// Execute an admitted plan on 128 initialized host vectors. Only the supplied
+// bank and LS are updated; PC and trampoline are left to the ABI caller.
+// The bank must be disjoint from LS, as in the existing local-bank emitter.
+inline bool emit_geometry_float_output_registers(spu_context& c,u128* r,const GeometryFloatOutput& p)
 {
-    if(!p.columns){c.pc=0x4618;g_spu_trampoline_fn=skip;return;}
-    u128 r[128];memcpy(r,c.gpr,sizeof r);open_geometry_float_output(r);
+    if(!p.columns)return false;
+    open_geometry_float_output(r);
     for(unsigned col=0;col<p.columns;++col){
         const bool cross=prepare_geometry_float_output_column(r);
         for(;;){const bool last=spu_cgt(r[21],r[25])._u32[0]!=0;step_geometry_float_output(c,r,cross);if(last)break;}
         r[32]=spu_ai(r[32],1);r[44]=spu_ai(r[44],16);r[20]=spu_clgt(r[60],r[32]);
     }
+    return true;
+}
+inline void emit_geometry_float_output(spu_context& c,const GeometryFloatOutput& p,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip)
+{
+    if(!p.columns){c.pc=0x4618;g_spu_trampoline_fn=skip;return;}
+    u128 r[128];memcpy(r,c.gpr,sizeof r);
+    emit_geometry_float_output_registers(c,r,p);
     memcpy(c.gpr,r,sizeof r);c.pc=0x4610;g_spu_trampoline_fn=finish;
 }
 }
