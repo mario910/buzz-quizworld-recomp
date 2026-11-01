@@ -60,6 +60,10 @@ typedef struct buzz_geometry_transform_functions {
 enum { BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL = 39 };
 enum { BUZZ_GEOMETRY_JOB_ALTERNATE_CULL = 40 };
 enum { BUZZ_GEOMETRY_JOB_RING = 41 };
+enum { BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT = 42 };
+int buzz_geometry_job_float_output_enabled(void);
+void buzz_geometry_job_float_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_float_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
 typedef struct buzz_geometry_ring_functions {
     buzz_geometry_job_fn tail,initial_report,shared_report;
 } buzz_geometry_ring_functions;

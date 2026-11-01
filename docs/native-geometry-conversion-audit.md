@@ -2,6 +2,8 @@
 
 Status: source/format audit and callback replay protection, 2026-11-01.
 `54E8` and its shared output formatter are still unfinished native work.
+The complete float32 storage-2 data region now has a separate native path;
+the other six storage regions remain required work.
 This document does not promote existing phase-2 prefixes to complete data
 replacements or count original-only observations as native acceptance.
 
@@ -18,7 +20,7 @@ closed whole-function proof for arbitrary callback targets.
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
 | Shared formatter `4178` and attribute control | 9 | Descriptor layout, output preparation, field iteration and dispatch |
-| Seven output storage payloads | 37 | Full data/ABI implementations; existing phase-2 prefixes are partial |
+| Seven output storage payloads | 37 | Storage 2: complete opt-in; six others remain beyond phase-2 prefixes |
 | Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
 | Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
 
@@ -61,15 +63,15 @@ A fresh unchanged original tracer replay passes **19,508 exact jobs /
 conversion roots, all through the descriptor fallback; all built-in output
 entries, static returns, empty returns and report `6158` remain cold.
 
-| Output storage | Root | Dispatches |
-|---|---|---|
-| 1: SNORM16 | `4478` | 1,104 |
-| 2: float32 | `46D0` | 7,201 |
-| 3: binary16 | `4880` | 4,513 |
-| 4: UNORM8 | `4B9C` | 36 |
-| 5: I16 | `4DD0` | 0 |
-| 6: CMP 11/11/10 | `4FDC` | 4,424 |
-| 7: U8 integer | `52B4` | 0 |
+| Output storage | Root | Dispatches | Complete native region |
+|---|---|---|---|
+| 1: SNORM16 | `4478` | 1,104 | Pending: five blocks |
+| 2: float32 | `46D0` | 7,201 | Five blocks, opt-in |
+| 3: binary16 | `4880` | 4,513 | Pending: seven blocks |
+| 4: UNORM8 | `4B9C` | 36 | Pending: five blocks |
+| 5: I16 | `4DD0` | 0 | Pending: five blocks |
+| 6: CMP 11/11/10 | `4FDC` | 4,424 | Pending: five blocks |
+| 7: U8 integer | `52B4` | 0 | Pending: five blocks |
 
 These total **17,278 attribute dispatches**, not inner-loop iterations or
 worker-time shares. Unknown storage IDs take the original skip path and
@@ -147,6 +149,10 @@ The reader validates control spans, not the formatter's data ranges or the
 effects of arbitrary stride callbacks. Production integration must admit those
 callees and use the root I/O boundary; a pure cloned-state checker must not
 repeat an unaudited callback.
+Before production routing, its admission must also account for interrupt polls
+between original blocks; the float-output region below conservatively rejects
+all enabled/saved/active interrupt contexts. The standalone control tests model
+fixed architectural inputs and do not establish asynchronous IRQ acceptance.
 
 **4,195 strict standalone cases pass**, comparing every GPR/LS byte,
 architectural/channel/control/PC state, final scheduled function and child
@@ -172,3 +178,60 @@ Production integration, native shared formatter/storage/output built-ins,
 full-corpus native coverage, >=256 live checks, native frames and final
 interpreter/reversed A/B/CPU/default gates remain OPEN. This standalone kernel
 does not change the game's executable, defaults, saves or current routing.
+
+## Complete float32 output storage: 46D0
+
+`native_geometry_float_output.h` replaces all five blocks `46D0`, `46FC`,
+`4750`, `47F0`, `4808`. It owns every column and iteration, including the
+speculative final input/sentinel write. No final lifted iteration executes.
+The resulting handoff is exactly `4610`, or `4618` when the original r77
+test skips work. The formatter's field iteration remains outside this data
+region. This completes one of the seven storage implementations.
+
+The kernel keeps vectors in a host-local register array. It copies float
+**bits**, preserving NaNs, signed zero and subnormals without FP arithmetic.
+Both single-quad and straddled masked writes fetch all input/destination quads
+before ordered stores. Overlapping destinations are not merged, and source
+aliases observe earlier iterations' writes. Signed loop comparisons, full
+upper vectors, cached masks, address wrap and final scratch vectors match the
+original. On a sentinel route the mask still uses the nominal field's nibble.
+
+Admission scans every eventual destination before any write. It rejects
+foreign LS, enabled/saved/active interrupt contexts, more than 256 columns, more than 65,536 groups
+per column or 1,048,576 total groups, and writes into protected physical LS
+below `E680`. Source quad reads keep SPU wrap semantics. A zero-column limit
+still executes the original first column; r77=0 skips without touching GPR/LS.
+These are conservative admission limits, not changes to retained behavior.
+
+The public `46D0` wrapper requires the owning image-41 pipeline. Own
+`BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT=0/1/2` defaults to **0**. Mode 2 or JOB=2
+compares every GPR/LS/architectural/channel/control/PC byte plus the scheduled
+function and image/depth/policy/overlay against a private pinned five-block
+original oracle, stopping before the exact field continuation. Unsupported
+entries fall back before native writes and receive no native-success credit.
+Adapter ABI **38**, stage counter 42, distinguishes skip/single-quad/double-quad/
+mixed roots with native and strict counts. No checker exception is added.
+
+The standalone suite passes **6,177 strict cases**, including 1,792 alias/wrap
+cases, 256 independent byte models, one real captured root and nine unchanged
+reader rejects. Driver routing adds 24 native calls, 16 strict calls, ten
+owned unsupported fallbacks and disabled/foreign/post-scope handling. Runtime
+checks cover 53 controller and 328 configuration cases. Full production
+replay/live/render results and their frozen artifacts are recorded in the
+[phase-3 results](native-geometry-phase3-results.md#complete-float32-output-storage-46d0).
+
+```powershell
+& tests/scripts/test-geometry-float-output.ps1
+$env:BUZZ_GEOMETRY_JOB = '2'
+$env:BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT = '1'
+```
+
+The old phase-2 float-output prefix and its mask bit remain available when this
+complete region is disabled. Shared formatter `4178`, six other storage data
+regions, output built-ins and all final performance/default gates remain OPEN.
+
+The final V2 admission also rejects enabled interrupts when no event is pending,
+plus saved interrupt registers and active drain frames. The original drainer can
+poll between data blocks; the fused kernel must not suppress a later interrupt.
+V1 replay results and the interrupted V1 functional sequence are retained only
+as diagnostic history. Final acceptance uses the rebuilt V2 executable.

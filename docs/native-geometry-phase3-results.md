@@ -4487,3 +4487,100 @@ to its executable. Next is production integration and the remaining shared
 formatter/storage/output built-ins, then separate input built-ins and required
 final gates. Phase 3 and the continuing native-function objective remain OPEN;
 strict Stage F reconstruction remains LAST.
+
+## Complete float32 output storage 46D0
+
+The [storage-2 implementation](native-geometry-conversion-audit.md#complete-float32-output-storage-46d0)
+now replaces all five blocks `46D0/46FC/4750/47F0/4808`, including every column,
+both scatter arms, the final speculative input/sentinel iteration and full
+scratch-register ABI. No final lifted data iteration remains. The exact queued
+handoff is `4610`, or `4618` for the original r77 skip; field control remains
+outside this data region. Six other storage implementations, shared `4178`,
+output built-ins and enclosing conversion integration are still required.
+
+The host-local vectors preserve raw float bits and all input/destination reads
+before ordered writes, including aliased buffers, repeated destination quads,
+unaligned masked fields and wrapped addresses. Admission scans every write
+before mutation, with bounded columns/iterations and protected low LS.
+**V2 rejects every enabled/saved/active interrupt context**, including enabled
+interrupts without a pending event: the original drainer polls between blocks.
+Retained unsupported paths execute once and earn no native-success credit.
+
+Own `BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT=0/1/2` defaults to 0. Mode 2 or JOB=2 checks
+all GPR/LS/architectural/channel/control/PC state, scheduled function and image/
+depth/policy/overlay against the pinned original five-block graph, before the
+field continuation executes. ABI 38 has 43 stage counters and reports native/
+strict skip, single-quad, double-quad and mixed roots. The checker and existing
+Stage F exception are unchanged. The old phase-2 prefix remains available when
+this complete region is disabled.
+
+V2 passes **6,177 strict cases**, including 1,792 alias/wrap cases, 256
+independent byte models covering every width 1..16 and byte bias, one real
+captured entry, zero-work/zero-limit behavior and nine unchanged rejects.
+Production routing covers 24 native calls, 16 strict calls, ten counted
+unsupported fallbacks and disabled/foreign/post-scope handling. The complete
+driver suite also passes 1,024 modeled pipelines and 19,508 real entry models.
+Runtime tests pass 53 controller/328 configuration cases and durable fallback
+logging; seven audit tests pass. Those runtime/audit sources did not change
+with the V2 header-only admission correction, so their V1 logs are explicitly
+reused. Kernel/routing tests, build and production acceptance runs use V2.
+
+Frozen `build-vulkan-phase3-float-output-v2`:
+EXE `5e13bda7c10ef81f9d36311151e82b3a4a98fe5051eb4a1761438468c181bd63`;
+map `52556569c0ed1d407ae11b0493cfc9e35c6079dca1ad863676fde0b1a39eecee`;
+generated C `a1d00fbe62756126ff971464775e25f076f4d58c97434853336ccdea71003b83`.
+
+V1's five exact replay arms and its interrupted functional sequence are retained
+as diagnostic history, not final acceptance. The correction strengthens entry
+admission; it does not change data arithmetic, add a tolerance, repair state or
+expand Stage F's baseline exception. Original source/generator/save/template
+and earlier frozen builds remain unchanged.
+
+All **five V2 frozen replay arms** pass 19,508 exact jobs / 58,195 transfers
+each, zero concurrent input changes or failures, Stage F=2 / leaf 827 and no
+contract override:
+
+| Arm | JOB / FLOAT_OUTPUT | Native float roots | Strict float roots | Strict whole jobs |
+|---|---|---|---|---|
+| Driver off | 0 / 1 | 0 | 0 | 0 |
+| Independent, every older switch 0 | 2 / 1 | 7,201 | 7,201 | 19,508 |
+| Combined native | 1 / 1 | 7,201 | 0 | 0 |
+| Combined checked | 2 / 1 | 7,201 | 7,201 | 19,508 |
+| Combined with original float region | 2 / 0 | 0 | 0 | 19,508 |
+
+Every enabled arm has zero float fallback: 1,156 single-quad roots and 6,045
+mixed roots, with zero skip/all-double roots. All older enabled stage ledgers
+match the prior callback build exactly. Independent mode has only the new
+float ledger, including older alternate-cull/ring switches explicitly off.
+
+Three functional scenes use that same V2 EXE, actual native Stage F=1 / leaf
+827, GEOMETRY=1, all older switches=1 / FLOAT_OUTPUT=1, native mailbox,
+background/mute and fresh private saves. No compilation, CPU tests or profiling
+overlap any game run:
+
+| Scene | JOB | Frames / last elapsed ms | Single-quad native / strict lower bounds | Mixed native / strict lower bounds | Whole-job strict lower bound |
+|---|---|---|---|---|---|
+| checked-menu | 2 | 1,218 / 59,827.954 | 256 / 256 | 30,000 / 30,000 | 40,000 |
+| menu | 1 | 2,292 / 74,361.582 | 245,000 / 0 | 2,345,000 / 0 | 0 |
+| round | 1 | 5,981 / 196,304.556 | 500,000 / 0 | 3,930,000 / 0 | 0 |
+
+Checked menu runs 60s, native menu 75s, native round 60s after 136.5s
+navigation. Both inspected actual-native 1280x720 readbacks are normal:
+purple menu/studio/audience and an actual green question round with host,
+player, answers, timer and score UI. No mismatch, halt, unexpected continuation/
+capacity or first float fallback is observed. Forced shutdown makes periodic
+counts lower bounds, not final live fallback totals. Skip/all-double roots
+remain cold; mixed roots exercise both scatter arms.
+
+JOB=0 / leaf 827 / new flags=0 remain unchanged. No FPS/CPU improvement is
+claimed. Final interpreter counts, reversed same-frozen-EXE menu/round A/B,
+normalized worker/process cycles/time and default-on gates remain OPEN, as
+do the required remaining conversion regions. Repeatable CPU savings with
+flat FPS remain a valid future default-on reason after correctness/render
+gates. Phase 3 and the continuing objective stay active; strict Stage F is LAST.
+
+Private `float-output-v2-*` evidence binds committed source/helpers, original
+and private-save template pins, frozen EXE/map/C/native copies, tests, five V2
+replay arms, three scene logs and two native frame inspections. Superseded V1
+proofs are identified separately. Next is complete binary16 output `4880`, the
+other storage data, shared formatter/control integration and built-ins.
