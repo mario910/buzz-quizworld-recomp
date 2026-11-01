@@ -70,11 +70,15 @@ static int half_output_mode=0;
 static int cmp_output_mode=0;
 static int snorm_output_mode=0;
 static int unorm_output_mode=0;
+static int u8_integer_output_mode=0;
+static int i16_output_mode=0;
 static unsigned float_output_native=0,float_output_fallback=0,float_output_checked=0,float_output_references=0,float_output_fallback_calls=0;
 static unsigned half_output_native=0,half_output_fallback=0,half_output_checked=0,half_output_references=0,half_output_fallback_calls=0;
 static unsigned cmp_output_native=0,cmp_output_fallback=0,cmp_output_checked=0,cmp_output_references=0,cmp_output_fallback_calls=0;
 static unsigned snorm_output_native=0,snorm_output_fallback=0,snorm_output_checked=0,snorm_output_references=0,snorm_output_fallback_calls=0;
 static unsigned unorm_output_native=0,unorm_output_fallback=0,unorm_output_checked=0,unorm_output_references=0,unorm_output_fallback_calls=0;
+static unsigned u8_integer_output_native=0,u8_integer_output_fallback=0,u8_integer_output_checked=0,u8_integer_output_references=0,u8_integer_output_fallback_calls=0;
+static unsigned i16_output_native=0,i16_output_fallback=0,i16_output_checked=0,i16_output_references=0,i16_output_fallback_calls=0;
 static unsigned ring_native=0,ring_fallback=0,ring_checked=0,ring_references=0;
 static int alternate_cull_mode=0;
 static unsigned alternate_cull_native=0,alternate_cull_fallback=0,alternate_cull_checked=0,alternate_cull_references=0,alternate_cull_fallback_calls=0;
@@ -157,11 +161,15 @@ int buzz_geometry_job_half_output_enabled(){return half_output_mode;}
 int buzz_geometry_job_cmp_output_enabled(){return cmp_output_mode;}
 int buzz_geometry_job_snorm_output_enabled(){return snorm_output_mode;}
 int buzz_geometry_job_unorm_output_enabled(){return unorm_output_mode;}
+int buzz_geometry_job_u8_integer_output_enabled(){return u8_integer_output_mode;}
+int buzz_geometry_job_i16_output_enabled(){return i16_output_mode;}
 void buzz_geometry_job_float_output_result(unsigned,unsigned,int checked){if(checked)++float_output_checked;}
 void buzz_geometry_job_half_output_result(unsigned,unsigned,int checked){if(checked)++half_output_checked;}
 void buzz_geometry_job_cmp_output_result(unsigned,unsigned,int checked){if(checked)++cmp_output_checked;}
 void buzz_geometry_job_snorm_output_result(unsigned,unsigned,int checked){if(checked)++snorm_output_checked;}
 void buzz_geometry_job_unorm_output_result(unsigned,unsigned,int checked){if(checked)++unorm_output_checked;}
+void buzz_geometry_job_u8_integer_output_result(unsigned,unsigned,int checked){if(checked)++u8_integer_output_checked;}
+void buzz_geometry_job_i16_output_result(unsigned,unsigned,int checked){if(checked)++i16_output_checked;}
 void buzz_geometry_job_ring_result(unsigned frontier,int checked){assert(!frontier);if(checked)++ring_checked;}
 int buzz_geometry_job_alternate_cull_enabled(){return alternate_cull_mode;}
 void buzz_geometry_job_alternate_cull_result(unsigned,int checked){if(checked)++alternate_cull_checked;}
@@ -220,6 +228,8 @@ void buzz_geometry_job_output_result(unsigned stage, int native, int) {
     if(stage==BUZZ_GEOMETRY_JOB_CMP_OUTPUT){assert(routing_probe);if(native)++cmp_output_native;else ++cmp_output_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_SNORM_OUTPUT){assert(routing_probe);if(native)++snorm_output_native;else ++snorm_output_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_UNORM_OUTPUT){assert(routing_probe);if(native)++unorm_output_native;else ++unorm_output_fallback;return;}
+    if(stage==BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT){assert(routing_probe);if(native)++u8_integer_output_native;else ++u8_integer_output_fallback;return;}
+    if(stage==BUZZ_GEOMETRY_JOB_I16_OUTPUT){assert(routing_probe);if(native)++i16_output_native;else ++i16_output_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_ALTERNATE_CULL){assert(routing_probe);if(native)++alternate_cull_native;else ++alternate_cull_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL){assert(routing_probe);if(native)++transform_control_native;else ++transform_control_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_VERTEX_PREPARE){assert(routing_probe);if(native)++vertex_prepare_native;else ++vertex_prepare_fallback;return;}
@@ -361,6 +371,12 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-vertex-prepare-reference.inc"
 #include "../analysis/native-geometry/phase3/test-alternate-cull-reference.inc"
 #include "../analysis/native-geometry/phase3/test-ring-reference.inc"
+#include "../analysis/native-geometry/phase3/test-i16-output-reference.inc"
+static void i16_output_reference(spu_context* c){++i16_output_references;i16_output_oracle::buzz_job_6eba_spu_func_00004DD0(c);}
+static void i16_output_fallback_call(spu_context* c){++i16_output_fallback_calls;c->pc=c->gpr[0]._u32[0];}
+#include "../analysis/native-geometry/phase3/test-u8-integer-output-reference.inc"
+static void u8_integer_output_reference(spu_context* c){++u8_integer_output_references;u8_integer_output_oracle::buzz_job_6eba_spu_func_000052B4(c);}
+static void u8_integer_output_fallback_call(spu_context* c){++u8_integer_output_fallback_calls;c->pc=c->gpr[0]._u32[0];}
 #include "../analysis/native-geometry/phase3/test-unorm-output-reference.inc"
 static void unorm_output_reference(spu_context* c){++unorm_output_references;unorm_output_oracle::buzz_job_6eba_spu_func_00004B9C(c);}
 static void unorm_output_fallback_call(spu_context* c){++unorm_output_fallback_calls;c->pc=c->gpr[0]._u32[0];}
@@ -706,6 +722,58 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
+        auto* fixture=fopen("analysis/native-geometry/phase3/snorm-output-v1-fixture/pc_4478.bin","rb");assert(fixture);
+        assert(fread(entry->gpr,sizeof entry->gpr,1,fixture)==1 && fread(entry->ls,SPU_LS_SIZE,1,fixture)==1 && fgetc(fixture)==EOF);fclose(fixture);
+        auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;};
+        const auto finish=i16_output_oracle::buzz_job_6eba_spu_func_00004610,skip=i16_output_oracle::buzz_job_6eba_spu_func_00004618;
+        for(unsigned bias:{0u,15u})for(unsigned empty:{0u,1u})for(unsigned depth:{0u,2u})for(unsigned mode:{0u,1u,2u}){
+            reset();flow_mode=mode==1?2:1;i16_output_mode=mode==2?2:1;ctx->host_depth=depth;ctx->gpr[53]=spu_il(bias);if(empty)ctx->gpr[77]._u32[0]=0;
+            buzz_geometry_job_i16_output(ctx,i16_output_fallback_call,i16_output_reference,finish,skip);
+            assert(ctx->pc==(empty?0x4618:0x4610) && g_spu_trampoline_fn==(empty?skip:finish) && ctx->host_depth==depth);
+        }
+        reset();flow_mode=2;i16_output_mode=1;ctx->gpr[60]._u32[0]=256;ctx->gpr[48]=spu_il(16);ctx->gpr[45]=spu_ila(65535);
+        buzz_geometry_job_i16_output(ctx,i16_output_fallback_call,i16_output_reference,finish,skip);
+        assert(ctx->pc==0x4610 && g_spu_trampoline_fn==finish);
+        assert(i16_output_native==25 && i16_output_checked==17 && i16_output_references==17 && !i16_output_fallback && !i16_output_fallback_calls);
+        reset();i16_output_mode=0;buzz_geometry_job_i16_output(ctx,i16_output_fallback_call,i16_output_reference,finish,skip);i16_output_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_i16_output(foreign,i16_output_fallback_call,i16_output_reference,finish,skip);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_i16_output(ctx,i16_output_fallback_call,i16_output_reference,finish,skip);
+        for(unsigned failure=0;failure<10;++failure){reset();
+            switch(failure){case 3:ctx->ls=entry->ls_store;break;case 4:ctx->int_enable=1;ctx->event_status=ctx->event_mask=1;break;case 5:ctx->gpr[60]._u32[0]=257;break;case 6:ctx->gpr[67]=spu_il(0);break;
+                case 7:ctx->int_enable=1;break;case 8:ctx->irq_saved=1;break;case 9:ctx->irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;}
+            buzz_geometry_job_i16_output(ctx,i16_output_fallback_call,failure==0?nullptr:i16_output_reference,failure==1?nullptr:finish,failure==2?nullptr:skip);
+        }
+        assert(i16_output_native==25 && i16_output_checked==17 && i16_output_references==17 && i16_output_fallback==10 && i16_output_fallback_calls==13);
+        i16_output_mode=0;flow_mode=1;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
+        auto* fixture=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_4B9C.bin","rb");assert(fixture);
+        assert(fread(entry->gpr,sizeof entry->gpr,1,fixture)==1 && fread(entry->ls,SPU_LS_SIZE,1,fixture)==1 && fgetc(fixture)==EOF);fclose(fixture);
+        auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;};
+        const auto finish=u8_integer_output_oracle::buzz_job_6eba_spu_func_00004610,skip=u8_integer_output_oracle::buzz_job_6eba_spu_func_00004618;
+        for(unsigned bias:{0u,15u})for(unsigned empty:{0u,1u})for(unsigned depth:{0u,2u})for(unsigned mode:{0u,1u,2u}){
+            reset();flow_mode=mode==1?2:1;u8_integer_output_mode=mode==2?2:1;ctx->host_depth=depth;ctx->gpr[53]=spu_il(bias);if(empty)ctx->gpr[77]._u32[0]=0;
+            buzz_geometry_job_u8_integer_output(ctx,u8_integer_output_fallback_call,u8_integer_output_reference,finish,skip);
+            assert(ctx->pc==(empty?0x4618:0x4610) && g_spu_trampoline_fn==(empty?skip:finish) && ctx->host_depth==depth);
+        }
+        reset();flow_mode=2;u8_integer_output_mode=1;ctx->gpr[60]._u32[0]=256;ctx->gpr[48]=spu_il(16);ctx->gpr[45]=spu_ila(65535);
+        buzz_geometry_job_u8_integer_output(ctx,u8_integer_output_fallback_call,u8_integer_output_reference,finish,skip);
+        assert(ctx->pc==0x4610 && g_spu_trampoline_fn==finish);
+        assert(u8_integer_output_native==25 && u8_integer_output_checked==17 && u8_integer_output_references==17 && !u8_integer_output_fallback && !u8_integer_output_fallback_calls);
+        reset();u8_integer_output_mode=0;buzz_geometry_job_u8_integer_output(ctx,u8_integer_output_fallback_call,u8_integer_output_reference,finish,skip);u8_integer_output_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_u8_integer_output(foreign,u8_integer_output_fallback_call,u8_integer_output_reference,finish,skip);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_u8_integer_output(ctx,u8_integer_output_fallback_call,u8_integer_output_reference,finish,skip);
+        for(unsigned failure=0;failure<10;++failure){reset();
+            switch(failure){case 3:ctx->ls=entry->ls_store;break;case 4:ctx->int_enable=1;ctx->event_status=ctx->event_mask=1;break;case 5:ctx->gpr[60]._u32[0]=257;break;case 6:ctx->gpr[67]=spu_il(0);break;
+                case 7:ctx->int_enable=1;break;case 8:ctx->irq_saved=1;break;case 9:ctx->irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;}
+            buzz_geometry_job_u8_integer_output(ctx,u8_integer_output_fallback_call,failure==0?nullptr:u8_integer_output_reference,failure==1?nullptr:finish,failure==2?nullptr:skip);
+        }
+        assert(u8_integer_output_native==25 && u8_integer_output_checked==17 && u8_integer_output_references==17 && u8_integer_output_fallback==10 && u8_integer_output_fallback_calls==13);
+        u8_integer_output_mode=0;flow_mode=1;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
         auto* fixture=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_4B9C.bin","rb");assert(fixture);
@@ -1548,6 +1616,8 @@ int main(int argc, char** argv)
     index_control_mode=1;buzz_geometry_job_index_control(native.get(),index_control_fallback_call,index_control_reference,&index_control_oracle::library);
     assert(index_control_fallback_calls==19 && index_control_references==20 && index_control_native==30 && index_control_checked==20 && index_control_fallback==15);index_control_mode=0;
     puts("Complete index control routing:five paths,both strict modes/depths,biased stack/manager,return-PC collisions,incoming continuation;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
+    i16_output_mode=1;buzz_geometry_job_i16_output(native.get(),i16_output_fallback_call,nullptr,nullptr,nullptr);assert(i16_output_fallback_calls==14 && i16_output_native==25 && i16_output_fallback==10);i16_output_mode=0;
+    u8_integer_output_mode=1;buzz_geometry_job_u8_integer_output(native.get(),u8_integer_output_fallback_call,nullptr,nullptr,nullptr);assert(u8_integer_output_fallback_calls==14 && u8_integer_output_native==25 && u8_integer_output_fallback==10);u8_integer_output_mode=0;
     unorm_output_mode=1;buzz_geometry_job_unorm_output(native.get(),unorm_output_fallback_call,nullptr,nullptr,nullptr);assert(unorm_output_fallback_calls==14 && unorm_output_native==25 && unorm_output_fallback==10);unorm_output_mode=0;
     snorm_output_mode=1;buzz_geometry_job_snorm_output(native.get(),snorm_output_fallback_call,nullptr,nullptr,nullptr);assert(snorm_output_fallback_calls==14 && snorm_output_native==25 && snorm_output_fallback==10);snorm_output_mode=0;
     cmp_output_mode=1;buzz_geometry_job_cmp_output(native.get(),cmp_output_fallback_call,nullptr,nullptr,nullptr);assert(cmp_output_fallback_calls==14 && cmp_output_native==25 && cmp_output_fallback==10);cmp_output_mode=0;

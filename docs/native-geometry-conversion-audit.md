@@ -2,9 +2,10 @@
 
 Status: source/format audit and callback replay protection, 2026-11-01.
 `54E8` and its shared output formatter are still unfinished native work.
-The complete SNORM16 storage-1, float32 storage-2, binary16 storage-3,
-UNORM8 storage-4 and packed CMP storage-6 regions have native paths.
-The I16/storage-5 and U8-integer/storage-7 payloads remain required.
+All seven storage payloads now have complete native opt-in implementations.
+I16/storage-5 and U8-integer/storage-7 still have open real/live gates; their
+nonzero new coverage is explicitly synthetic. Shared formatter/control and
+built-ins remain required.
 This document does not promote existing phase-2 prefixes to complete data
 replacements or count original-only observations as native acceptance.
 
@@ -21,7 +22,7 @@ closed whole-function proof for arbitrary callback targets.
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
 | Shared formatter `4178` and attribute control | 9 | Descriptor layout, output preparation, field iteration and dispatch |
-| Seven output storage payloads | 37 | Storage 1/2/3/4/6: complete opt-in; two others remain beyond phase-2 prefixes |
+| Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
 | Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
 | Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
 
@@ -70,9 +71,9 @@ entries, static returns, empty returns and report `6158` remain cold.
 | 2: float32 | `46D0` | 7,201 | Five blocks, opt-in |
 | 3: binary16 | `4880` | 4,513 | Seven blocks, opt-in |
 | 4: UNORM8 | `4B9C` | 36 | Five blocks, opt-in |
-| 5: I16 | `4DD0` | 0 | Pending: five blocks |
+| 5: I16 | `4DD0` | 0 | Five blocks, opt-in; real/live OPEN |
 | 6: CMP 11/11/10 | `4FDC` | 4,424 | Five blocks, opt-in |
-| 7: U8 integer | `52B4` | 0 | Pending: five blocks |
+| 7: U8 integer | `52B4` | 0 | Five blocks, opt-in; real/live OPEN |
 
 These total **17,278 attribute dispatches**, not inner-loop iterations or
 worker-time shares. Unknown storage IDs take the original skip path and
@@ -301,7 +302,7 @@ $env:BUZZ_GEOMETRY_JOB_HALF_OUTPUT = '1'
 ```
 
 The old phase-2 `4AB0` prefix/mask remains available with this complete region
-disabled. Remaining work includes two storage data regions, shared `4178`,
+disabled. Remaining work includes cold integer-data acceptance, shared `4178`,
 enclosing conversion integration, output built-ins and all final performance/
 interpreter/default gates. Strict Stage F reconstruction stays LAST.
 
@@ -362,7 +363,7 @@ $env:BUZZ_GEOMETRY_JOB_CMP_OUTPUT = '1'
 ```
 
 The old phase-2 `5008/51E0` prefix/mask remains available when this complete
-region is disabled. Two storage regions, shared formatter/control integration,
+region is disabled. Cold integer-data acceptance, shared formatter/control integration,
 built-ins and final interpreter/performance/default gates remain required.
 
 ## Complete SNORM16 output storage: 4478
@@ -425,7 +426,7 @@ $env:BUZZ_GEOMETRY_JOB_SNORM_OUTPUT = '1'
 
 Full-corpus/live/frame evidence is recorded in the
 [phase-3 results](native-geometry-phase3-results.md#complete-snorm16-output-storage-4478).
-Two storage payloads, shared formatter/control integration, built-ins and
+Cold integer-data acceptance, shared formatter/control integration, built-ins and
 all final interpreter/reversed A/B/CPU/default gates remain required.
 
 ## Complete UNORM8 output storage: 4B9C
@@ -492,5 +493,73 @@ $env:BUZZ_GEOMETRY_JOB_UNORM_OUTPUT = '1'
 
 Full-corpus/live/frame evidence is recorded in the
 [phase-3 results](native-geometry-phase3-results.md#complete-unorm8-output-storage-4b9c).
-Two storage payloads, shared formatter/control integration, built-ins and
+Cold integer-data acceptance, shared formatter/control integration, built-ins and
 final interpreter/reversed A/B/CPU/default gates remain required.
+
+## Complete integer output storage: 4DD0 and 52B4
+
+`native_geometry_i16_output.h` replaces `4DD0/4E00/4E80/4F3C/4F50`;
+`native_geometry_u8_integer_output.h` replaces `52B4/52E0/5368/5430/5448`.
+Both implement all columns/iterations, initial conversion, both scatter arms,
+final sentinel stores/post-store prefetch and every final scratch vector.
+They queue exactly `4610`, or `4618` for r77=0, without a lifted final tail.
+
+I16 converts float inputs with signed32 `cflts` scale16 and selects each word's
+high halfword through r72. It performs no FMA. Its column tail overwrites r17
+with the loop comparison, preserving r16's mask, unlike SNORM16. Negative
+fractions near -2^-16 must follow the full scaled conversion before high-halfword
+selection; a direct C++ int16 cast would change the result.
+
+U8 integer adds r43 (canonical +0.5), uses unsigned32 `cfltu` scale24 and r71's
+high-byte selection. It does not multiply by 255. General full-vector bias and
+shuffle parameters preserve RTZ/extended-range semantics. Both kernels fetch
+all old destination quads before ordered stores, then read fresh input after
+all stores even on the final iteration. Final scratch vectors are computed
+natively from those reads and retained values; no reference-state repair occurs.
+
+Admission rejects foreign LS, every enabled/saved/active IRQ context, physical
+writes below E680 and excessive columns/groups before mutation. Signed input
+steps, nominal-field nibble masks, sentinel selection and LS/u32 wrap remain
+exact. Unsupported entries retain original execution without native credit.
+Separate `BUZZ_GEOMETRY_JOB_I16_OUTPUT=0/1/2` and
+`BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT=0/1/2` both default to **0**, independent
+of their existing input-decoder switches. Mode 2 or JOB=2 checks every GPR/LS/
+architectural/channel/control/PC field, queued function and image/depth/policy/
+overlay against each pinned five-block original graph. ABI 43 has 49 counters;
+stages 47/48 distinguish each kernel's skip/single/double/mixed roots.
+
+Each kernel passes **7,503 strict cases**, including 1,792 alias/wrap, 1,024
+mixed/alias, 256 independent byte models, column/signed-step and zero-work
+edges, 256 special-FP roots, 32 boundary roots and nine unchanged rejects.
+Each has **1,048,576 independent FP-bit components**: all high halfwords with
+16 distinct low patterns, permuted across every component/record. I16 checks
+full signed32 conversion bits against an independent significand/exponent model.
+U8 checks final bytes using exact integer rounding boundaries; positive RTZ
+addition cannot cross an exactly representable integer boundary below 256.
+
+There are no captured roots for these datatypes. Calibrated GPR/LS states and
+canonical masks come from pinned SNORM/UNORM snapshots, but changing their
+selected function makes the integer tests synthetic, not captured I16/U8 data.
+Additional enclosing-conversion tests alter one field of the pinned `54E8`
+input to storage 5/7, across four component counts, all 16 offsets, strides
+16/23/48 and host depths 0/1/2. All **1,152 synthetic cases pass**: 576 native
+strict roots per datatype, including 192 I16 and 144 U8 mixed roots, and identical full
+root plus whole-conversion GPR/LS/control/function-pointer state. The controller
+and other fields remain the original 73-block graph; this does not claim a
+new native enclosing controller or a captured whole-job replay.
+
+An initial integration coverage assertion found that three strides divisible
+by 16 never mix column nibbles. Stride 23 adds that missing coverage; the state
+comparisons and native kernels were unchanged. A subsequent mask review verified
+that descriptor byte 4 holds the write width;
+the final test varies that byte along with the component-count metadata.
+The final 1,152-case run passes with the correct 192/144 mixed coverage.
+Both coverage diagnostics remain private.
+
+Driver routing separately covers each new switch's native/checked/off/foreign/
+unsupported cases. Runtime configuration, frozen corpus and scene evidence is
+recorded in the [phase-3
+results](native-geometry-phase3-results.md#complete-integer-output-storage-4dd0-and-52b4).
+No Stage F exception or compared field changes. Real/live integer acceptance,
+shared formatter/control, built-ins and final interpreter/reversed A/B/CPU/
+default gates remain required.

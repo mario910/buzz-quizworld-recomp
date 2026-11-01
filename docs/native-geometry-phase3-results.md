@@ -4992,3 +4992,121 @@ arms, all four executed scene logs and two actual-native frame inspections.
 Raw/derived artifacts remain ignored. I16 `4DD0` and U8 integer `52B4` are the
 two remaining storage payloads, followed by shared `4178`, existing
 outer-control production integration and built-ins.
+
+## Complete integer output storage 4DD0 and 52B4
+
+The [remaining two storage
+encoders](native-geometry-conversion-audit.md#complete-integer-output-storage-4dd0-and-52b4)
+now have complete native opt-in implementations, five blocks each. I16 uses
+signed scale16/high-halfword conversion without FMA; U8 integer adds +0.5 then
+uses unsigned scale24/high-byte conversion without multiplying by 255. All
+columns/iterations, both scatter arms, final post-store prefetch and full
+scratch ABI are native. Exact queued boundaries are `4610/4618`.
+
+Both preserve full-vector parameters, ordered alias effects, signed limits,
+sentinel masks and LS/u32 wrap. Admission rejects IRQ contexts, foreign LS,
+protected writes and excessive loops before mutation. No final lifted iteration
+or reference-state repair supplies terminal values. I16's column comparison
+clobbers r17, preserving r16; the U8 integer scratch ABI also differs from the
+normalized encoders and is checked byte-for-byte.
+
+Own `BUZZ_GEOMETRY_JOB_I16_OUTPUT=0/1/2` and
+`BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT=0/1/2` both default to **0**. Mode 2 or
+JOB=2 compares every GPR/LS/architectural/channel/control/PC field, queued
+function and image/depth/policy/overlay to the pinned original five-block graph.
+ABI 43 has 49 counters, with stages 47/48 reserved for the new kernels. Input
+I16/U8 decoders, older output encoders and the Stage F exception are unchanged.
+
+Each passes **7,503 strict cases**, including 1,792 alias/wrap, 1,024 mixed/alias,
+256 independent byte models, column/signed-step and zero-work edges, 256
+special-FP roots, 32 boundary roots and nine unchanged rejects. Each also passes
+**1,048,576 independent FP-bit components**, covering all high halfwords and 16
+low patterns with distinct component/record permutations. I16's model checks
+full signed32 result bits via significand/exponent decomposition; U8's model
+checks integer-byte boundaries independently of SPU FP helpers.
+
+No real I16/U8 root is captured. Calibration masks/layouts come from real
+SNORM/UNORM states but selecting a different function is explicitly synthetic.
+An additional **1,152 enclosing-conversion cases** patch one field in the
+pinned `54E8` input to storage 5/7, varying four component counts, all 16 offsets,
+strides 16/23/48 and host depths 0/1/2. Each datatype executes 576 native strict
+roots, including 192 I16 and 144 U8 mixed roots; every root and entire enclosing conversion
+matches all GPR/LS/control/PC and final function pointers. Other data and the
+controller use the original 73-block graph. These are synthetic function
+comparisons, not captured whole-job replay or native-controller acceptance.
+The initial coverage assertion used only strides divisible by 16; stride 23
+adds mixed-column coverage without changing any state checker or kernel.
+A later source-mask review found that descriptor byte 4 controls write width;
+the final test varies that explicit byte as well as component metadata. The
+fresh 1,152-case run passes, including 192 I16 and 144 U8 mixed roots. Earlier
+coverage diagnostics remain private.
+
+Driver routing passes 25 native/17 strict calls and ten unsupported fallbacks
+per datatype, plus 1,024 pipeline/19,508 real entry models. Runtime passes 53
+controller/376 configuration cases and durable fallback logging. Seven audit
+tests and the production build pass. All seven storage payloads now have
+native implementations; their individual cold and final gates still apply.
+
+Frozen `build-vulkan-phase3-integer-output-v1`:
+EXE `6cd9a8808408795b9078ea9165da24002e647646c8d7b025c6fa431bf04b43fd`;
+map `4f6d461f492ee32b0327464606313b9f1d39b4d43a1479b6bd96e7f726a5158d`;
+generated C `e1c9953714e16e76368858e11a538d05c7e3831e0f27a4baf9cbe8630b99ef1b`.
+
+Five integer-output compatibility corpus arms pass 19,508 exact jobs / 58,195
+transfers each, zero changes/failures, Stage F=2 / leaf 827 and no contract
+override:
+
+| Arm | JOB / I16_OUTPUT / U8_INTEGER_OUTPUT | New native / strict roots | Strict whole jobs |
+|---|---|---|---|
+| Driver off | 0/1/1 | 0 / 0 | 0 |
+| Independent, every older switch 0 | 2/1/1 | 0 / 0 | 19,508 |
+| Combined native | 1/1/1 | 0 / 0 | 0 |
+| Combined checked | 2/1/1 | 0 / 0 | 19,508 |
+| Combined original integer data | 2/0/0 | 0 / 0 | 19,508 |
+
+All older stage ledgers match the parent UNORM build exactly. Neither integer
+datatype occurs in this real corpus: zero new native roots is compatibility
+evidence, not new native-data acceptance. Nonzero new native coverage is the
+explicitly synthetic 576 strict enclosing-conversion roots per datatype, 7,503
+strict standalone cases and driver routing.
+
+Three functional scenes use that same frozen EXE, actual-native Stage F=1 /
+GEOMETRY=1 / leaf 827 / all older flags=1 / both integer output flags=1, fresh
+private saves and mailbox/background/mute. No compilation, CPU tests or
+profiling overlaps a game run:
+
+| Scene | JOB | Frames / last elapsed ms | I16 new native / strict | U8 integer new native / strict | Whole-job strict lower bound |
+|---|---|---|---|---|---|
+| checked-menu | 2 | 1,175 / 57,831.936 | 0 / 0 | 0 / 0 | 35,000 |
+| menu | 1 | 2,245 / 74,516.652 | 0 / 0 | 0 / 0 | 0 |
+| round | 1 | 6,131 / 196,327.168 | 0 / 0 | 0 / 0 | 0 |
+
+Checked menu runs 60s, native menu 75s and native round 60s after 136.5s
+navigation. Both inspected actual-native 1280x720 readbacks show normal
+menu/studio/crowd and actual green round with host/player and readable UI. No
+mismatch, halt, unexpected continuation/capacity or first integer fallback is
+observed. Forced shutdown counters are periodic lower bounds, not final fallback
+totals.
+
+These scenes exercise the existing native flow with the new switches enabled,
+but have zero observed new integer native/checked calls. The per-kernel real
+corpus and >=256 live gates
+remain OPEN; whole-job comparisons and normal compatibility frames do not
+replace them. All seven storage implementations now exist, with their individual
+cold and final gates retained. Shared formatter 4178, enclosing-control
+production integration and built-ins remain required.
+
+Defaults JOB=0 / leaf 827 / new flags=0 stay unchanged. No FPS/CPU benefit is
+claimed. Final interpreter counts, reversed same-frozen-EXE menu/round A/B,
+normalized worker/process cycles/time and default-on gates remain OPEN.
+Repeatable CPU savings with flat FPS can justify enabling a function only after
+its correctness/render gates. Phase 3 and the continuing objective remain
+active; strict Stage F reconstruction stays LAST.
+
+Private integer-output-v1 evidence binds committed sources, original
+source/generator/save/template and calibration pins, frozen EXE/map/C/five
+native copies, both standalone tests and the original 73-block integration
+oracle, initial coverage diagnostic, five corpus arms, three scene logs and two
+native frame inspections. Raw/derived artifacts remain ignored. Next is the
+shared 4178 formatter; the existing standalone 54E8 control kernel still needs
+production integration and IRQ admission review.
