@@ -1335,5 +1335,17 @@ Own `TRANSFORM_CONTROL=0/1/2` defaults to zero. Strict comparison binds identica
 retained data callbacks to an independent original controller graph and checks
 all state, with no Stage F waiver or repaired registers. Normal composition is
 native control/setup/finish plus existing Stage F loops; alternate 69E8/6B18
-data remains original. See the [transform contract](native-geometry-transform-audit.md)
+data now has a cold native implementation below. See the [transform contract](native-geometry-transform-audit.md)
 and [phase-3 results](native-geometry-phase3-results.md) for precise coverage/gates.
+
+
+### Complete alternate cull data implementation
+
+`native_geometry_alternate_cull.h` replaces all 69E8/6B18/6B10 setup/iterations
+and queues 6958. Host pipeline caches retain lookahead, ordered stores and
+post-store vertex feedback, including arbitrary LS wrapping/aliasing. Full
+state is strict, with no Stage F exception. Own `ALTERNATE_CULL=0/1/2` defaults
+to zero. Independent geometry and composed-original checks pass, but real/
+live calls remain zero and those gates are open. See the
+[transform contract](native-geometry-transform-audit.md) and
+[phase-3 results](native-geometry-phase3-results.md) for exact proof scope.

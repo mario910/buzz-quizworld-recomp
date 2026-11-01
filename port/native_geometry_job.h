@@ -58,6 +58,10 @@ typedef struct buzz_geometry_transform_functions {
     buzz_geometry_job_fn vertex,cull,alternate,finish,restore;
 } buzz_geometry_transform_functions;
 enum { BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL = 39 };
+enum { BUZZ_GEOMETRY_JOB_ALTERNATE_CULL = 40 };
+int buzz_geometry_job_alternate_cull_enabled(void);
+void buzz_geometry_job_alternate_cull_result(unsigned iterations,int checked);
+void buzz_geometry_job_alternate_cull(spu_context*,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish);
 int buzz_geometry_job_transform_control_enabled(void);
 void buzz_geometry_job_transform_control_result(unsigned path,int checked);
 void buzz_geometry_job_transform_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_transform_functions*);

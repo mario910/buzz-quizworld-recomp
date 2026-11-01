@@ -52,15 +52,15 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: image-41 alternate transform/cull data
-`69E8/6B18`, followed by ring/atomic flow `37C0`, conversion `54E8` and builtins
-1..5 after source/contract audits. Complete enclosing `6608` control now has
-a native opt-in implementation, composing prior 6188 preparation and
-6958/66C8 finalization with the accepted existing Stage F normal loops.
-Its [transform contract](native-geometry-transform-audit.md) distinguishes
-retained alternate data, cold paths and final acceptance gates. The complete
-recognized `AEA0/7390` index controller and all five data regions are also
-native opt-in. These milestones do not close phase 3 or the final gates.
+Current next implementation: image-41 ring/atomic flow `37C0`, followed by
+complete conversion `54E8` and builtins 1..5 after source/contract audits.
+Transform control, vertex preparation, alternate cull data and finalization
+now have complete native opt-in implementations, alongside the existing
+normal Stage F loops. Alternate data still has zero real/live coverage and
+open gates. See the [transform contract](native-geometry-transform-audit.md).
+The complete AEA0/7390 index flow is also native opt-in. Required cold coverage,
+final validation/performance/default gates and strict Stage F reconstruction
+remain open; these implementation milestones do not close phase 3.
 
 ## Why these jobs
 
@@ -754,6 +754,21 @@ bypass/idle/alternate real/live and final interpreter/reversed A/B/CPU/default
 gates remain OPEN. See the [phase-3 results](native-geometry-phase3-results.md#complete-enclosing-transform-control-6608).
 JOB=0 / leaf 827 / new flags=0 remain; strict Stage F stays last.
 
+### Complete alternate cull data: cold opt-in
+
+69E8/6B18/6B10 setup, every iteration and final 6958 handoff are native.
+`BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2` defaults to zero; no Stage F waiver.
+5,448 strict cases include 288 independent geometry/order models, 288 composed
+original-controller/data checks, 256 special FP cases and four unchanged
+rejects. API routing, 312 configuration cases and build pass. Five compatibility
+arms each pass 19,508 exact / 58,195 transfers, but the new function has ZERO
+real/native corpus calls. Actual-native Stage F checked menu passes >= 45,000
+whole-job state/I/O comparisons; native menu/round frames are normal, with
+ZERO alternate live calls. Its real/256-live gates remain OPEN. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-alternate-cull-data-69e86b186b10-cold-opt-in).
+Next is 37C0 ring/atomic flow. Other implementations/cold/final gates keep
+phase 3 active; JOB=0 / leaf 827 / new flags=0 and strict Stage F last remain.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -887,6 +902,7 @@ subject to the kernel gates before replacement.
 | 6958/66C8 transform finalization | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2`, default 0 | 4,929 strict incl320 byte models; six rejects; five arms19,508 exact/58,195 transfers; all native/0fallback | >=465,000 strict publish; normal native frames; count-only real/live0 OPEN | not measured | |
 | 6188/65EC/65FC vertex preparation | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2`, default 0 | 8,513 strict; every format/bias; 256 special FP;64 matrix models;six rejects;five exact arms/all native | >=470,000 strict live;normal native frames;five/other real/live0 OPEN | not measured | |
 | 6608 complete enclosing transform control | n/a | complete native opt-in; alternate data/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2`, default0 | 5,505 strict;8 combinations;256 byte models;9rejects;five V2 exact arms/allnative0fallback | >=455,000 strict live;normal frames;cold paths OPEN | not measured | |
+| 69E8/6B18/6B10 alternate cull data | n/a | implemented; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2`, default0 | 5,448 strict;288 numeric+288 composed;256 special FP;4 rejects;five compatibility arms exact;new real0 | new live0 OPEN;>=45,000 whole-job checks;normal compatible frames | not measured | |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
@@ -938,6 +954,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Complete alternate cull data | Menu/actual round (compatibility) | not measured | not measured | 5,448 strict;288 numeric+288 composed;256 special FP;312 configs;five exact compatibility arms;new real/live0 OPEN;>=45,000 strict whole-job native-StageF live;own0/1/2 default0;phase3open |
 | 2026-11-01 | Complete native enclosing 6608 control | Menu/actual round (functional) | not measured | not measured | 5,505 strict;8 child/baseline combinations;256 byte models;9 rejects;304 configs;five V2 arms19,508exact/58,195transfers;allnative/0fallback;>=455,000strict live;own0/1/2 default0;alternate data/cold/final gates OPEN |
 | 2026-11-01 | Complete native 6188 vertex preparation | Menu/actual round (functional) | not measured | not measured | 8,513 strict;all256formatsx16biases;256specialFP;64matrix models;six rejects;296config;five arms19,508exact/58,195transfers;allnative/0fallback;>=470,000strict live;own0/1/2 default0;enclosing/cold/final gates OPEN |
 | 2026-11-01 | Native 6958/66C8 transform publication/frame return | Menu/actual round (functional) | not measured | not measured | 4,929 strict incl320 byte models; six rejects; 288 config cases; five arms19,508 exact/58,195 transfers; all native/0fallback; >=465,000 strict live; own0/1/2 default0; enclosing/cold/final gates OPEN |

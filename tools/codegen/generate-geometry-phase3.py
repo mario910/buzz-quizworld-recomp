@@ -26,6 +26,14 @@ def main():
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    alternate_name = "buzz_job_6eba_spu_func_000069E8"
+    alternate_pattern = rf"(?ms)^void {alternate_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(alternate_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned alternate cull entry")
+    source = re.sub(alternate_pattern, lambda m:
+        f"static void {alternate_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {alternate_name}(spu_context* ctx) {{ buzz_geometry_job_alternate_cull(ctx, {alternate_name}_reference, buzz_job_6eba_spu_func_00006958); }}",
+        source, count=1)
     transform_name = "buzz_job_6eba_spu_func_00006608"
     transform_pattern = rf"(?ms)^void {transform_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(transform_pattern, source))) != 1:
@@ -380,7 +388,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 34\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 35\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)

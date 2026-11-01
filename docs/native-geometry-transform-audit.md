@@ -1,8 +1,8 @@
 # Image-41 transform/cull stage: contract and native inventory
 
 Status: source/real-input audit complete; native `6958/66C8` finalization and
-`6188/65EC/65FC` vertex preparation and complete enclosing `6608` control are
-opt-in. **Alternate cull data and final acceptance remain OPEN.**
+`6188/65EC/65FC` vertex preparation, complete enclosing `6608` control and
+alternate cull data are opt-in. **Alternate real/live and final gates remain OPEN.**
 The continuing objective and mandatory last strict Stage F phase are unchanged.
 
 Source SHA-256:
@@ -141,7 +141,7 @@ callbacks retain vertex preparation, normal cull, alternate cull, finalization
 and the independently disabled footer's original restore continuation.
 With preparation/finalization enabled, normal observed flow composes native
 control/setup/finish with the existing Stage F loops. Alternate 69E8/6B18 data
-remains original and is the next native-data implementation.
+has the separate cold native implementation below.
 
 Before writes, eligibility checks owned LS, pending interrupts, manager and
 480-byte-frame bounds, their disjointness and the reporting condition. This
@@ -178,6 +178,43 @@ entry, before a data clobber or frame restoration could hide setup errors.
 Synthetic callback models are explicit orchestration tests; separate corpus/
 live evidence executes actual callbacks. Stage F strict cleanup remains last.
 
+## Alternate cull data: 69E8/6B18/6B10
+
+`native_geometry_alternate_cull.h` replaces the complete setup, all iterations
+and continuation thunk through queued 6958. It retains 47 software-pipeline
+vectors in host state and materializes the full final ABI once. The source
+iteration count is u32(r15+2), including two drain iterations and a valid
+one-iteration wrap case. Eligibility checks owned LS, pending interrupts and
+1..8,192 iterations before mutation; legitimate enclosing u16 counts fit.
+
+The input stream contains BE u16 index triples, six bytes per triangle and
+24 bytes per four-triangle batch. Two cached quads and the alternating
+D980/CFF0 alignment masks decode overlapping windows. Vertex records are
+16 bytes: two float coordinates, a clip-bit word and an auxiliary word used
+for halfword equality/common-sign tests. Edge products/differences retain
+SPU RTZ order. Converted bounds use the paired D000/D010 lookups, with exact
+source extent ordering. Winding, shared clipping, halfword equality, area
+degeneracy, small extents and tail/startup padding form four rejection masks.
+Their union drives population counts and six-byte output advancement.
+
+Mask/alignment lookups, old output and next index quads are read before all
+three stores. Twelve vertex reads follow all stores. Output can alias input,
+mask tables, constants and vertices, including low LS and wrapped addresses;
+the next stage observes exact source feedback. Setup vectors already loaded
+remain stable when their LS bytes change. No cross-iteration LS cache assumes
+that data is immutable. Both sink-selection stores and all padding bytes are
+preserved, even when no triangles are kept.
+
+`BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares every GPR/LS/architectural/channel/control/PC/FN/image/depth/policy/
+overlay field against the raw three-block original closure. It stops before
+the actual footer function. No Stage F waiver, tolerance or repair is applied
+to this new data routine. Its synthetic independent geometry/order and
+composed original-controller/data checks are recorded in the phase-3 results.
+The captured ordinary 6608 entry supplies only pinned table constants; it is
+not a real alternate entry. Real/native corpus and alternate live calls remain
+zero, with those acceptance gates explicitly open.
+
 ## Proof scope and remaining native work
 
 Four independent scalar reconstructions match all GPRs and all LS bytes at
@@ -196,7 +233,7 @@ Native full-state/corpus/live/frame evidence is in the separate
 | `6608/6618/66B8/6744/6790/69B0` and mode thunks | Complete native enclosing control/setup opt-in; cold/final gates OPEN |
 | `6188/65EC/65FC` vertex preparation | Complete native opt-in through queued `63E0`; cold/final performance/default gates OPEN |
 | `63E0/6490` vertex and `6E08/6EE8` cull | Existing accepted Stage F contract; strict reconstruction remains phase 7 last |
-| `69E8/6B18` alternate data form | Original/cold; native implementation and real/live gates OPEN |
+| `69E8/6B18/6B10` alternate data form | Complete native opt-in; real/native corpus and >=256 live-call gates OPEN |
 | `6958/66C8` publication/frame return | Complete native opt-in; final performance/default gates OPEN |
 
 No complete alternate-data acceptance, FPS or CPU improvement is claimed by

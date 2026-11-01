@@ -64,6 +64,8 @@ static int index_triangles_mode=0;
 static unsigned index_triangles_native=0,index_triangles_fallback=0,index_triangles_checked=0,index_triangles_references=0,index_triangles_fallback_calls=0;
 static int index_control_mode=0;
 static unsigned index_control_native=0,index_control_fallback=0,index_control_checked=0,index_control_references=0,index_control_fallback_calls=0;
+static int alternate_cull_mode=0;
+static unsigned alternate_cull_native=0,alternate_cull_fallback=0,alternate_cull_checked=0,alternate_cull_references=0,alternate_cull_fallback_calls=0;
 static int transform_control_mode=0;
 static unsigned transform_control_native=0,transform_control_fallback=0,transform_control_checked=0,transform_control_references=0,transform_control_fallback_calls=0;
 static int vertex_prepare_mode=0;
@@ -137,6 +139,8 @@ int buzz_geometry_job_index_triangles_enabled(){return index_triangles_mode;}
 void buzz_geometry_job_index_triangles_result(unsigned,int checked){if(checked)++index_triangles_checked;}
 int buzz_geometry_job_index_control_enabled(){return index_control_mode;}
 void buzz_geometry_job_index_control_result(unsigned,int checked){if(checked)++index_control_checked;}
+int buzz_geometry_job_alternate_cull_enabled(){return alternate_cull_mode;}
+void buzz_geometry_job_alternate_cull_result(unsigned,int checked){if(checked)++alternate_cull_checked;}
 int buzz_geometry_job_transform_control_enabled(){return transform_control_mode;}
 void buzz_geometry_job_transform_control_result(unsigned,int checked){if(checked)++transform_control_checked;}
 int buzz_geometry_job_vertex_prepare_enabled(){return vertex_prepare_mode;}
@@ -186,6 +190,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_ALTERNATE_CULL){assert(routing_probe);if(native)++alternate_cull_native;else ++alternate_cull_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL){assert(routing_probe);if(native)++transform_control_native;else ++transform_control_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_VERTEX_PREPARE){assert(routing_probe);if(native)++vertex_prepare_native;else ++vertex_prepare_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH){assert(routing_probe);if(native)++transform_finish_native;else ++transform_finish_fallback;return;}
@@ -324,6 +329,10 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-index-control-reference.inc"
 #include "../analysis/native-geometry/phase3/test-transform-finish-reference.inc"
 #include "../analysis/native-geometry/phase3/test-vertex-prepare-reference.inc"
+#include "../analysis/native-geometry/phase3/test-alternate-cull-reference.inc"
+static void alternate_cull_reference(spu_context* c){++alternate_cull_references;alternate_cull_oracle::buzz_job_6eba_spu_func_000069E8(c);}
+static void alternate_cull_fallback_call(spu_context* c){++alternate_cull_fallback_calls;c->pc=c->gpr[0]._u32[0];}
+
 static void transform_control_test_bridge(spu_context* c,buzz_geometry_job_fn root,buzz_geometry_job_fn boundary,buzz_geometry_job_fn replacement){buzz_geometry_job_transform_reference_cull(c,root,boundary,replacement);}
 #include "../analysis/native-geometry/phase3/test-transform-control-reference.inc"
 static void transform_control_vertex(spu_context* c){assert(c->pc==0x6790);c->gpr[2]=spu_ila(0x12345);SPU_RET(c);}
@@ -650,6 +659,26 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
+        auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;};
+        const auto finish=alternate_cull_oracle::buzz_job_6eba_spu_func_00006958;
+        for(unsigned n:{1u,2u,4u})for(unsigned depth=0;depth<2;++depth)for(unsigned mode=0;mode<3;++mode){
+            reset();ctx->gpr[15]._u32[0]=n-2;ctx->host_depth=depth?2:0;ctx->gpr[37]._u32[0]=0xffffffff;
+            flow_mode=mode==1?2:1;alternate_cull_mode=mode==2?2:1;
+            buzz_geometry_job_alternate_cull(ctx,alternate_cull_reference,finish);assert(ctx->pc==0x6958 && g_spu_trampoline_fn==finish && ctx->host_depth==(depth?2:0));
+        }
+        assert(alternate_cull_native==18 && alternate_cull_checked==12 && alternate_cull_references==12 && !alternate_cull_fallback && !alternate_cull_fallback_calls);
+        flow_mode=1;reset();alternate_cull_mode=0;buzz_geometry_job_alternate_cull(ctx,alternate_cull_fallback_call,finish);alternate_cull_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_alternate_cull(foreign,alternate_cull_fallback_call,finish);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_alternate_cull(ctx,alternate_cull_fallback_call,finish);
+        for(unsigned failure=0;failure<5;++failure){reset();ctx->gpr[15]._u32[0]=0;switch(failure){case 0:ctx->ls=entry->ls_store;break;case 1:ctx->int_enable=1;ctx->event_status=ctx->event_mask=1;break;case 2:ctx->gpr[15]._u32[0]=0xfffffffe;break;case 3:ctx->gpr[15]._u32[0]=8191;break;}
+            buzz_geometry_job_alternate_cull(ctx,alternate_cull_fallback_call,failure==4?nullptr:finish);
+        }
+        assert(alternate_cull_fallback_calls==8 && alternate_cull_references==12 && alternate_cull_fallback==5 && alternate_cull_native==18 && alternate_cull_checked==12);
+        alternate_cull_mode=0;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
+
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
         ctx->gpr[1]=spu_ila(0x39005);ctx->gpr[3]=spu_ila(0x3d007);auto* entry=buzz::clone_function_state(ctx);
@@ -1317,6 +1346,9 @@ int main(int argc, char** argv)
     index_control_mode=1;buzz_geometry_job_index_control(native.get(),index_control_fallback_call,index_control_reference,&index_control_oracle::library);
     assert(index_control_fallback_calls==19 && index_control_references==20 && index_control_native==30 && index_control_checked==20 && index_control_fallback==15);index_control_mode=0;
     puts("Complete index control routing:five paths,both strict modes/depths,biased stack/manager,return-PC collisions,incoming continuation;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
+    alternate_cull_mode=1;buzz_geometry_job_alternate_cull(native.get(),alternate_cull_fallback_call,alternate_cull_oracle::buzz_job_6eba_spu_func_00006958);
+    assert(alternate_cull_fallback_calls==9 && alternate_cull_references==12 && alternate_cull_native==18 && alternate_cull_checked==12 && alternate_cull_fallback==5);alternate_cull_mode=0;
+    puts("Complete alternate cull routing:warmup/short/bulk,both strict modes/depths,wrapped output,incoming continuation;owner/off/foreign/image/null/invalid/post-scope PASS");
     transform_control_mode=1;buzz_geometry_job_transform_control(native.get(),transform_control_fallback_call,transform_control_reference,&transform_control_library);
     assert(transform_control_fallback_calls==20 && transform_control_references==28 && transform_control_native==42 && transform_control_checked==28 && transform_control_fallback==16);transform_control_mode=0;
     puts("Complete transform control routing:seven paths,both strict modes/depths,biased stack/manager,late overwritten interior return link,incoming continuation;owner/off/foreign/image/null/invalid/post-scope PASS");
