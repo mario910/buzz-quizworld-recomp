@@ -585,3 +585,16 @@ actual-native menu/round frames, interpreter-count checks, reversed frozen A/B,
 normalized worker/process CPU and default decisions. Synthetic/unused formats
 are not promoted to real coverage. The continuing objective proceeds through
 shared phase4 and optional5/6 decisions, with strictStageF7 LAST.
+
+
+### ABI48 live and rendered-scene follow-up
+
+The unchanged production freeze passes at least45,000 strict live whole-job/I/O
+comparisons and45,000 strict raw0 input returns. Native menu and visually
+verified actual-question readbacks look normal, with exact PPM/PNG bindings.
+The three completed functional runs have no first-fallback/unrecordable or
+mismatch messages; periodic logs establish lower bounds rather than complete
+fallback totals. New formats1..5 still have zero real/live calls. See the
+[phase3 live results](native-geometry-phase3-results.md#abi48-live-whole-jobinput-and-actual-round-rendering).
+Interpreter, reversed A/B, normalized CPU/cycles, cold real/live and default
+acceptance remain OPEN; no performance/default or Stage F contract change.

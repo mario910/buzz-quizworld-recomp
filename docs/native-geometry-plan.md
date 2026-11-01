@@ -52,9 +52,11 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: live whole-job/input checks and actual-native menu/round
-frames on the final frozen ABI48 build, interpreter/reversed A/B/normalized CPU
-measurements and expanded cold real coverage before default decisions.
+Current next milestone: interpreter-count checks, reversed same-frozen ABI48
+menu/round A/B, normalized worker/process CPU/cycles and expanded cold real
+coverage before default decisions. Live whole-job/raw0 checks pass at least
+45,000 strict comparisons each; actual-native menu and actual-question round
+readbacks are visually verified. New builtin inputs1..5 remain real/live0.
 All five standard input decoders and the complete standard93F0 controller
 are implemented and integrated behind independent default-off switches.
 Their standalone and production-routing checks pass; real coverage of the
@@ -68,7 +70,8 @@ whole-job fallback in enabled arms. The controller has19,508 real raw0 roots,
 reusing the old helper; new inputs1..5 remain real/live0. ABI48/61 stages.
 The initial5,838 coverage regression from an overlarge declared descriptor span
 was rejected and corrected; final ledgers match after raw-stage migration.
-Live/render/interpreter/reversed A/B/normalized CPU/default gates stay OPEN.
+Whole-job/raw0 live and menu/actual-question frame gates now pass on ABI48.
+Cold-path live, interpreter/reversed A/B/normalized CPU/default gates stay OPEN.
 The [input audit](native-geometry-input-audit.md) maps all23 standard blocks
 and six95C4 routes. The native54E8
 output controller now handles all seven paths, including all four complete
@@ -1069,6 +1072,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | ABI48 input routing live/render | Checked menu80s/native menu75s/visually verified solo round | not measured | not measured | >=45,000strict whole-job/I/O +45,000strict raw0 input returns;normal1280x720 menu+actual-question readbacks;native raw0 >=2,750,000menu/11,415,000round inclnavigation;no mismatch/first-fallback messages;periodic lower bounds;inputs1..5real/live0;interpreter/reversedAB/normalizedCPU/default OPEN |
 | 2026-11-01 | Standard93F0 and5 builtin input production wrappers | CPU routing/parent/layout/getter tests +5 frozen corpus arms | not measured | not measured | ABI48/61stages;3,876production/1,938parent strict/1,440child strict;576parent roots/292layouts/877rejects;472getters;each19,508exact/58,195transfers/zero whole-job fallback;raw0controller19,508real;new1..5real/live0;parent scratch/frame guards;initial5,838coverage regression corrected;live/final/default OPEN |
 | 2026-11-01 | Complete standard93F0 standalone control+native data | CPU root/prefix/frame-model tests | not measured | not measured | 23-block original oracle/all6 formats;8,391strict roots/7,796exact dispatch boundaries/8,391independent frame models;23unchanged rejects;40quad frame/metadata forecast+all5data regressions;production parent-safety/cold/final OPEN;app unchanged |
 | 2026-11-01 | Builtin input5 standalone fixed12/three-unit decoder | CPU function/model/original-control tests | not measured | not measured | All2blocks+four publications/delayed pipeline/table-read timing/final9498ABI;5,838strict/288byte models/3,145,728position components/3,216full93F0;20unchanged rejects;shared helper extraction+full input4 regression;production/cold/final OPEN;app unchanged |

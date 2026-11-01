@@ -5996,3 +5996,36 @@ stay unchanged. Next: live checks/actual-native menu and round rendering,
 interpreter counts/reversed A/B/normalized CPU and cold-path evidence. Phase3
 and the continuing goal remain active; shared phase4 follows and strictStageF7
 remains last.
+
+
+## ABI48 live whole-job/input and actual-round rendering
+
+The unchanged `272a375` implementation and frozen
+`build-vulkan-phase3-input-routing-v3` pass the live whole-job/raw0 and native
+scene-frame gates with native Stage F (`BUZZ_STAGEF=1`). The checked menu
+completes 80s and records at least **45,000 strict whole-job/I/O comparisons
+and 45,000 strict raw0 input returns**, exceeding the 256-call gate.
+The 75s native menu records at least 2,750,000 raw0 calls; the visually
+verified round navigation/run records at least 11,415,000. All three runs
+have no mismatch, halt, first-fallback or unrecordable messages. These are
+periodic lower bounds after forced shutdown, not final fallback totals.
+
+Inspected 1280x720 renderer readbacks show a normal purple/blue studio menu
+and an actual green single-player question: the river-flow question, four
+answers, player Adam and host are visible with readable UI and normal
+geometry. Exact PPM/PNG pixel bindings are recorded privately. Visual
+checkpoints confirm the main menu, challenge list, host intro, join screen,
+challenge intro and actual question; the `solo-round` timing marker alone
+is not treated as scene proof. The paused run continues 60s after visual
+acceptance and is not a performance measurement. Presented frame counts
+are 1,097 checked-menu / 2,166 native-menu / 9,204 round including navigation.
+
+Private `input-routing-v3-live-summary.json` binds the three logs/CSVs,
+phase records, frozen EXE/MAP and inspected images. All five new builtin
+input formats still have **zero real/live calls**; raw0 uses its existing
+complete native helper. This result does not close their cold-path gates.
+No implementation, checker, ABI or default changed: JOB0/geometry827/newflags0.
+Interpreter-count checks, reversed same-frozen menu/round A/B, normalized
+worker/process cycles and CPU time, remaining cold real/live paths and default
+decisions remain OPEN. Phase3 and the continuing objective stay active;
+shared phase4 follows and strict Stage F cleanup remains phase7 LAST.
