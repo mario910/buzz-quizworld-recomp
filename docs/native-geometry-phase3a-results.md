@@ -61,3 +61,33 @@ gain claim. Phase 3a remains incomplete and defaults remain off.
 
 Private evidence: `analysis/native-geometry/phase3/phase3a-v2/seal.json`,
 169 artifact proofs / 333 archived sources / 82 prior immutable pins verified.
+
+## V3: reused parent command reservation/publication admission
+
+Frozen `build-vulkan-phase3a-v3`: EXE `ba4c74ef`, MAP `506d1fc0`,
+base `6541fcf` plus archived source patch and new inputs; implementation WIP.
+Same menu protocol as V1/V2, fresh JOB0/1/1/0 FPS and CPU series.
+Every run confirms Vulkan mailbox and two-context asynchronous draw batches.
+
+| Metric | JOB0 | JOB1 | Change | Reversed pairs |
+| --- | ---: | ---: | ---: | ---: |
+| FPS, primary FPS series | 28.456 | 27.664 | -2.784% | -2.218% / -3.348% |
+| Worker cycles/frame | 427.307M | 446.184M | +4.418% | +3.997% / +4.838% |
+| Worker CPU ms/frame | 116.247 | 120.865 | +3.972% | +3.658% / +4.286% |
+| Process cycles/frame | 782.540M | 801.743M | +2.454% | +2.214% / +2.693% |
+| Process CPU ms/frame | 212.831 | 217.014 | +1.966% | +2.036% / +1.895% |
+
+| Correctness/render gate | Result |
+| --- | --- |
+| Full corpus, four arms | Each 19,508 exact jobs / 58,195 transfers; zero divergent inputs/failures |
+| Live whole-job I/O | >=50,000 comparisons pass |
+| Actual-native menu frame | Inspected 1280x720 GPU readback; normal studio menu |
+| Round frames/FPS/CPU | Not attempted for this rejected menu candidate |
+
+**Decision:** reject for menu parity/default-on. Both FPS pairs and all CPU
+pairs regress; this variant offers no demonstrated CPU saving. Continue 3a;
+phase 3a remains incomplete and defaults remain off. Different frozen builds
+do not establish a causal V1/V2/V3 comparison.
+
+Private evidence: `analysis/native-geometry/phase3/phase3a-v3/seal.json`,
+498 artifact proofs / 333 archived sources / 82 prior immutable pins verified.

@@ -684,7 +684,7 @@ round readbacks look normal. Final performance/default gates remain open
 and are tracked in the separate phase-3 results. AF18 palette/batch control
 is now implemented separately below; remaining rigid, cofactor and normalized
 directional data retain explicit inventory rows. A native controller count
-is not native data coverage. Strict Stage F reconstruction remains final phase 7.
+is not native data coverage. The later Course correction cancelled phase 7.
 
 The complete `0xB880/B934/B940` weighted position/matrix kernel now has a
 native implementation with no original setup or final-pair call. Its own
@@ -708,7 +708,7 @@ OPEN; cofactor normals now have an implementation below with real/live gates
 OPEN. Normalized directional variants now have implementations below; their
 real/live gates remain OPEN. Basic directional progress is
 recorded below. Replacing B880 does not
-close these inventory rows or phase 3. Strict Stage F remains final phase 7.
+close these inventory rows or phase 3. The later Course correction cancelled phase 7.
 
 Basic directional kernels `0xBD4C/BE20/BF7C` now have a shared native host
 loop, AVX2 arithmetic and exact per-variant final ABI, independently switched
@@ -793,8 +793,8 @@ compatibility is recorded in the separate results. All AF18 data families now
 have native implementations, but **zero real calls** to these normalized
 roots means real/native corpus and >=256 strict live gates remain OPEN.
 Other enclosing stages/built-in inputs/cold coverage and final interpreter/
-reversed A/B/normalized CPU/default decisions still keep phase 3 open. Strict
-Stage F reconstruction remains mandatory final phase 7.
+reversed A/B/normalized CPU/default decisions still keep phase 3 open. The later
+Course correction cancelled phase 7 and stopped interpreter/cold coverage work.
 
 ### Native compressed-index delta reconstruction
 
@@ -997,37 +997,20 @@ frame dumps match, render drain reduced, A/B recorded.
 Every native kernel gets a scalar reference + NEON path next to AVX2,
 same corpus gate, for ARM targets.
 
-### Phase 7: strict Stage F cleanup (final)
-After the preceding selected phases, bring the existing Stage F vertex,
-transform, normalize and cull kernels up to the strict contract used by new
-native kernels. Reproduce all 128 GPRs, including volatile/dead temporaries,
-the entire LS including scratch/padding, control state and return/trampoline
-continuation. Fix the implementations or reconstruct their exact tail state;
-do not exclude differing fields or weaken the checker.
+### Phase 7: cancelled
 
-Require zero strict per-function differences on the full corpus and at least
-256 live comparisons per kernel. Whole-job replay must also pass with actual
-native Stage F execution (`BUZZ_STAGEF=1`), without relying on checked mode
-retaining the lifted state. Verify the complete DMA/atomic stream and exit
-state, normal native menu/round frame dumps, and the usual reversed menu/round
-A/B pairs. Preserve reference fallback, source pins and per-kernel switches;
-record any performance cost of stricter state reconstruction.
-
-Remove the accepted Stage F exception only after all these gates pass, update
-the contracts/trackers and commit the correction. Until then, earlier phases
-retain the explicitly accepted baseline contract. This remains the final
-roadmap phase under the continuing objective above; perform it after the
-other selected native-function phases, rather than folding it into phase 3.
+Cancelled by the Course correction (2026-11-01). Do not reconstruct Stage F's
+dead registers or scratch. Stage F follows the same job-boundary contract as
+the other native routines; per-function full-state checks are optional debug.
 
 ## Gates for every step
 
-- [ ] Corpus replay bit-exact (all captured jobs of the image)
-- [ ] Per-function harness: 0 differences
-- [ ] Live checked mode: N >= 256 calls compared in-game, PASS logged
+- [ ] Exact job outputs, ordered DMA/atomic/channel transcript and exit state across the full corpus
+- [ ] Live whole-job I/O: >=10,000 jobs compared in-game, PASS logged
 - [ ] Frame dump of menu and round renders normally
-- [ ] Menu A/B (2 pairs, reversed) and round A/B recorded below
-- [ ] For FPS-neutral default-on decisions: matched worker/process CPU-cost evidence recorded, with no material frame-time regression
-- [ ] Runtime bit documented; default flipped only after all of the above
+- [ ] Reversed same-EXE JOB0/JOB1 menu and round FPS plus separate worker/process cycles and CPU time per completed frame
+- [ ] Frozen build-vulkan-* manifest records renderer; every log confirms mailbox and asynchronous two-context batches
+- [ ] Runtime switch documented; default-on only after all gates and JOB1 >= JOB0 (menu FPS parity is the 3a target)
 - [ ] SDK/main commits, docs updated
 
 ## Tracker
@@ -1041,9 +1024,15 @@ default-on after the FPS/CPU decisions; four are exact and opt-in. Final
 default replay, live comparison and native menu/round rendering also pass.
 The finalized separate results document is
 [native-geometry-phase2-results.md](native-geometry-phase2-results.md).
-Phase-2 results were committed in `ef906be`. Phase 3 is in progress in the
-tracker below and remains incomplete. Stage F strict cleanup remains the
-final phase 7.
+Phase-2 results were committed in `ef906be`. Phase 3 remains incomplete;
+phase 7 is cancelled. The Course correction governs the historical rows below.
+
+| Revised work | Status | Latest evidence |
+| --- | --- | --- |
+| 3a: remove overhead | wip; menu parity failed | V3: FPS -2.784%, worker cycles/frame +4.418%, process cycles/frame +2.454%; corpus/live/menu render pass; round gates not attempted; defaults off |
+| 3b: host SoA / AVX2 pipeline | todo | Prioritize float/half/CMP output, unit vectors, weighted skin, index triangles; no new cold coverage |
+
+Measurements and decisions: [native-geometry-phase3a-results.md](native-geometry-phase3a-results.md).
 
 ### Phase 0
 
@@ -1179,19 +1168,17 @@ See the separate
 | 0x6DB8 loop | | on | `BUZZ_IMAGE40_LOCALS` |
 | (fill in from phase 0 ranking) | | | |
 
-### Phase 7: strict Stage F cleanup
+### Phase 7: cancelled
 
 | Item | Status | Exit evidence |
 |---|---|---|
-| Audit/reconstruct volatile GPRs, scratch/padding and continuations | todo | Exact full-state contract per Stage F kernel; no excluded fields |
-| Strict corpus and actual-native whole-job replay | todo | Zero differences/failures, including transfers and exit state |
-| Live/render/performance gates | todo | >=256 strict calls per kernel, normal native menu/round dumps, reversed A/B pairs |
-| Retire baseline exception | todo | All gates passed, switches/contracts updated, dedicated commit |
+| Strict Stage F register/scratch reconstruction | dropped | Cancelled by Course correction (2026-11-01); use the job-boundary gates above |
 
 ### Measurements log
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-02 | Phase 3a V3, parent command admission reuse | Same-EXE menu JOB0/1/1/0, separate FPS/CPU series | 28.456 -> 27.664 (-2.784%) | see results document | Worker cycles/frame +4.418%, process +2.454%; four exact full-corpus arms; >=50,000 live checks; native menu normal; rejected/defaults off; round gates not attempted |
 | 2026-11-01 | Shared-bank formatter full isolated matrix | Samebc0;16runs actualJOB1,REG0/1/1/0;FPS andCPU separate | Menu25.616->25.845;round31.725->31.778 | mixed p90/p99;all raw retained | FPS+0.894%(bothpairs)/+0.169%(mixed);workerCPF-0.341%/-0.010%;workerCPUms menu flat/round-1.148%(bothpairs);process cycles/time mixed;8normal roundimages;77pins/305sources unchanged;REGISTERS0 retained;host/interpreter/cold/aggregate/final OPEN |
 | 2026-11-01 | Shared-bank formatter frozen corpus/live/render | Newbc0 EXE/dc3 MAP;functional only | not measured | not measured | 10arms each19,508exact/58,195transfers;enabled19,508native/0whole fallback;host7,201roots/17,278children;independent strict knobs +old ledgers exact;live45,000whole-job/35,000parents/85,833children +UNORM>=10,000;normal native menu+actual round;15 reporter tests+old report exact;FPS/CPU/interpreter/cold/final OPEN |
 | 2026-11-01 | Shared-bank formatter production integration | CPU correctness/routing only | not measured | not measured | REGISTERS0/1 default0;1,776 original-state roots incl888 shared-bank/360 strict parents/822 host children/318 strict children;all7 crossing paths,48 frame-alias roots,20 rejects,4 child-corruption probes;488 runtime option cases;fresh game/full host pipeline gates OPEN |
