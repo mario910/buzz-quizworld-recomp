@@ -6133,3 +6133,29 @@ menu/round frame acceptance and own-switch reversed A/B/normalized CPU checks.
 All existing cold real/live, round interpreter and remaining phase3 gates stay
 OPEN. JOB0/geometry827/newflags0 remain; phase3/continuing goal stay active
 through shared phase4,optional5/6 decisions and final strictStageF7.
+
+
+## Formatter span proof: native frames and isolated menu benefit
+
+The b95e457f/7ae7077e freeze passes normal actual-native menu and actual-question
+round GPU readbacks (JOB1/SPANS1/StageF1),with exact PPM/PNG bindings and actual
+native formatter coverage. The round question,answers,timer,host and Adam UI
+are visible;the scene is not inferred from draw counts or a navigation marker.
+
+The benchmark runner/report now support an isolated production option while
+retaining JOB1 in **every** arm. Ten tests include rejection of changing other
+options,wrong JOB mode and a mismatching runtime span marker. Four fresh FPS
+and four separate CPU menu runs use SPANS0/1/1/0,mask827/StageF1,the same initial
+save,EXE/MAP and40..98s window. Both FPS pairs improve:25.01 ->25.73(+2.88%).
+Worker cycles/frame fall3.17%,process2.07%;worker/process CPU ms/frame fall4.25%/
+2.40%,with both pairs agreeing. The
+[focused performance report](native-geometry-phase3-performance.md#formatter-span-proof-isolated-menu-measurements)
+records exact values and limits.
+
+SPANS stays default0 until round reversals/CPU and remaining gates pass. This
+individual benefit does not prove the entire native JOB1 configuration faster
+than JOB0;the earlier aggregate regression remains independently recorded.
+Round interpreter counts,cold real/live paths and phase3 completion remain open.
+The continuing objective stays active through shared phase4,optional5/6 decisions
+and strict StageF7 LAST. Original saves,sources,checkers and frozen apps remain
+unchanged;no new game build was made for this measurement increment.

@@ -122,3 +122,41 @@ frozen EXE (`build-vulkan-phase3-formatter-spans-v1`), not the V3 binary measure
 above. Its own0/1 reversal, actual-native menu/round frames and remaining gates
 are pending; the option stays default0 and the combined driver stays off.
 The earlier menu regression remains the last measured aggregate result.
+
+
+## Formatter span proof: isolated menu measurements
+
+The new frozen `build-vulkan-phase3-formatter-spans-v1` has now passed inspected
+actual-native menu and actual-question round readbacks, with exact lossless
+PPM/PNG pairs. The round displays the David Beckham1999 question,answers,timer,
+host and Adam UI. These GPU-readback functional runs are excluded from timings.
+
+Two further reversed series change **only FORMATTER_SPANS0/1**. All four arms
+in each series keep JOB1 and every other production job option enabled,with
+audit off,mask827/StageF1,the same initial save and the same frozen EXE/MAP.
+This is not another JOB0/JOB1 comparison. FPS and CPU observation are separate;
+both use40..98s of fresh100s menu runs,without readbacks or interpreter sampling.
+The report checks the actual runtime span option as well as native coverage.
+
+FPS: **25.01 ->25.73 (+2.88%)**, pair changes +3.19%, +2.58%.
+
+| Cost per completed frame | Span0 | Span1 | Change | Reversed pair changes |
+| --- | --- | --- | --- | --- |
+| SPURS workers: million cycles | 507.84 | 491.74 | -3.17% | -3.42%, -2.91% |
+| SPURS workers: CPU ms | 138.29 | 132.41 | -4.25% | -3.52%, -4.99% |
+| Whole process: million cycles | 870.05 | 852.08 | -2.07% | -2.36%, -1.77% |
+| Whole process: CPU ms | 236.11 | 230.44 | -2.40% | -2.01%, -2.79% |
+
+The menu benefit is repeatable in these two pairs,including lower worker and
+process CPU cost per completed frame. It does not establish the aggregate
+JOB0/JOB1 benefit: both arms already use the combined native driver. The prior
+V3 aggregate regression remains a separate result on its separately bound EXE.
+
+FORMATTER_SPANS remains default0 pending its round reversal/CPU checks and
+remaining acceptance. JOB0/geometry827/other new flags0 remain unchanged.
+Round interpreted-count proof,cold real/live paths and the other phase3 gates
+are still open. Ten report tests cover actual JOB1 in both option arms,unchanged
+other options and the runtime option marker,in addition to earlier validity
+checks. Private results: `spans-fps-menu-v1-report.json`,
+`spans-cpu-menu-v1-report.json`,their complete progress/raw-counter/log/CSV sets,
+`formatter-spans-v1-cpu-binding.json` and `formatter-spans-v1-frame-qa.json`.

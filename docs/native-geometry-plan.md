@@ -52,16 +52,15 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: actual-native menu/round frames and own-switch0/1
-reversed FPS/CPU measurements for the opt-in formatter span proof on its new
-freeze. It passes50,000 independent quad models,six exact full-corpus arms,
->=35,000 strict live formatter returns and>=45,000 whole-job/I/O comparisons.
-The prior V3 aggregate regression remains the last measured result:
-27.74 ->25.30FPS(-8.78%),worker cycles/frame+15.92%,process+9.19%.
-The [performance report](native-geometry-phase3-performance.md) separates those
-measurements from the subsequent diagnostic profile and unmeasured candidate.
-Round interpreted counts and cold real/live gates remain OPEN; new input
-formats1..5 remain real/live0. All new defaults remain0; strictStageF stays last.
+Current next milestone: isolated formatter-SPANS0/1 round FPS and separate
+CPU reversals on the b95e457f freeze. Its actual-native menu/actual-question
+frames now pass. Menu option-only pairs (JOB1 in all arms) improve25.01 ->25.73FPS
+(+2.88%);worker cycles/frame fall3.17%,process2.07%,with both pairs agreeing.
+SPANS remains default0 pending round/final acceptance. The
+[performance report](native-geometry-phase3-performance.md) separates this
+individual-option benefit from the prior V3 aggregate JOB0/JOB1 regression.
+Round interpreted counts and cold real/live gates remain OPEN;inputs1..5
+remain real/live0. Whole-job/default decisions and strict StageF7 remain open.
 All five standard input decoders and the complete standard93F0 controller
 are implemented and integrated behind independent default-off switches.
 Their standalone and production-routing checks pass; real coverage of the
@@ -976,7 +975,7 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
-| Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | opt-in;regular spans/native exhaustive fallback;performance/final gates OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O on new freeze;native frame checks pending | not measured | |
+| Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | opt-in;menu benefit measured;round/final gates OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O;normal native menu/actual question on b95e457f | Isolated menu25.01 ->25.73;worker cycles/frame-3.17%,process-2.07%;round pending | c8e8e22 |
 | Whole-job driver | n/a | ABI48 opt-in; measured menu CPU/FPS regression; cold/round/final gates OPEN | `BUZZ_GEOMETRY_JOB=0/1/2`, default0 | Five arms19,508exact/58,195transfers;enabled19,508native/0whole-job fallback;strict synthetic/routing proofs in results | >=45,000strict whole-job/I/O on current freeze;normal native menu/actual question | Menu27.74 ->25.30;worker cycles/frame+15.92%;default-off | 272a375 |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x2B80 output sizing | n/a | native opt-in; shared host layout; final gates open | `BUZZ_GEOMETRY_JOB_LAYOUT=0/1`, default 0 | 7,201 native sizes, zero fallback; independent/combined 19,508-job replay exact; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
@@ -1078,6 +1077,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | Formatter SPANS isolated menu +native frames | JOB1 in all arms;SPANS0/1/1/0;4FPS+4separateCPU runs;40..98s | 25.01 ->25.73 | pending | FPS+2.88%(pairs+3.19/+2.58);worker cycles/frame-3.17%(-3.42/-2.91),process-2.07%(-2.36/-1.77);CPUms-4.25%/-2.40%;normal menu+actual-question readbacks;round/final/default pending;no aggregate JOB0 claim |
 | 2026-11-01 | Formatter admission span proof | Separate native/reference diagnostic profiles;50,000quad models+strict suites+6corpus arms+checked menu | not measured | not measured | New0/1 default0;3.57%active pool samples identify reader;conservative signed/modular span proof,exact scan retained;all19,508native/0whole-job fallback;live>=35,000strict formatter/45,000whole jobs;frames/reversedAB/CPU/default OPEN |
 | 2026-11-01 | ABI48 whole-job reversed menu FPS + separate CPU | Four FPS +four CPU runs,40..98s,same EXE/save | 27.74 ->25.30 | pending | FPS-8.78%(pairs-8.63/-8.92);pool cycles/frame+15.92%(+16.55/+15.29);process+9.19%(+9.81/+8.57);CPUms pool+16.02%/process+9.13%;combined default-off;profile next;round/cold/interpreter gates OPEN |
 | 2026-11-01 | ABI48 interpreter diagnostics | Fresh JOB0/JOB1 menu+actual round;mask827/StageF1 | not measured | not measured | Menu15/60s absolute0 in both;round240s observed300,699,624/300,952,932,allimage2/same5pages;whole-run entries2:07B4C/A6C8+40:02A18 match;positive legacy stats non-atomic;roundcount/reversedAB/CPU/default OPEN;8observer tests |

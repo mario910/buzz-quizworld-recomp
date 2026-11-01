@@ -1,4 +1,5 @@
-# Four fresh same-EXE JOB0/JOB1/JOB1/JOB0 runs. FPS and CPU are separate series.
+# Four fresh same-EXE 0/1/1/0 runs. FPS and CPU are separate series.
+# With Option, JOB stays1 and only that production option changes.
 # Native enables the production job options in the pinned runtime source;
 # baseline retains geometry mask827/StageF1 with those job options disabled.
 param([Parameter(Mandatory)][ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory,
@@ -6,6 +7,7 @@ param([Parameter(Mandatory)][ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$
       [Parameter(Mandatory)][string]$SaveTemplate,
       [ValidateSet('Menu','Round')][string]$Scene='Menu',
       [ValidateSet('Fps','Cpu')][string]$Metric='Fps',
+      [ValidatePattern('^$|^BUZZ_GEOMETRY_JOB_[A-Z0-9_]+$')][string]$Option='',
       [string]$CpuBinding='')
 $ErrorActionPreference='Stop'
 $geometryRoot=Split-Path -Parent $PSScriptRoot
@@ -45,26 +47,30 @@ try {
     }
     $geometryOptions=@([regex]::Matches((Get-Content -LiteralPath $geometryRuntime -Raw),'"(BUZZ_GEOMETRY_JOB_[A-Z0-9_]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
     if (-not ($geometryOptions -contains 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL')) { throw 'Missing production input options' }
+    if ($Option -and ($Option -notin $geometryOptions -or $Option -like 'BUZZ_GEOMETRY_JOB_AUDIT*')) { throw 'Option must be a production job switch' }
+    $geometryKnob=if ($Option) { $Option } else { 'JOB' }
     $geometryWindow=if ($Scene -eq 'Menu') { @(40,98) } else { @(200,270) }
     New-Item -ItemType Directory -Path $geometryOut | Out-Null
     $geometryProgress=Join-Path $geometryOut 'progress.jsonl'
     $geometryIndex=0
-    foreach ($geometryJob in @(0,1,1,0)) {
+    foreach ($geometryArm in @(0,1,1,0)) {
         & ./tests/scripts/assert-geometry-build-idle.ps1
         foreach ($geometryPath in $geometryPins.Keys) {
             if ((Get-FileHash -LiteralPath $geometryPath).Hash.ToLowerInvariant() -ne $geometryPins[$geometryPath]) { throw "Measurement input changed: $geometryPath" }
         }
         $geometryIndex++
-        $geometryRunTag="$Tag-$($Scene.ToLowerInvariant())-$geometryIndex-$geometryJob"
+        $geometryJob=if ($Option) { 1 } else { $geometryArm }
+        $geometryRunTag="$Tag-$($Scene.ToLowerInvariant())-$geometryIndex-$geometryArm"
         $geometrySave=Join-Path $geometryOut "save-$geometryRunTag"
         New-Item -ItemType Directory -Path $geometrySave | Out-Null
         Copy-Item -LiteralPath (Join-Path $geometryTemplate 'dev_hdd0') -Destination (Join-Path $geometrySave 'dev_hdd0') -Recurse
         if ((Get-FileHash -LiteralPath (Join-Path $geometrySave $geometrySaveRelative)).Hash.ToLowerInvariant() -ne $geometryPins[$geometryTemplateSave]) { throw 'Copied save differs from template' }
         $geometrySelected=[ordered]@{ BUZZ_GEOMETRY_JOB=$geometryJob }
         foreach ($geometryOption in $geometryOptions) { $geometrySelected[$geometryOption]=if ($geometryOption -like 'BUZZ_GEOMETRY_JOB_AUDIT*') { 0 } else { $geometryJob } }
+        if ($Option) { $geometrySelected[$Option]=$geometryArm }
         $geometryEnvironment=(@($geometrySelected.Keys | ForEach-Object { "$_=$($geometrySelected[$_])" }) -join ';')
         $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0"
-        $geometryRecord=[ordered]@{ tag=$geometryRunTag;scene=$Scene;metric=$Metric;job=$geometryJob;index=$geometryIndex;window_seconds=$geometryWindow;exe_sha256=$geometryPins[$geometryExe];map_sha256=$geometryPins[$geometryMap];save_sha256=$geometryPins[$geometryTemplateSave];helper_sha256=$geometryPins[$geometryHelper];runner_sha256=$geometryPins[$geometryRunner];runtime_options_sha256=$geometryPins[$geometryRuntime];job_options=$geometrySelected;geometry_mask=827;stage_f=1;dump_every=0;cpu_binding_sha256=$geometryBindingHash;cpu_tool_sha256=$geometryCpuToolHash;round_intro_seconds=50;content_shot_at=195 }
+        $geometryRecord=[ordered]@{ tag=$geometryRunTag;scene=$Scene;metric=$Metric;job=$geometryJob;arm=$geometryArm;knob=$geometryKnob;index=$geometryIndex;window_seconds=$geometryWindow;exe_sha256=$geometryPins[$geometryExe];map_sha256=$geometryPins[$geometryMap];save_sha256=$geometryPins[$geometryTemplateSave];helper_sha256=$geometryPins[$geometryHelper];runner_sha256=$geometryPins[$geometryRunner];runtime_options_sha256=$geometryPins[$geometryRuntime];job_options=$geometrySelected;geometry_mask=827;stage_f=1;dump_every=0;cpu_binding_sha256=$geometryBindingHash;cpu_tool_sha256=$geometryCpuToolHash;round_intro_seconds=50;content_shot_at=195 }
         [ordered]@{ state='start';run=$geometryRecord } | ConvertTo-Json -Depth 5 -Compress | Add-Content -LiteralPath $geometryProgress -Encoding utf8
         Write-Output "Starting $geometryRunTag ($Metric)"
         $geometryArgs=@{ Scene=$Scene;Tag=$geometryRunTag;Seconds=100;RoundSeconds=140;RoundIntroSeconds=50;BuildDirectory=$BuildDirectory;Env=$geometryEnvironment;PhaseLog=(Join-Path $geometryOut "$geometryRunTag.phases.jsonl") }

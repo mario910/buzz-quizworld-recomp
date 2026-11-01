@@ -92,5 +92,40 @@ class JobReportTests(unittest.TestCase):
             events[1]['cpu_sha256']=reporter.sha(cpu_path);self.save(path,events)
             with self.assertRaisesRegex(ValueError,'counter reset'):reporter.report(path,root)
 
+    def option_fixture(self,root):
+        path,events=self.fixture(root)
+        for start,done in zip(events[::2],events[1::2]):
+            run=start['run'];arm=run['job'];run.update(job=1,arm=arm,knob='BUZZ_GEOMETRY_JOB_FORMATTER_SPANS')
+            run['job_options'].update(BUZZ_GEOMETRY_JOB=1,BUZZ_GEOMETRY_JOB_INPUT_CONTROL=1,BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=arm)
+            log=root/f"vk-scene-{run['tag']}.stderr.log"
+            log.write_text('[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n[geometry-job] mode=1: native\n[geometry-job/input-control/raw0] native=256 PASS\n'+f'[geometry-job] formatter column spans={arm} (0 exhaustive,1 proven spans)\n')
+            done['log_sha256']=reporter.sha(log)
+        self.save(path,events);return path,events
+
+    def test_single_option_keeps_job_native_in_every_arm(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_=self.option_fixture(root);result=reporter.report(path,root)
+            self.assertEqual(result['knob'],'BUZZ_GEOMETRY_JOB_FORMATTER_SPANS')
+            self.assertEqual([r['job'] for r in result['runs']],[1]*4)
+            self.assertEqual([r['arm'] for r in result['runs']],[0,1,1,0])
+            self.assertAlmostEqual(result['fps']['change_percent'],25)
+
+    def test_option_series_rejects_other_flags_or_job_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,events=self.option_fixture(root)
+            for change in ('job','common','knob'):
+                altered=copy.deepcopy(events)
+                if change=='job':altered[2]['run']['job']=altered[3]['run']['job']=0
+                elif change=='common':altered[2]['run']['job_options']['BUZZ_GEOMETRY_JOB_INPUT_CONTROL']=0;altered[3]['run']['job_options']['BUZZ_GEOMETRY_JOB_INPUT_CONTROL']=0
+                else:altered[2]['run']['knob']=altered[3]['run']['knob']='JOB'
+                self.save(path,altered)
+                with self.subTest(change=change),self.assertRaises(ValueError):reporter.report(path,root)
+
+    def test_option_series_checks_actual_runtime_setting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,events=self.option_fixture(root);log=root/'vk-scene-job-2.stderr.log'
+            log.write_text(log.read_text().replace('spans=1','spans=0'));events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
+            with self.assertRaisesRegex(ValueError,'Runtime span'):reporter.report(path,root)
+
 
 if __name__=='__main__':unittest.main()

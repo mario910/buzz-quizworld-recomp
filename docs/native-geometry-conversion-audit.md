@@ -1146,3 +1146,19 @@ The prior V3 sources/EXE/MAP, original lift/generator/saves and all evidence
 remain preserved. Actual-native menu/round frames, own-switch reversed A/B,
 CPU savings and default acceptance for this freeze remain OPEN. No performance
 benefit is claimed; new input/cold data coverage is not created by this change.
+
+
+### Span-proof rendering and menu measurement follow-up
+
+The same b95e457f/7ae7077e freeze now has visually inspected actual-native menu
+and actual-question round readbacks with SPANS1/JOB1. Exact PPM/PNG pixel
+bindings and nonzero native formatter coverage are recorded privately.
+
+Isolated SPANS0/1 menu reversals keep JOB1 and all other job options identical.
+FPS rises25.01 ->25.73(+2.88%,pairs+3.19/+2.58). In a separate CPU series,
+worker cycles/frame fall3.17%,process2.07%;CPU ms/frame fall4.25%/2.40%,with
+both reversed pairs agreeing. This proves the menu benefit of this option,
+not a benefit for the entire native driver versus JOB0. See the
+[performance report](native-geometry-phase3-performance.md#formatter-span-proof-isolated-menu-measurements).
+SPANS0 remains the default pending round A/B/CPU and the remaining gates;
+no cold data coverage or strict Stage F completion is inferred.

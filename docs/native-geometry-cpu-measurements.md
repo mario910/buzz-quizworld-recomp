@@ -96,3 +96,14 @@ and process+9.13%, with both pairs agreeing. Separate FPS pairs regress8.78%.
 The [phase3 performance report](native-geometry-phase3-performance.md) binds
 the actual EXE/MAP/settings and records the per-run data. Defaults remain off;
 individual option savings cannot be inferred from this aggregate test.
+
+
+## Isolated formatter span proof
+
+A separate same-EXE option reversal keeps JOB1/all other native options fixed:
+SPANS1 lowers menu worker cycles/frame3.17%,process2.07%,worker CPU ms/frame4.25%
+and process2.40%,with both pairs lower. The separate FPS series improves2.88%.
+This is a measured individual-option saving;it does not reverse or supersede
+the earlier aggregate JOB0/JOB1 regression. Round checks remain open and the
+option stays default0. Exact method and per-pair values are in the
+[phase3 performance report](native-geometry-phase3-performance.md#formatter-span-proof-isolated-menu-measurements).

@@ -1,4 +1,4 @@
-"""Validate and summarize one complete same-EXE JOB0/JOB1/JOB1/JOB0 series."""
+"""Validate one same-EXE 0/1/1/0 series: whole JOB or one option with JOB1."""
 import argparse
 import hashlib
 import importlib.util
@@ -31,7 +31,11 @@ def report(progress,csv_directory,scene_qa=None):
     if len(events)!=8 or [e['state'] for e in events]!=['start','done']*4:raise ValueError('Need four complete sequential runs')
     starts=[e['run'] for e in events[::2]];done=events[1::2];runs=[e['run'] for e in done]
     if starts!=runs or len({r['tag'] for r in runs})!=4:raise ValueError('Duplicate or changed run metadata')
-    if [r['job'] for r in runs]!=[0,1,1,0] or [r['index'] for r in runs]!=[1,2,3,4]:raise ValueError('Need JOB0/JOB1/JOB1/JOB0 order')
+    knobs=[r.get('knob','JOB') for r in runs]
+    if len(set(knobs))!=1:raise ValueError('Series differs in knob')
+    knob=knobs[0];arms=[r.get('arm',r['job']) for r in runs]
+    if arms!=[0,1,1,0] or [r['index'] for r in runs]!=[1,2,3,4]:raise ValueError('Need control/candidate/candidate/control order')
+    if [r['job'] for r in runs]!=([0,1,1,0] if knob=='JOB' else [1]*4):raise ValueError('Option comparison must retain JOB1 in every arm')
     for field in ('scene','metric','window_seconds','exe_sha256','map_sha256','save_sha256','helper_sha256','runner_sha256','runtime_options_sha256','geometry_mask','stage_f','dump_every','cpu_binding_sha256','cpu_tool_sha256','round_intro_seconds','content_shot_at'):
         if any(r[field]!=runs[0][field] for r in runs):raise ValueError('Series differs in '+field)
     scene=runs[0]['scene'];metric=runs[0]['metric']
@@ -40,10 +44,11 @@ def report(progress,csv_directory,scene_qa=None):
     if runs[0]['window_seconds']!=window or runs[0]['dump_every'] or runs[0]['geometry_mask']!=827 or runs[0]['stage_f']!=1:raise ValueError('Wrong window/common settings')
     option_keys=set(runs[0]['job_options'])
     if 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL' not in option_keys:raise ValueError('Missing production input option')
-    for run in runs:
+    if knob!='JOB' and (knob not in option_keys or not re.fullmatch(r'BUZZ_GEOMETRY_JOB_[A-Z0-9_]+',knob) or knob.startswith('BUZZ_GEOMETRY_JOB_AUDIT')):raise ValueError('Unknown production option')
+    for run,arm in zip(runs,arms):
         if set(run['job_options'])!=option_keys:raise ValueError('Option inventory differs')
         for key,value in run['job_options'].items():
-            expected=0 if key.startswith('BUZZ_GEOMETRY_JOB_AUDIT') else run['job']
+            expected=0 if key.startswith('BUZZ_GEOMETRY_JOB_AUDIT') else arm if key==knob else run['job']
             if value!=expected:raise ValueError('Mismatched job option '+key)
     if metric=='Cpu' and (not runs[0]['cpu_binding_sha256'] or not runs[0]['cpu_tool_sha256']):raise ValueError('CPU series lacks observer binding')
     if metric=='Fps' and any(runs[0][f] for f in ('cpu_binding_sha256','cpu_tool_sha256')):raise ValueError('FPS series contains CPU observer')
@@ -61,6 +66,7 @@ def report(progress,csv_directory,scene_qa=None):
         native_roots=max(map(int,re.findall(r'\[geometry-job/input-control/raw0\] native=(\d+) PASS',text)),default=0)
         if run['job'] and ('[geometry-job] mode=1:' not in text or native_roots<256):raise ValueError('Missing actual native whole-job/input coverage')
         if not run['job'] and ('[geometry-job] mode=1:' in text or native_roots):raise ValueError('Reference arm used native jobs')
+        if knob=='BUZZ_GEOMETRY_JOB_FORMATTER_SPANS' and f"formatter column spans={run['job_options'][knob]} " not in text:raise ValueError('Runtime span option differs')
         phases=[json.loads(line) for line in (progress.parent/f'{tag}.phases.jsonl').read_text(encoding='utf-8-sig').splitlines()]
         if not phases or phases[-1]['phase']!='end':raise ValueError('Scene did not finish')
         if scene=='Round':
@@ -69,7 +75,7 @@ def report(progress,csv_directory,scene_qa=None):
             if len(checks)!=1 or checks[0]['elapsed_ms']>=window[0]*1000:raise ValueError('Scene screenshot overlaps the measurement window')
             if not qa[tag]['inspected'] or sha(shot)!=qa[tag]['sha256']:raise ValueError('Round screenshot was not accepted')
         frame=ab.summarize(csv_path,*window)
-        item=dict(tag=tag,job=run['job'],native_raw0_lower_bound=native_roots,frame_times=frame)
+        item=dict(tag=tag,job=run['job'],arm=run.get('arm',run['job']),native_raw0_lower_bound=native_roots,frame_times=frame)
         if metric=='Cpu':
             cpu_path=progress.parent/f'{tag}.cpu.json'
             if sha(cpu_path)!=event['cpu_sha256']:raise ValueError('CPU completed-run hash differs')
@@ -78,7 +84,7 @@ def report(progress,csv_directory,scene_qa=None):
             if len(cpu['snapshots'])!=2 or any(abs(s['elapsed_ns']/1e9-t)>.05 for s,t in zip(cpu['snapshots'],window)):raise ValueError('CPU boundary missed')
             item['cpu']=work.summarize(*cpu['snapshots']);methods.add(cpu['method'])
         summaries.append(item)
-    result=dict(scene=scene,metric=metric,window_seconds=window,exe_sha256=runs[0]['exe_sha256'],map_sha256=runs[0]['map_sha256'],save_sha256=runs[0]['save_sha256'],
+    result=dict(scene=scene,metric=metric,knob=knob,window_seconds=window,exe_sha256=runs[0]['exe_sha256'],map_sha256=runs[0]['map_sha256'],save_sha256=runs[0]['save_sha256'],
         progress_sha256=sha(progress),settings=runs[0],runs=summaries,
         fps=comparison([r['frame_times']['fps'] for r in summaries]),
         limitation='One reversed series;round questions/cameras may vary. FPS and CPU series are separate;this does not close cold correctness/interpreter/default gates.')
@@ -96,7 +102,7 @@ def main():
     parser.add_argument('progress',type=Path);parser.add_argument('--csv-directory',type=Path,default=Path('analysis'));parser.add_argument('--scene-qa',type=Path);parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();result=report(args.progress,args.csv_directory,args.scene_qa)
     with args.output.open('x',encoding='utf-8') as stream:json.dump(result,stream,indent=2);stream.write('\n')
-    print(f"{result['scene']} {result['metric']} FPS: {result['fps']}")
+    print(f"{result['scene']} {result['metric']} {result['knob']} FPS: {result['fps']}")
     for owner in ('pool','process'):
         if owner in result:print(owner,result[owner])
 
