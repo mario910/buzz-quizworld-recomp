@@ -4678,3 +4678,106 @@ executables and logs, five replay arms, three scene logs and two native frame
 inspections. Raw/derived artifacts remain ignored. Next is complete packed
 CMP output `4FDC`, the other four storage regions, shared formatter/control
 integration and built-ins.
+
+## Complete packed CMP output storage 4FDC
+
+The [storage-6 encoder](native-geometry-conversion-audit.md#complete-packed-cmp-output-storage-4fdc)
+now replaces all five blocks `4FDC/5008/50C8/51C8/51E0`, including all columns,
+both scatter arms, final sentinel stores, fresh post-store prefetch and full
+scratch-register ABI. The queued continuation is exactly `4610`, or `4618` for
+the original r77 skip. Three of seven storage implementations are complete;
+four remain, alongside shared formatter/control integration and built-ins.
+
+Conversion preserves SPU FMA/RTZ and extended-range semantics, signed31
+saturation, lane-specific shifts and shuffle/merge masks for 11/11/10 fields.
+Old destination quads are read before ordered stores; input conversion then
+observes the modified LS, including aliases on the last iteration. Native final
+prefetch arithmetic supplies every final scratch vector. Full-vector sentinel
+decisions, alignment and LS/u32 wrap remain exact. Admission checks all writes
+before mutation and rejects IRQ contexts, protected spans and excessive loops.
+
+Own `BUZZ_GEOMETRY_JOB_CMP_OUTPUT=0/1/2` defaults to **0**. Mode 2 or JOB=2
+checks all GPR/LS/architectural/channel/control/PC state, queued function and
+image/depth/policy/overlay against the private pinned five-block original graph.
+Unsupported entries retain original execution and earn no native-success credit.
+ABI 40 has 45 stage counters; stage 44 reports skip/single/double/mixed native
+and strict roots. The older encoders, CMP input decoder and Stage F exception
+remain unchanged; no compared field or FP tolerance is relaxed.
+
+Validation passes **7,471 strict cases**, including 1,792 aliases/wraps, 1,024
+mixed/alias combinations, 256 independent byte models, column/signed-step and
+zero-work/zero-limit edges, 256 special-FP roots, one real captured root and
+nine unchanged rejects. An independent integer model checks **32,772 dyadic
+encodings**, with distinct component/record permutations and exact single-
+significand FMA numerators, signed31 clamp and 11/11/10 bit placement.
+
+Driver routing passes 25 native calls, 17 strict calls, ten counted unsupported
+fallbacks and disabled/foreign/post-scope handling, alongside 1,024 pipeline
+models and 19,508 real entry models. Runtime checks pass 53 controller/344
+configuration cases and durable fallback logging; seven audit tests and the
+production build pass.
+
+Frozen `build-vulkan-phase3-cmp-output-v1`:
+EXE `3b1437809e400ae16200c4a08152fb3cbc1152b04f7d89f72f4c0bb99c32570f`;
+map `e462a43bcbf87ffdd1c4a6f6bf3a9c22fb8bc57e782269c2d88f9423508ac7a2`;
+generated C `ed4159253436ad03bc23c4a9c0548794ee90a840eba432deb2712a1cf3abe37d`.
+
+All **five frozen corpus arms** pass 19,508 exact jobs / 58,195 transfers each,
+zero concurrent input changes/failures, Stage F=2 / leaf 827 and no contract
+override:
+
+| Arm | JOB / CMP_OUTPUT | Native CMP roots | Strict CMP roots | Strict whole jobs |
+|---|---|---|---|---|
+| Driver off | 0 / 1 | 0 | 0 | 0 |
+| Independent, every older switch 0 (including FLOAT/HALF_OUTPUT) | 2 / 1 | 4,424 | 4,424 | 19,508 |
+| Combined native | 1 / 1 | 4,424 | 0 | 0 |
+| Combined checked | 2 / 1 | 4,424 | 4,424 | 19,508 |
+| Combined with original CMP region | 2 / 0 | 0 | 0 | 19,508 |
+
+Every enabled arm has zero CMP fallback: 3,635 single-quad and 789 mixed
+roots, zero skip/all-double roots. All older enabled stage ledgers match the
+prior half-output build exactly; independent mode has only the new CMP ledger.
+
+Five functional scene attempts use the same frozen EXE, actual-native Stage F=1 /
+leaf 827, GEOMETRY=1 and all older native switches=1, fresh private saves and
+native mailbox/background/mute. Compilation, CPU tests and profiling never
+overlap a game run:
+
+| Scene / attempt | JOB / CMP_OUTPUT | Frames / last elapsed ms | Single-quad native / strict lower bounds | Mixed native / strict lower bounds | Whole-job strict lower bound |
+|---|---|---|---|---|---|
+| checked-menu | 2/1 | 1,180 / 58,659.610 | 20,000 / 20,000 | 0 / 0 | 35,000 |
+| menu | 1/1 | 2,222 / 74,472.446 | 1,535,000 / 0 | 0 / 0 | 0 |
+| round | 1/1 | 6,177 / 201,370.069 | 2,730,000 / 0 | 315,000 / 0 | 0 |
+| checked-round | 2/1 | 1,529 / 185,093.778 | 85,000 / 85,000 | 0 / 0 | 175,000 |
+| cmp-checked-round | 1/2 | 4,528 / 196,311.515 | 1,285,000 / 1,285,000 | 180,000 / 180,000 | 0 |
+
+The first checked menu supplies full-state CMP and whole-job comparisons.
+Native menu runs 75s and native round runs 60s after 141.8s navigation. The
+additional JOB=2 round attempt has only single-quad CMP: the full-job checker
+slows navigation enough that its scheduled inputs do not establish the actual
+round. Its `round_start_s=125.8` is a navigation-script marker, not proof of a
+round; it earns no mixed-branch or actual-round coverage. A separate JOB=1 /
+CMP_OUTPUT=2 round supplies strict mixed roots without whole-job checking.
+No checker field or tolerance changes to obtain that coverage.
+
+Both inspected actual-native 1280x720 readbacks are normal: purple/blue menu,
+studio/crowd and readable Polish UI; green actual round with host/player,
+Adam score0 and Poprawne0. No mismatch, halt, unexpected continuation/capacity
+or first CMP fallback is observed. Forced shutdown gives periodic lower bounds,
+not final live fallback totals. Skip/all-double roots remain cold; mixed roots
+exercise both scatter arms.
+
+Defaults JOB=0 / leaf827 / new flags=0 stay unchanged. No FPS/CPU benefit is
+claimed from these functional runs or replay microtimings. Final interpreter
+counts, reversed same-frozen-EXE menu/round A/B, normalized worker/process
+cycles/time and default-on gates remain OPEN. Repeatable CPU savings with flat
+FPS may justify enabling a function after all correctness/render gates pass.
+Phase 3 and the continuing objective remain active; strict Stage F reconstruction
+is still the final phase.
+
+Private `cmp-output-v1-*` evidence binds committed sources, original
+source/generator/save/template pins, frozen EXE/map/C/native copies, standalone
+executables/oracles and logs, five corpus arms, all five scene attempts and two
+native frame inspections. Raw and derived artifacts remain ignored. Four
+storage payloads remain: SNORM16 `4478` is next, followed by UNORM8/I16/U8,
+shared `4178`, existing outer-control production integration and built-ins.
