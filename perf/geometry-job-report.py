@@ -71,6 +71,16 @@ def report(progress,csv_directory,scene_qa=None):
         if run['job'] and ('[geometry-job] mode=1:' not in text or native_roots<256):raise ValueError('Missing actual native whole-job/input coverage')
         if not run['job'] and ('[geometry-job] mode=1:' in text or native_roots):raise ValueError('Reference arm used native jobs')
         if knob=='BUZZ_GEOMETRY_JOB_FORMATTER_SPANS' and f"formatter column spans={run['job_options'][knob]} " not in text:raise ValueError('Runtime span option differs')
+        registers=run['job_options'].get('BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS')
+        register_coverage=0
+        if registers is not None:
+            if run['job'] and f'formatter registers={registers} ' not in text:raise ValueError('Runtime register-bank option differs')
+            host=[tuple(map(int,m)) for m in re.findall(r'^\[geometry-job/formatter-registers\] native=(\d+) strict-parent=(\d+) children=(\d+) strict-children=(\d+)(?: PASS)?$',text,re.M)]
+            if registers:
+                if not any(roots>=256 and children>=256 for roots,_,children,_ in host):raise ValueError('Missing actual shared-bank formatter coverage')
+                if any(parent or child for _,parent,_,child in host):raise ValueError('Shared-bank performance run contains strict comparisons')
+                register_coverage=max(roots for roots,_,_,_ in host)
+            elif any(roots or children for roots,_,children,_ in host):raise ValueError('Disabled register-bank path reported native coverage')
         phases=[json.loads(line) for line in (progress.parent/f'{tag}.phases.jsonl').read_text(encoding='utf-8-sig').splitlines()]
         if not phases or phases[-1]['phase']!='end':raise ValueError('Scene did not finish')
         if scene=='Round':
@@ -92,6 +102,7 @@ def report(progress,csv_directory,scene_qa=None):
             elif run.get('content_method') not in (None,'printwindow'):raise ValueError('Unknown round content method')
         frame=ab.summarize(csv_path,*window)
         item=dict(tag=tag,job=run['job'],arm=run.get('arm',run['job']),native_raw0_lower_bound=native_roots,frame_times=frame)
+        if registers is not None:item['native_formatter_registers_lower_bound']=register_coverage
         if metric=='Cpu':
             cpu_path=progress.parent/f'{tag}.cpu.json'
             if sha(cpu_path)!=event['cpu_sha256']:raise ValueError('CPU completed-run hash differs')

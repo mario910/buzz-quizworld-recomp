@@ -110,6 +110,40 @@ class JobReportTests(unittest.TestCase):
             self.assertEqual([r['arm'] for r in result['runs']],[0,1,1,0])
             self.assertAlmostEqual(result['fps']['change_percent'],25)
 
+    def register_fixture(self,root):
+        path,events=self.option_fixture(root)
+        for start,done in zip(events[::2],events[1::2]):
+            run=start['run'];arm=run['arm'];run['knob']='BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS'
+            run['job_options'].update(BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=1,BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS=arm)
+            log=root/f"vk-scene-{run['tag']}.stderr.log"
+            text=log.read_text().replace(f'formatter column spans={arm} ','formatter column spans=1 ')+f'[geometry-job] formatter registers={arm} (0 ABI,1 shared bank)\n'
+            if arm:text+='[geometry-job/formatter-registers] native=256 strict-parent=0 children=512 strict-children=0 PASS\n'
+            log.write_text(text);done['log_sha256']=reporter.sha(log)
+        self.save(path,events);return path,events
+
+    def test_shared_register_option_requires_actual_unchecked_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_=self.register_fixture(root);result=reporter.report(path,root)
+            self.assertEqual(result['knob'],'BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS')
+            self.assertEqual([r['native_formatter_registers_lower_bound'] for r in result['runs']],[0,256,256,0])
+            self.assertAlmostEqual(result['fps']['change_percent'],25)
+
+    def test_shared_register_option_rejects_missing_false_or_checked_coverage(self):
+        for fault in ('getter','missing','roots','children','parent-strict','child-strict','off-active'):
+            with self.subTest(fault=fault),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);path,events=self.register_fixture(root)
+                index=0 if fault=='off-active' else 1
+                event=events[2*index+1];log=root/f"vk-scene-{event['run']['tag']}.stderr.log";text=log.read_text()
+                if fault=='getter':text=text.replace('formatter registers=1','formatter registers=0')
+                elif fault=='missing':text='\n'.join(line for line in text.splitlines() if '/formatter-registers]' not in line)+'\n'
+                elif fault=='roots':text=text.replace('native=256 strict-parent','native=255 strict-parent')
+                elif fault=='children':text=text.replace('children=512','children=255')
+                elif fault=='parent-strict':text=text.replace('strict-parent=0','strict-parent=1')
+                elif fault=='child-strict':text=text.replace('strict-children=0','strict-children=1')
+                else:text+='[geometry-job/formatter-registers] native=256 strict-parent=0 children=512 strict-children=0 PASS\n'
+                log.write_text(text);event['log_sha256']=reporter.sha(log);self.save(path,events)
+                with self.assertRaises(ValueError):reporter.report(path,root)
+
     def test_option_series_rejects_other_flags_or_job_changes(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);path,events=self.option_fixture(root)

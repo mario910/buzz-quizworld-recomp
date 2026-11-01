@@ -148,14 +148,54 @@ encoder/formatter/conversion/runtime scripts. Two earlier test-bookkeeping
 failures (the matrix count and a host-vector/raw-LS endian assertion) are
 retained privately; the final tests use the full matrix and LS vector reader.
 
-This is production integration with CPU-test evidence, **not game acceptance
-or a measured speedup**. No new game executable/corpus/live/frame/performance
-gate has yet been completed for this change. ABI48/61 stage structures,
-original references, strict checkers and the narrow Stage F exception remain
-unchanged. JOB0/geometry827/new flags0, including REGISTERS0, remain the product
-defaults. Next freeze a new executable/map/source set and run full replay,
-requested child checks, live comparisons, native frames and separate reversed
-FPS/CPU series. Other pipeline streams still use LS; phase 3 stays open.
+### Frozen game, corpus and live acceptance
+
+The new freeze uses EXE `bc0d35df` / MAP `dc3e3a05`, compiled from `a5fbf3d`,
+with unchanged generated C and SDK. Ten sequential replay arms each pass
+**19,508 exact jobs / 58,195 transfers**, zero input changes and zero failures.
+Every enabled arm executes all 19,508 jobs natively with zero whole-job
+fallback. The six earlier configurations remain covered; added arms retain
+REGISTERS0, enable child-only strict, enable parent-only strict and mix FLOAT2
+with CMP2. All old native/fallback/reused-layout ledgers match the previous
+freeze. REGISTERS0/1 under JOB2 also have identical per-family, per-path and
+strict ledgers.
+
+Each shared-bank arm executes 7,201 formatter roots and 17,278 encoder
+children. JOB2 checks all 7,201 parents and 17,278 children. Child-only strict
+checks 17,278 children with no parent checks; parent-only checks 7,201 parents
+with no child checks; mixed FLOAT/CMP checks 11,625 children. Plain JOB1 has
+zero strict checks. These are correctness/coverage results, **not timings**.
+
+The checked menu passes at least **45,000 strict whole-job/I/O**, **35,000
+strict shared-bank formatter** and **85,833 strict host-child** comparisons.
+Per-family logged lower bounds are FLOAT35,000 / HALF25,000 / CMP20,000 /
+SNORM256. Its UNORM lower bound was only1, so a separate JOB1 run with only
+UNORM2 proves at least **10,000 UNORM strict comparisons** and 12,610 checked
+host children, with zero parent checks. I16/U8 integer remain real/live0;
+their cold-path gates are still open.
+
+Actual-native JOB1 menu and round captures were inspected after the game
+closed. The menu shows the normal Polish play menu and TV/control-desk scene;
+the round shows the question banner, green arena, host, Adam robot and score
+UI. Both preserve the exact 1280x720 GPU RGB readback as PNG. Captures use a
+single timed readback at35s/190s with continuous readback disabled. Logs have
+no differences, unrecordable operations or first-fallback reports. All original
+73 pins, including original/template saves and earlier freezes, remain intact.
+
+The performance reporter now verifies the actual REGISTERS getter and at
+least256 shared-bank roots and children, rejects strict checks in FPS/CPU runs
+and rejects native coverage when REGISTERS is disabled. Fifteen reporter tests
+pass, including seven failure variants; the old immutable SPANS round-v3
+report still recomputes exactly. New report fields are conditional on the new
+option, preserving older reports.
+
+This proves the new path's recorded functional gates, **not a speedup or phase
+3 completion**. ABI48/61 stage structures, original references, strict
+checkers and the narrow Stage F exception remain unchanged.
+JOB0/geometry827/new flags0, including REGISTERS0, remain product defaults.
+Next measure isolated REGISTERS0/1/1/0 menu and round FPS and separate
+worker/process cycles/CPU on this same freeze. Interpreter, cold-path,
+remaining host-stream, aggregate and default gates remain open.
 
 ## Driver boundary audit
 
