@@ -1,8 +1,8 @@
 # Image-41 output allocator: implementation contract
 
-Status: source and original-replay audit, 2026-11-01. Native implementation,
-strict native comparisons, live coverage and performance gates remain OPEN.
-This is the next phase-3 implementation after alternate cull data.
+Status: native kernel and standalone state/I/O comparisons, 2026-11-01.
+Production routing, runtime switch, full native corpus, live/render and
+performance gates remain OPEN. This follows alternate cull data in phase 3.
 
 ## Audited boundary and control flow
 
@@ -50,12 +50,14 @@ interrupts, giving target **`3CF4`**. That address has neither a named function
 nor a registry entry in the pinned original lift. The textual `3B28` tail
 following the indirect return in `3CEC` is unreachable C.
 
-Do not substitute that tail or silently add a native-only shortcut. The full
-resolver/interpreter behavior at `3CF4`, its actual LS instruction and its
-state/continuation must be audited before accepting this cold path. Existing
+The pinned real LS now confirms a `br 0x3B28` instruction at `3CF4`. This does
+not make the unreachable C tail executable: the current full resolver halts
+on an unregistered target unless interpreting unlifted code is explicitly
+enabled. Do not silently add a native-only shortcut. Resolver/interpreter
+acceptance and any original-adapter repair remain separate work. Existing
 whole-job checking explicitly rejects computed branches outside the compiled
-audited image. A first native subset may reject this case before any writes
-or I/O, with explicit fallback and no native-success credit. In the current
+audited image. The new reader rejects this case before any writes or I/O,
+with no native-success credit. In the current
 runtime `SPU_RdMachStat` returns `int_enable & 1`; all 7,201 observed exits
 branch directly from `3B18` to `3B28`, bypassing the enable helper.
 
@@ -108,4 +110,64 @@ report with input/source hashes. Seven tests include altered publication EA,
 cross-job refresh, reordered reservations and failed replay rejection.
 Raw traces, guest addresses, snapshots and reports remain under ignored
 `analysis/`. No production code, default, frozen EXE or save changed in this
-audit. Complete native allocator and phase-3 final gates remain unfinished.
+audit. Production allocator routing and phase-3 final gates remain unfinished.
+
+## Native allocation kernel and standalone evidence
+
+`port/native_geometry_ring.h` implements the frame, direct output, lane
+selection/wrap/refresh/publication, both shared allocation loops, post-fallback
+lane reconsideration, decrementer polling and result/frame restoration.
+It caches all 128 vectors in host memory and materializes them once at the
+return or reporting handoff. Every LS access remains ordered and observes
+quadword flooring/u32 wrapping; frame restores read the actual late LS bytes.
+Channel operations use the existing job wrappers, including every conditional
+atomic attempt and all 2,400 decrementer reads in a delay. No host sleep,
+native-only state repair or Stage F exception is used.
+
+The reader rejects foreign LS/image/overlay/policy and enabled or saved
+interrupt state before mutation. At either invalid-cursor frontier, the
+kernel queues the supplied **original reporting continuation**, with its exact
+entry PC/GPR/LS/control state. It does not execute the reporters or restart
+allocation after DMA. Future production accounting must distinguish this
+retained continuation from a fully native allocator return; it cannot count
+as complete native coverage. The caller must supply both valid reporting
+functions before admission.
+
+The kernel is **not yet wired into the production driver**. Its own runtime
+switch and production I/O-root checker integration are the next step; no
+production ABI, frozen game build, default or save changes in this increment.
+
+`tests/scripts/test-geometry-ring.ps1` generates a private pinned original
+oracle and compiles/runs the kernel using the reviewed SPU helper flags.
+The final test passes **5,821 strict comparisons plus seven unchanged reader
+rejects**. Every comparison checks all GPR/LS/architectural/channel/control
+fields, PC and actual continuation, with image/depth/policy/overlay checked
+explicitly. The original synthetic arm records I/O once; the native arm
+consumes the same transcript. External line bytes and command/read counts
+are also verified unchanged by the native shadow.
+
+| Cases | Evidence |
+|---|---|
+| 832 | Thirteen direct/lane/wrap/refresh/shared/exhaustion/reporting scenarios, selector biases and 0..2 failed conditional atomics |
+| 4,096 | Result/frame/DMA aliases, late saved-link overwrites, low LS, LS/u32 address wrapping and arbitrary upper vector lanes |
+| 32 | Shared scratch aliases `E600`, changing the later cursor validation; both invalid-cursor sides reach exact `4078` handoff |
+| 64 | Post-fallback wrap, repeated GPU polling and 2,400-read delays |
+| 768 | Independent CPU/GPU/synchronization/end-EA/return-value models for direct, linear, wrap, refresh and both shared-success routes |
+| 26 | Zero and large/overflowing u32 requests on terminating lane/shared fixtures |
+| 2 | Thirty-two failed PUTLLCs before success in each shared allocator |
+| 1 | Real captured allocator entry, source comparison and exact captured exit GPR/LS/PC |
+
+All 35 supported non-reporting blocks and both reporting-entry boundaries
+are exercised; `3CE8/3CEC` and reporter bodies remain retained. The real
+fixture comes from the unchanged original tracer replaying one captured menu
+job: **1 exact job / 6 transfers**, zero input changes or failures. It includes
+allocator entry, post-GETLLAR input and allocator return from the same job.
+These snapshots contain GPR/LS/PC, not complete architectural/channel state;
+the full-state standalone comparison supplies modeled identical controls.
+This is one real-data anchor, not full native corpus/live acceptance.
+
+Oracle boundary recognition requires PC and function identity, since a linker
+can merge identical abort stubs. The comparator has no exclusions; diagnostic
+logs remain private. Full-corpus
+native routing/checking, live comparisons, native menu/round rendering,
+interpreter counts, reversed frozen-EXE A/B and CPU/default gates remain OPEN.

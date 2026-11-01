@@ -214,8 +214,9 @@ that path does not issue atomics. Otherwise it reserves its per-lane line.
 on wrap, and polls `0x3E04` when necessary. It publishes with PUTLLUC, not a
 compare-and-swap retry: the reservation and interrupt-disable sequence is part
 of the original contract. Interrupt state is restored before returning.
-The cold interrupt-enable helper has an unresolved computed target `3CF4`;
-its lexical C tail is not executable. The source boundary and validation
+The cold interrupt-enable helper computes unregistered target `3CF4`, whose
+captured instruction branches to `3B28`; resolver/interpreter acceptance is
+still open. Its lexical C tail is not executable. The source boundary and validation
 requirements are recorded in the [allocator audit](native-geometry-ring-audit.md).
 
 When begin=end, `0x3B88` selects the shared fallback line at ringBase. When

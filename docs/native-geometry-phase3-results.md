@@ -4295,3 +4295,29 @@ mode must not claim checks that did not run. Native allocator code and every
 native/live/render/performance/default gate remain OPEN. No production code,
 defaults, frozen builds or saves changed. Phase 3 and the continuing objective
 remain active; strict Stage F reconstruction remains the final phase.
+
+## Output allocator 37C0: native kernel, production integration pending
+
+The native host-cache kernel now implements direct allocation, lane wrap/
+refresh/publication, both shared atomic retry loops, post-fallback polling,
+decrementer delay and exact frame/result return. Both original reporting
+continuations are queued with exact entry state; allocation is never restarted
+after external effects. Enabled/saved interrupts and foreign contexts are
+rejected before writes. The `3CF4` captured instruction is a branch to `3B28`,
+but its unregistered resolver boundary remains unsupported by the new reader.
+
+**5,821 strict state/ordered-I/O cases and seven unchanged rejects pass.** This
+includes 768 independent result models, 4,096 alias/wrap cases, zero/overflowing
+requests, long conditional-atomic retries, 2,400-read delays and both exact
+reporting-entry handoffs. One real allocator fixture additionally matches all
+captured exit GPR/LS/PC bytes. The unchanged original tracer produced it from
+one captured menu job, replayed 1 exact / 6 transfers / zero changes/failures.
+Snapshot controls are modeled, not captured; this is not full native corpus
+or live evidence. See the [kernel contract](native-geometry-ring-audit.md#native-allocation-kernel-and-standalone-evidence).
+
+No production routing, runtime switch or ABI is added yet; no new game build,
+default or save changed. Next is the driver adapter, switch, strict I/O-root
+integration and full-corpus/live/render validation. Retained reporting handoffs
+must not earn full native-success credit. Final interpreter/reversed A/B/CPU/
+default gates, phase 3 and the continuing objective remain OPEN. Strict Stage F
+reconstruction stays last.

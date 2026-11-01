@@ -52,12 +52,18 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: image-41 ring/atomic flow `37C0`, followed by
-complete conversion `54E8` and builtins 1..5 after source/contract audits.
+Current next implementation: production integration and validation of native
+image-41 ring/atomic flow `37C0`, followed by complete conversion `54E8` and
+builtins 1..5 after source/contract audits. The allocator kernel now passes
+5,821 standalone strict state/I/O comparisons and seven unchanged rejects;
+it is not yet routed into the game and has no production runtime switch.
 The [allocator audit](native-geometry-ring-audit.md) inventories 39 blocks,
 7,201 original allocator calls and 14,422 ordered ring transfers. Its cold
-interrupt-enable continuation `3CF4` needs resolver/interpreter validation;
-the audit does not count as a native implementation or acceptance.
+interrupt-enable continuation `3CF4` contains a branch to `3B28`, but the
+unregistered target still needs resolver/interpreter acceptance. The kernel
+rejects enabled/saved interrupts before mutation and preserves original
+reporting handoffs; neither those handoffs nor the audit count as fully native
+allocator acceptance.
 Transform control, vertex preparation, alternate cull data and finalization
 now have complete native opt-in implementations, alongside the existing
 normal Stage F loops. Alternate data still has zero real/live coverage and
