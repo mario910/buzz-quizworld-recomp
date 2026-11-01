@@ -4397,3 +4397,60 @@ Private `ring-v1-*` evidence binds source/helper/save/template pins, original
 kernel/audit proofs, compiled EXE/map/C/native copies, tests, six replay arms,
 three scene logs and native frame QA. Original source, saves and prior frozen
 builds remain unchanged.
+
+## Output-conversion audit and callback boundaries
+
+The [conversion inventory](native-geometry-conversion-audit.md) establishes
+73 standard non-reporting blocks: seven outer control blocks, eleven built-in
+output blocks, nine shared field-control blocks, 37 storage-data blocks, seven
+stride blocks and two getter/publication blocks. Computed tables are included;
+unreachable decoded table words are excluded. This is preparation for complete
+native `54E8`, not a completed conversion implementation.
+
+An unchanged original tracer replays **19,508 exact jobs / 58,195 transfers**,
+zero input changes/failures. It observes 7,201 conversion roots and 17,278
+field dispatches. Three independent scalar models match complete GPR/LS
+snapshots for frame entry/setup/return; a fourth checks pointer publication.
+Snapshots do not capture the full architectural/channel state. Built-in
+outputs, static/empty returns and reporting remain cold. These observations
+are neither native acceptance nor function-time measurements.
+
+The audit also found an unguarded synchronous callback resolver. ABI **37**
+guards it and the custom stride/input boundaries before any callback effects.
+Retained callbacks execute once and make the paired job unsupported; an
+unexpected shadow callback fails before effects. Original full-resolver,
+queued-branch and register-tail semantics remain intact. A registered target
+alone does not establish an audited callback contract. No state mismatch is
+waived, and the existing Stage F exception is unchanged.
+
+Validation passes seven audit/generation tests, **53 runtime controller cases**,
+320 production configuration cases, durable first-fallback logging and the
+production build. Tests verify unchanged guest operations, full-vector frame
+and wrap/alias behavior, single retained callback effects, and rejection of
+shadow callbacks before effects in both audit and checked-native modes.
+
+Frozen `build-vulkan-phase3-conversion-callback-v1`:
+EXE `24d91279d95036ad41a7f597e645894b58556b96df1b2bf8abdd93451502cf42`;
+map `3b06bc5384928abb84817a368b92a98733dd1104179cda3beb6f406952784904`;
+generated C `3ea9b73209ac1db9f9d03989e9191c13da46c805f338027075728c5582cec453`.
+
+All three frozen replay arms (driver off, combined native, combined checked)
+pass **19,508 exact jobs / 58,195 transfers each**, zero changes/failures.
+Every stage ledger exactly matches its corresponding prior ring-build arm.
+Checked mode completes 19,508 strict whole jobs and 7,201 strict ring returns;
+native mode completes 7,201 native ring returns. No opaque callback occurs in
+this corpus, so its new rejection paths are covered by runtime tests rather
+than real captured callback execution. Existing source/generator/save/template
+and prior frozen-build pins remain unchanged.
+
+No new native conversion, live scene, frame dump, FPS/CPU benefit or default-on
+claim is made for this increment. Prior ring live/render evidence remains bound
+to its own executable. Conversion's native/corpus/live/render/performance gates
+remain OPEN; JOB=0 / leaf 827 / new flags=0 remain unchanged. Next: implement
+the complete audited conversion regions, then the separate input built-ins,
+remaining phase-3 gates, shared image work and optional-phase decisions, with
+strict Stage F reconstruction LAST. The continuing objective stays active.
+
+Private `conversion-callback-v1-*` and `conversion-audit-v1` evidence records
+the source commit, frozen artifacts, tests, original snapshots and three replay
+arms; raw/derived game artifacts remain outside version control.

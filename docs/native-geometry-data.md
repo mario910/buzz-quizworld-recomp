@@ -313,6 +313,8 @@ components; the fourth sign survives unit-vector decode. CMP output is a BE
 word: signed x in bits 0..10, y in 11..21, z in 22..31, normalized by
 1023/1023/511 (SDK `rsx_live_draw.c`). Built-in output IDs 0..3 have strides
 12/20/24/24; all captured jobs use custom output instead.
+The complete bounded `54E8`/`4178` output graph and callback frontiers are
+recorded in the [conversion audit](native-geometry-conversion-audit.md).
 
 All captured input positions are raw BE float3. The native phase-3 raw-stream
 reader owns the complete `0x93F0` format-0 path, including small streams,

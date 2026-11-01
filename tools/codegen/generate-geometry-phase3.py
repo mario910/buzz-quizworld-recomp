@@ -12,6 +12,30 @@ PIN = "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
 PARENT_PIN = "0cb78a3d3170bf81921021199fcd2144272858635224f3135208f76c76113d99"
 
 
+def guard_custom_callbacks(source):
+    counts = {}
+    # 5614's custom conversion callback is a synchronous call, not a queued
+    # branch or SPU_IB_DISPATCH. Do not let it enter an unrecorded interpreter
+    # from the shadow and repeat externally visible effects.
+    source, counts["indirect_call"] = re.subn(r"\bspu_indirect_branch\(ctx\)",
+        "buzz_geometry_job_indirect_call(ctx)", source)
+    if counts["indirect_call"] != 1:
+        raise SystemExit("Unreviewed direct conversion callback sites")
+    # Custom stride and input callbacks also need a contract before replay.
+    # Mark their boundaries without changing their queued/RET_REG semantics.
+    for pc, marker in ((0x4114, "        ctx->pc = ctx->gpr[5]._u32[0];"),
+                       (0x95dc, "        SPU_RET_REG(ctx, 12);")):
+        callback_name = f"buzz_job_6eba_spu_func_{pc:08X}"
+        callback_pattern = rf"(?ms)^void {callback_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        match = re.search(callback_pattern, source)
+        if not match or match[1].count(marker) != 1:
+            raise SystemExit(f"Unreviewed custom callback boundary {pc:X}")
+        body = match[1].replace(marker, "        buzz_geometry_job_callback_boundary(ctx);\n" + marker, 1)
+        source = source[:match.start(1)] + body + source[match.end(1):]
+    counts["callback_boundaries"] = 2
+    return source, counts
+
+
 def main():
     if hashlib.sha256(SOURCE.read_bytes()).hexdigest() != PIN:
         raise SystemExit("Unreviewed image-41 lift")
@@ -130,6 +154,8 @@ def main():
     source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
     source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
                             "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
+    source, callback_counts = guard_custom_callbacks(source)
+    counts.update(callback_counts)
     # Original interrupt thunks branch to r2+8, sometimes a lexical suffix
     # omitted from the lift's public entry table. Compile those exact suffixes
     # too, so strict BF8 replay never falls through to interpreted instructions.
@@ -398,7 +424,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 36\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 37\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)

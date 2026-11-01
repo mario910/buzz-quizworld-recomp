@@ -754,6 +754,20 @@ extern "C" void buzz_geometry_job_indirect(spu_context* ctx)
     [[clang::musttail]] return spu_indirect_branch_mt(ctx);
 }
 
+extern "C" void buzz_geometry_job_callback_boundary(spu_context* ctx)
+{
+    if(is_shadow(ctx))mismatch("unaudited custom callback reached shadow",ctx);
+    if(auto* r=recording_for(ctx))unsupported(*r,"custom callback has no audited contract");
+}
+
+extern "C" void buzz_geometry_job_indirect_call(spu_context* ctx)
+{
+    buzz_geometry_job_callback_boundary(ctx);
+    // Keep the original full resolver, including IRQ/HLE/interpreter handling.
+    // Even a registered function is not an independently audited callback.
+    spu_indirect_branch(ctx);
+}
+
 extern "C" buzz_geometry_job_fn buzz_geometry_job_indirect_target(spu_context* ctx)
 {
     if (is_shadow(ctx)) return buzz_geometry_job_indirect;

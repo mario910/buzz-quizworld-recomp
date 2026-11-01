@@ -10,6 +10,7 @@
 
 static const char* scenario = "pass";
 static unsigned calls = 0, guest_writes = 0;
+static unsigned direct_effects = 0;
 static bool expected_config_reject=false;
 static unsigned reference_calls = 0, native_calls = 0, eligibility_calls = 0;
 static spu_context* retained = nullptr;
@@ -35,7 +36,10 @@ void spu_drain_call(spu_context* ctx, uint32_t pc)
     assert(ctx->host_depth == 0 && ctx->pc == pc && g_spu_trampoline_fn == spu_indirect_branch);
     g_spu_trampoline_fn = nullptr;
 }
-void spu_indirect_branch(spu_context*) { assert(false); }
+void spu_indirect_branch(spu_context* ctx) {
+    assert((selected("direct_reference") || selected("callback_reference")) && ctx==retained && calls==1);
+    ++direct_effects;ctx->ls[0xe80e]^=0x91;
+}
 void spu_indirect_branch_mt(spu_context*) { assert(false); }
 buzz_geometry_job_fn spu_lookup(uint32_t, int) { return nullptr; }
 }
@@ -46,6 +50,15 @@ static void producer(spu_context* ctx)
     if (calls == 1) retained = ctx;
     if (calls == 1 && selected("unknown_reference")) buzz_geometry_job_step(ctx, 0xbeef);
     if (calls == 2 && selected("unknown_shadow")) buzz_geometry_job_step(ctx, 0xbeef);
+    if(calls==1 && selected("direct_reference")){
+        const auto pc=ctx->pc;ctx->pc=0xbeef;buzz_geometry_job_indirect_call(ctx);ctx->pc=pc;
+    }
+    if(calls==1 && selected("callback_reference")){
+        auto before=std::make_unique<spu_context>();memcpy(before.get(),ctx,sizeof(*ctx));const auto scheduled=g_spu_trampoline_fn;
+        buzz_geometry_job_callback_boundary(ctx);
+        assert(!memcmp(before.get(),ctx,sizeof(*ctx)) && scheduled==g_spu_trampoline_fn);
+        spu_indirect_branch(ctx); // Caller keeps its original dispatch semantics.
+    }
     if (calls == 2 && selected("bad_write")) ctx->ls[0xe80f] ^= 1;
     if (calls == 1 && selected("first_event")) ctx->event_status = 0x80;
     if (calls == 1 && selected("first_reservation")) ctx->resv_valid = 0;
@@ -59,6 +72,10 @@ static void producer(spu_context* ctx)
     argument._u32[0] = 0x20;
     if (!(calls == 2 && selected("missing_channel"))) buzz_geometry_job_wrch(ctx, 21, argument);
     if (calls == 2 && selected("extra_channel")) buzz_geometry_job_wrch(ctx, 21, argument);
+    if(calls==2 && selected("direct_shadow")){
+        ctx->pc=0xbeef;buzz_geometry_job_indirect_call(ctx);
+    }
+    if(calls==2 && selected("callback_shadow"))buzz_geometry_job_callback_boundary(ctx);
     if (calls == 2 && selected("bad_exit")) ctx->ls[0x3ffff] ^= 1;
     if (calls == 2 && selected("bad_register")) ctx->gpr[127]._u32[3] ^= 1;
     if (calls == 2 && selected("bad_control")) ctx->list_stall_stat ^= 1;
@@ -92,7 +109,7 @@ static void expected_abort(int)
 {
     if(expected_config_reject){std::fputs("[config] rejected\n",stderr);std::fflush(stderr);std::_Exit(75);}
     // Even a failed shadow must not publish another real output.
-    std::_Exit(guest_writes == 1 && calls == 2 ? 73 : 74);
+    std::_Exit(guest_writes == 1 && calls == 2 && direct_effects==0 ? 73 : 74);
 }
 
 int main(int argc, char** argv)
@@ -162,6 +179,7 @@ int main(int argc, char** argv)
     buzz_geometry_job_run(ctx.get(), reference, native, supports);
     buzz_geometry_job_audit_report();
     assert(guest_writes == 1 && ctx->ls[0xe80f] == 0xa5 && ctx->host_depth == 0);
+    assert(direct_effects==(selected("direct_reference") || selected("callback_reference")?1u:0u));
     if (mode == 1) {
         assert(calls == 1 && native_calls == 1 && !reference_calls && eligibility_calls == 1);
         assert(!buzz_geometry_job_audit_failures() && g_spu_trampoline_fn == spu_indirect_branch);
@@ -176,7 +194,7 @@ int main(int argc, char** argv)
         if (selected("post_exit_input")) assert(ctx->event_status == 0x80);
         if (selected("post_exit_queue")) assert(ctx->ch_in_mbox.count == 1 && ctx->ch_in_mbox.value == 0xcafe);
     } else if (selected("first_event") || selected("first_reservation") || selected("first_queue") ||
-               selected("unsupported") || selected("external_ls") || selected("async") || selected("unknown_reference") ||
+               selected("unsupported") || selected("external_ls") || selected("async") || selected("unknown_reference") || selected("direct_reference") || selected("callback_reference") ||
                selected("unstable_exit") || selected("unstable_queue")) {
         assert(calls == 1 && buzz_geometry_job_audit_failures());
         assert(!native_calls && reference_calls == 1);

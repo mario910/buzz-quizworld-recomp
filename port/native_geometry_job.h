@@ -198,6 +198,10 @@ void buzz_geometry_job_wrch(spu_context*, uint32_t, u128);
 u128 buzz_geometry_job_rdch(spu_context*, uint32_t);
 uint32_t buzz_geometry_job_rchcnt(spu_context*, uint32_t);
 void buzz_geometry_job_indirect(spu_context*);
+// A user conversion callback has no audited side-effect contract yet. The
+// retained arm may call the full resolver once; a paired shadow must not.
+void buzz_geometry_job_indirect_call(spu_context*);
+void buzz_geometry_job_callback_boundary(spu_context*);
 void buzz_geometry_job_step(spu_context*, uint32_t);
 buzz_geometry_job_fn buzz_geometry_job_indirect_target(spu_context*);
 void buzz_geometry_job_observe(spu_context*, uint32_t, uint32_t, uint32_t, uint32_t, const void*);
