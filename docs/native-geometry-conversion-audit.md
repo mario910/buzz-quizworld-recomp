@@ -21,7 +21,7 @@ closed whole-function proof for arbitrary callback targets.
 | Region | Blocks | Remaining work |
 |---|---|---|
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Complete opt-in descriptor control; final gates OPEN |
-| Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
+| Built-in output formats 0..3 | 11 | Format0: complete two-block standalone kernel; formats1..3 and production/cold gates OPEN |
 | Shared formatter `4178` and attribute control | 9 | Complete opt-in controller: 1,908 strict cases; 7,201 strict real roots; final gates OPEN |
 | Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
 | Stride getter `40C8` and its paths | 7 | Complete standard native helper inside 54E8; 4,096 strict cases; custom callback retained |
@@ -735,3 +735,52 @@ Full corpus, live, native-frame and frozen-build evidence is recorded in the
 [phase-3 results](native-geometry-phase3-results.md#native-54e8-descriptor-control-in-production).
 Built-in output formats, cold acceptance and final interpreter/A/B/CPU/default
 gates remain OPEN; the switch stays default off.
+
+## Built-in float3 output: standalone kernel
+
+Built-in output format 0 (`56C8/5718`, stride 12) now has a complete standalone
+native data kernel in `native_geometry_builtin_float3_output.h`. It packs the
+XYZ bits from four float4 rows into three ordered 16-byte stores, then advances
+the output by 48 bytes. This covers both original blocks and the final iteration;
+no lifted tail, float arithmetic, value repair or reduced comparison is used.
+The exact boundary is queued PC/function `5648`, before shared conversion control.
+
+The low 16 bits of entry r10 determine the vertex count. The controller normally
+skips zero; a direct zero-count data entry would underflow the original do-loop,
+so admission rejects it before mutation. Positive counts execute ceil(N/4)
+groups and write **48*ceil(N/4)** bytes, including padding beyond logical N*12.
+One 64-byte position group is initially cached. Every iteration loads the next
+64 bytes before stores, even the last iteration. Store order is +32, +0, +16;
+all LS accesses retain the original quad alignment/wrap and actual LS masks.
+The final speculative vectors and full pointer/counter lanes stay exact.
+
+Read-only admission rejects foreign LS, every enabled/saved/active IRQ context,
+zero-count entries and any actual padded store into protected LS below E680.
+Source and destination may alias; metadata inputs and input loads may wrap.
+Successful and rejected admission preserve the entire context. This pure data
+reader stops before shared control. Future enclosing-control admission must
+also protect its manager/configuration/callback metadata from every padded
+store before the first outer-frame or cursor write; a data-region comparison
+must never repeat an unaudited stride callback.
+
+Validation passes **6,178 strict GPR/LS/architectural/channel/control/PC/FN
+cases**, including **5,154 independent ordered raw-byte models**, 1,024 arbitrary
+LS-shuffle-mask cases and 1,024 special FP-bit cases (NaN payloads, infinities,
+subnormals and signed zero remain raw bits). It covers biased/aligned pointers,
+input/output and manager aliases, wrapped reads, three modeled host depths,
+all count remainders and the largest admitted write span: 16,928 vertices from
+E680 end exactly at LS size; 16,929 would touch protected wrapped LS and reject.
+Eight unsupported cases leave both context and plan unchanged.
+
+**828 full original-controller comparisons** also pass, with 828 strict native
+data roots. Only format-0 data is replaced; original control and stride getter
+remain on both arms. They include 48 late outer-frame aliases, all count
+remainders, biased stacks/output and three depths. These are synthetic function
+cases, not captured whole-job replay or a new native enclosing controller.
+
+Run `tests/scripts/test-geometry-builtin-float3-output.ps1` to build the
+private pinned oracle and strict/model/full-conversion tests. The
+[phase-3 results](native-geometry-phase3-results.md#built-in-float3-output-standalone-kernel)
+record the synthetic calibration and limitations. No production switch,
+ABI/executable, corpus/live/render or performance change occurs. Formats1..3,
+production routing/admission and all final gates remain OPEN.

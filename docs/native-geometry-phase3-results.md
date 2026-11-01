@@ -5312,3 +5312,65 @@ cold acceptance. Final interpreter counts, reversed same-frozen menu/round A/B,
 normalized worker/process cycles/time and default-on gates stay OPEN. Flat FPS
 with repeatable CPU savings remains a valid criterion after correctness/render
 gates. Phase 3 and the continuing objective remain active; strict Stage F stays LAST.
+
+## Built-in float3 output: standalone kernel
+
+Built-in output format 0 (`56C8/5718`, stride 12) now has a complete standalone
+native data kernel in `native_geometry_builtin_float3_output.h`. It packs the
+XYZ bits from four float4 rows into three ordered 16-byte stores, then advances
+the output by 48 bytes. This covers both original blocks and the final iteration;
+no lifted tail, float arithmetic, value repair or reduced comparison is used.
+The exact boundary is queued PC/function `5648`, before shared conversion control.
+
+The low 16 bits of entry r10 determine the vertex count. The controller normally
+skips zero; a direct zero-count data entry would underflow the original do-loop,
+so admission rejects it before mutation. Positive counts execute ceil(N/4)
+groups and write **48*ceil(N/4)** bytes, including padding beyond logical N*12.
+One 64-byte position group is initially cached. Every iteration loads the next
+64 bytes before stores, even the last iteration. Store order is +32, +0, +16;
+all LS accesses retain the original quad alignment/wrap and actual LS masks.
+The final speculative vectors and full pointer/counter lanes stay exact.
+
+Read-only admission rejects foreign LS, every enabled/saved/active IRQ context,
+zero-count entries and any actual padded store into protected LS below E680.
+Source and destination may alias; metadata inputs and input loads may wrap.
+Successful and rejected admission preserve the entire context. This pure data
+reader stops before shared control. Future enclosing-control admission must
+also protect its manager/configuration/callback metadata from every padded
+store before the first outer-frame or cursor write; a data-region comparison
+must never repeat an unaudited stride callback.
+
+Validation passes **6,178 strict GPR/LS/architectural/channel/control/PC/FN
+cases**, including **5,154 independent ordered raw-byte models**, 1,024 arbitrary
+LS-shuffle-mask cases and 1,024 special FP-bit cases (NaN payloads, infinities,
+subnormals and signed zero remain raw bits). It covers biased/aligned pointers,
+input/output and manager aliases, wrapped reads, three modeled host depths,
+all count remainders and the largest admitted write span: 16,928 vertices from
+E680 end exactly at LS size; 16,929 would touch protected wrapped LS and reject.
+Eight unsupported cases leave both context and plan unchanged.
+
+**828 full original-controller comparisons** also pass, with 828 strict native
+data roots. Only format-0 data is replaced; original control and stride getter
+remain on both arms. They include 48 late outer-frame aliases, all count
+remainders, biased stacks/output and three depths. These are synthetic function
+cases, not captured whole-job replay or a new native enclosing controller.
+
+The private data reference contains the original two blocks and a distinct
+frontier trap. A separate pinned 73-block original graph provides the full
+conversion reference. Calibration changes output format to 0 in one real
+captured 54E8 GPR/LS input, then executes original setup to the data frontier;
+it is explicitly **synthetic format 0**, not a captured cold root. The resulting
+GPR/LS anchor SHA256 is `60b41abe06e5d21db0532401588c9d75e1afd9f8ae4dc93894f2894c7681e658`.
+Seven conversion-audit tests pass. An initial missing initializer-list include
+in the new reader was removed by a simple numeric range loop; the first runtime
+suite passed without changing arithmetic or comparisons. That build diagnostic
+is retained privately.
+
+No production routing, runtime switch, ABI, executable, corpus/live/render or
+performance change is claimed. The existing frozen conversion-control-v2 EXE,
+map, generated C and native source copies are unchanged. Format-0 production and
+real/live acceptance gates remain OPEN, as do formats 1..3 and all final gates.
+Next: complete the remaining built-in payloads at 5E28 (format1, stride20),
+5760 (format2, stride24) and 5A30 (format3, stride24), then production wrappers,
+per-format switches and padding-aware enclosing admission. Phase 3 and the
+continuing objective remain active; strict Stage F stays LAST.
