@@ -21,7 +21,7 @@ closed whole-function proof for arbitrary callback targets.
 | Region | Blocks | Remaining work |
 |---|---|---|
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Complete opt-in descriptor control; final gates OPEN |
-| Built-in output formats 0..3 | 11 | All four complete standalone kernels; production/cold/final gates OPEN |
+| Built-in output formats 0..3 | 11 | All four complete payloads +production wrappers/default0; native54E8 builtin parent/cold/final gates OPEN |
 | Shared formatter `4178` and attribute control | 9 | Complete opt-in controller: 1,908 strict cases; 7,201 strict real roots; final gates OPEN |
 | Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
 | Stride getter `40C8` and its paths | 7 | Complete standard native helper inside 54E8; 4,096 strict cases; custom callback retained |
@@ -926,3 +926,72 @@ frames, interpreter checks, reversed same-frozen A/B and normalized worker/
 process CPU gates remain OPEN. There is no new FPS or CPU benefit claim.
 Phase3 and the continuing objective remain active, followed by shared phase4,
 documented optional5/6 decisions and strict StageF phase7 LAST.
+
+## Built-in output production wrappers (ABI46)
+
+The four complete standalone kernels now have production root wrappers in
+the generated image41 adapter. Each has its own strict 0/1/2 environment switch,
+default **0**, and distinct stage/fallback ledger:
+
+| Format | Switch | Stage | Root / final frontier |
+| --- | --- | --- | --- |
+| 0 | `BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT` | 51 | `56C8` / `5648` |
+| 1 | `BUZZ_GEOMETRY_JOB_BUILTIN20_OUTPUT` | 52 | `5E28` / `5648` |
+| 2 | `BUZZ_GEOMETRY_JOB_BUILTIN24_OUTPUT` | 53 | `5760` / `5648` |
+| 3 | `BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT` | 54 | `5A30` / `5648` |
+
+Mode0 retains the lift; mode1 runs the entire native payload; mode2 compares
+all128 GPRs, all LS, architectural/channel/control state and PC/function at
+the exact queued5648 frontier. Whole-job checked mode also makes an enabled
+mode1 payload strict. Image41 and ownership by the current native pipeline
+are required. Off/foreign/image/post-scope calls go straight to the original
+fallback. Missing reference/continuation or rejected data admission records a
+fallback without prior mutation. A fallback is never native coverage.
+
+The generators embed private original two-/three-block references for these
+checks. They retain the original public5648 continuation but never use native
+payloads on the reference arm. Native mode1 never invokes that reference.
+The separate closed73-block whole-conversion reference remains original
+through every nested child. No checker exclusions, tolerances or state repair
+were added. ABI46 and its CMake regeneration guard cover the new hooks;
+the generic ledger grows from51 to55 stages.
+
+Production-routing tests pass **576 native /384 strict roots per format**
+(2,304 /1,536 total): native mode, whole-job checked mode and independent
+payload checked mode, three host depths, sixteen destination biases and four
+counts. Other builtin switches are disabled during each format's test, proving
+independence. All128 GPR/LS/architecture/channel/control/PC/function and
+image/depth/policy/overlay agree with the original. Each format has12 owned
+admission rejects preserving the entire context and incoming function queue,
+plus off/image/foreign/post-scope checks. Existing driver tests, including
+1,024 mock-pipeline scenarios, remain green. Runtime tests pass **424** actual
+production-getter cases (including32 new option cases),53 controller/ownership/
+mismatch scenarios, durable fallback logging and seven conversion-audit tests.
+
+A new application was compiled and frozen separately. Its hashes are:
+
+- EXE: `7d0074ab97b60c96ff7678609894b8362f5dbe8d62602951bee35a60bfb02852`.
+- MAP: `bd8562d96c6721001bdb034f3949cec3ef6379ad127b302e180f45bcf264ba88`.
+- generatedC: `f6b24fa8d7ee110c2d318f6e4c768518423d8ab5292f404ffb9e8e99252b983c`.
+
+Five same-frozen-EXE corpus arms pass: checked, off, independent, actual-native
+and retained-builtins. **Each replays19,508 real jobs /58,195 transfers exactly**,
+with zero concurrent input changes or failures. Checked/independent/retained
+arms also have19,508 successful whole-job strict checks and zero whole-job
+fallbacks. Every older stage ledger matches its conversion-control-v2 parent.
+**All four new builtins have zero real native/strict/fallback roots**: this is
+compatibility evidence, not acceptance of a real cold path. Synthetic routing
+is recorded separately and is never promoted to captured/live coverage.
+
+These wrappers are usable when the lifted conversion controller reaches a
+builtin inside a native-owned job. The native54E8 enclosing controller still
+rejects nonempty builtins before mutation. Next: extend its dispatch/admission
+to all four payloads and protect manager/configuration/callback metadata from
+all actual padded stores before outer frame/cursor changes. That native-parent
+integration, expanded cold real inputs,256 actual live comparisons per new
+path, actual-native frames, interpreter checks, reversed frozen A/B and
+normalized worker/process CPU gates remain OPEN. No new live/render/FPS/CPU
+benefit is claimed. Original source, phase2 generator, old frozen apps,
+save/template pins and JOB0/geometry827/newflags0 defaults stay unchanged.
+Phase3/continuing objective remain active; shared phase4 follows, optional5/6
+decisions are documented, and strict StageF phase7 remains LAST.

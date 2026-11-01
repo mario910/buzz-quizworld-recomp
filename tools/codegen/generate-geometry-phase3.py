@@ -54,11 +54,19 @@ def main():
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-i16-output-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-formatter-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-conversion-control-test.py")], check=True)
+    for name in ("builtin-float3", "builtin20", "builtin24", "builtin24-cmp"):
+        subprocess.run([sys.executable, str(ROOT / f"tools/codegen/generate-geometry-{name}-output-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    for format, root, private in ((0,0x56c8,"builtin_float3"),(1,0x5e28,"builtin20"),(2,0x5760,"builtin24"),(3,0x5a30,"builtin24_cmp")):
+        name=f"buzz_job_6eba_spu_func_{root:08X}"
+        pattern=rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(pattern,source)))!=1:raise SystemExit("Expected one pinned builtin output root")
+        source=re.sub(pattern,lambda m: f"static void {name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {name}(spu_context* ctx) {{ buzz_geometry_job_builtin_output(ctx, {name}_fallback, buzz_{private}_output_original_{root:08X}, buzz_job_6eba_spu_func_00005648, {format}); }}",source,count=1)
     conversion_name = "buzz_job_6eba_spu_func_000054E8"
     conversion_pattern = rf"(?ms)^void {conversion_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(conversion_pattern, source))) != 1:
@@ -508,7 +516,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 45\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 46\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     support += (DEST / "float-output-original.inc").read_text() + "\n"
@@ -520,6 +528,8 @@ def main():
     support += (DEST / "i16-output-original.inc").read_text() + "\n"
     support += (DEST / "formatter-original.inc").read_text() + "\n"
     support += (DEST / "conversion-control-original.inc").read_text() + "\n"
+    for name in ("builtin-float3", "builtin20", "builtin24", "builtin24-cmp"):
+        support += (DEST / (name+"-output-original.inc")).read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

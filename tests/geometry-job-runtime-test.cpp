@@ -112,6 +112,10 @@ static void expected_abort(int)
     std::_Exit(guest_writes == 1 && calls == 2 && direct_effects==0 ? 73 : 74);
 }
 
+static int builtin0_option(){return buzz_geometry_job_builtin_output_enabled(0);}
+static int builtin1_option(){return buzz_geometry_job_builtin_output_enabled(1);}
+static int builtin2_option(){return buzz_geometry_job_builtin_output_enabled(2);}
+static int builtin3_option(){return buzz_geometry_job_builtin_output_enabled(3);}
 int main(int argc, char** argv)
 {
     if (argc > 1) scenario = argv[1];
@@ -159,6 +163,8 @@ int main(int argc, char** argv)
             {"I16_OUTPUT",buzz_geometry_job_i16_output_enabled},
             {"FORMATTER",buzz_geometry_job_formatter_enabled},
             {"CONVERSION_CONTROL",buzz_geometry_job_conversion_control_enabled},
+            {"BUILTIN_FLOAT3_OUTPUT",builtin0_option},{"BUILTIN20_OUTPUT",builtin1_option},
+            {"BUILTIN24_OUTPUT",builtin2_option},{"BUILTIN24_CMP_OUTPUT",builtin3_option},
             {"UNIT_VECTORS",buzz_geometry_job_unit_vectors_enabled},{"HALF_STREAM",buzz_geometry_job_half_stream_enabled},
             {"FLOAT32_STREAM",buzz_geometry_job_float32_stream_enabled},{"FIXED_STREAM",buzz_geometry_job_fixed_stream_enabled},{"SNORM_STREAM",buzz_geometry_job_snorm_stream_enabled},{"I16_STREAM",buzz_geometry_job_i16_stream_enabled},{"CMP_STREAM",buzz_geometry_job_cmp_stream_enabled},{"U8_INTEGER_STREAM",buzz_geometry_job_u8_integer_stream_enabled},{"BLEND_SCATTER",buzz_geometry_job_blend_scatter_enabled}};
         for(const auto& option:options)if(!strcmp(argv[2],option.name)){
