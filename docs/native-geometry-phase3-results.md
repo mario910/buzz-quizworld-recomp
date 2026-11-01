@@ -4274,3 +4274,24 @@ Private `phase3/alternate-cull-v1-*` evidence binds committed sources/docs,
 source/table/save pins, frozen EXE/map/C/native copies, original oracle,
 the prior transform-controller proof, tests, five compatibility replays and
 scenes. Its manifest explicitly records zero real alternate calls and open gates.
+
+## Output allocator 37C0: source and original-trace audit
+
+The [allocator contract](native-geometry-ring-audit.md) now inventories 39
+blocks, reporting frontiers, channel sites, computed interrupt helpers and
+intra-block atomic/decrementer loops. The existing pinned original replay
+still supplies 19,508 exact jobs / 58,195 transfers. The audit validates
+7,201 allocator roots/returns and 14,422 ordered ring transfers: 7,201 paired
+GETLLAR/PUTLLUC reservations/publications and 20 cursor GETs. Seven audit
+tests pass, including wrong publication EA, cross-job refresh, reordered
+reservation and failed replay rejection. No new game or replay was run.
+
+Two implementation details are explicit: direct-address allocation uses raw
+requested bytes, while lane/shared allocation rounds to 128; the cold
+interrupt-enable helper targets unregistered `3CF4`, not its unreachable
+textual `3B28` tail. That resolver/interpreter boundary remains to be audited.
+The current I/O-root checker works only in a JOB=2 shadow; independent checked
+mode must not claim checks that did not run. Native allocator code and every
+native/live/render/performance/default gate remain OPEN. No production code,
+defaults, frozen builds or saves changed. Phase 3 and the continuing objective
+remain active; strict Stage F reconstruction remains the final phase.

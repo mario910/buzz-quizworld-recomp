@@ -204,7 +204,8 @@ be preserved. A zero cached cursor forces the 4-byte refresh. The low seven
 bits of the cursor-word EA select its position in an aligned stack temporary.
 
 Allocator `0x37C0` takes r3=geometry context, r4=ring EA plus low-bit flags,
-r5=requested bytes, r6=result LS pointer, r7=lane. It rounds bytes to 128.
+r5=requested bytes, r6=result LS pointer, r7=lane. The lane/shared paths round
+bytes to 128; the direct-address branch skips rounding and uses raw r5.
 Result words are CPU EA, GPU offset, synchronization word, end EA, followed by
 auxiliary synchronization state. GPU offset is `gpuBase + (chosenEA-begin)`.
 With r4 bit 1 set, r4 masked by `~3` is already a direct output address;
@@ -213,6 +214,9 @@ that path does not issue atomics. Otherwise it reserves its per-lane line.
 on wrap, and polls `0x3E04` when necessary. It publishes with PUTLLUC, not a
 compare-and-swap retry: the reservation and interrupt-disable sequence is part
 of the original contract. Interrupt state is restored before returning.
+The cold interrupt-enable helper has an unresolved computed target `3CF4`;
+its lexical C tail is not executable. The source boundary and validation
+requirements are recorded in the [allocator audit](native-geometry-ring-audit.md).
 
 When begin=end, `0x3B88` selects the shared fallback line at ringBase. When
 twice the rounded request exceeds lane capacity, `0x3D00` selects fallback.
