@@ -21,7 +21,7 @@ closed whole-function proof for arbitrary callback targets.
 | Region | Blocks | Remaining work |
 |---|---|---|
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Complete opt-in descriptor control; final gates OPEN |
-| Built-in output formats 0..3 | 11 | Format0: complete two-block standalone kernel; formats1..3 and production/cold gates OPEN |
+| Built-in output formats 0..3 | 11 | Formats0/1: complete two-/three-block standalone kernels; formats2/3 and production/cold gates OPEN |
 | Shared formatter `4178` and attribute control | 9 | Complete opt-in controller: 1,908 strict cases; 7,201 strict real roots; final gates OPEN |
 | Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
 | Stride getter `40C8` and its paths | 7 | Complete standard native helper inside 54E8; 4,096 strict cases; custom callback retained |
@@ -784,3 +784,58 @@ private pinned oracle and strict/model/full-conversion tests. The
 record the synthetic calibration and limitations. No production switch,
 ABI/executable, corpus/live/render or performance change occurs. Formats1..3,
 production routing/admission and all final gates remain OPEN.
+
+## Built-in 20-byte output: standalone kernel
+
+Built-in output format 1 (`5E28/6050/6058`, logical stride 20) now has a complete
+standalone native kernel in `native_geometry_builtin20_output.h`. Each pair
+contains raw XYZ from semantic 1 and CMP 11/11/10 attributes from semantics 2
+and 3. A shared pair-packing routine preserves source operand order for FMA,
+RTZ signed31 conversion, lane shifts, both packing shuffles and bit selection.
+Host-local vectors hold the pipeline; all initial values that survive into the
+final ABI are materialized explicitly. No lifted setup, loop or final tail is
+used. The exact frontier is queued PC/function `5648`, before shared control.
+
+The controller rounds the input count to an even value in r29. Admission
+requires a positive even low-lane value <=65,536. Zero underflows the do-loop;
+odd values cannot reach zero in 40-byte steps. Other counter lanes retain their
+actual vector arithmetic. Each pair advances the output by 40 bytes but writes
+four ordered quads at +32, +16, +0, +48 after quad alignment. The first prefix
+preserves old destination bytes; final padding can include a repeated packed
+block beyond logical output. Input/output pointers may be biased or wrap.
+Checking only logical count*20 bytes would miss actual writes.
+
+Three input pairs are initially prefetched. Two pairs of CMP results are
+prepared ahead; each iteration quantizes the next cached pair before stores.
+After all four stores it freshly reads the next destination quad and the next
+input pair. That ordering also applies to the last iteration. Only a nonfinal
+iteration executes the backedge copies; the final speculative inputs, output
+fragment, cached conversions and all 128 guest register vectors remain exact.
+Read-only admission checks actual padded destinations and rejects foreign LS,
+all enabled/saved/active IRQ contexts, unsupported counts and protected writes.
+Every successful and rejected admission preserves the complete context.
+
+Validation passes **5,663 strict GPR/LS/architectural/channel/control/PC/FN
+cases**, including 4,096 broad input/output and cross-stream alias cases,
+1,024 arbitrary-control cases (including shuffle masks, scale/bias and shifts),
+256 special-FP cases, wrapped source/manager reads, biased pointers and three
+modeled host depths. **256 independent ordered byte models** combine raw XYZ
+with an exact dyadic CMP model, including output/raw-position aliases and fresh
+post-store prefetch. **32,772 independent dyadic CMP encodings** cover all 8,193
+grid values with distinct component triples and signed saturation. Twelve
+rejects preserve both context and plan. At aligned E680, 10,156 rounded vertices
+fit the actual padded span exactly; 10,158 would wrap a padded store into
+protected LS and reject.
+
+**828 full original-controller comparisons** pass, with 828 native strict data
+roots and 48 late outer-frame aliases. Only the format-1 payload is native on
+that arm; original controller/getter remain on both sides. This is synthetic
+function integration, not real whole-job replay, a newly native enclosing
+controller or live acceptance. No arithmetic, checker or tolerance change was
+needed after the first runtime suite; seven conversion-audit tests also pass.
+
+Run `tests/scripts/test-geometry-builtin20-output.ps1` for strict/model/full-
+conversion tests. [Phase-3 results](native-geometry-phase3-results.md#built-in-20-byte-output-standalone-kernel)
+record the synthetic calibration and limits. No production/runtime/ABI/app
+change occurs. Formats2/3, all four production wrappers/parent callback-safe
+admission and cold/final gates remain OPEN.

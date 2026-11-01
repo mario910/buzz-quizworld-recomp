@@ -5374,3 +5374,70 @@ Next: complete the remaining built-in payloads at 5E28 (format1, stride20),
 5760 (format2, stride24) and 5A30 (format3, stride24), then production wrappers,
 per-format switches and padding-aware enclosing admission. Phase 3 and the
 continuing objective remain active; strict Stage F stays LAST.
+
+## Built-in 20-byte output: standalone kernel
+
+Built-in output format 1 (`5E28/6050/6058`, logical stride 20) now has a complete
+standalone native kernel in `native_geometry_builtin20_output.h`. Each pair
+contains raw XYZ from semantic 1 and CMP 11/11/10 attributes from semantics 2
+and 3. A shared pair-packing routine preserves source operand order for FMA,
+RTZ signed31 conversion, lane shifts, both packing shuffles and bit selection.
+Host-local vectors hold the pipeline; all initial values that survive into the
+final ABI are materialized explicitly. No lifted setup, loop or final tail is
+used. The exact frontier is queued PC/function `5648`, before shared control.
+
+The controller rounds the input count to an even value in r29. Admission
+requires a positive even low-lane value <=65,536. Zero underflows the do-loop;
+odd values cannot reach zero in 40-byte steps. Other counter lanes retain their
+actual vector arithmetic. Each pair advances the output by 40 bytes but writes
+four ordered quads at +32, +16, +0, +48 after quad alignment. The first prefix
+preserves old destination bytes; final padding can include a repeated packed
+block beyond logical output. Input/output pointers may be biased or wrap.
+Checking only logical count*20 bytes would miss actual writes.
+
+Three input pairs are initially prefetched. Two pairs of CMP results are
+prepared ahead; each iteration quantizes the next cached pair before stores.
+After all four stores it freshly reads the next destination quad and the next
+input pair. That ordering also applies to the last iteration. Only a nonfinal
+iteration executes the backedge copies; the final speculative inputs, output
+fragment, cached conversions and all 128 guest register vectors remain exact.
+Read-only admission checks actual padded destinations and rejects foreign LS,
+all enabled/saved/active IRQ contexts, unsupported counts and protected writes.
+Every successful and rejected admission preserves the complete context.
+
+Validation passes **5,663 strict GPR/LS/architectural/channel/control/PC/FN
+cases**, including 4,096 broad input/output and cross-stream alias cases,
+1,024 arbitrary-control cases (including shuffle masks, scale/bias and shifts),
+256 special-FP cases, wrapped source/manager reads, biased pointers and three
+modeled host depths. **256 independent ordered byte models** combine raw XYZ
+with an exact dyadic CMP model, including output/raw-position aliases and fresh
+post-store prefetch. **32,772 independent dyadic CMP encodings** cover all 8,193
+grid values with distinct component triples and signed saturation. Twelve
+rejects preserve both context and plan. At aligned E680, 10,156 rounded vertices
+fit the actual padded span exactly; 10,158 would wrap a padded store into
+protected LS and reject.
+
+**828 full original-controller comparisons** pass, with 828 native strict data
+roots and 48 late outer-frame aliases. Only the format-1 payload is native on
+that arm; original controller/getter remain on both sides. This is synthetic
+function integration, not real whole-job replay, a newly native enclosing
+controller or live acceptance. No arithmetic, checker or tolerance change was
+needed after the first runtime suite; seven conversion-audit tests also pass.
+
+The two reference paths contain respectively the three original data blocks
+plus a distinct frontier trap, and the pinned 73-block original conversion
+graph with an optional native-only data hook. Calibration changes format to 1
+in the captured 54E8 GPR/LS input and executes original setup to 5E28. Its SHA256
+is `35f13f74e34d1f6884c7c7fb6b1f3d05ef47c9637e4ab001cccf2060e33d6bcf`. This anchor is explicitly synthetic
+format 1, not a captured cold root; architectural controls/depths are modeled.
+
+No production routing, runtime switch, ABI, executable, real corpus/live/render
+or performance change is claimed. Existing conversion-control-v2 frozen files,
+original source/generator/save/template pins and defaults remain unchanged.
+Next: complete formats 2 and 3, then integrate all four payloads with separate
+switches and padding-aware enclosing admission. The parent must protect its
+manager/configuration/callback metadata from every padded write before outer
+frame/cursor mutation; pure-data admission alone cannot authorize that parent.
+Cold real/live, interpreter, reversed A/B, normalized worker/process CPU and
+default gates remain OPEN. Phase 3 and the continuing goal stay active; strict
+Stage F reconstruction stays LAST.
