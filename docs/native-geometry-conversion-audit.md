@@ -1,7 +1,8 @@
 # Image-41 output conversion: remaining native inventory
 
 Status: source/format audit and callback replay protection, 2026-11-01.
-`54E8` and its shared output formatter are still unfinished native work.
+`54E8` and shared formatter `4178` still require production integration.
+Both now have standalone native control kernels; neither is routed yet.
 All seven storage payloads now have complete native opt-in implementations.
 I16/storage-5 and U8-integer/storage-7 still have open real/live gates; their
 nonzero new coverage is explicitly synthetic. Shared formatter/control and
@@ -21,7 +22,7 @@ closed whole-function proof for arbitrary callback targets.
 |---|---|---|
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
-| Shared formatter `4178` and attribute control | 9 | Descriptor layout, output preparation, field iteration and dispatch |
+| Shared formatter `4178` and attribute control | 9 | Standalone native kernel: 1,908 strict cases; production integration OPEN |
 | Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
 | Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
 | Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
@@ -563,3 +564,56 @@ results](native-geometry-phase3-results.md#complete-integer-output-storage-4dd0-
 No Stage F exception or compared field changes. Real/live integer acceptance,
 shared formatter/control, built-ins and final interpreter/reversed A/B/CPU/
 default gates remain required.
+
+## Shared formatter 4178: standalone native kernel
+
+`native_geometry_formatter.h` implements all nine controller blocks:
+`4178/4190/41F0/41C0/42EC/4350/43D0/4610/4618`. It owns the 128-byte frame,
+static/empty paths, full-vector PIC arithmetic, stride alignment, constants,
+semantic lookup, data dispatch and final return. Seven data callees remain
+explicit boundaries; tests exercise both retained original and complete native
+encoders. There is no production hook, new runtime switch or ABI change yet.
+
+The source reloads descriptor count after a recognized data conversion; unknown
+storage skips that reload and keeps the prior count. Native execution preserves
+both paths, actual callee scratch vectors and late saved-frame reloads. It
+stops each child at the exact queued `4610/4618` PC/function frontier, then
+executes the controller tail natively. Restored-frame return matching includes
+SP, link PC, host depth and queued function, even when return PCs collide with
+internal block addresses. No final lifted control tail or state repair is used.
+
+Read-only admission computes the same field layouts without executing original
+code or data conversions. A local overlay models its own cursor publication;
+frame writes remain suppressed during planning. It rejects foreign LS, every
+enabled/saved/active IRQ context, invalid spans, frame/control overlap, data
+writes into manager/descriptor metadata, altered known jump targets and work
+budgets before mutation. Data may overlap input and frame storage; execution
+preserves ordered writes and actual late frame contents. All successful and
+rejected admission cases are checked for an unchanged complete input context.
+
+**1,908 strict cases pass**, with **2,643 exact child-entry comparisons** and
+**2,028 complete native data calls across all seven storage types**. They include
+195 seven-family stride/count cases (strides0..63 and overlapping input/output),
+a 255-field unknown-storage case, 96 independent frame/publication models,
+24 return-PC collisions, 32 unknown-storage cases, three modeled host depths,
+late-count/frame mutations and 15 unchanged admission rejects. One real captured
+GPR/LS entry is tested at three host depths; architectural controls are modeled,
+not claimed as captured. The private oracle contains the original nine control
+and 37 data blocks, never native reference data.
+
+The first frontier check found a live child continuation after a nested return.
+The native frame tail now clears the already-consumed queue before `SPU_RET`,
+matching the original queued-tail entry. All state and function-pointer checks
+remain strict; the diagnostic is retained privately. Seven conversion-audit
+tests also pass. The existing executable, defaults and prior proofs are unchanged.
+
+```powershell
+& tests/scripts/test-geometry-formatter.ps1
+```
+
+Production routing must add its own off/native/checked switch, an original
+closed-graph root checker and admission for the actual child switches. A child
+that is disabled or not admitted must not be silently counted as native.
+Full real corpus/live/native-frame, interpreter, reversed A/B, normalized CPU
+and default-on gates remain OPEN. This completes the standalone controller,
+not production formatter acceptance or phase 3.

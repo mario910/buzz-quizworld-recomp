@@ -5110,3 +5110,48 @@ oracle, initial coverage diagnostic, five corpus arms, three scene logs and two
 native frame inspections. Raw/derived artifacts remain ignored. Next is the
 shared 4178 formatter; the existing standalone 54E8 control kernel still needs
 production integration and IRQ admission review.
+
+## Shared formatter 4178 standalone kernel
+
+The [nine-block shared formatter](native-geometry-conversion-audit.md#shared-formatter-4178-standalone-native-kernel)
+now has a complete standalone native controller: 128-byte frame, PIC and
+alignment preparation, all field/semantic selection, exact data-call frontiers,
+late count/frame loads and final return. Data callees are explicit; all seven
+complete native encoders are integrated in the synthetic function tests.
+No production routing, runtime flag, executable or ABI/default changes occur.
+
+Admission scans layouts without executing lifted code or data arithmetic,
+using local GPRs and a cursor-publication overlay. It rejects IRQ contexts,
+foreign LS, invalid/control-overlapping spans, data writes into manager or
+descriptor metadata, unexpected known jump targets and excessive work before
+mutation. Data can alias input and saved-frame storage; the actual ordered
+writes and late reloads remain exact. Both successful and rejected admission
+leave the complete context unchanged.
+
+Validation passes **1,908 strict GPR/LS/architectural/channel/control/PC/FN
+cases**, **2,643 exact child entries** and **2,028 native data roots across all
+seven types**. This covers195 seven-family stride/count cases, overlapping
+input/output,255 skipped unknown fields,96 independent frame/publication
+models,24 return-PC collisions,32 unknown-storage cases,15 unchanged rejects,
+all static/empty/field paths and three modeled host depths. Mock callees mutate
+late count and saved-frame bytes on both arms; the controller observes their
+actual return state. One captured GPR/LS entry from menu-both_job_41_0000 is
+reused at host depths0/1/2; this is one data anchor, not a new corpus/live run.
+Its SHA256 is `f78601404ee5a584a69a5ea1a74317b387e630789ed3b6f72d03352335d14a8b`.
+Architectural controls remain modeled. The private oracle is the pinned original
+46-block field graph, including all original data, with no native reference tail.
+
+An initial function-pointer check caught a consumed child continuation surviving
+nested `SPU_RET`. The native tail now enters with the queue popped, as the
+original drainer does. No compared register, state field or tolerance changed.
+Seven audit tests pass. Earlier frontier and build diagnostics remain private.
+
+This is standalone implementation evidence. Existing frozen integer-output
+EXE/map/C, original source/generator/save/template pins and defaults are
+unchanged. I16/U8 real/live gates stay OPEN. Next is production integration of
+this formatter with its own switch, strict original root reference and actual
+child-switch admission, then existing54E8 control integration and built-ins.
+Real corpus,>=256 live,normal native frames,interpreter,reversed same-frozen-EXE
+A/B,normalized worker/process cycles/time and default gates for the new formatter
+remain OPEN. No FPS/CPU benefit is claimed; phase3 and the continuing goal stay
+active, with strict Stage F reconstruction LAST.
