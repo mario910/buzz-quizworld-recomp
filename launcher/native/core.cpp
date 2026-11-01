@@ -280,7 +280,13 @@ Environment runtime_environment(const Settings& s,const Build& b,const fs::path&
         {"RSX_CACHE_ENV","1"},{"SPURS_GUARD_POLL_ONLY","0"},{"SPURS_JTS_WAKE","1"},{"SPURS_JTS_DMA_WAKE","1"},
         {"SPURS_MERGE_READY_LISTS","1"},{"SPURS_NATIVE_EXTRA_FP","1"},{"RSX_GUEST_SAMPLERS","1"},{"RSX_PIXEL_WINDOW","1"}};
     for(auto& [k,v]:defaults)def(k,v);
-    if(b.executable.parent_path().filename().string().find("vulkan")!=std::string::npos) {
+    // The build manifest names the renderer; older manifests fall back to the
+    // directory name (a renamed copy of such a build loses the Vulkan set).
+    const auto renderer=b.manifest.value("renderer",std::string());
+    const bool vulkan_build=renderer.empty()
+        ? b.executable.parent_path().filename().string().find("vulkan")!=std::string::npos
+        : renderer=="vulkan";
+    if(vulkan_build) {
         // Measured-best Vulkan set (as scripts/run-windows.ps1): without the
         // batching options the Vulkan build runs a few FPS.
         const std::pair<const char*,const char*> vulkan[]={

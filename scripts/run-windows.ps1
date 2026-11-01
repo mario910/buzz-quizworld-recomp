@@ -161,7 +161,16 @@ if ($MenuBootstrap) {
 }
 # The Vulkan build's speedups are all opt-in (analysis/vulkan-performance-handoff.md);
 # without them it runs a few FPS. Codex's measured-best set, unless already set.
-if ($BuildDirectory -like '*vulkan*') {
+# The build manifest names the renderer. A renamed/frozen copy keeps it; older
+# manifests without the field fall back to the directory-name rule, with a warning.
+if ($binding -and $binding.PSObject.Properties['renderer']) {
+    if ($binding.renderer -notin @('vulkan','d3d12')) { throw "Unknown renderer '$($binding.renderer)' in game-build.json" }
+    $isVulkan = $binding.renderer -eq 'vulkan'
+} else {
+    $isVulkan = $BuildDirectory -like '*vulkan*'
+    Write-Warning "game-build.json in $BuildDirectory names no renderer; assuming $(if ($isVulkan) { 'vulkan' } else { 'd3d12' }) from the directory name. Rebuild to record it."
+}
+if ($isVulkan) {
     $vulkanDefaults = [ordered]@{ PS3RECOMP_VK_DRAW_BATCH = '512'; PS3RECOMP_VK_DRAW_RING = '1';
         PS3RECOMP_VK_DRAW_PASSES = '1'; PS3RECOMP_VK_DRAW_CLEARS = '1'; PS3RECOMP_VK_DRAW_ASYNC = '1';
         PS3RECOMP_VK_PRESENT_MODE = 'mailbox'; PS3RECOMP_VK_PRESENT_READBACK = '0';

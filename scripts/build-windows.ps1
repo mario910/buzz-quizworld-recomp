@@ -183,6 +183,9 @@ if ($LASTEXITCODE) { throw "Build failed: $LASTEXITCODE" }
 if($generation) {
     $runtimePlan = & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/verify-game.py') --runtime-options
     if($LASTEXITCODE){throw 'Cannot bind runtime defaults to the validated build'}
-    @{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);runtime_defaults=($runtimePlan | ConvertFrom-Json)} |
+    # The renderer is a property of the EXE. Launchers select its runtime set
+    # from here, not from the directory name of a copied/frozen build.
+    $renderer=if($VulkanExperimental){'vulkan'}else{'d3d12'}
+    @{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);renderer=$renderer;runtime_defaults=($runtimePlan | ConvertFrom-Json)} |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'game-build.json') -Encoding UTF8
 }
