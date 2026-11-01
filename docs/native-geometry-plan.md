@@ -52,7 +52,10 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: the remaining image-41 transform stage `6608`,
+Current next implementation: the remaining enclosing image-41 transform flow
+`6608`, vertex preparation and alternate cull data. The separate
+[transform audit](native-geometry-transform-audit.md) documents their boundaries;
+6958/66C8 publication/frame return is now native opt-in. These are
 followed by ring/atomic flow `37C0`, conversion `54E8` and builtins 1..5 after
 source/contract audits. The complete recognized `AEA0/7390` index controller
 and all five data regions now have native opt-in implementations, with their
@@ -705,6 +708,21 @@ Other enclosing stages/builtins/cold functions and final interpreter/reversed
 A/B/normalized worker/process CPU/default gates remain OPEN. JOB=0 / leaf 827 /
 new flags=0 remain unchanged; strict Stage F stays last.
 
+### Native transform result publication and frame return
+
+Complete 6958/66C8 finalization is native opt-in, including shared 2738
+publication, exact selected bytes and late restoration from aliased frames.
+`BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2` defaults to 0. Tests pass 4,929
+strict cases including 320 independent byte models, six unchanged rejects,
+API routing and 288 configuration cases. All five corpus arms pass 19,508
+exact / 58,195 transfers; all enabled calls are native with zero fallback.
+Strict live publication checks reach >= 465,000; actual-native menu and
+round frames are normal. Count-only remains synthetic with real/live gates
+OPEN. Enclosing 6608 control, vertex preparation, alternate data, other stages
+and final interpreter/reversed A/B/CPU/default gates remain OPEN. See the
+[phase-3 results](native-geometry-phase3-results.md#transformcull-audit-and-native-finalization-695866c8).
+Strict Stage F reconstruction remains last; JOB=0 / leaf 827 / new flags=0.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -835,6 +853,7 @@ subject to the kernel gates before replacement.
 | 0x79A8/79C8 command relocation | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2`, default 0 | 5,777 strict including 1,152 byte models; eight rejects; five arms 19,508 exact / 58,195 transfers; all 19,508 native / 0 fallback | >=460,000 strict live; native scene frames normal | not measured | |
 | 0x7A90 complete triangles/frame | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2`, default 0 | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=465,000 strict live; native scene frames normal | not measured | |
 | AEA0/7390 complete index control/setup/publication | n/a | complete native opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2`, default 0 | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=455,000 strict live; native scene frames normal | not measured | |
+| 6958/66C8 transform finalization | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2`, default 0 | 4,929 strict incl320 byte models; six rejects; five arms19,508 exact/58,195 transfers; all native/0fallback | >=465,000 strict publish; normal native frames; count-only real/live0 OPEN | not measured | |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
@@ -886,6 +905,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Native 6958/66C8 transform publication/frame return | Menu/actual round (functional) | not measured | not measured | 4,929 strict incl320 byte models; six rejects; 288 config cases; five arms19,508 exact/58,195 transfers; all native/0fallback; >=465,000 strict live; own0/1/2 default0; enclosing/cold/final gates OPEN |
 | 2026-11-01 | Complete AEA0/7390 index control/setup/publication | Menu/actual round (functional) | not measured | not measured | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; 280 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=455,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-11-01 | Complete 7A90 triangles/frame | Menu/actual round (functional) | not measured | not measured | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; 272 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=465,000 strict live; own 0/1/2 default 0; final gates OPEN |
 | 2026-10-31 | Complete 79A8/79C8 command relocation | Menu/actual round (functional) | not measured | not measured | 5,777 strict including 1,152 byte models; eight rejects; 264 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=460,000 strict live; own 0/1/2 default 0; final gates OPEN |

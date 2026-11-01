@@ -43,14 +43,14 @@ try {
     if ($LASTEXITCODE -or -not (Select-String -LiteralPath analysis/native-geometry/phase3/runtime-first-fallback-flush.log -SimpleMatch '[geometry-job/rigid-skin] first-fallback=1 native=0')) { throw 'First fallback was not durably logged before abrupt exit' }
     'First fallback persisted before abrupt exit PASS'
     $geometryOptionCases = 0
-    foreach ($geometryOption in @('PUBLISH','LAYOUT','VERTEX','COMMANDS','COMMAND_PUBLISH','EMIT','FULL_COMMANDS','ATTRIBUTES','CODECS','DESCRIPTORS','UNIT_VECTORS','HALF_STREAM','FLOAT32_STREAM','FIXED_STREAM','SNORM_STREAM','I16_STREAM','CMP_STREAM','U8_INTEGER_STREAM','BLEND_SCATTER','BLEND_LISTS','RUN_LISTS','CUSTOM_STREAM','SKIN_DISPATCH','WEIGHTED_SKIN','SKIN_DIRECTIONS','SKIN_FLOW','RIGID_SKIN','SKIN_COFACTOR','SKIN_NORMALIZED','INDEX_DELTAS','INDEX_UNPACK','INDEX_EXPAND','INDEX_RELOCATE','INDEX_TRIANGLES','INDEX_CONTROL')) {
+    foreach ($geometryOption in @('PUBLISH','LAYOUT','VERTEX','COMMANDS','COMMAND_PUBLISH','EMIT','FULL_COMMANDS','ATTRIBUTES','CODECS','DESCRIPTORS','UNIT_VECTORS','HALF_STREAM','FLOAT32_STREAM','FIXED_STREAM','SNORM_STREAM','I16_STREAM','CMP_STREAM','U8_INTEGER_STREAM','BLEND_SCATTER','BLEND_LISTS','RUN_LISTS','CUSTOM_STREAM','SKIN_DISPATCH','WEIGHTED_SKIN','SKIN_DIRECTIONS','SKIN_FLOW','RIGID_SKIN','SKIN_COFACTOR','SKIN_NORMALIZED','INDEX_DELTAS','INDEX_UNPACK','INDEX_EXPAND','INDEX_RELOCATE','INDEX_TRIANGLES','INDEX_CONTROL','TRANSFORM_FINISH')) {
         $geometryOptionKey = 'BUZZ_GEOMETRY_JOB_' + $geometryOption
         $geometryOptionPrevious = [Environment]::GetEnvironmentVariable($geometryOptionKey, 'Process')
         try {
             foreach ($geometryValue in @('unset','0','1','2','3','00','1x','x')) {
                 if ($geometryValue -eq 'unset') { Remove-Item "Env:$geometryOptionKey" -ErrorAction SilentlyContinue }
                 else { Set-Item "Env:$geometryOptionKey" $geometryValue }
-                $geometryValid = $geometryValue -in @('unset','0','1') -or ($geometryOption -in @('FLOAT32_STREAM','FIXED_STREAM','SNORM_STREAM','I16_STREAM','CMP_STREAM','U8_INTEGER_STREAM','BLEND_SCATTER','RUN_LISTS','CUSTOM_STREAM','SKIN_DISPATCH','WEIGHTED_SKIN','SKIN_DIRECTIONS','SKIN_FLOW','RIGID_SKIN','SKIN_COFACTOR','SKIN_NORMALIZED','INDEX_DELTAS','INDEX_UNPACK','INDEX_EXPAND','INDEX_RELOCATE','INDEX_TRIANGLES','INDEX_CONTROL') -and $geometryValue -eq '2')
+                $geometryValid = $geometryValue -in @('unset','0','1') -or ($geometryOption -in @('FLOAT32_STREAM','FIXED_STREAM','SNORM_STREAM','I16_STREAM','CMP_STREAM','U8_INTEGER_STREAM','BLEND_SCATTER','RUN_LISTS','CUSTOM_STREAM','SKIN_DISPATCH','WEIGHTED_SKIN','SKIN_DIRECTIONS','SKIN_FLOW','RIGID_SKIN','SKIN_COFACTOR','SKIN_NORMALIZED','INDEX_DELTAS','INDEX_UNPACK','INDEX_EXPAND','INDEX_RELOCATE','INDEX_TRIANGLES','INDEX_CONTROL','TRANSFORM_FINISH') -and $geometryValue -eq '2')
                 $geometryWant = if (-not $geometryValid) { 'reject' } elseif ($geometryValue -eq 'unset') { '0' } else { $geometryValue }
                 $geometryConfigLog = "analysis/native-geometry/phase3/runtime-option-$geometryOption-$geometryValue.log"
                 & .\analysis\native-geometry\phase3\job-runtime-test.exe option $geometryOption $geometryWant *> $geometryConfigLog

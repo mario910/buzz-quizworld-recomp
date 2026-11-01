@@ -52,6 +52,10 @@ typedef struct buzz_geometry_index_functions {
     buzz_geometry_job_fn unpack,deltas,expansion_setup,expand,relocate,triangles,publish;
 } buzz_geometry_index_functions;
 enum { BUZZ_GEOMETRY_JOB_INDEX_CONTROL = 36 };
+enum { BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH = 37 };
+int buzz_geometry_job_transform_finish_enabled(void);
+void buzz_geometry_job_transform_finish_result(int publish,int checked);
+void buzz_geometry_job_transform_finish(spu_context*,buzz_geometry_job_fn reference);
 int buzz_geometry_job_index_control_enabled(void);
 void buzz_geometry_job_index_control_result(unsigned path, int checked);
 void buzz_geometry_job_index_control(spu_context*, buzz_geometry_job_fn fallback, buzz_geometry_job_fn reference, const buzz_geometry_index_functions*);

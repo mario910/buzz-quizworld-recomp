@@ -1,10 +1,13 @@
 # Native geometry phase 3: implementation and evidence
 
-Status: **in progress**, 2026-10-31. Phase 2 ended at `ef906be`, with default
+Status: **in progress**, 2026-11-01. Phase 2 ended at `ef906be`, with default
 geometry mask 827 (`0x33B`). The continuing objective in
 [native-geometry-plan.md](native-geometry-plan.md) authorizes advancing through
 subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
+Transform/cull `6608` now has a separate [audited contract](native-geometry-transform-audit.md).
+Its 6958/66C8 result/frame finalization is native opt-in below; complete enclosing
+flow and vertex preparation remain open, with strict Stage F cleanup last.
 
 Native payload implementations now exist for all nine descriptor storage
 families, plus the primary raw float3 path. Remapped weighted scatter also
@@ -1343,8 +1346,8 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x93F0`, formats 1..5 | Other built-in input streams | Retained original, no corpus native-coverage claim |
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
 | `0x09F8` | Skin/rigid controller | Native opt-in controller now complete; AF18 data flow and complete B880 region remain separate work, detailed below |
-| `0xAEA0` | Index decoding | Retained library; validated index/triangle kernels inside |
-| `0x6608` | Transform/cull | Retained library with existing Stage F; strict cleanup remains phase 7 |
+| `0xAEA0` | Index decoding | Complete native opt-in control and five data regions; cold/final gates remain open |
+| `0x6608` | Transform/cull | Native opt-in 6958/66C8 finalization; enclosing/vertex/alternate paths open; strict Stage F remains phase 7 last |
 | `0x2B80` | Output buffer sizing | Native opt-in layout/size path above; unsupported families retain library |
 | `0x37C0` | Ring allocation/atomics | Retained library |
 | `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
@@ -1452,8 +1455,8 @@ The required phase-3 data inventory after this increment is:
 | `0xBD4C/BE20`, basic one/two-stream data | Complete native opt-in; strict synthetic/corpus/live and native menu/round checks pass | Final performance/default decision |
 | `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
 | `0xC14C/C280/B5A0`, normalized direction data | Complete native one/two/three-stream implementations with strict synthetic/composed checks; own switch default0 | Nonzero real/native corpus and >=256 live gates OPEN in all variants; final performance/default decision |
-| `0xAEA0`, index stage | Validated inner leaves; enclosing stage original | Native enclosing flow and validation |
-| `0x6608`, transform stage | Existing Stage F inner kernels; enclosing stage original | Native enclosing flow; strict Stage F cleanup remains final phase 7 |
+| `0xAEA0`, index stage | Complete native opt-in control and five data regions | Cold coverage and final interpreter/A/B/CPU/default gates |
+| `0x6608`, transform stage | Native opt-in 6958/66C8 suffix; existing Stage F inner kernels; enclosing/vertex/alternate original | Complete native enclosing/vertex/alternate flow; strict Stage F remains phase 7 last |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
 | `0x54E8`, vertex conversion | Validated inner leaves; enclosing stage original | Complete native conversion stage and validation |
 
@@ -3797,3 +3800,109 @@ Private evidence uses `phase3/index-control-v1-*` and
 `analysis/vk-scene-p3-index-control-v1-*`. The finalized manifest binds committed
 sources/docs/tests, source/fixture/save pins, frozen EXE/map/C/native copies,
 private original closure, prior triangle proof, tests, five replays and scenes.
+
+
+## Transform/cull audit and native finalization (6958/66C8)
+
+The separate [transform contract](native-geometry-transform-audit.md) maps all
+18 reachable normal transform/cull blocks, the five-block vertex-preparation
+closure, reporting frontier and cold alternate data form. A fresh original-only
+trace passes 19,508 exact jobs / 58,195 transfers. Modes 1/2/3 occur 6,970 /
+10,467 / 2,071 times; the alternate form and early return are unobserved.
+Four independent scalar models match all 128 GPRs and all LS bytes at captured
+prologue, active-frame, publication and restoration boundaries (264,192 bytes
+each). All 65,536 halfword counts reproduce the source's division by three.
+Six portable audit regressions pass. These trace snapshots omit architectural/
+channel state and are format evidence, not native acceptance.
+
+`port/native_geometry_transform_finish.h` replaces complete 6958/66C8 result
+publication and 480-byte frame return, including native shared 2738 end-pointer
+publication. The enclosing 6608 control, 6188 vertex setup and alternate
+69E8/6B18 data remain open. Existing Stage F vertex/cull callees retain only
+their accepted baseline contract; strict Stage F cleanup remains phase 7 last.
+
+The suffix computes three times the full-vector kept count, inserts the
+halfword at manager+180 with CHD(SP,0), conditionally publishes the aligned end
+pointer using CWD(SP,8), then restores every nonvolatile vector and the actual
+saved return link from LS after both stores. It preserves upper lanes, u32
+overflow, biased pointers, selected/padding bytes, wrapped LS reads and
+metadata overwriting return-frame data. It replaces an incoming continuation.
+Read-only eligibility rejects foreign LS, pending interrupts and unsafe
+manager spans before mutation. Unsupported inputs retain the lift without
+native credit; wrapped frame reads themselves remain admitted.
+
+`BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2` defaults to zero. Mode 2 or JOB=2
+checks all 128 GPRs/all LS, architectural/channel/control state and actual
+PC/FN/image/depth/policy/overlay against the pinned original closure. Return
+draining checks the loaded link and restored stack, including interior return
+PCs and depth-zero indirect returns. No Stage F waiver, tolerance or field
+exclusion is used for this new suffix. Stage 37 / 38 counters / protocol 32
+record publish and count-only coverage separately.
+
+**4,929 strict full-state/LS/return cases** pass: 4,096 random, 512 targeted,
+one real entry and **320 independent publication/frame byte models**. They
+cover both publication modes, full upper lanes, every stack/manager byte bias,
+metadata/return/nonvolatile aliases, manager limits, LS/u32 wrapped stacks,
+count overflow, dynamic loaded links and incoming continuations. Six rejects
+preserve every context/LS byte and the plan. The initial standalone drain stub
+incorrectly rejected the legitimate indirect-return sentinel from a nested
+publication; its harness behavior was corrected to match runtime. The native
+algorithm and checker were not weakened; the diagnostic is retained.
+
+Real-owner routing passes **12 native / 8 strict / 8 original-reference** calls
+and six counted unsupported fallbacks across both paths, both strict modes
+and both depth classes. Off/foreign/image/invalid/post-scope boundaries pass.
+The 1,024 outer models, 19,508 real-entry models, 43 runtime scenarios,
+**288 production-getter configurations**, durable first-fallback check and
+production build pass. No original suffix executes in ordinary native mode.
+
+Frozen `build-vulkan-phase3-transform-finish-v1`:
+EXE `596e1e4f3f630c8a56e5d3632350312bd264c29ab1e1097312bb5389b64f49f7`;
+map `367e906224d6209d898d5e7a68084d4250d694721901eb41c9bf551be7614f5b`;
+generated C `19a3f3c7b395944e4be75bfdf5e37f141e93713df3ce24caddd0fd3557b0ae82`.
+Frozen C, original closure and four compiled native/controller/header copies
+are retained. Original lift, phase-2 generator, saves and template are unchanged.
+
+All five arms pass **19,508 exact jobs / 58,195 transfers**, zero input changes
+and failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | TRANSFORM_FINISH | Native/strict/fallback |
+|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline |
+| Independent suffix | 2 | 0 | 1 | 19,508/19,508/0 |
+| Combined native | 1 | 1 | 1 | 19,508/0/0 |
+| Combined checked | 2 | 1 | 1 | 19,508/19,508/0 |
+| Kernel checked | 1 | 1 | 2 | 19,508/19,508/0 |
+
+Every real suffix call takes the publish path. Count-only has strict synthetic
+coverage, **zero real/live coverage**, and an open real/live gate. Both JOB=2
+arms pass all whole-job state/I/O checks. Combined arms retain native index
+control and all five index data regions, plus 1,628 AF18, 6,113 weighted-skin
+and 5,018 basic-direction roots, with zero respective corpus fallback.
+
+Functional live runs use this same frozen EXE, JOB=1, older flags=1,
+GEOMETRY=1 / Stage F=1 / leaf 827, fresh private saves and background/native
+mailbox/mute, without compilation, CPU-test or profiling overlap:
+
+| Scene | JOB/TRANSFORM_FINISH | Frames / last elapsed ms | Suffix lower bound |
+|---|---|---|---|
+| checked-menu | 1/2 | 1,405 / 60,059.808 | strict publication >= 465,000 |
+| menu | 1/1 | 2,260 / 74,337.389 | native publication >= 3,180,000 |
+| round | 1/1 | 6,232 / 201,546.669 | native publication >= 7,215,000 |
+
+Checked menu ran 60s, native menu 75s, native round 60s after navigation.
+At least **465,000 strict live publication comparisons** passed. No
+differences, halts, unexpected continuations/capacity errors or first suffix
+fallback were observed. Periodic counters are lower bounds; forced shutdown
+provides no final fallback totals. Inspected 1280x720 actual-native readbacks
+show normal menu/studio/crowd and green-round host/player/score UI.
+
+No FPS/CPU benefit is claimed by these functional runs. Final interpreter,
+reversed same-frozen-EXE menu/round A/B, normalized worker/process cycles/time
+and default gates remain **OPEN**. Repeatable CPU savings can justify flat-FPS
+default-on decisions after correctness/render gates. JOB=0 / leaf 827 / new
+flags=0 remain unchanged. Phase 3 and the continuing goal remain active.
+
+Private `phase3/transform-finish-v1-*` evidence binds committed sources/docs,
+source/fixture/save pins, the original audit, frozen EXE/map/C/native copies,
+original closure, prior index-control proof, tests, five replays and scenes.

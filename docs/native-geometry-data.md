@@ -1298,3 +1298,17 @@ before writes, with no native-control credit. Strict comparison uses a pinned
 reporting handlers are never executed twice. See the
 [control contract](native-geometry-index-audit.md#complete-control-and-pre-mutation-eligibility)
 and [phase-3 results](native-geometry-phase3-results.md) for evidence and gates.
+
+
+### Transform/cull boundaries and native finalization
+
+The [6608 source/real-input audit](native-geometry-transform-audit.md) binds
+18 transform/cull blocks, the separate five-block vertex preparation and
+four independent full-register/LS scalar boundary proofs. It distinguishes
+existing Stage F from new native work and explicitly tracks cold variants.
+`native_geometry_transform_finish.h` replaces 6958/66C8 result publications
+and the full 480-byte-frame return. Its `TRANSFORM_FINISH=0/1/2` job option
+(default 0) has strict full-state checks, with no Stage F waiver. Count/end
+stores preserve CHD/CWD-selected fields and late frame aliases; wrapped reads
+and all GPR lanes remain exact. Complete native enclosing 6608 flow and vertex
+setup remain open. The separate phase-3 results record actual acceptance gates.
