@@ -68,3 +68,21 @@ skinning pool cycles/frame -0.95% (pairs -1.23%, -0.66%), process cycles/frame
 -0.75%). Pool CPU time is mixed. Encoder and pointer series show no repeatable
 savings. Full results and default decisions are in
 [the phase 2 report](native-geometry-phase2-results.md).
+
+
+## Interpreter diagnostics are a separate series
+
+`perf/observe-spu-interpreter.py` binds existing interpreter statistics to an
+exact frozen EXE/MAP. Start a fresh game with `SPU_INTERP_STATS=3600` and
+`SPU_INTERP_ENTRIES=1`; use the scene runner's `-InterpreterBinding`,
+`-InterpreterOutput` and `-InterpreterAt` parameters. The runner rejects a
+combined interpreter/CPU observation. These diagnostic runs do not count as
+FPS or CPU-cost A/B runs. Raw counter bytes remain inspectable.
+
+The absolute-zero case is useful below the logger's65,536-step threshold.
+Positive legacy counters are non-atomic observations; they do not establish
+exact per-image counts or unchanged workload by themselves. On ABI48, both
+menu arms remain absolutely zero at15/60s. Actual-round arms have the same
+five image2 pages at240s and matching whole-run image2/image40 entry keys;
+this leaves the round instruction-count gate open. See the
+[phase3 diagnostics](native-geometry-phase3-results.md#map-bound-interpreter-diagnostics-on-abi48).

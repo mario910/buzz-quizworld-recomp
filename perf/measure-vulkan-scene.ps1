@@ -15,6 +15,8 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
       [string]$PhaseLog = '',
       [string]$CpuBinding = '', [string]$CpuOutput = '',
+      [string]$InterpreterBinding = '', [string]$InterpreterOutput = '',
+      [int[]]$InterpreterAt = @(15,60),
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -30,9 +32,17 @@ foreach ($key in $keys + $extra) { $previous[$key] = [Environment]::GetEnvironme
 $procId = 0
 $sceneProcess = $null
 $cpuObserver = $null
+$interpreterObserver = $null
 $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
 if ($CpuBinding -and -not $CpuOutput) { throw 'CpuBinding requires a fresh CpuOutput path' }
 if ($CpuOutput -and -not $CpuBinding) { throw 'CpuOutput requires CpuBinding' }
+if ($InterpreterBinding -and $CpuBinding) { throw 'Interpreter diagnostics require a separate run from CPU measurements' }
+if ([bool]$InterpreterBinding -ne [bool]$InterpreterOutput) { throw 'InterpreterBinding and InterpreterOutput must be supplied together' }
+if ($InterpreterBinding) {
+    $InterpreterBinding = (Resolve-Path -LiteralPath $InterpreterBinding).Path
+    $InterpreterOutput = [IO.Path]::GetFullPath($InterpreterOutput)
+    if (Test-Path -LiteralPath $InterpreterOutput) { throw 'Interpreter diagnostic already exists' }
+}
 if ($CpuBinding) {
     $CpuBinding = (Resolve-Path -LiteralPath $CpuBinding).Path
     $CpuOutput = [IO.Path]::GetFullPath($CpuOutput)
@@ -53,6 +63,12 @@ try {
     $null = $sceneProcess.Handle # Keep a handle so an early exit code remains readable.
     $log = [regex]::Match($r, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
     $t0 = Get-Date
+    if ($InterpreterBinding) {
+        $interpreterArgs = @(('"' + (Join-Path $PSScriptRoot 'observe-spu-interpreter.py') + '"'),
+            'measure', '--pid', "$procId", '--exe', ('"' + $exe + '"'),
+            '--binding', ('"' + $InterpreterBinding + '"'), '--output', ('"' + $InterpreterOutput + '"'), '--at') + @($InterpreterAt | ForEach-Object { "$_" })
+        $interpreterObserver = Start-Process -FilePath (Join-Path $root 'toolenv/Scripts/python.exe') -ArgumentList $interpreterArgs -WindowStyle Hidden -PassThru -RedirectStandardError ($InterpreterOutput + '.stderr.log') -RedirectStandardOutput ($InterpreterOutput + '.stdout.log')
+    }
     if ($CpuBinding) {
         $cpuStart = if ($Scene -eq 'Menu') { 40 } else { 150 }
         $cpuEnd = if ($Scene -eq 'Menu') { 98 } else { 220 }
@@ -109,6 +125,12 @@ try {
     }
     if ($Scene -eq 'Round') { Shot 'end' }
     Phase 'end'
+    if ($interpreterObserver) {
+        if (-not $interpreterObserver.WaitForExit(3000)) { throw 'Interpreter diagnostic did not finish before scene shutdown' }
+        if ($interpreterObserver.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $InterpreterOutput)) {
+            throw "Interpreter diagnostic failed; inspect $InterpreterOutput.stderr.log"
+        }
+    }
     if ($cpuObserver) {
         if (-not $cpuObserver.WaitForExit(3000)) { throw 'CPU observer did not finish before scene shutdown' }
         if ($cpuObserver.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $CpuOutput)) {
@@ -116,6 +138,7 @@ try {
         }
     }
 } finally {
+    if ($interpreterObserver -and -not $interpreterObserver.HasExited) { Stop-Process -Id $interpreterObserver.Id -Force }
     if ($cpuObserver -and -not $cpuObserver.HasExited) { Stop-Process -Id $cpuObserver.Id -Force }
     if ($procId) {
         $p = Get-Process -Id $procId -ErrorAction SilentlyContinue

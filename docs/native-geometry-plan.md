@@ -57,6 +57,9 @@ menu/round A/B, normalized worker/process CPU/cycles and expanded cold real
 coverage before default decisions. Live whole-job/raw0 checks pass at least
 45,000 strict comparisons each; actual-native menu and actual-question round
 readbacks are visually verified. New builtin inputs1..5 remain real/live0.
+Menu interpreter counts are absolutely zero in both diagnostic arms. Actual
+rounds show pre-existing image2 interpretation and matching entry inventories;
+the round count gate remains OPEN pending workload-aligned evidence.
 All five standard input decoders and the complete standard93F0 controller
 are implemented and integrated behind independent default-off switches.
 Their standalone and production-routing checks pass; real coverage of the
@@ -1072,6 +1075,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | ABI48 interpreter diagnostics | Fresh JOB0/JOB1 menu+actual round;mask827/StageF1 | not measured | not measured | Menu15/60s absolute0 in both;round240s observed300,699,624/300,952,932,allimage2/same5pages;whole-run entries2:07B4C/A6C8+40:02A18 match;positive legacy stats non-atomic;roundcount/reversedAB/CPU/default OPEN;8observer tests |
 | 2026-11-01 | ABI48 input routing live/render | Checked menu80s/native menu75s/visually verified solo round | not measured | not measured | >=45,000strict whole-job/I/O +45,000strict raw0 input returns;normal1280x720 menu+actual-question readbacks;native raw0 >=2,750,000menu/11,415,000round inclnavigation;no mismatch/first-fallback messages;periodic lower bounds;inputs1..5real/live0;interpreter/reversedAB/normalizedCPU/default OPEN |
 | 2026-11-01 | Standard93F0 and5 builtin input production wrappers | CPU routing/parent/layout/getter tests +5 frozen corpus arms | not measured | not measured | ABI48/61stages;3,876production/1,938parent strict/1,440child strict;576parent roots/292layouts/877rejects;472getters;each19,508exact/58,195transfers/zero whole-job fallback;raw0controller19,508real;new1..5real/live0;parent scratch/frame guards;initial5,838coverage regression corrected;live/final/default OPEN |
 | 2026-11-01 | Complete standard93F0 standalone control+native data | CPU root/prefix/frame-model tests | not measured | not measured | 23-block original oracle/all6 formats;8,391strict roots/7,796exact dispatch boundaries/8,391independent frame models;23unchanged rejects;40quad frame/metadata forecast+all5data regressions;production parent-safety/cold/final OPEN;app unchanged |

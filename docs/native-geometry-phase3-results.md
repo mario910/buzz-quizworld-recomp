@@ -6029,3 +6029,48 @@ Interpreter-count checks, reversed same-frozen menu/round A/B, normalized
 worker/process cycles and CPU time, remaining cold real/live paths and default
 decisions remain OPEN. Phase3 and the continuing objective stay active;
 shared phase4 follows and strict Stage F cleanup remains phase7 LAST.
+
+
+## Map-bound interpreter diagnostics on ABI48
+
+Four fresh diagnostic runs use the unchanged frozen input-routing V3 EXE/MAP,
+StageF1 and leaf mask827, with the same initial private save. The new
+`perf/observe-spu-interpreter.py` reads six existing interpreter-statistics
+symbols directly from that exact map and records the raw bytes. It does not
+write memory, suspend threads or sample CPU cost. `SPU_INTERP_STATS=3600`
+prevents a statistics reset during these short fresh runs; entry diagnostics
+are enabled as a separate inventory. Eight tests cover disabled/reset/partial
+or inconsistent counters and a single instruction below the logger threshold.
+
+| Scene/arm | Renderer-relative snapshots | Interpreter observations |
+| --- | --- | --- |
+| Menu / JOB0 | 15s,60s | Absolute total and all64 buckets zero; statistics uninitialized(-1) |
+| Menu / JOB1 | 15s,60s | Same absolute-zero result |
+| Round / JOB0 | 15s,240s | Zero at15s;300,699,624 observed at240s,all in image2/five pages |
+| Round / JOB1 | 15s,240s | Zero at15s;300,952,932 observed at240s,the same image2/five pages |
+
+The two round totals differ by about0.084%; this is diagnostic information,
+not proof of exact equality or a performance result. Positive legacy counters
+use non-atomic increments; a timed window also does not fix the number of
+completed jobs. The whole-run entry inventories match: image2 at07B4C/A6C8
+and image40 at02A18. The image40 entry is later than the240s snapshots. No
+image41 interpreter bucket or distinct entry is observed, but that absence
+is not promoted to an exact per-image instruction-count proof.
+
+Both rounds reach actual green single-player play, verified with preserved
+1280x720 PPM/PNG readbacks (reference question/answers; native round/result).
+The diagnostic helper waits50s through the host intro rather than26s; both
+navigation markers occur near155.2s and the runs finish near295.5s. These runs
+include occasional readbacks and an observer and are excluded from FPS/CPU A/B.
+`interpreter-v1-summary.json` binds the raw samples, logs, phase records, initial
+save/EXE metadata and inspected images. The original/compiled game code,
+strict checkers, Stage F exception and JOB0/geometry827/newflags0 defaults
+remain unchanged.
+
+The menu interpreter gate passes. The round count gate stays **OPEN**:
+pre-existing runtime interpretation must be distinguished from additional
+geometry interpretation with evidence suited to the completed workload.
+Reversed same-frozen menu/round FPS A/B, separate normalized worker/process
+CPU/cycles, cold real/live paths and default decisions remain OPEN. Phase3
+and the continuing objective remain active through shared phase4, optional5/6
+decisions and final strictStageF7.
