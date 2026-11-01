@@ -91,50 +91,63 @@ Consequences:
    stages. Keep results documents short: a table per measurement and the
    decision, not a narrative of every proof.
 
-## Continuing objective (2026-11-01)
+## Continuing objective (revised 2026-11-01)
 
-The user has authorized continuing through the remaining phases until the
-native geometry functions are finished, documenting and committing each
-validated step. This supersedes earlier instructions to stop at phase 3 or
-wait for another request before proceeding to the following phase.
+The **Course correction** above and the user's latest instructions govern
+this objective and supersede conflicting historical requirements below.
+Preserve the improvements in `d0a688b`, `1abd397` and `b934a88`; `51ab514`
+defines the revised method. Continue in this order:
 
-Continue from completed phase 2 (`ef906be`, default mask 827 / `0x33B`):
+1. **3a: eliminate overhead with unchanged job outputs.** Use one host
+   register bank for the entire job, extending REGISTERS throughout without
+   per-call `memcpy(c.gpr)`. Remove per-call admission already implied by
+   whole-job admission. Remove hot-path `std::vector` allocation in `color`,
+   `fixed_stream`, `float32_stream`, `half_stream`, `typed_stream`,
+   `blend_scatter`, `full_commands`, `position_commands`, `run_lists` and
+   `command_publish`. Target: JOB1 >= JOB0 in the menu.
+2. **3b: build the host data pipeline.** Decode recognized Edge streams once
+   into little-endian host SoA arrays. Skin, transform and cull using AVX2
+   with eight lanes. Write each output stream once in its final format at
+   the location from which the job publishes it. Prioritize float/half/CMP
+   output, unit vectors, weighted skin and index triangles in profile order.
+   Unsupported descriptors use the lifted job as a whole, without partial
+   mutation before the fallback decision.
+3. **Validate each increment at the job boundary.** Require the exact ordered
+   DMA/atomic/channel transcript, every published vertex/index/RSX byte and
+   job exit state against all 19,508 corpus jobs / 58,195 transfers, plus
+   >=10,000 live whole-job I/O comparisons and inspected native menu/round
+   frames. Preserve SPU FP semantics for published values: RTZ, denormal
+   flush and no contraction unless the SPU operation fuses. Internal SPU
+   registers, LS scratch, lookahead/dummy iterations, prefetches and SPU-ABI
+   frames are not requirements. Existing per-function strict checks remain
+   optional debugging tools and must not dictate the native data layout.
+4. **Measure and decide.** Run reversed same-EXE JOB0/JOB1 menu and round FPS
+   series and separate worker/process cycles and CPU time per completed
+   frame. Freeze builds as `build-vulkan-*`, record `renderer` in their
+   manifests and verify both `window present mode mailbox` and
+   `two-context asynchronous draw batches enabled` in every run log. Never
+   run another game, compilation, CPU tests or independent profiling during
+   a measurement. Default-on requires all gates and JOB1 >= JOB0; 3a's
+   explicit target remains menu FPS parity or better. Do not substitute
+   isolated-option gains for the aggregate JOB0/JOB1 comparison.
+5. **Document, commit and continue.** For each validated increment, record a
+   short measurement table and decision, then make a local commit. Preserve
+   original saves, private corpus/derived-code policy, prior frozen builds
+   and source/evidence bindings. After phase 3 passes, continue the remaining
+   required shared native work in phase 4 under the same job-boundary method.
+   Phases 5/6 remain optional. Consolidate stage switches into
+   `BUZZ_GEOMETRY_JOB` and a few groups as 3b replaces them.
 
-1. Complete phase 3: the native image-41 whole-job flow, using the validated
-   kernels and preserving the lifted fallback for unsupported descriptors.
-2. Complete phase 4: the remaining image-40 native routines and reuse the
-   shared routines in images 43/45/47 after auditing each image's mapping,
-   contracts and real coverage. Keep an explicit inventory of remaining
-   required functions and paths; do not call the native work finished while
-   required implementations or validation gates remain open.
-3. Assess optional phases 5/6 after the mandatory native paths. They retain
-   their optional status: choose render/GPU work from measured bottlenecks
-   and portability work from the target platform and available validation.
-   Document any selection or deferral and its reason. An untested ARM path
-   must not be reported as validated or enabled by default.
-4. Complete phase 7 last: reconstruct Stage F's full strict state, pass
-   actual-native whole-job replay and all usual gates, then remove the
-   temporary baseline exception. If either optional phase is selected, do
-   it before this final Stage F cleanup.
+Stop new per-function SPU transliterations, cold-format implementation and
+coverage work without real inputs, and round interpreter-count work.
+**Phase 7 is cancelled**, including strict Stage F register reconstruction.
+Stage F follows the same job-boundary contract. Do not resume these cancelled
+or stopped tracks from older goals, checkpoints or results documents.
 
-For every function or tightly coupled group, retain its runtime switch and
-strict correctness gates, record FPS/frame times and worker/process CPU
-cycles/time per completed job/frame, update the tracker and commit the
-reviewable result. Default-on decisions may use repeatable CPU savings with
-flat FPS, as specified below. Never weaken a checker or count fallback as
-native coverage. Preserve original saves, private corpus/derived artifacts,
-source pins and frozen executable/map/save bindings; keep compilation,
-CPU tests and profiling separate from performance runs.
+### Historical implementation notes (superseded where conflicting)
 
-At each phase boundary, finalize a separate results document, commit it and
-continue to the next unfinished phase without requiring renewed permission.
-The active objective includes phase 3 and the subsequent native-function
-phases; individual phase boundaries are milestones, not a request to stop.
-Keep the continuing objective active while required implementations or gates
-remain open. The overall objective is finished only after the mandatory
-native-function inventory and final strict Stage F gates are complete, with
-optional-phase decisions recorded. Do not mark unfinished work complete just
-to advance to another phase.
+The notes below retain prior evidence; their former next steps and gates do
+not override the Course correction or the revised objective above.
 
 Current next milestone: continue host data across attributes/skin/output and
 close reliable interpreter-count validation, preserving existing StageF
