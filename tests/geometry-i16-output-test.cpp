@@ -60,7 +60,7 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial){
     g_spu_trampoline_fn=nullptr;i16_output_oracle::buzz_job_6eba_spu_func_00004DD0(&reference);
     for(unsigned steps=0;g_spu_trampoline_fn!=finish && g_spu_trampoline_fn!=skip;++steps){assert(steps<2048 && g_spu_trampoline_fn);auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(&reference);}
     const auto expected=g_spu_trampoline_fn;
-    geometry_output_register_test::compare("i16",native,reference,plan,finish,skip,expected,trial,emit_geometry_i16_output_registers);
+    geometry_output_register_test::compare("i16",native,reference,plan,finish,skip,expected,trial,emit_geometry_i16_output_registers,read_geometry_i16_output);
     g_spu_trampoline_fn=nullptr;emit_geometry_i16_output(native,plan,finish,skip);
     const auto d=compare_function_state(native,reference);
     if(!d.exact()){

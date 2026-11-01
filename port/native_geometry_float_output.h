@@ -24,17 +24,18 @@ inline bool prepare_geometry_float_output_column(u128* r)
     r[15]=spu_sfi(low,16);r[12]=spu_shl(r[45],r[15]);r[14]=spu_shlqby(r[63],r[15]);
     r[4]=spu_fsmb(r[12]);r[24]=spu_selb(r[49],r[14],r[4]);return true;
 }
-inline bool read_geometry_float_output(const spu_context& c,GeometryFloatOutput& out,const char** reason=nullptr)
+inline bool read_geometry_float_output(const spu_context& c,GeometryFloatOutput& out,const char** reason=nullptr,const u128* registers=nullptr)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
     // The original drainer polls between blocks. A new interrupt must never
     // arrive in an admitted region that has fused those poll boundaries.
     if(c.int_enable || c.irq_saved || c.irq_frame)return reject("active interrupt context");
-    if(!c.gpr[77]._u32[0]){out={};return true;}
-    const unsigned columns=c.gpr[60]._u32[0]?c.gpr[60]._u32[0]:1;
+    const auto* arguments=registers?registers:c.gpr;
+    if(!arguments[77]._u32[0]){out={};return true;}
+    const unsigned columns=arguments[60]._u32[0]?arguments[60]._u32[0]:1;
     if(columns>256)return reject("float output column budget");
-    u128 r[128];memcpy(r,c.gpr,sizeof r);open_geometry_float_output(r);unsigned total=0,cross_columns=0;
+    u128 r[128];memcpy(r,arguments,sizeof r);open_geometry_float_output(r);unsigned total=0,cross_columns=0;
     for(unsigned col=0;col<columns;++col){
         const bool cross=prepare_geometry_float_output_column(r);cross_columns+=cross;unsigned groups=0;
         for(;;){
@@ -78,7 +79,7 @@ inline void step_geometry_float_output(spu_context& c,u128* r,bool cross)
 }
 // Execute an admitted plan on 128 initialized host vectors. Only the supplied
 // bank and LS are updated; PC and trampoline are left to the ABI caller.
-// The bank must be disjoint from LS, as in the existing local-bank emitter.
+// The bank must be disjoint from the context, including LS and c.gpr.
 inline bool emit_geometry_float_output_registers(spu_context& c,u128* r,const GeometryFloatOutput& p)
 {
     if(!p.columns)return false;

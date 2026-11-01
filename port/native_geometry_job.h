@@ -92,6 +92,8 @@ void buzz_geometry_job_conversion_control(spu_context*,buzz_geometry_job_fn fall
 enum { BUZZ_GEOMETRY_JOB_FORMATTER = 49 };
 int buzz_geometry_job_formatter_enabled(void);
 int buzz_geometry_job_formatter_spans_enabled(void);
+int buzz_geometry_job_formatter_registers_enabled(void);
+void buzz_geometry_job_formatter_registers_result(unsigned children,unsigned strict_children,int checked);
 void buzz_geometry_job_formatter_result(unsigned fields,unsigned known,unsigned skipped,unsigned mask,int checked);
 void buzz_geometry_job_formatter(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_formatter_functions*);
 enum { BUZZ_GEOMETRY_JOB_I16_OUTPUT = 47 };

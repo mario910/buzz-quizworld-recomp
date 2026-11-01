@@ -11,15 +11,16 @@ inline GeometryUnormOutputPack pack_geometry_unorm_output(const u128* r,const u1
     for(unsigned i=0;i<4;++i){p.input[i]=input[i];p.scaled[i]=spu_fma(input[i],r[42],r[41]);p.integer[i]=spu_cfltu(p.scaled[i],149);}
     return p;
 }
-inline bool read_geometry_unorm_output(const spu_context& c,GeometryUnormOutput& out,const char** reason=nullptr)
+inline bool read_geometry_unorm_output(const spu_context& c,GeometryUnormOutput& out,const char** reason=nullptr,const u128* registers=nullptr)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
     if(c.int_enable || c.irq_saved || c.irq_frame)return reject("active interrupt context");
-    if(!c.gpr[77]._u32[0]){out={};return true;}
-    const unsigned columns=c.gpr[60]._u32[0]?c.gpr[60]._u32[0]:1;
+    const auto* arguments=registers?registers:c.gpr;
+    if(!arguments[77]._u32[0]){out={};return true;}
+    const unsigned columns=arguments[60]._u32[0]?arguments[60]._u32[0]:1;
     if(columns>256)return reject("UNORM output column budget");
-    const auto* r=c.gpr;const auto limit=spu_a(spu_xshw(r[29]),r[3]);unsigned total=0,cross_columns=0;
+    const auto* r=arguments;const auto limit=spu_a(spu_xshw(r[29]),r[3]);unsigned total=0,cross_columns=0;
     for(unsigned col=0;col<columns;++col){
         auto cursor=spu_a(spu_a(spu_il(col*16),r[52]),r[29]);auto route=spu_mpya(r[55],spu_a(spu_il(col),r[54]),r[53]);
         const bool cross=spu_cgti(spu_a(spu_andi(route,15),r[48]),16)._u32[0]!=0;cross_columns+=cross;unsigned groups=0;
@@ -77,7 +78,7 @@ template<bool Last> inline void step_geometry_unorm_output(spu_context& c,u128* 
 }
 // Execute an admitted plan on 128 initialized host vectors. Only the supplied
 // bank and LS are updated; PC and trampoline are left to the ABI caller.
-// The bank must be disjoint from LS, as in the existing local-bank emitter.
+// The bank must be disjoint from the context, including LS and c.gpr.
 inline bool emit_geometry_unorm_output_registers(spu_context& c,u128* r,const GeometryUnormOutput& p)
 {
     if(!p.columns)return false;

@@ -99,4 +99,14 @@ try {
     if ($Corpus) { & .\analysis\native-geometry\phase3\driver-flow-test.exe (Resolve-Path -LiteralPath $Corpus).Path 2>&1 | Tee-Object -FilePath $geometryLog }
     else { & .\analysis\native-geometry\phase3\driver-flow-test.exe 2>&1 | Tee-Object -FilePath $geometryLog }
     if ($LASTEXITCODE) { throw 'Native driver flow test failed' }
+    & .\analysis\native-geometry\phase3\driver-flow-test.exe formatter-registers 2>&1 | Tee-Object -FilePath analysis/native-geometry/phase3/formatter-registers-routing-test.log
+    if ($LASTEXITCODE) { throw 'Formatter register-bank production routing test failed' }
+    foreach ($geometryCorruption in @('gpr','ls','channel','host')) {
+        $geometryCorruptionLog="analysis/native-geometry/phase3/formatter-registers-corrupt-$geometryCorruption.log"
+        & .\analysis\native-geometry\phase3\driver-flow-test.exe "formatter-registers-$geometryCorruption" *> $geometryCorruptionLog
+        if ($LASTEXITCODE -ne 3 -or -not (Select-String -LiteralPath $geometryCorruptionLog -SimpleMatch '[geometry-job/formatter-registers] child2 DIFF')) {
+            throw "Formatter register-bank strict child failed to reject $geometryCorruption corruption"
+        }
+    }
+    'Formatter register-bank strict child mismatch detection: GPR/LS/channel/host PASS'
 } finally { Pop-Location }

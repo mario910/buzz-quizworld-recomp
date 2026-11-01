@@ -55,6 +55,7 @@
 #include "native_geometry_builtin24_cmp_output.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
+#include <array>
 #include <atomic>
 #include <cstdio>
 
@@ -265,6 +266,59 @@ extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geome
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL,1,0);
 }
 
+namespace {
+// Admission uses the live host bank. The physical bank can still contain the
+// formatter's entry state; normal execution does not publish a child ABI.
+template<class Plan>
+bool formatter_output_registers(spu_context& ctx,u128* r,unsigned stage,int mode,
+    const buzz::GeometryFormatterCallees& functions,unsigned storage,unsigned& strict_children,
+    bool (*read)(const spu_context&,Plan&,const char**,const u128*),
+    bool (*emit)(spu_context&,u128*,const Plan&),void (*result)(unsigned,unsigned,int))
+{
+    Plan plan;const char* reason=nullptr;
+    if(!read(ctx,plan,&reason,r)){
+        std::fprintf(stderr,"[geometry-job/formatter-registers] child%u admission invariant: %s\n",storage,reason?reason:"unknown");
+        buzz_geometry_job_native_fail(&ctx,"admitted formatter child rejected after mutation;cannot fall back");
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || mode==2){
+        comparison=buzz::clone_function_state(&ctx);
+        memcpy(comparison->gpr,r,sizeof(comparison->gpr));comparison->pc=r[4]._u32[0];
+        const auto scheduled=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;
+        // This is a different context from native_pipeline_context, so the
+        // production data wrapper takes its retained original/reference path.
+        functions.data[storage-1](comparison);
+        const unsigned budget=stage==BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT?1024:2048;
+        for(unsigned steps=0;!((comparison->pc==0x4610 && g_spu_trampoline_fn==functions.finish) ||
+                              (comparison->pc==0x4618 && g_spu_trampoline_fn==functions.skip));++steps){
+            const auto next=g_spu_trampoline_fn;
+            if(!next || next==spu_indirect_branch || steps>=budget)
+                buzz_geometry_job_native_fail(&ctx,"formatter register-bank reference escaped encoder frontier");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    const bool converted=emit(ctx,r,plan);
+    if(comparison){
+        // A requested strict boundary materializes the actual bank. There is
+        // no corresponding round trip in unchecked native execution.
+        memcpy(ctx.gpr,r,sizeof(ctx.gpr));ctx.pc=converted?0x4610:0x4618;
+        g_spu_trampoline_fn=converted?functions.finish:functions.skip;
+        const auto diff=buzz::compare_function_state(ctx,*comparison);
+        const bool exact=ctx.host_depth==comparison->host_depth && ctx.image_id==comparison->image_id &&
+            ctx.policy_mode==comparison->policy_mode && ctx.resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/formatter-registers] child%u DIFF r%d byte%d LS=%X/%u state=%s\n",storage,diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(&ctx,"formatter register-bank encoder strict state differs");
+        }
+        result(plan.columns,plan.cross_columns,1);++strict_children;
+    }
+    result(plan.columns,plan.cross_columns,0);buzz_geometry_job_output_result(stage,1,0);
+    return converted;
+}
+}
+
 extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_formatter_functions* functions)
 {
     if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_formatter_enabled()){
@@ -273,15 +327,16 @@ extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_f
     buzz::GeometryFormatter plan;const char* reason=nullptr;
     bool admitted=reference && functions && functions->finish && functions->skip;
     if(admitted)admitted=buzz::read_geometry_formatter(*ctx,plan,&reason,nullptr,buzz_geometry_job_formatter_spans_enabled()!=0);
+    std::array<int,7> modes{};
     if(admitted){
+        modes={buzz_geometry_job_snorm_output_enabled(),buzz_geometry_job_float_output_enabled(),
+            buzz_geometry_job_half_output_enabled(),buzz_geometry_job_unorm_output_enabled(),
+            buzz_geometry_job_i16_output_enabled(),buzz_geometry_job_cmp_output_enabled(),buzz_geometry_job_u8_integer_output_enabled()};
         // The formatter's read-only scan checks every eventual data store and
         // the same iteration bounds as the complete data readers. Its stronger
         // whole-root budget and immutable metadata prove those child layouts
         // remain admitted. Require each USED complete encoder switch as well;
         // disabled unused types must not block a supported root.
-        const int modes[]={buzz_geometry_job_snorm_output_enabled(),buzz_geometry_job_float_output_enabled(),
-            buzz_geometry_job_half_output_enabled(),buzz_geometry_job_unorm_output_enabled(),
-            buzz_geometry_job_i16_output_enabled(),buzz_geometry_job_cmp_output_enabled(),buzz_geometry_job_u8_integer_output_enabled()};
         for(unsigned i=0;i<7;++i)if((plan.mask&(1u<<i)) && (!modes[i] || !functions->data[i])){
             admitted=false;reason="used output encoder disabled or missing";break;
         }
@@ -301,7 +356,24 @@ extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_f
     buzz::GeometryFormatterCallees callees;
     for(unsigned i=0;i<7;++i)callees.data[i]=functions->data[i];
     callees.finish=functions->finish;callees.skip=functions->skip;
-    buzz::execute_geometry_formatter(*ctx,plan,callees);
+    const bool parent_checked=comparison!=nullptr;
+    unsigned children=0,strict_children=0;
+    const bool registers=buzz_geometry_job_formatter_registers_enabled()!=0;
+    if(registers){
+        buzz::execute_geometry_formatter_registers(*ctx,plan,[&](spu_context& c,u128* r,unsigned storage){
+            ++children;
+            switch(storage){
+            case 1:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_SNORM_OUTPUT,modes[0],callees,storage,strict_children,buzz::read_geometry_snorm_output,buzz::emit_geometry_snorm_output_registers,buzz_geometry_job_snorm_output_result);
+            case 2:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT,modes[1],callees,storage,strict_children,buzz::read_geometry_float_output,buzz::emit_geometry_float_output_registers,buzz_geometry_job_float_output_result);
+            case 3:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_HALF_OUTPUT,modes[2],callees,storage,strict_children,buzz::read_geometry_half_output,buzz::emit_geometry_half_output_registers,buzz_geometry_job_half_output_result);
+            case 4:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_UNORM_OUTPUT,modes[3],callees,storage,strict_children,buzz::read_geometry_unorm_output,buzz::emit_geometry_unorm_output_registers,buzz_geometry_job_unorm_output_result);
+            case 5:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_I16_OUTPUT,modes[4],callees,storage,strict_children,buzz::read_geometry_i16_output,buzz::emit_geometry_i16_output_registers,buzz_geometry_job_i16_output_result);
+            case 6:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_CMP_OUTPUT,modes[5],callees,storage,strict_children,buzz::read_geometry_cmp_output,buzz::emit_geometry_cmp_output_registers,buzz_geometry_job_cmp_output_result);
+            case 7:return formatter_output_registers(c,r,BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT,modes[6],callees,storage,strict_children,buzz::read_geometry_u8_integer_output,buzz::emit_geometry_u8_integer_output_registers,buzz_geometry_job_u8_integer_output_result);
+            default:buzz_geometry_job_native_fail(&c,"formatter register-bank storage invariant");return false;
+            }
+        });
+    }else buzz::execute_geometry_formatter(*ctx,plan,callees);
     if(comparison){
         const auto diff=buzz::compare_function_state(*ctx,*comparison);
         const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
@@ -314,6 +386,10 @@ extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_f
         buzz_geometry_job_formatter_result(plan.fields,plan.known,plan.skipped,plan.mask,1);
     }
     buzz_geometry_job_formatter_result(plan.fields,plan.known,plan.skipped,plan.mask,0);
+    if(registers){
+        if(children!=plan.known)buzz_geometry_job_native_fail(ctx,"formatter register-bank child coverage invariant");
+        buzz_geometry_job_formatter_registers_result(children,strict_children,parent_checked);
+    }
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FORMATTER,1,0);
 }
 

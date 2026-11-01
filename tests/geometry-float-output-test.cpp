@@ -44,7 +44,7 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial){
     g_spu_trampoline_fn=nullptr;float_output_oracle::buzz_job_6eba_spu_func_000046D0(&reference);
     for(unsigned steps=0;g_spu_trampoline_fn!=finish && g_spu_trampoline_fn!=skip;++steps){assert(steps<1000 && g_spu_trampoline_fn);auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(&reference);}
     const auto expected=g_spu_trampoline_fn;
-    geometry_output_register_test::compare("float",native,reference,plan,finish,skip,expected,trial,emit_geometry_float_output_registers);
+    geometry_output_register_test::compare("float",native,reference,plan,finish,skip,expected,trial,emit_geometry_float_output_registers,read_geometry_float_output);
     g_spu_trampoline_fn=nullptr;emit_geometry_float_output(native,plan,finish,skip);
     const auto d=compare_function_state(native,reference);
     if(!d.exact()){

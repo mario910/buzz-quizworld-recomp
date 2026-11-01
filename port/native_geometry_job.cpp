@@ -51,6 +51,7 @@ std::atomic<unsigned long long> unorm_output_counts[2][4]{};
 std::atomic<unsigned long long> u8_integer_output_counts[2][4]{};
 std::atomic<unsigned long long> i16_output_counts[2][4]{};
 std::atomic<unsigned long long> formatter_counts[2][4]{},formatter_types[2][7]{};
+std::atomic<unsigned long long> formatter_registers_roots[2]{},formatter_registers_children[2]{};
 std::atomic<unsigned long long> conversion_control_counts[2][7]{};
 std::atomic<unsigned long long> builtin_output_counts[2][4]{};
 std::atomic<unsigned long long> builtin_input_counts[2][5]{},input_control_counts[2][7]{};
@@ -221,6 +222,7 @@ struct Init {
             std::fprintf(stderr,"[geometry-job] native conversion control=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_conversion_control_enabled());
             std::fprintf(stderr,"[geometry-job] native formatter=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_formatter_enabled());
             std::fprintf(stderr,"[geometry-job] formatter column spans=%d (0 exhaustive,1 proven spans;default off)\n",buzz_geometry_job_formatter_spans_enabled());
+            std::fprintf(stderr,"[geometry-job] formatter registers=%d (0 ABI callbacks,1 shared host bank;default off)\n",buzz_geometry_job_formatter_registers_enabled());
             std::fprintf(stderr,"[geometry-job] native I16 output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_i16_output_enabled());
             std::fprintf(stderr,"[geometry-job] native U8 integer output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_u8_integer_output_enabled());
             std::fprintf(stderr,"[geometry-job] native UNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_unorm_output_enabled());
@@ -471,6 +473,18 @@ extern "C" void buzz_geometry_job_formatter_result(unsigned fields,unsigned know
     for(unsigned i=0;i<7;++i)if(mask&(1u<<i))++formatter_types[!!checked][i];
     const char* names[]={"empty","known","skipped","mixed"};
     if(total==1 || total==256 || total%5000==0)std::fprintf(stderr,"[geometry-job/formatter/%s] %s=%llu PASS\n",names[path],checked?"strict-full-state-return":"native",total);
+}
+extern "C" int buzz_geometry_job_formatter_registers_enabled()
+{
+    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS",1);return enabled;
+}
+extern "C" void buzz_geometry_job_formatter_registers_result(unsigned children,unsigned strict_children,int checked)
+{
+    if(strict_children>children)std::abort();
+    const auto total=++formatter_registers_roots[0];
+    if(checked)++formatter_registers_roots[1];
+    formatter_registers_children[0]+=children;formatter_registers_children[1]+=strict_children;
+    if(total==1 || total==256 || total%5000==0)std::fprintf(stderr,"[geometry-job/formatter-registers] native=%llu strict-parent=%llu children=%llu strict-children=%llu PASS\n",total,formatter_registers_roots[1].load(),formatter_registers_children[0].load(),formatter_registers_children[1].load());
 }
 extern "C" int buzz_geometry_job_i16_output_enabled()
 {
@@ -1177,6 +1191,7 @@ extern "C" void buzz_geometry_job_audit_report()
         const char* names[]={"empty","known","skipped","mixed"};
         for(unsigned path=0;path<4;++path)std::fprintf(stderr,"[geometry-job/formatter/%s] native=%llu strict-full-state-return=%llu\n",names[path],formatter_counts[0][path].load(),formatter_counts[1][path].load());
         for(unsigned i=0;i<7;++i)std::fprintf(stderr,"[geometry-job/formatter/storage%u] native-roots=%llu strict-roots=%llu\n",i+1,formatter_types[0][i].load(),formatter_types[1][i].load());
+        if(buzz_geometry_job_formatter_registers_enabled())std::fprintf(stderr,"[geometry-job/formatter-registers] native=%llu strict-parent=%llu children=%llu strict-children=%llu\n",formatter_registers_roots[0].load(),formatter_registers_roots[1].load(),formatter_registers_children[0].load(),formatter_registers_children[1].load());
     }
     if(buzz_geometry_job_mode() && buzz_geometry_job_i16_output_enabled()){
         const char* names[]={"skip","single-quad","double-quad","mixed"};

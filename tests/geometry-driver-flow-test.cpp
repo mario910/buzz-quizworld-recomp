@@ -81,6 +81,12 @@ static int unorm_output_mode=0;
 static int u8_integer_output_mode=0;
 static int i16_output_mode=0;
 static int formatter_mode=0;
+static int formatter_registers_mode=0;
+static bool formatter_registers_tests_only=false;
+static const char* formatter_registers_corruption=nullptr;
+static unsigned formatter_registers_cross[7]{};
+static unsigned formatter_registers_roots=0,formatter_registers_parents=0,formatter_registers_children=0,formatter_registers_strict_children=0;
+static unsigned formatter_registers_cases=0,formatter_registers_references[7]{},formatter_registers_entries[7]{};
 static int conversion_control_mode=0;
 static int builtin_output_mode[4]{};
 static int input_control_mode=0,builtin_input_mode[5]{};
@@ -185,6 +191,11 @@ int buzz_geometry_job_u8_integer_output_enabled(){return u8_integer_output_mode;
 int buzz_geometry_job_i16_output_enabled(){return i16_output_mode;}
 int buzz_geometry_job_formatter_enabled(){return formatter_mode;}
 int buzz_geometry_job_formatter_spans_enabled(){return 1;}
+int buzz_geometry_job_formatter_registers_enabled(){return formatter_registers_mode;}
+void buzz_geometry_job_formatter_registers_result(unsigned children,unsigned strict_children,int checked){
+    assert(strict_children<=children);++formatter_registers_roots;
+    formatter_registers_parents+=!!checked;formatter_registers_children+=children;formatter_registers_strict_children+=strict_children;
+}
 int buzz_geometry_job_conversion_control_enabled(){return conversion_control_mode;}
 int buzz_geometry_job_input_control_enabled(){return input_control_mode;}
 int buzz_geometry_job_builtin_input_enabled(unsigned format){assert(format>=1 && format<=5);return builtin_input_mode[format-1];}
@@ -194,13 +205,13 @@ int buzz_geometry_job_builtin_output_enabled(unsigned format){assert(format<4);r
 void buzz_geometry_job_builtin_output_result(unsigned format,int checked){assert(format<4);if(checked)++builtin_output_checked[format];}
 void buzz_geometry_job_conversion_control_result(unsigned,int checked){if(checked)++conversion_control_checked;}
 void buzz_geometry_job_formatter_result(unsigned,unsigned,unsigned,unsigned,int checked){if(checked)++formatter_checked;}
-void buzz_geometry_job_float_output_result(unsigned,unsigned,int checked){if(checked)++float_output_checked;}
-void buzz_geometry_job_half_output_result(unsigned,unsigned,int checked){if(checked)++half_output_checked;}
-void buzz_geometry_job_cmp_output_result(unsigned,unsigned,int checked){if(checked)++cmp_output_checked;}
-void buzz_geometry_job_snorm_output_result(unsigned,unsigned,int checked){if(checked)++snorm_output_checked;}
-void buzz_geometry_job_unorm_output_result(unsigned,unsigned,int checked){if(checked)++unorm_output_checked;}
-void buzz_geometry_job_u8_integer_output_result(unsigned,unsigned,int checked){if(checked)++u8_integer_output_checked;}
-void buzz_geometry_job_i16_output_result(unsigned,unsigned,int checked){if(checked)++i16_output_checked;}
+void buzz_geometry_job_float_output_result(unsigned,unsigned cross,int checked){if(checked)++float_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[1]+=cross;}
+void buzz_geometry_job_half_output_result(unsigned,unsigned cross,int checked){if(checked)++half_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[2]+=cross;}
+void buzz_geometry_job_cmp_output_result(unsigned,unsigned cross,int checked){if(checked)++cmp_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[5]+=cross;}
+void buzz_geometry_job_snorm_output_result(unsigned,unsigned cross,int checked){if(checked)++snorm_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[0]+=cross;}
+void buzz_geometry_job_unorm_output_result(unsigned,unsigned cross,int checked){if(checked)++unorm_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[3]+=cross;}
+void buzz_geometry_job_u8_integer_output_result(unsigned,unsigned cross,int checked){if(checked)++u8_integer_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[6]+=cross;}
+void buzz_geometry_job_i16_output_result(unsigned,unsigned cross,int checked){if(checked)++i16_output_checked;else if(formatter_registers_tests_only && formatter_registers_mode)formatter_registers_cross[4]+=cross;}
 void buzz_geometry_job_ring_result(unsigned frontier,int checked){assert(!frontier);if(checked)++ring_checked;}
 int buzz_geometry_job_alternate_cull_enabled(){return alternate_cull_mode;}
 void buzz_geometry_job_alternate_cull_result(unsigned,int checked){if(checked)++alternate_cull_checked;}
@@ -1009,8 +1020,139 @@ static void input_control_routing(spu_context* ctx){
     for(auto& flag:builtin_input_mode)flag=0;input_control_mode=0;flow_mode=1;attributes_enabled=prior_attributes;custom_stream_mode=prior_custom;memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);buzz::release_function_state(base);g_spu_trampoline_fn=queue;
     puts("Native input production routing:3876 roots/1938 parent strict/1440 child strict;all6 formats/empty/independent options/depths/biases;14 unchanged owned rejects/off/image/foreign and out-of-parent leaf scope PASS");
 }
+// Use the same production entry wrappers as the generated game. Foreign
+// comparison contexts must execute the independent retained lift, not an
+// encoder model or the native core under test.
+static void formatter_register_corrupt(spu_context* c){
+    if(!formatter_registers_corruption)return;
+    if(!strcmp(formatter_registers_corruption,"gpr"))c->gpr[127]._u32[3]^=0x12345678;
+    else if(!strcmp(formatter_registers_corruption,"ls"))c->ls[0x2000]^=0xff;
+    else if(!strcmp(formatter_registers_corruption,"channel"))c->ch_out_mbox.value^=1;
+    else if(!strcmp(formatter_registers_corruption,"host"))c->host_depth^=1;
+    else abort();
+}
+#define FORMATTER_REGISTER_DATA(N,TYPE,ORIGINAL) \
+static void formatter_register_reference##N(spu_context* c){++formatter_registers_references[N];ORIGINAL(c);formatter_register_corrupt(c);} \
+static void formatter_register_data##N(spu_context* c){++formatter_registers_entries[N]; \
+    buzz_geometry_job_##TYPE##_output(c,formatter_register_reference##N,formatter_register_reference##N,buzz_formatter_original_00004610,buzz_formatter_original_00004618);}
+FORMATTER_REGISTER_DATA(0,snorm,buzz_formatter_original_00004478)
+FORMATTER_REGISTER_DATA(1,float,buzz_formatter_original_000046D0)
+FORMATTER_REGISTER_DATA(2,half,buzz_formatter_original_00004880)
+FORMATTER_REGISTER_DATA(3,unorm,buzz_formatter_original_00004B9C)
+FORMATTER_REGISTER_DATA(4,i16,buzz_formatter_original_00004DD0)
+FORMATTER_REGISTER_DATA(5,cmp,buzz_formatter_original_00004FDC)
+FORMATTER_REGISTER_DATA(6,u8_integer,buzz_formatter_original_000052B4)
+#undef FORMATTER_REGISTER_DATA
+static const buzz_geometry_formatter_functions formatter_register_library{
+    {formatter_register_data0,formatter_register_data1,formatter_register_data2,formatter_register_data3,
+     formatter_register_data4,formatter_register_data5,formatter_register_data6},buzz_formatter_original_00004610,buzz_formatter_original_00004618};
+
+static void formatter_register_routing(spu_context* ctx)
+{
+    auto* saved=buzz::clone_function_state(ctx);const auto queue=g_spu_trampoline_fn;
+    auto* entry=buzz::clone_function_state(ctx);
+    auto* fixture=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_4178.bin","rb");assert(fixture);
+    assert(fread(entry->gpr,sizeof entry->gpr,1,fixture)==1 && fread(entry->ls,SPU_LS_SIZE,1,fixture)==1 && fgetc(fixture)==EOF);fclose(fixture);
+    const unsigned manager=entry->gpr[3]._u32[0]&~15u,desc=entry->gpr[4]._u32[0]&~15u;
+    int* modes[]={&snorm_output_mode,&float_output_mode,&half_output_mode,&unorm_output_mode,&i16_output_mode,&cmp_output_mode,&u8_integer_output_mode};
+    unsigned* natives[]={&snorm_output_native,&float_output_native,&half_output_native,&unorm_output_native,&i16_output_native,&cmp_output_native,&u8_integer_output_native};
+    unsigned* stricts[]={&snorm_output_checked,&float_output_checked,&half_output_checked,&unorm_output_checked,&i16_output_checked,&cmp_output_checked,&u8_integer_output_checked};
+    unsigned expected_roots=0,expected_parents=0,expected_children=0,expected_strict_children=0,rejects=0;
+    const unsigned widths[]={0,6,12,6,3,6,4,3};
+    auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;
+        formatter_mode=flow_mode=1;formatter_registers_mode=1;for(auto* m:modes)*m=1;};
+    auto field=[&](unsigned index,unsigned kind,unsigned bias){
+        if(index)memcpy(ctx->ls+desc+8+8*index,entry->ls+desc+8,8);
+        ctx->ls[desc+9+8*index]=kind;ctx->ls[desc+12+8*index]=widths[kind];ctx->ls[desc+13+8*index]=bias;
+    };
+    auto check=[&](){
+        buzz::GeometryFormatter plan;const char* why=nullptr;
+        if(!buzz::read_geometry_formatter(*ctx,plan,&why)){fprintf(stderr,"host formatter test%u reject:%s\n",formatter_registers_cases,why);abort();}
+        const bool parent_checked=flow_mode==2 || formatter_mode==2;
+        unsigned expected_native[7]{},expected_strict[7]{},references[7],entries_before[7],native_before[7],strict_before[7];
+        const unsigned count=ctx->ls[desc];
+        // Every known field is accounted separately, including repeated types.
+        if(plan.fields)for(unsigned i=0;i<count;++i){const unsigned kind=ctx->ls[desc+9+8*i];if(kind<1 || kind>7)continue;
+            ++expected_native[kind-1];expected_strict[kind-1]+=flow_mode==2 || *modes[kind-1]==2;
+        }
+        unsigned children=0,checked_children=0;
+        for(unsigned i=0;i<7;++i){children+=expected_native[i];checked_children+=expected_strict[i];
+            native_before[i]=*natives[i];strict_before[i]=*stricts[i];references[i]=formatter_registers_references[i];entries_before[i]=formatter_registers_entries[i];}
+        assert(children==plan.known);
+        auto* expected=buzz::clone_function_state(ctx);const auto incoming=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;buzz_formatter_original_run(expected);const auto finish=g_spu_trampoline_fn;g_spu_trampoline_fn=incoming;
+        const auto prior_references=formatter_references,prior_native=formatter_native,prior_checked=formatter_checked;
+        buzz_geometry_job_formatter(ctx,formatter_fallback_call,formatter_reference,&formatter_register_library);
+        assert(buzz::compare_function_state(*ctx,*expected).exact() && ctx->host_depth==expected->host_depth && ctx->image_id==expected->image_id &&
+            ctx->policy_mode==expected->policy_mode && ctx->resident_ovl==expected->resident_ovl && g_spu_trampoline_fn==finish);
+        assert(formatter_references-prior_references==unsigned(parent_checked) && formatter_checked-prior_checked==unsigned(parent_checked) && formatter_native-prior_native==1);
+        for(unsigned i=0;i<7;++i){
+            assert(*natives[i]-native_before[i]==expected_native[i] && *stricts[i]-strict_before[i]==expected_strict[i]);
+            assert(formatter_registers_references[i]-references[i]==expected_strict[i]);
+            assert(formatter_registers_entries[i]-entries_before[i]==(formatter_registers_mode?expected_strict[i]:expected_native[i]));
+        }
+        buzz::release_function_state(expected);
+        if(formatter_registers_mode){++expected_roots;expected_parents+=parent_checked;expected_children+=children;expected_strict_children+=checked_children;}
+        assert(formatter_registers_roots==expected_roots && formatter_registers_parents==expected_parents &&
+            formatter_registers_children==expected_children && formatter_registers_strict_children==expected_strict_children);
+        ++formatter_registers_cases;
+    };
+    if(formatter_registers_corruption){
+        reset();ctx->ls[manager+8]=0;ctx->ls[manager+9]=1;ctx->ls[desc]=1;field(0,2,0);float_output_mode=2;
+        check();assert(!"strict child failed to detect injected mismatch");
+    }
+    for(unsigned host=0;host<2;++host)for(unsigned kind=1;kind<=7;++kind)for(unsigned count:{0u,1u,5u,17u})
+    for(unsigned bias:{0u,15u})for(unsigned depth=0;depth<3;++depth)for(unsigned mode=0;mode<5;++mode){
+        reset();formatter_registers_mode=host;ctx->host_depth=depth;ctx->ls[manager+8]=0;ctx->ls[manager+9]=count;
+        ctx->ls[desc]=1;ctx->ls[desc+1]=23;field(0,kind,bias);
+        if(mode==1)flow_mode=2;if(mode==2)formatter_mode=2;if(mode==3)*modes[kind-1]=2;if(mode==4)*modes[kind%7]=2;
+        check();
+    }
+    // Shared bank across multiple actual encoders and a skipped descriptor.
+    for(unsigned host=0;host<2;++host)for(unsigned count:{1u,17u})for(unsigned depth=0;depth<3;++depth)for(unsigned mode=0;mode<4;++mode){
+        reset();formatter_registers_mode=host;ctx->host_depth=depth;ctx->ls[manager+8]=0;ctx->ls[manager+9]=count;ctx->ls[desc]=8;ctx->ls[desc+1]=48;
+        for(unsigned i=0;i<8;++i)field(i,i==7?0:i+1,(i*3)&15);
+        if(mode==1)flow_mode=2;if(mode==2)formatter_mode=2;if(mode==3){half_output_mode=2;i16_output_mode=2;}
+        check();
+    }
+    // Actual stores overwrite saved formatter vectors; the final bank must
+    // come from late LS reloads, even though encoders shared a host bank.
+    for(unsigned host=0;host<2;++host)for(unsigned offset:{16u,32u,48u,64u})
+    for(unsigned depth=0;depth<3;++depth)for(unsigned mode=0;mode<2;++mode){
+        reset();formatter_registers_mode=host;ctx->host_depth=depth;flow_mode=mode?2:1;
+        ctx->ls[manager+8]=0;ctx->ls[manager+9]=1;ctx->ls[desc]=1;ctx->ls[desc+1]=0;field(0,2,0);
+        const unsigned target=(ctx->gpr[1]._u32[0]&~15u)-offset;
+        spu_ls_write128(ctx,manager+0x50,spu_ila(target));check();
+        const unsigned reg=offset==64?126:79+offset/16;
+        const auto reloaded=spu_ls_read128(ctx,target);
+        assert(!memcmp(&ctx->gpr[reg],&reloaded,16));
+    }
+    auto unchanged=[&](spu_context* target,const buzz_geometry_formatter_functions* functions){
+        auto* before=buzz::clone_function_state(target);const auto incoming=g_spu_trampoline_fn;
+        const auto roots=formatter_registers_roots,children=formatter_registers_children,native=formatter_native;
+        buzz_geometry_job_formatter(target,formatter_fallback_call,formatter_reference,functions);
+        assert(buzz::compare_function_state(*target,*before).exact() && g_spu_trampoline_fn==incoming &&
+            roots==formatter_registers_roots && children==formatter_registers_children && native==formatter_native);
+        buzz::release_function_state(before);++rejects;
+    };
+    for(unsigned kind=1;kind<=7;++kind){reset();ctx->ls[desc]=1;field(0,kind,0);*modes[kind-1]=0;unchanged(ctx,&formatter_register_library);
+        reset();ctx->ls[desc]=1;field(0,kind,0);auto functions=formatter_register_library;functions.data[kind-1]=nullptr;unchanged(ctx,&functions);}
+    reset();formatter_mode=0;unchanged(ctx,&formatter_register_library);
+    reset();ctx->image_id=40;unchanged(ctx,&formatter_register_library);
+    reset();ctx->int_enable=1;unchanged(ctx,&formatter_register_library);
+    reset();ctx->irq_saved=1;unchanged(ctx,&formatter_register_library);
+    reset();ctx->irq_frame=reinterpret_cast<void*>(uintptr_t(1));unchanged(ctx,&formatter_register_library);
+    reset();auto* foreign=buzz::clone_function_state(ctx);unchanged(foreign,&formatter_register_library);buzz::release_function_state(foreign);
+    assert(formatter_registers_cases==1776 && rejects==20 && expected_children && expected_strict_children);
+    for(auto cross:formatter_registers_cross)assert(cross);
+    printf("PASS production formatter registers:%u full original-state roots;%u shared-bank roots/%u strict parents;%u host children/%u strict children;all7 types,8-field mixtures,zero/one/bulk,cross bias,3depths,JOB2/parent2/used+unused child2;ABI route retained;20 unchanged rejects/off/image/foreign;old stage ledger and actual reference-entry deltas exact\n",formatter_registers_cases,expected_roots,expected_parents,expected_children,expected_strict_children);
+    for(auto* m:modes)*m=0;formatter_mode=formatter_registers_mode=0;flow_mode=1;
+    memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);buzz::release_function_state(entry);g_spu_trampoline_fn=queue;
+}
+
 static void routing_inside(spu_context* ctx)
 {
+    if(formatter_registers_tests_only){formatter_register_routing(ctx);return;}
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
         auto* fixture=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_4178.bin","rb");assert(fixture);
@@ -1899,9 +2041,16 @@ static void compare(spu_context& native, spu_context& reference)
 }
 int main(int argc, char** argv)
 {
+    _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);
     const unsigned previous = _mm_getcsr();
     _mm_setcsr((previous & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
     auto native = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
+    if(argc==2 && (!strcmp(argv[1],"formatter-registers") || !strncmp(argv[1],"formatter-registers-",20))){
+        if(!strncmp(argv[1],"formatter-registers-",20))formatter_registers_corruption=argv[1]+20;
+        formatter_registers_tests_only=routing_probe=true;synthetic(*native,0);const unsigned link=native->gpr[0]._u32[0];g_spu_trampoline_fn=nullptr;
+        buzz_geometry_job_native_start(native.get(),&model_library);drain(native.get(),link);
+        assert(formatter_registers_cases==1776);_mm_setcsr(previous);return 0;
+    }
     synthetic(*native,0);buzz::GeometryJobEntry input_entry;assert(buzz::read_geometry_job_entry(*native,input_entry));
     const unsigned input_config=input_entry.input[16].lsa;native->ls[input_config+2]=1;native->ls[input_config+3]=5;input_control_mode=0;
     auto untouched=std::make_unique<unsigned char[]>(sizeof(*native));memcpy(untouched.get(),native.get(),sizeof(*native));

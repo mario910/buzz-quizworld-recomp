@@ -168,6 +168,7 @@ int main(int argc, char** argv)
             {"I16_OUTPUT",buzz_geometry_job_i16_output_enabled},
             {"FORMATTER",buzz_geometry_job_formatter_enabled},
             {"FORMATTER_SPANS",buzz_geometry_job_formatter_spans_enabled},
+            {"FORMATTER_REGISTERS",buzz_geometry_job_formatter_registers_enabled},
             {"CONVERSION_CONTROL",buzz_geometry_job_conversion_control_enabled},
             {"INPUT_CONTROL",buzz_geometry_job_input_control_enabled},
             {"BUILTIN20_INPUT",builtin_input1_option},

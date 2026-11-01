@@ -60,7 +60,7 @@ this distinction and use suitable instrumentation for live fallback totals.
 The later rigid-skin build adds a flushed first-fallback notification per
 stage; it does not retroactively add instrumentation to older frozen runs.
 
-## External register-bank output cores
+## External register-bank output cores (`d1cd80a` standalone milestone)
 
 The seven output encoders now expose an execution core accepting an admitted
 plan and an external bank of 128 vectors. The existing SPU-ABI wrappers retain
@@ -103,6 +103,59 @@ the previous frozen executable's evidence remains specific to that executable.
 The next increment connects these cores to the formatter with independent
 switching and strict child boundaries, then repeats the relevant full gates.
 Phase 3 and the continuing objective remain open.
+
+## Shared register bank in the production formatter
+
+`BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS=0/1` now selects the retained ABI
+callbacks or direct execution on the formatter's host bank. Its default is
+**0**. With JOB1 and mode1 encoders, a field no longer publishes/reloads the
+parent bank or copies it into/out of an encoder-local bank. Root entry/exit
+copies remain, as does FLOAT's existing admission-local bank. The seven
+encoders' arithmetic and ordered LS operations are unchanged.
+
+Readers can now admit a supplied bank while retaining their existing ABI
+interface and checks. All 50,811 poisoned-physical-GPR cases also verify that
+external-bank admission produces the same plan. Strong parent admission still
+precedes mutation and checks each used encoder switch and function. An
+unexpected child rejection during execution is a fatal invariant failure;
+it cannot become a fallback after partially changing the root.
+
+JOB2 or an individual encoder's mode2 still runs that encoder's independent
+original on a separate, non-owned context initialized with the **current**
+host bank and child PC. It drains to the same `4610`/`4618` frontier, then
+materializes and compares the actual complete state. Formatter mode2 retains
+its full-parent check. No requested child comparison is replaced by a parent
+comparison. Existing encoder/stage ledgers remain accurate; the new ledger
+separately reports shared-bank roots, strict parents, actual children and
+strict children.
+
+Production-routing checks pass **1,776** original-state root comparisons:
+888 shared-bank roots, 360 strict parents, 822 host children and 318 strict
+children. The other 888 roots use the retained ABI route. Cases cover all
+seven encoders, nonzero crossing columns for each, eight-field mixtures with
+a skipped descriptor, zero/one/bulk counts, three host depths, independent
+JOB2/formatter2/used-child2/unused-child2 modes and 48 saved-frame-alias roots
+whose vectors must be restored from late LS reloads. Twenty unsupported,
+disabled, missing-callee, interrupt, image and foreign-context cases preserve
+state and continuation. Every case checks exact stage/reference-entry deltas.
+
+Four separate fault-injection processes prove that child-only strict mode
+rejects changes to GPR127, protected LS, a channel and host depth. The old
+1,024-scenario flow/routing suite, all seven encoder suites, enclosing
+formatter/conversion suites and **488** production-getter configuration cases
+pass. Reproduce with `tests/scripts/test-geometry-driver-flow.ps1` and the
+encoder/formatter/conversion/runtime scripts. Two earlier test-bookkeeping
+failures (the matrix count and a host-vector/raw-LS endian assertion) are
+retained privately; the final tests use the full matrix and LS vector reader.
+
+This is production integration with CPU-test evidence, **not game acceptance
+or a measured speedup**. No new game executable/corpus/live/frame/performance
+gate has yet been completed for this change. ABI48/61 stage structures,
+original references, strict checkers and the narrow Stage F exception remain
+unchanged. JOB0/geometry827/new flags0, including REGISTERS0, remain the product
+defaults. Next freeze a new executable/map/source set and run full replay,
+requested child checks, live comparisons, native frames and separate reversed
+FPS/CPU series. Other pipeline streams still use LS; phase 3 stays open.
 
 ## Driver boundary audit
 

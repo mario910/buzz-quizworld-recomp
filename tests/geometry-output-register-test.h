@@ -8,11 +8,11 @@ namespace geometry_output_register_test {
 inline unsigned cases = 0;
 inline void sentinel(spu_context*) { std::abort(); }
 
-template<class Plan, class Core>
+template<class Plan, class Core, class Reader>
 void compare(const char* name, const spu_context& entry,
              const spu_context& reference, const Plan& plan,
              void (*finish)(spu_context*), void (*skip)(spu_context*),
-             void (*expected)(spu_context*), unsigned trial, Core core)
+             void (*expected)(spu_context*), unsigned trial, Core core, Reader reader)
 {
     auto* actual = buzz::clone_function_state(&entry);
     alignas(16) u128 bank[128], poison[128];
@@ -22,6 +22,9 @@ void compare(const char* name, const spu_context& entry,
             poison[reg]._u32[lane] = 0xa5c39e71u ^ (reg * 0x9e3779b9u) ^
                                       (lane * 0x85ebca6bu) ^ trial;
     memcpy(actual->gpr, poison, sizeof poison);
+    Plan external_plan;const char* reason=nullptr;
+    assert(reader(*actual,external_plan,&reason,bank));
+    assert(external_plan.columns==plan.columns && external_plan.groups==plan.groups && external_plan.cross_columns==plan.cross_columns);
     const auto saved = g_spu_trampoline_fn;
     g_spu_trampoline_fn = sentinel;
     const bool converted = core(*actual, bank, plan);
