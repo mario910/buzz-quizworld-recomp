@@ -6283,3 +6283,37 @@ SPANS0/JOB0/geometry827/newflags0 until the relevant defaults are justified.
 Cold real/live,round interpreted-count,whole-job and final gates stay open;
 strict checkers/ABI48/61 stages/StageF waiver are unchanged. The continuing
 objective remains active through shared phase4 and final strict StageF7.
+
+
+## Round FPS repetition and host-data completion audit
+
+The independent same3df EXE round SPANS0/1/1/0 repetition passes four complete
+windows,actual native coverage,all hashes/runtime settings and four inspected
+lossless native result-arena images. No validation/fallback marker appears.
+Mean FPS31.04 ->31.73,+2.22%;pairs+2.61/+1.84. Both new pairs improve median,
+p90 and p99(p99=44.46->42.37ms and43.68->42.94ms). The first-series54.80ms
+native p99 remains in the evidence. Across four primary round pairs,all means
+and median/p90 improve;three of four p99 pairs improve. The earlier increase
+was not reproduced,and no cause or universal bound is claimed.
+
+The span proof remains validated opt-in with product default0 alongside its
+experimental parent driver. Further optimized native profiles explicitly use
+SPANS1. The [performance report](native-geometry-phase3-performance.md) retains
+both FPS series and the separate same-EXE menu/round CPU costs.
+
+Matched diagnostic-only automatic-start profiles collect21,132native and
+20,601reference pool samples with exact EXE/MAP/sampler/source/lane bindings.
+They rank half/float/CMP output work among remaining native leaves,with6% of
+native samples in VCRUNTIME. Sampled shares are not costs and the external
+module cannot be attributed to formatter copies. A failed late manual control
+attachment is preserved;the matched pair uses the corrected private helper.
+No profiling run is accepted as performance evidence.
+
+The [current remaining-work audit](native-geometry-phase3-remaining.md) makes
+an outstanding requirement explicit:the Edge data path still has LS/SPU-ABI
+boundaries. The formatter already has a host bank,but its child encoders copy
+full128-vector banks around their calls. Next is shared-bank encoder execution
+behind an independent switch,with unchanged ordered LS effects and complete
+parent/child strict boundaries. This is an implementation task;the timings do
+not complete the full host-buffer pipeline. Cold real/live,round interpreted
+counts,aggregate/default gates and phase3 remain open. Strict StageF7 stays last.

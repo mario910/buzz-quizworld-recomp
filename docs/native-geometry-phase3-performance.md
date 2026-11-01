@@ -355,3 +355,64 @@ the intended single knob and scene/metric settings. The earlier V3 aggregate
 JOB0/JOB1 regression remains separately bound;no aggregate gain is claimed.
 JOB0/geometry827/new flags0/SPANS0 remain unchanged. Phase3,cold real/live,
 round interpreted-count and final default gates remain open.
+
+
+## Independent round FPS repetition and next native work
+
+A second independent SPANS0/1/1/0 round FPS series uses the same3df8d057 EXE,
+MAP9b027e64,initial save and actual JOB1/all other production options1.
+Four inspected native green result-arena images are normal;one shows the
+normal Adam0 panel with a different camera. One190s GPU copy/readback0 and
+lossless PPM/PNG/captured-frame/QA bindings pass in every run. All200..270s
+windows are complete,with no CPU/interpreter observer,concurrent build,test,
+other game or diagnostic profiler. There are no DIFF,first-fallback or
+unrecordable markers.
+
+Mean FPS: **31.04 ->31.73 (+2.22%)**,pairs **+2.61%,+1.84%**.
+Median,p90 and p99 improve in both new native pairs.
+
+| Order | SPANS | FPS | Median interval(ms) | p90(ms) | p99(ms) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 30.99 | 31.66 | 39.04 | 44.46 |
+| 2 | 1 | 31.80 | 31.10 | 37.40 | 42.37 |
+| 3 | 1 | 31.66 | 31.16 | 37.67 | 42.94 |
+| 4 | 0 | 31.09 | 31.66 | 38.71 | 43.68 |
+
+The first series'54.80ms native p99 is retained in its original table and raw
+report. It was not reproduced in this repetition:42.37ms versus44.46ms and
+42.94ms versus43.68ms in the new pairs. Across both primary round FPS series,
+all four mean-FPS pairs improve,all median/p90 pairs improve,and three of four
+p99 pairs improve. This completes the targeted repetition;the original outlier
+still limits prediction and its cause is not established. Questions/cameras
+vary,so do not claim identical-frame determinism or a universal tail bound.
+
+The span proof is a validated opt-in optimization. Keep its product default0
+while the enclosing whole-job driver remains experimental/default0;use SPANS1
+explicitly in the optimized native profile from here. This policy defers
+promotion with its parent rather than claiming the whole job benefits from
+an individual-option saving. No default,checker,ABI or native implementation
+changed in these measurements.
+
+Separate diagnostic-only menu profiles now bind the3df EXE/MAP,immutable
+sampler/source and four named pool lanes. The matched automatic-start series
+has21,132native samples and20,601reference samples. Native leaf shares include
+half-output pack2.03%,unit values1.95%,index triangles1.91%,float-output step
+1.86%,CMP pack1.70%,unit final ABI1.25% and result counters1.19%. Job worker
+is22.91%,VCRUNTIME5.97%,and the column proof0.75%. These are sampled shares,
+not elapsed costs;external module samples do not identify a memcpy source.
+The sampler briefly suspends threads,and these runs are excluded from every
+FPS/CPU comparison. Nearest-map padding/folded aliases and unverified external
+caller guesses are not exact call attribution.
+
+A first manual control-profile attachment was too late and produced no valid
+sample;its logs are retained. The private helper now starts the source-bound
+sampler automatically at launch and verifies completion. An earlier valid
+native-only profile is supplementary;the paired comparison uses only the
+matched automatic-start series.
+
+Next is shared host-register data execution in the formatter,as specified in
+[the phase3 remaining-work audit](native-geometry-phase3-remaining.md). Source
+inspection confirms full bank copies around encoder boundaries. Removing those
+copies is a proposed implementation,with no saving claimed before measurement.
+The full host-buffer pipeline,round interpreted counts,cold real/live and
+aggregate/default gates remain open;phase3 is not complete.
