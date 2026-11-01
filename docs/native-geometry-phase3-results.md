@@ -6488,3 +6488,37 @@ frozen corpus/menu/round diagnostics remain next; no FPS or CPU saving is
 claimed. JOB0/geometry827/newflags0/SPANS0/REGISTERS0 stay unchanged,with the
 exact observer also0 by default and explicitly0 in benchmark arms. Phase3
 remains active through the continuing objective; strict StageF7 remains last.
+
+
+## Exact counts: frozen full corpus and live menu
+
+Frozen compiledf183f68/SDKd82523ad produces EXE9691ca43/MAPa6bb229f,with
+unchanged generated geometry code. Four full-corpus arms each pass19,508exact
+jobs/58,195transfers/zero divergent inputs/failures:JOB2checked,JOB0reference,
+JOB1native andJOB1nativeEXACT0. All3enabled arms explicitly report total0,
+flags0,unbucketed0,buckets0 after synchronous replay. The native driver executes
+19,508jobs with0whole-job fallback; JOB2 strictly compares all19,508. Native
+observer0/1 stage/family/native ledgers are identical.
+
+Fresh separate reference/native menu runs on the same new EXE and initial
+private save92ed9caf both prove exact all-image0 at requested15/60s. Actual
+reference intervals15.000307..15.409342/60.000280..60.424438s and native
+15.001061..15.314237/60.000741..60.323045s are retained with raw bytes and
+65/51suspended target threads. Native mode and shared-bank execution appear
+in runtime logs. These are diagnostic runs and establish no FPS/CPU benefit.
+
+The first menu attempt failed the private0.25s admission window;its error log,
+metadata and CSV remain preserved without an accepted result. The process
+fixture spans about0.29s and accepted live queries0.313..0.424s. A second
+private scheduler preserves raw snapshots/actual boundaries and uses3s
+diagnostic admission;the public exact counter and strict invalidity checks
+are unchanged. The failed read's actual latency was not recorded. See
+[the diagnostic contract](native-geometry-interpreter-counts.md) for details.
+
+Acceptance verifies315source bindings,81freeze pins and459archived parent
+proofs;final sealing also pins the game binding. All earlier frozen apps/maps,
+original saves and source pins remain intact. JOB0/geometry827/newflags0/
+SPANS0/REGISTERS0/EXACT0 remain the defaults. Next is the positive round-count
+inventory and matched-work interpretation;phase3host-data/cold/aggregate/default
+gates remain open. The continuing objective proceeds through shared phase4,
+optional decisions and mandatory strict StageF7 last,with local commits.

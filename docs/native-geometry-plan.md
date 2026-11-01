@@ -60,10 +60,13 @@ are complete:menuFPS+0.894%,round+0.169% with mixed pairs/tails;worker cycles/fr
 REGISTERS stays0 after this small/mixed result. The implementation remains an
 opt-in first host-data boundary.
 The [exact interpreter counter foundation](native-geometry-interpreter-counts.md)
-now passes production-state neutrality, concurrent recorder/process and observer
-failure tests. It defaults off and is explicitly off in FPS/CPU series. Freeze
-the new build for corpus and matched live diagnostics; the round count gate
-remains open until actual-game evidence establishes the comparison.
+passes production-state neutrality, concurrent recorder/process and observer
+failure tests. New9691ca43 EXE/a6bb229f MAP passes4full-corpus arms,each19,508exact
+jobs/58,195transfers;all3enabled arms explicitly count0. Reference/native live
+menu both prove all-image0 at requested15/60s,with actual read boundaries and
+the first failed timing-admission attempt preserved. The observer defaults off
+and is explicitly off in FPS/CPU series. Next is the round's positive per-page
+inventory with justified matched work; its count gate remains open.
 REGISTERS0/1 integrates all seven cores directly with the formatter's host
 bank,default0. Ten frozen arms each pass19,508exact jobs/58,195transfers,
 unchanged old ledgers and7,201host roots/17,278children where enabled. New

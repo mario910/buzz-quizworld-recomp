@@ -71,7 +71,44 @@ exit normally. Fifteen observer tests cover rejected evidence, inventory
 stability and cleanup failures; eight legacy observer tests still pass. The
 full game links successfully with startup arming and offline reporting.
 
-These establish the diagnostic tool. Actual new-build corpus/menu/round
-comparisons and the phase-3 interpreted-count gate remain separate work.
+These establish the diagnostic tool. New-build corpus and menu results follow
+below; the actual round comparison and phase-3 interpreted-count gate remain
+separate work.
 Geometry defaults, strict new-kernel checks and the narrow existing Stage F
 exception are unchanged. Strict Stage F reconstruction remains phase 7 last.
+
+## Frozen corpus and menu acceptance
+
+Compiled root `f183f68` / SDK `d82523ad` is frozen as
+`build-vulkan-phase3-interpreter-exact-v1`, EXE `9691ca43` / MAP `a6bb229f`.
+Generated geometry code is unchanged. Four corpus arms each pass all 19,508
+jobs and 58,195 transfers with zero input divergence or failures: JOB2 checked,
+JOB0 reference, JOB1 native, and JOB1 native with the observer disabled. The
+three enabled arms report explicit enabled=1, flags=0, unbucketed=0, total=0,
+buckets=0 after replay. Each enabled native driver executes 19,508 jobs with
+zero whole-job fallback; JOB2 strictly compares all 19,508. Native observer
+0/1 stage/family/native ledgers are identical.
+
+Fresh separate reference/native menu diagnostics use the same EXE, mask827,
+StageF1 and initial private save `92ed9caf`. Both snapshots in both arms prove
+exact all-image zero. The reference read intervals are15.000307..15.409342s
+and60.000280..60.424438s; native intervals are15.001061..15.314237s and
+60.000741..60.323045s from the renderer epoch. All65/51 target threads are
+suspended at the two boundaries. Native mode and nonzero shared-bank execution
+are confirmed in runtime logs. These diagnostics provide no performance data.
+
+The first scheduled menu attempt failed the private scheduler's0.25s admission
+window and has no accepted result. Its error log, run metadata and CSV remain
+preserved. The controlled process fixture already measured approximately0.29s
+query spans; the accepted menu reads take0.313..0.424s. The second private
+scheduler saves raw snapshots and actual boundaries, with a3s diagnostic
+admission window. The public counter implementation, exact-byte checks and
+rejection of invalid counters are unchanged. The first failed read's exact
+latency was not recorded and is not inferred from the successful repetitions.
+
+All315 source bindings,81 existing/new freeze pins and459 archived parent
+proofs pass the acceptance preflight. Final sealing adds the game-binding pin.
+Private raw snapshots, complete logs, source hashes and the failed attempt are
+retained under `analysis/native-geometry/phase3`. The remaining count work is
+the round's positive image/page inventory with a justified matched-work
+comparison; zero menu counts do not settle that gate.
