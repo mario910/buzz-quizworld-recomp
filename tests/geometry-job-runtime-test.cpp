@@ -153,6 +153,7 @@ int main(int argc, char** argv)
             {"FLOAT_OUTPUT",buzz_geometry_job_float_output_enabled},
             {"HALF_OUTPUT",buzz_geometry_job_half_output_enabled},
             {"CMP_OUTPUT",buzz_geometry_job_cmp_output_enabled},
+            {"SNORM_OUTPUT",buzz_geometry_job_snorm_output_enabled},
             {"UNIT_VECTORS",buzz_geometry_job_unit_vectors_enabled},{"HALF_STREAM",buzz_geometry_job_half_stream_enabled},
             {"FLOAT32_STREAM",buzz_geometry_job_float32_stream_enabled},{"FIXED_STREAM",buzz_geometry_job_fixed_stream_enabled},{"SNORM_STREAM",buzz_geometry_job_snorm_stream_enabled},{"I16_STREAM",buzz_geometry_job_i16_stream_enabled},{"CMP_STREAM",buzz_geometry_job_cmp_stream_enabled},{"U8_INTEGER_STREAM",buzz_geometry_job_u8_integer_stream_enabled},{"BLEND_SCATTER",buzz_geometry_job_blend_scatter_enabled}};
         for(const auto& option:options)if(!strcmp(argv[2],option.name)){

@@ -48,11 +48,20 @@ def main():
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-float-output-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-half-output-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-cmp-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-snorm-output-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    snorm_output_name = "buzz_job_6eba_spu_func_00004478"
+    snorm_output_pattern = rf"(?ms)^void {snorm_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(snorm_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned SNORM-output root")
+    source = re.sub(snorm_output_pattern, lambda m:
+        f"static void {snorm_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {snorm_output_name}(spu_context* ctx) {{ buzz_geometry_job_snorm_output(ctx, {snorm_output_name}_fallback, buzz_snorm_output_original_00004478, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
     cmp_output_name = "buzz_job_6eba_spu_func_00004FDC"
     cmp_output_pattern = rf"(?ms)^void {cmp_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(cmp_output_pattern, source))) != 1:
@@ -451,12 +460,13 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 40\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 41\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     support += (DEST / "float-output-original.inc").read_text() + "\n"
     support += (DEST / "half-output-original.inc").read_text() + "\n"
     support += (DEST / "cmp-output-original.inc").read_text() + "\n"
+    support += (DEST / "snorm-output-original.inc").read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

@@ -68,6 +68,8 @@ try {
     if ($LASTEXITCODE) { throw 'Half output routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-cmp-output-test.py
     if ($LASTEXITCODE) { throw 'CMP output routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-snorm-output-test.py
+    if ($LASTEXITCODE) { throw 'SNORM output routing oracle generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'

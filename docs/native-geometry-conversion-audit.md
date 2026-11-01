@@ -2,8 +2,8 @@
 
 Status: source/format audit and callback replay protection, 2026-11-01.
 `54E8` and its shared output formatter are still unfinished native work.
-The complete float32 storage-2, binary16 storage-3 and packed CMP storage-6
-data regions have separate native paths; four storage regions remain required.
+The complete SNORM16 storage-1, float32 storage-2, binary16 storage-3 and
+packed CMP storage-6 regions have native paths; three storage regions remain.
 This document does not promote existing phase-2 prefixes to complete data
 replacements or count original-only observations as native acceptance.
 
@@ -20,7 +20,7 @@ closed whole-function proof for arbitrary callback targets.
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
 | Shared formatter `4178` and attribute control | 9 | Descriptor layout, output preparation, field iteration and dispatch |
-| Seven output storage payloads | 37 | Storage 2/3/6: complete opt-in; four others remain beyond phase-2 prefixes |
+| Seven output storage payloads | 37 | Storage 1/2/3/6: complete opt-in; three others remain beyond phase-2 prefixes |
 | Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
 | Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
 
@@ -65,7 +65,7 @@ entries, static returns, empty returns and report `6158` remain cold.
 
 | Output storage | Root | Dispatches | Complete native region |
 |---|---|---|---|
-| 1: SNORM16 | `4478` | 1,104 | Pending: five blocks |
+| 1: SNORM16 | `4478` | 1,104 | Five blocks, opt-in |
 | 2: float32 | `46D0` | 7,201 | Five blocks, opt-in |
 | 3: binary16 | `4880` | 4,513 | Seven blocks, opt-in |
 | 4: UNORM8 | `4B9C` | 36 | Pending: five blocks |
@@ -227,7 +227,7 @@ $env:BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT = '1'
 ```
 
 The old phase-2 float-output prefix and its mask bit remain available when this
-complete region is disabled. Shared formatter `4178`, four other storage data
+complete region is disabled. Shared formatter `4178`, three other storage data
 regions, output built-ins and all final performance/default gates remain OPEN.
 
 The final V2 admission also rejects enabled interrupts when no event is pending,
@@ -300,7 +300,7 @@ $env:BUZZ_GEOMETRY_JOB_HALF_OUTPUT = '1'
 ```
 
 The old phase-2 `4AB0` prefix/mask remains available with this complete region
-disabled. Remaining work includes four storage data regions, shared `4178`,
+disabled. Remaining work includes three storage data regions, shared `4178`,
 enclosing conversion integration, output built-ins and all final performance/
 interpreter/default gates. Strict Stage F reconstruction stays LAST.
 
@@ -361,5 +361,68 @@ $env:BUZZ_GEOMETRY_JOB_CMP_OUTPUT = '1'
 ```
 
 The old phase-2 `5008/51E0` prefix/mask remains available when this complete
-region is disabled. Four storage regions, shared formatter/control integration,
+region is disabled. Three storage regions, shared formatter/control integration,
 built-ins and final interpreter/performance/default gates remain required.
+
+## Complete SNORM16 output storage: 4478
+
+`native_geometry_snorm_output.h` replaces all five blocks `4478`, `44A8`,
+`4538`, `4600` and `4630`. It covers every column and iteration, both scatter
+arms, initial conversion and final post-store prefetch. Its exact queued
+continuation is `4610`, or `4618` for r77=0, without a lifted final iteration.
+This is the output encoder, separate from the existing SNORM input decoder.
+
+The canonical operation is SPU FMA `x * 32767.5 - 0.5`, signed32 conversion
+scaled by 2^16, then selection of each word's high halfword. Four components
+occupy eight big-endian bytes; canonical padding selects zero. General r39/r40
+vectors and shuffle masks preserve their full semantics. Native arithmetic
+uses the same RTZ/extended-range SPU primitives as the lift, without C++ float-
+to-integer casts or excluded exceptional values.
+
+Cached integer vectors are scattered after all old destination quads have
+been fetched. Ordered stores precede fresh input reads, even on the last
+iteration. Aliases therefore see the original sequence of modified LS.
+Final scratch vectors come from native final-prefetch arithmetic; they are
+not copied from the reference. Full-vector sentinel selection, nominal-field
+nibbles, signed loop limits and LS/u32 wrap remain exact.
+
+Admission checks every write before mutation. Foreign LS, enabled/saved/active
+IRQ contexts, protected writes below E680, more than 256 columns, more than
+65,536 groups per column or 1,048,576 total groups reject to the original path.
+A zero column limit still executes the original first column; r77=0 preserves
+all GPR/LS bytes. Unsupported entries earn no native-success credit.
+
+Own `BUZZ_GEOMETRY_JOB_SNORM_OUTPUT=0/1/2` defaults to **0** and requires the
+owning image-41 pipeline. Mode 2 or JOB=2 compares all GPR/LS/architectural/
+channel/control/PC state, scheduled function and image/depth/policy/overlay
+against the private pinned five-block original graph. ABI **41** has 46 stage
+counters; stage 45 distinguishes skip/single-quad/double-quad/mixed roots.
+No existing checker field, older encoder or Stage F exception changes.
+
+**7,471 strict cases pass**, including 1,792 alias/wrap cases, 1,024 mixed/alias
+combinations, 256 independent byte models, column/signed-step and zero-work
+edges, 256 exceptional-FP roots, one real captured input and nine unchanged
+rejects. An independent integer model checks **131,088 dyadic components**:
+it computes the FMA numerator, explicitly truncates its magnitude to the
+single-precision significand for RTZ, then scales, saturates and selects the
+high halfword. Component and record permutations vary independently.
+
+The new real input comes from the unchanged original tracer replaying 376
+selected captured jobs / 1,441 transfers, all exact. Its entry is job
+`menu-both_job_41_0011`, with four columns and eight-byte fields. Snapshots
+capture GPR/LS; architectural/channel controls are modeled in standalone
+comparisons, not claimed as captured. Driver routing passes 25 native/17 strict
+calls and ten unsupported fallbacks, plus 1,024 pipeline and 19,508 real-entry
+models. Runtime passes 53 controller/352 configuration cases; seven audit
+tests and the production build pass.
+
+```powershell
+& tests/scripts/test-geometry-snorm-output.ps1
+$env:BUZZ_GEOMETRY_JOB = '2'
+$env:BUZZ_GEOMETRY_JOB_SNORM_OUTPUT = '1'
+```
+
+Full-corpus/live/frame evidence is recorded in the
+[phase-3 results](native-geometry-phase3-results.md#complete-snorm16-output-storage-4478).
+Three storage payloads, shared formatter/control integration, built-ins and
+all final interpreter/reversed A/B/CPU/default gates remain required.

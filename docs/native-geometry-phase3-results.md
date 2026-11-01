@@ -4781,3 +4781,105 @@ executables/oracles and logs, five corpus arms, all five scene attempts and two
 native frame inspections. Raw and derived artifacts remain ignored. Four
 storage payloads remain: SNORM16 `4478` is next, followed by UNORM8/I16/U8,
 shared `4178`, existing outer-control production integration and built-ins.
+
+## Complete SNORM16 output storage 4478
+
+The [storage-1
+encoder](native-geometry-conversion-audit.md#complete-snorm16-output-storage-4478)
+now replaces all five blocks `4478/44A8/4538/4600/4630`, every column and
+iteration, both scatter arms and final post-store prefetch/full scratch ABI.
+Its exact queued continuation is `4610`, or `4618` for r77=0. Four of seven
+storage payloads have complete opt-in implementations; three remain alongside
+shared formatter/control integration and built-ins.
+
+The canonical SPU operation is FMA `x * 32767.5 - 0.5`, signed32 conversion
+scaled by 2^16 and big-endian high-halfword selection for four components.
+General vector parameters and shuffle masks keep their full semantics.
+All old destination quads are fetched before ordered stores; fresh input
+reads then observe modified LS, including aliases on the final iteration.
+Final scratch vectors are computed natively from that prefetch. No lifted
+final iteration or reference-state repair supplies them. Full-vector sentinel
+selection, nominal-field masks, signed loop limit and address wrap stay exact.
+
+`BUZZ_GEOMETRY_JOB_SNORM_OUTPUT=0/1/2` defaults to **0**. Mode 2 or JOB=2
+checks all GPR/LS/architectural/channel/control/PC state, scheduled function and
+image/depth/policy/overlay against the private pinned original five-block graph.
+Admission rejects IRQ contexts, foreign LS, protected writes and excessive
+loops before mutation. Unsupported entries retain original execution without
+native-success credit. ABI 41 has 46 counters; stage 45 reports skip/single/
+double/mixed native and strict roots. Older encoders and the Stage F exception
+are unchanged; no compared field or FP tolerance is relaxed.
+
+Validation passes **7,471 strict cases**: 1,792 alias/wrap, 1,024 mixed/alias,
+256 independent byte models, column/signed-step and zero-work edges, 256
+exceptional-FP roots, one real captured input and nine unchanged rejects.
+An independent integer model checks **131,088 dyadic components**, computing
+the exact FMA numerator, explicit RTZ single-significand truncation, scale16
+signed32 saturation and high-halfword selection. Component/record permutations
+vary independently.
+
+The unchanged original tracer also passes **376 selected real jobs / 1,441
+transfers**, zero changes/failures, producing the new root fixture from
+`menu-both_job_41_0011`. GPR/LS snapshot SHA256 is
+`b919cf806d1b65fe51a32cc0cb25bbdea4fe897b148d84e3d9f571a8bac66958`.
+Architectural/channel controls in standalone comparisons are modeled identical
+inputs, not captured state. Driver routing passes 25 native/17 strict calls,
+ten unsupported fallbacks, 1,024 pipeline models and 19,508 real entry models.
+Runtime passes 53 controller/352 configuration cases and durable fallback
+logging; seven audit tests and the production build pass.
+
+Frozen `build-vulkan-phase3-snorm-output-v1`:
+EXE `a0395f6571f2f0a62b226978bd7fac638996beb33697d202a259e365517b025e`;
+map `015e2223836a5677ca2ec9d96d7b62b63e01d86947fe3b38df60ca4e757ac384`;
+generated C `a21419d859eac90b8d85fdb50a452418eb1f850adc2c44c4d7428477052f3f6c`.
+
+All five SNORM-output frozen corpus arms pass 19,508 exact jobs / 58,195
+transfers each, zero input changes/failures, Stage F=2 / leaf 827 and no
+contract override:
+
+| Arm | JOB / SNORM_OUTPUT | Native SNORM roots | Strict SNORM roots | Strict whole jobs |
+|---|---|---|---|---|
+| Driver off | 0/1 | 0 | 0 | 0 |
+| Independent, every older switch 0 including CMP/FLOAT/HALF | 2/1 | 1,104 | 1,104 | 19,508 |
+| Combined native | 1/1 | 1,104 | 0 | 0 |
+| Combined checked | 2/1 | 1,104 | 1,104 | 19,508 |
+| Combined original SNORM | 2/0 | 0 | 0 | 19,508 |
+
+Every enabled arm has 1,104 mixed roots and zero SNORM fallback. Skip,
+single-quad and all-double roots remain cold; mixed roots exercise both scatter
+arms. All older stage ledgers match the parent CMP build exactly; the
+independent arm has only the new SNORM ledger.
+
+Three functional scenes use the same frozen EXE, actual-native Stage F=1,
+GEOMETRY=1 / leaf 827 / all older native switches=1 / SNORM_OUTPUT=1, fresh
+private saves and mailbox/background/mute. No compilation, CPU tests or
+profiling overlaps a game run:
+
+| Scene | JOB | Frames / last elapsed ms | Mixed native / strict lower bounds | Whole-job strict lower bound |
+|---|---|---|---|---|
+| checked-menu | 2 | 1,132 / 57,367.310 | 256 / 256 | 35,000 |
+| menu | 1 | 2,269 / 74,513.394 | 180,000 / 0 | 0 |
+| round | 1 | 6,402 / 206,986.843 | 665,000 / 0 | 0 |
+
+Checked menu runs 60s, native menu 75s and native round 60s after 147.1s
+navigation. Both inspected actual-native 1280x720 readbacks show normal
+menu/studio/crowd and actual green round with host/player and readable UI. No
+mismatch, halt, unexpected continuation/capacity or first SNORM fallback is
+observed. Forced shutdown means periodic lower bounds, not final live fallback
+totals. Cold skip/single/all-double gates remain OPEN.
+
+Defaults JOB=0 / leaf 827 / new flags=0 stay unchanged. No FPS/CPU benefit is
+claimed from functional runs or replay microtimings. Final interpreter counts,
+reversed same-frozen-EXE menu/round A/B, normalized worker/process cycles/time
+and default-on gates remain OPEN. Repeatable CPU savings with flat FPS can
+justify enabling a function after all correctness/render gates pass. Phase 3 and
+the continuing objective remain active; strict Stage F reconstruction stays
+LAST.
+
+Private `snorm-output-v1-*` evidence binds committed sources, original
+source/generator/save/template pins, the new real fixture and selected-corpus
+manifest, frozen EXE/map/C/native copies, tests/oracles and logs, five replay
+arms, three scene logs and two actual-native frame inspections. Raw/derived
+artifacts remain ignored. Three storage payloads remain: UNORM8 `4B9C` is next,
+followed by I16/U8, shared `4178`, existing outer-control production integration
+and built-ins.
