@@ -65,6 +65,8 @@ def report(progress,csv_directory,scene_qa=None):
         tag=run['tag'];csv_path=csv_directory/f'vk-scene-{tag}.csv';log=csv_directory/f'vk-scene-{tag}.stderr.log'
         if sha(csv_path)!=event['csv_sha256'] or sha(log)!=event['log_sha256']:raise ValueError('Completed-run file hash differs')
         text=log.read_text(errors='replace')
+        if any(marker not in text for marker in ('window present mode mailbox','two-context asynchronous draw batches enabled')):
+            raise ValueError('Missing Vulkan mailbox/asynchronous runtime evidence')
         if any(token in text for token in ('] DIFF','SPU HALT','MISMATCH')):raise ValueError('Game reported a validation failure')
         if '[stagef] mode=1' not in text or '[geometry-native] mode=1 kernels=0x33B' not in text:raise ValueError('Runtime common settings differ')
         native_roots=max(map(int,re.findall(r'\[geometry-job/input-control/raw0\] native=(\d+) PASS',text)),default=0)

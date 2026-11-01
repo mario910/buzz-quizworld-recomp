@@ -17,7 +17,7 @@ class JobReportTests(unittest.TestCase):
         events=[]
         for index,job in enumerate((0,1,1,0),1):
             tag=f'job-{index}';csv_path=root/f'vk-scene-{tag}.csv';log=root/f'vk-scene-{tag}.stderr.log'
-            log.write_text('[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n'+('[geometry-job] mode=1: native\n[geometry-job/input-control/raw0] native=256 PASS\n' if job else ''))
+            log.write_text('window present mode mailbox\ntwo-context asynchronous draw batches enabled\n[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n'+('[geometry-job] mode=1: native\n[geometry-job/input-control/raw0] native=256 PASS\n' if job else ''))
             with csv_path.open('w',newline='') as stream:
                 writer=csv.writer(stream);writer.writerow(('elapsed_ms','interval_ms','drain_ms'))
                 for t in range(0,100001,400 if job else 500):writer.writerow((t,400 if job else 500,20))
@@ -33,6 +33,15 @@ class JobReportTests(unittest.TestCase):
             path,_=self.fixture(Path(temp));result=reporter.report(path,Path(temp))
             self.assertAlmostEqual(result['fps']['change_percent'],25)
             self.assertEqual([round(v) for v in result['fps']['pair_changes_percent']],[25,25])
+
+    def test_missing_vulkan_runtime_markers_rejected(self):
+        for marker in ('window present mode mailbox','two-context asynchronous draw batches enabled'):
+            with self.subTest(marker=marker),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);path,events=self.fixture(root);log=root/'vk-scene-job-2.stderr.log'
+                log.write_text(log.read_text().replace(marker,''))
+                events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
+                with self.assertRaisesRegex(ValueError,'Vulkan mailbox/asynchronous'):
+                    reporter.report(path,root)
 
     def test_incomplete_or_mixed_series_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -60,7 +69,7 @@ class JobReportTests(unittest.TestCase):
     def test_empty_native_coverage_cannot_be_a_native_measurement(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);path,events=self.fixture(root);log=root/'vk-scene-job-2.stderr.log'
-            log.write_text('[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n[geometry-job] mode=1: native\n')
+            log.write_text('window present mode mailbox\ntwo-context asynchronous draw batches enabled\n[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n[geometry-job] mode=1: native\n')
             events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
             with self.assertRaisesRegex(ValueError,'actual native'):reporter.report(path,root)
 
@@ -98,7 +107,7 @@ class JobReportTests(unittest.TestCase):
             run=start['run'];arm=run['job'];run.update(job=1,arm=arm,knob='BUZZ_GEOMETRY_JOB_FORMATTER_SPANS')
             run['job_options'].update(BUZZ_GEOMETRY_JOB=1,BUZZ_GEOMETRY_JOB_INPUT_CONTROL=1,BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=arm)
             log=root/f"vk-scene-{run['tag']}.stderr.log"
-            log.write_text('[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n[geometry-job] mode=1: native\n[geometry-job/input-control/raw0] native=256 PASS\n'+f'[geometry-job] formatter column spans={arm} (0 exhaustive,1 proven spans)\n')
+            log.write_text('window present mode mailbox\ntwo-context asynchronous draw batches enabled\n[stagef] mode=1\n[geometry-native] mode=1 kernels=0x33B\n[geometry-job] mode=1: native\n[geometry-job/input-control/raw0] native=256 PASS\n'+f'[geometry-job] formatter column spans={arm} (0 exhaustive,1 proven spans)\n')
             done['log_sha256']=reporter.sha(log)
         self.save(path,events);return path,events
 

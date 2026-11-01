@@ -28,12 +28,14 @@ try {
     $geometryTemplateSave=Join-Path $geometryTemplate $geometrySaveRelative
     $geometryExe=Join-Path $geometryRoot "$BuildDirectory/BuzzQuizWorldRecomp.exe"
     $geometryMap=Join-Path $geometryRoot "$BuildDirectory/BuzzQuizWorldRecomp.map"
+    $geometryManifest=Join-Path $geometryRoot "$BuildDirectory/game-build.json"
+    if ((Get-Content -LiteralPath $geometryManifest -Raw | ConvertFrom-Json).renderer -ne 'vulkan') { throw 'Geometry measurements require an explicit Vulkan renderer manifest' }
     $geometryHelper=Join-Path $PSScriptRoot 'measure-vulkan-scene.ps1'
     $geometryRuntime=Join-Path $geometryRoot 'port/native_geometry_job.cpp'
     $geometryRunner=$PSCommandPath
     $geometryContentTool=Join-Path $PSScriptRoot 'frame-readback.py'
     $geometryPins=@{}
-    foreach ($geometryPath in @($geometryTemplateSave,$geometryExe,$geometryMap,$geometryHelper,$geometryRuntime,$geometryRunner)) {
+    foreach ($geometryPath in @($geometryTemplateSave,$geometryExe,$geometryMap,$geometryManifest,$geometryHelper,$geometryRuntime,$geometryRunner)) {
         $geometryPins[$geometryPath]=(Get-FileHash -LiteralPath $geometryPath).Hash.ToLowerInvariant()
     }
     if ($Scene -eq 'Round') { $geometryPins[$geometryContentTool]=(Get-FileHash -LiteralPath $geometryContentTool).Hash.ToLowerInvariant() }
@@ -74,6 +76,7 @@ try {
         $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0;SPU_INTERP_EXACT=0"
         $geometryRecord=[ordered]@{ tag=$geometryRunTag;scene=$Scene;metric=$Metric;job=$geometryJob;arm=$geometryArm;knob=$geometryKnob;index=$geometryIndex;window_seconds=$geometryWindow;exe_sha256=$geometryPins[$geometryExe];map_sha256=$geometryPins[$geometryMap];save_sha256=$geometryPins[$geometryTemplateSave];helper_sha256=$geometryPins[$geometryHelper];runner_sha256=$geometryPins[$geometryRunner];runtime_options_sha256=$geometryPins[$geometryRuntime];job_options=$geometrySelected;geometry_mask=827;stage_f=1;dump_every=0;cpu_binding_sha256=$geometryBindingHash;cpu_tool_sha256=$geometryCpuToolHash;round_intro_seconds=50;content_shot_at=195 }
         $geometryRecord.content_method=if ($Scene -eq 'Round') { 'gpu-once' } else { 'none' }
+        $geometryRecord.renderer='vulkan';$geometryRecord.manifest_sha256=$geometryPins[$geometryManifest]
         $geometryRecord.content_capture_ms=if ($Scene -eq 'Round') { 190000 } else { 0 }
         $geometryRecord.content_tool_sha256=if ($Scene -eq 'Round') { $geometryPins[$geometryContentTool] } else { '' }
         [ordered]@{ state='start';run=$geometryRecord } | ConvertTo-Json -Depth 5 -Compress | Add-Content -LiteralPath $geometryProgress -Encoding utf8
@@ -85,6 +88,9 @@ try {
         & $geometryHelper @geometryArgs *> (Join-Path $geometryOut "$geometryRunTag.run.log")
         $geometryCsv=Join-Path $geometryRoot "analysis/vk-scene-$geometryRunTag.csv"
         $geometryLog=Join-Path $geometryRoot "analysis/vk-scene-$geometryRunTag.stderr.log"
+        foreach ($geometryMarker in @('window present mode mailbox','two-context asynchronous draw batches enabled')) {
+            if (-not (Select-String -LiteralPath $geometryLog -SimpleMatch $geometryMarker)) { throw "Invalid Vulkan runtime: missing $geometryMarker" }
+        }
         $geometryRows=Import-Csv -LiteralPath $geometryCsv
         if ($geometryRows.Count -lt 500 -or [double]$geometryRows[-1].elapsed_ms -lt 1000*$geometryWindow[1]) { throw 'Incomplete measurement window' }
         $geometryCpuHash=if ($CpuBinding) { (Get-FileHash -LiteralPath $geometryCpuPath).Hash.ToLowerInvariant() } else { '' }
