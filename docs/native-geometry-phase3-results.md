@@ -4584,3 +4584,97 @@ and private-save template pins, frozen EXE/map/C/native copies, tests, five V2
 replay arms, three scene logs and two native frame inspections. Superseded V1
 proofs are identified separately. Next is complete binary16 output `4880`, the
 other storage data, shared formatter/control integration and built-ins.
+
+## Complete binary16 output storage 4880
+
+The [storage-3 implementation](native-geometry-conversion-audit.md#complete-binary16-output-storage-4880)
+replaces all seven blocks `4880/48B0/492C/497C/4988/4A9C/4AB0`, including every
+column/iteration, both scatter arms, final sentinel write, fresh post-store
+prefetch and exact scratch-register ABI. The queued continuation is `4610`, or
+`4618` for r77=0. This completes a second storage implementation; five remain.
+
+All destination quads are read before ordered writes. Fresh inputs are then
+fetched from the modified LS and converted, even in the final iteration.
+Input/output and destination aliases, full-vector masks and wrapped addresses
+retain the original effects. Integer conversion preserves truncation, signs,
+tiny-magnitude positive zero and saturation; exceptional encodings follow the
+lift's contract. The sign-extended low input-step halfword contributes to the
+loop limit. IRQ contexts and unsupported spans/budgets reject before mutation.
+
+Own `BUZZ_GEOMETRY_JOB_HALF_OUTPUT=0/1/2` defaults to **0**. Mode 2 or JOB=2
+checks all GPR/LS/architectural/channel/control/PC state, scheduled function and
+image/depth/policy/overlay against the pinned seven-block original oracle.
+Unsupported entries retain the original path and earn no native-success credit.
+ABI 39 has 44 stage counters; stage 43 separates skip/single/double/mixed roots.
+The old phase-2 prefix remains available with this complete region disabled.
+The float32 encoder and existing Stage F exception are unchanged.
+
+Validation passes **7,215 strict cases**, including 1,792 aliases/wraps, 1,024
+mixed/alias combinations, 256 independent byte models, 1/128/256-column and
+signed-step edges, zero-work/zero-limit cases, one real captured root and nine
+unchanged rejects. An independent scalar model checks **1,048,576 float bit
+patterns**: every high halfword, all three retained low mantissa bits and both
+discarded-tail extremes. Host-local intermediate elision preserves exact native
+final-prefetch values; no compared field is excluded or copied from a reference.
+
+Driver routing passes 25 native calls, 17 strict calls, ten counted unsupported
+fallbacks and disabled/foreign/post-scope handling, alongside 1,024 pipeline
+models and 19,508 real entry models. Runtime tests pass 53 controller and 336
+configuration cases plus durable first-fallback logging; seven audit tests and
+the production build pass. The initial routing test caught a new counter being
+credited to float32; it now uses its own stage. The reference-drain bound now
+covers all five transitions per admitted column, tested at 256 columns. The
+initial scalar-sweep count caught duplicated batches. Comparators are unchanged.
+
+Frozen `build-vulkan-phase3-half-output-v1`:
+EXE `69b82b87c93086b193152632bbefff0cb65bf2ff35ae7ffbef6ccabfe65f1883`;
+map `9e3ea2b1d0d7a9ab8c223f3b716a29bac604877bae060edbbedd6a13970e809a`;
+generated C `48eca2a3dd833ad586778f723a34746a70eb8d465a397ed007cd8cb55d99df0b`.
+
+All **five frozen corpus arms** pass 19,508 exact jobs / 58,195 transfers each,
+zero concurrent input changes/failures, Stage F=2 / leaf 827 and no contract
+override:
+
+| Arm | JOB / HALF_OUTPUT | Native half roots | Strict half roots | Strict whole jobs |
+|---|---|---|---|---|
+| Driver off | 0 / 1 | 0 | 0 | 0 |
+| Independent, every older switch 0 (including FLOAT_OUTPUT) | 2 / 1 | 4,513 | 4,513 | 19,508 |
+| Combined native | 1 / 1 | 4,513 | 0 | 0 |
+| Combined checked | 2 / 1 | 4,513 | 4,513 | 19,508 |
+| Combined with original half region | 2 / 0 | 0 | 0 | 19,508 |
+
+Every enabled arm has zero half fallback: 3,654 single-quad and 859 mixed
+roots, zero skip/all-double roots. All older enabled stage ledgers match the
+prior float V2 build exactly; independent mode has only the new half ledger.
+
+Three functional scenes use that same frozen EXE, actual-native Stage F=1 /
+leaf 827, GEOMETRY=1, all older flags=1 including FLOAT_OUTPUT / HALF_OUTPUT=1,
+fresh private saves and native mailbox/background/mute. No compilation, CPU
+tests or profiling overlap a game run:
+
+| Scene | JOB | Frames / last elapsed ms | Single-quad native / strict lower bounds | Mixed native / strict lower bounds | Whole-job strict lower bound |
+|---|---|---|---|---|---|
+| checked-menu | 2 | 1,139 / 59,802.030 | 25,000 / 25,000 | 256 / 256 | 40,000 |
+| menu | 1 | 2,274 / 74,585.479 | 1,625,000 / 0 | 20,000 / 0 | 0 |
+| round | 1 | 6,051 / 196,373.020 | 2,810,000 / 0 | 330,000 / 0 | 0 |
+
+Checked menu runs 60s, native menu 75s, native round 60s after 136.5s
+navigation. Both inspected actual-native 1280x720 readbacks are normal:
+purple/blue menu/studio/crowd and green round with host, player, podium and
+score UI. No mismatch, halt, unexpected continuation/capacity or first half
+fallback is observed. Forced shutdown means periodic lower bounds, not final
+live fallback totals. Skip/all-double roots remain cold; mixed roots exercise
+both scatter arms.
+
+JOB=0 / leaf 827 / new flags=0 stay unchanged. No FPS/CPU benefit is claimed.
+Final interpreter counts, reversed same-frozen-EXE menu/round A/B, normalized
+worker/process cycles/time and default-on gates remain OPEN. The whole native
+conversion inventory and remaining cold gates are still required. Phase 3 and
+the continuing objective stay active; strict Stage F reconstruction remains LAST.
+
+Private `half-output-v1-*` evidence binds committed source/helpers, original
+source/generator/save/template pins, frozen EXE/map/C/native copies, test
+executables and logs, five replay arms, three scene logs and two native frame
+inspections. Raw/derived artifacts remain ignored. Next is complete packed
+CMP output `4FDC`, the other four storage regions, shared formatter/control
+integration and built-ins.

@@ -62,8 +62,13 @@ without production routing; formatter/data and all final gates remain OPEN.
 The float32 output payload `46D0` now has a complete opt-in implementation,
 including every final iteration and both scatter arms. V2 excludes every active
 interrupt context and passes 6,177 strict cases plus five exact full-corpus
-arms, with 7,201 native roots and zero fallback per enabled arm. Six storage
-payloads remain; binary16 `4880` is the next data implementation. Shared `4178`,
+arms, with 7,201 native roots and zero fallback per enabled arm.
+Binary16 `4880` now also has a complete
+seven-block opt-in path, including post-store prefetch and full final ABI.
+It passes 7,215 strict cases, 1,048,576 independent scalar inputs and five
+exact full-corpus arms, with 4,513 native roots and zero fallback per enabled
+arm. Live single/mixed checks and native menu/round frames pass. Five storage
+payloads remain; packed CMP `4FDC` is next. Shared `4178`,
 outer-control production integration and output built-ins remain required.
 Custom callback boundaries are now
 excluded from paired replay until independently audited; they execute once
@@ -947,6 +952,7 @@ subject to the kernel gates before replacement.
 | 54E8 / 4178 output conversion | n/a | 73-block inventory audited; native implementation OPEN | no new conversion switch yet | original19,508 exact/58,195 transfers;17,278 field dispatches;3 GPR/LS frame models +publication;7 audit tests | native/live/render OPEN | not measured | audit in git log |
 | 54E8 descriptor-path outer control | n/a | standalone kernel; production/data OPEN | no routing/switch/ABI change yet | 4,195 strict;16 callee recipes;96 independent models;3 real-input/original-data cases;11 unchanged rejects | full native corpus/live/render OPEN | not measured | kernel in git log |
 | 46D0 complete float32 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT=0/1/2`, default0 | V2:6,177 strict;1,792 alias/wrap;256 byte models;9 rejects;five exact arms,7,201 native/0 fallback | >=256 single +30,000 mixed strict live;>=40,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
+| 4880 complete binary16 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_HALF_OUTPUT=0/1/2`, default0 | 7,215 strict;1,024 mixed/alias;1,048,576 scalar inputs;9 rejects;five exact arms,4,513 native/0 fallback | >=25,000 single+256 mixed strict live;>=40,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
 | Custom callback comparison boundaries | n/a | guarded; unaudited callback jobs skip paired replay | ABI37; existing driver switch | 53 runtime +320 configuration cases;3 full-corpus arms exact, all stage ledgers unchanged | callback real/live coverage OPEN | not measured | guard in git log |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
@@ -999,6 +1005,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Complete 4880 binary16 output data | Menu/actual round (functional) | not measured | not measured | 7,215 strict/9 rejects;1,048,576 scalar inputs;five arms19,508exact/58,195transfers;4,513native/0fallback;>=25,000single+256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 46D0 float32 output data | Menu/actual round (functional) | not measured | not measured | V2:6,177 strict/9 rejects;256 byte models;five arms19,508exact/58,195transfers;7,201native/0fallback;>=256single+30,000mixed strict live;native frames normal;own0/1/2 default0;allIRQ contexts retained;final performance/default gates OPEN |
 | 2026-11-01 | Complete alternate cull data | Menu/actual round (compatibility) | not measured | not measured | 5,448 strict;288 numeric+288 composed;256 special FP;312 configs;five exact compatibility arms;new real/live0 OPEN;>=45,000 strict whole-job native-StageF live;own0/1/2 default0;phase3open |
 | 2026-11-01 | Complete native enclosing 6608 control | Menu/actual round (functional) | not measured | not measured | 5,505 strict;8 child/baseline combinations;256 byte models;9 rejects;304 configs;five V2 arms19,508exact/58,195transfers;allnative/0fallback;>=455,000strict live;own0/1/2 default0;alternate data/cold/final gates OPEN |

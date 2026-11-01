@@ -2,8 +2,8 @@
 
 Status: source/format audit and callback replay protection, 2026-11-01.
 `54E8` and its shared output formatter are still unfinished native work.
-The complete float32 storage-2 data region now has a separate native path;
-the other six storage regions remain required work.
+The complete float32 storage-2 and binary16 storage-3 data regions now have
+separate native paths; five storage regions remain required work.
 This document does not promote existing phase-2 prefixes to complete data
 replacements or count original-only observations as native acceptance.
 
@@ -20,7 +20,7 @@ closed whole-function proof for arbitrary callback targets.
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
 | Shared formatter `4178` and attribute control | 9 | Descriptor layout, output preparation, field iteration and dispatch |
-| Seven output storage payloads | 37 | Storage 2: complete opt-in; six others remain beyond phase-2 prefixes |
+| Seven output storage payloads | 37 | Storage 2/3: complete opt-in; five others remain beyond phase-2 prefixes |
 | Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
 | Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
 
@@ -67,7 +67,7 @@ entries, static returns, empty returns and report `6158` remain cold.
 |---|---|---|---|
 | 1: SNORM16 | `4478` | 1,104 | Pending: five blocks |
 | 2: float32 | `46D0` | 7,201 | Five blocks, opt-in |
-| 3: binary16 | `4880` | 4,513 | Pending: seven blocks |
+| 3: binary16 | `4880` | 4,513 | Seven blocks, opt-in |
 | 4: UNORM8 | `4B9C` | 36 | Pending: five blocks |
 | 5: I16 | `4DD0` | 0 | Pending: five blocks |
 | 6: CMP 11/11/10 | `4FDC` | 4,424 | Pending: five blocks |
@@ -227,7 +227,7 @@ $env:BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT = '1'
 ```
 
 The old phase-2 float-output prefix and its mask bit remain available when this
-complete region is disabled. Shared formatter `4178`, six other storage data
+complete region is disabled. Shared formatter `4178`, five other storage data
 regions, output built-ins and all final performance/default gates remain OPEN.
 
 The final V2 admission also rejects enabled interrupts when no event is pending,
@@ -235,3 +235,71 @@ plus saved interrupt registers and active drain frames. The original drainer can
 poll between data blocks; the fused kernel must not suppress a later interrupt.
 V1 replay results and the interrupted V1 functional sequence are retained only
 as diagnostic history. Final acceptance uses the rebuilt V2 executable.
+
+## Complete binary16 output storage: 4880
+
+`native_geometry_half_output.h` replaces all seven blocks `4880`, `48B0`,
+`492C`, `497C`, `4988`, `4A9C`, `4AB0`, through the exact queued `4610` field
+continuation or the r77=0 `4618` skip. All columns and iterations run natively,
+including the final sentinel write and speculative conversion. This is the
+output encoder, separate from the existing halfword input-stream decoder.
+
+The initial column prefetch converts four float vectors into cached packed
+halfwords. Every iteration first loads all destination quads, writes them in
+original order, then fetches fresh inputs from the already modified LS. This
+post-store prefetch also runs on the final iteration. Source/destination and
+destination/destination aliases therefore retain the original pipeline effects.
+Both masked scatter arms, nominal-field alignment on sentinel routes and
+wrapped LS/u32 addresses are preserved.
+
+Conversion uses the original integer operations: high-halfword magnitudes
+below `3800` flush to positive zero, magnitudes at/above `4780` saturate to
+`7BFF`, retained mantissa bits truncate, and surviving signs are preserved.
+This is the lift's bit contract, including exceptional float bit patterns.
+Intermediate vectors remain host-local; final scratch vectors are computed
+from the native final prefetch. The loop limit includes the sign-extended low
+halfword of the input step. A zero column limit still performs one column;
+the r77 skip changes no GPR/LS bytes.
+
+Admission rejects foreign LS and every enabled/saved/active interrupt context.
+It scans every write before mutation, rejecting protected physical LS below
+`E680`, more than 256 columns, 65,536 groups per column or 1,048,576 total
+groups. Inputs retain SPU quad-wrap semantics. Own
+`BUZZ_GEOMETRY_JOB_HALF_OUTPUT=0/1/2` defaults to **0**, requiring the owning
+image-41 pipeline. Mode 2 or JOB=2 compares all GPR/LS/architectural/channel/
+control/PC state and scheduled function plus image/depth/policy/overlay against
+the private pinned seven-block original oracle. Unsupported entries retain
+the original path and earn no native-success credit. ABI **39** has 44 stage
+counters; stage 43 reports skip/single-quad/double-quad/mixed native and strict
+roots. The five-block float encoder and existing Stage F contract are unchanged.
+
+**7,215 strict standalone cases pass**: 1,792 alias/wrap cases, 1,024 mixed-column
+and alias combinations, 256 independent byte models, explicit 1/128/256-column
+boundaries, signed-step boundaries and one real captured root. Nine admission
+rejects leave context and plan unchanged. A separate independent scalar model
+checks **1,048,576 float inputs**: every high halfword, all three retained low
+mantissa bits and both discarded-tail extremes. These tests include saturation,
+tiny values, signs and exceptional encodings without an IEEE rounding substitute.
+
+Driver routing checks 25 native calls, 17 strict calls, ten counted unsupported
+fallbacks and disabled/foreign/post-scope handling. The 256-column case crosses
+the original reference drainer's earlier budget; 2,048 steps now cover all five
+block transitions per admitted column. An initial routing test caught the new
+counter being credited to float32; the counter now uses its own stage. The
+initial scalar-sweep count also caught duplicated batches; the final test checks
+the exact promised set. Neither correction weakens a state comparison.
+
+Runtime tests cover 53 controller and 336 configuration cases. Full frozen
+corpus, live and native-frame results are recorded in the
+[phase-3 results](native-geometry-phase3-results.md#complete-binary16-output-storage-4880).
+
+```powershell
+& tests/scripts/test-geometry-half-output.ps1
+$env:BUZZ_GEOMETRY_JOB = '2'
+$env:BUZZ_GEOMETRY_JOB_HALF_OUTPUT = '1'
+```
+
+The old phase-2 `4AB0` prefix/mask remains available with this complete region
+disabled. Remaining work includes five storage data regions, shared `4178`,
+enclosing conversion integration, output built-ins and all final performance/
+interpreter/default gates. Strict Stage F reconstruction stays LAST.
