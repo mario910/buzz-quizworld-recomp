@@ -65,6 +65,9 @@ enum { BUZZ_GEOMETRY_JOB_HALF_OUTPUT = 43 };
 typedef struct buzz_geometry_formatter_functions {
     buzz_geometry_job_fn data[7],finish,skip;
 } buzz_geometry_formatter_functions;
+typedef struct buzz_geometry_builtin_output_functions {
+    buzz_geometry_job_fn data[4],finish;
+} buzz_geometry_builtin_output_functions;
 enum { BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL = 50 };
 enum { BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT = 51, BUZZ_GEOMETRY_JOB_BUILTIN20_OUTPUT = 52,
        BUZZ_GEOMETRY_JOB_BUILTIN24_OUTPUT = 53, BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT = 54 };
@@ -73,7 +76,7 @@ void buzz_geometry_job_builtin_output_result(unsigned format,int checked);
 void buzz_geometry_job_builtin_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format);
 int buzz_geometry_job_conversion_control_enabled(void);
 void buzz_geometry_job_conversion_control_result(unsigned path,int checked);
-void buzz_geometry_job_conversion_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter);
+void buzz_geometry_job_conversion_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter,const buzz_geometry_builtin_output_functions* builtins);
 enum { BUZZ_GEOMETRY_JOB_FORMATTER = 49 };
 int buzz_geometry_job_formatter_enabled(void);
 void buzz_geometry_job_formatter_result(unsigned fields,unsigned known,unsigned skipped,unsigned mask,int checked);

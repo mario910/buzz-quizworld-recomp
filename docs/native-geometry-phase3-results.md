@@ -5597,3 +5597,98 @@ benefit is claimed. Original source, phase2 generator, old frozen apps,
 save/template pins and JOB0/geometry827/newflags0 defaults stay unchanged.
 Phase3/continuing objective remain active; shared phase4 follows, optional5/6
 decisions are documented, and strict StageF phase7 remains LAST.
+
+## Native54E8 built-in output control (ABI47)
+
+The native54E8 controller now executes all four output built-ins as well as
+the existing-output, empty and descriptor paths. The complete payloads retain
+their independent switches. A new function library supplies the four data
+roots and their exact5648 frontier. The controller's own switch remains
+`BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL=0/1/2`, default0; all four payload
+switches also remain0. ABI47 updates the generated caller/CMake guard;
+the generic stage ledger remains55 entries, and conversion-control reporting
+now distinguishes all seven paths.
+
+Admission precedes every outer frame/cursor mutation. For nonempty built-ins,
+it reads only the selected dispatch/stride table words, low count, output
+cursor and actual scalar destination footprint. The selected table targets
+must match the original built-in and standard stride; unselected words stay
+free to differ and remain visible in the original speculative vector loads.
+No original-function clone, data arithmetic, source-stream evaluation or
+state repair participates in eligibility.
+
+| Format | Groups | Byte advance | Actual quad offsets per group |
+| --- | --- | --- | --- |
+| 0 | ceil(count/4) | 48 | 32,0,16 |
+| 1 | ceil(count/2) | 40 | 32,16,0,48 |
+| 2/3 | ceil(count/2) | 48 | 32,16,0 |
+
+Every actual destination is quad aligned and LS masked. Writes below E680 or
+overlapping the live manager's 0x90-byte control region (`+00..+8F`)
+reject before mutation. This protects configuration/count/format, cursors,
+pointer table and callback fields, including padding-only collisions beyond
+the logical output length. Late outer-frame aliases remain supported and
+are restored from actual LS. The setup-only semantic-ID quad at manager+160
+may be changed by outer-frame saves before data setup, or by data afterward;
+the native payload observes the actual setup value, without forecasting it.
+Wrapped source/semantic-ID reads and a manager near the end of LS are valid.
+
+Builtin format/stride dispatch ignores custom descriptor/callback fields,
+as does the original. Tests explicitly supply null descriptors and nonzero
+callback pointers without invoking them. Descriptor paths retain their
+callback restrictions. The mock-callee base reader retains its default
+builtin exclusion; production explicitly opts into the complete data paths.
+
+Execution preserves the original queued-jump semantics: data entry does not
+change r0 or host depth. Its exact queued5648 PC/function is checked before
+the controller consumes the frontier and performs the common cursor/stride/
+publication/frame-return flow. Descriptor and data switches are independent:
+builtin control needs only its used payload and frontier, not the formatter,
+seven descriptor encoders or unused built-in function pointers. Disabled or
+missing used dependencies fall back with original context/queue intact.
+
+Validation passes **15,988 complete native builtin-controller roots /15,988
+native data children**, with both the original73-block graph and separate
+closed C reference cross-checking every exit. These cover counts1..65,
+all destination/manager/stack biases, three host depths, overwritten late
+frame/return values, return-PC collisions, ignored callbacks, selected and
+unselected table changes, semantic-ID aliases, minimal stack, wrapped manager
+and up to8,192 vertices replacing the whole late frame. **4,472 rejects**
+preserve context and plan, including **4,424 padded metadata collisions**;
+**1,356 safe near-metadata roots** execute exactly. Initial and expanded suites
+passed without kernel, arithmetic or checker corrections.
+
+Production tests additionally pass **3,072 native /1,536 parent-strict /1,536
+child-strict roots**: all four formats, four switch combinations, three depths,
+sixteen biases and four counts. There are56 unchanged owned dependency/layout
+rejects plus12 off/image/foreign checks; rejects execute no native child.
+Existing standalone payload routing remains green. Regressions pass1,853
+descriptor-control roots with1,341 formatter calls/all7 native encoders,
+4,096 stride cases and21 rejects;4,195 base-control cases/96 independent frame
+models/14 rejects;424 production-getter cases,53 controller scenarios,
+durable fallback logging,1,024 mock-pipeline cases and7 audit tests.
+
+A separately frozen application has hashes:
+
+- EXE: `ccff707a23826a9d1a746203a79fa0d5cdc18edb41650ad4f499f03f03fab36b`.
+- MAP: `ed23814bd69d272abcab3d4fc960ddcc7327c540a78a8e3f35360865783877d2`.
+- generatedC: `38d862e9c07ebc25b7ae371d710fc384b684107803bcb3cf6c01d3cc7f9b70c7`.
+
+Five same-frozen-EXE arms (checked, off, independent, native and retained
+conversion control) each replay19,508 real jobs /58,195 transfers exactly,
+with zero concurrent input changes or failures. Enabled native controller
+arms each have7,201 descriptor roots/zero fallback; checked and independent
+arms have7,201 strict controller roots. Whole-job checked arms each have
+19,508 successful strict jobs and zero fallback. Every older generic ledger
+matches its previous-wrapper counterpart, accounting for the intentionally
+disabled controller in the retained arm. **All four builtin real roots remain
+zero**. Synthetic integration/routing is not captured cold or live coverage.
+
+Next: remaining input built-ins1..5 and their shared93F0 entry, expanded real
+cold coverage and final acceptance. New builtin real/256-live/native-frame,
+interpreter, reversed same-frozen menu/round A/B, normalized worker/process CPU
+and default gates remain OPEN. No new live/render/FPS/CPU benefit is claimed.
+Original source, phase2 generator, all old frozen apps, saves/template pins
+and JOB0/geometry827/newflags0 defaults stay unchanged. Phase3 and the
+continuing objective remain active, followed by shared phase4, documented
+optional5/6 decisions, and strict StageF phase7 LAST.

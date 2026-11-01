@@ -148,7 +148,7 @@ extern "C" void buzz_geometry_job_builtin_output(spu_context* ctx,buzz_geometry_
     buzz_geometry_job_builtin_output_result(format,0);buzz_geometry_job_output_result(stage,1,0);
 }
 
-extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter)
+extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter,const buzz_geometry_builtin_output_functions* builtins)
 {
     if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_conversion_control_enabled()){
         fallback(ctx);return;
@@ -164,6 +164,12 @@ extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geome
             admitted=false;reason="used output encoder disabled";break;
         }
     }
+    if(admitted && unsigned(plan.path)>=unsigned(buzz::GeometryConversionPath::builtin0)){
+        const unsigned format=unsigned(plan.path)-unsigned(buzz::GeometryConversionPath::builtin0);
+        if(!builtins || !builtins->finish || !builtins->data[format] || !buzz_geometry_job_builtin_output_enabled(format)){
+            admitted=false;reason="used builtin output disabled or missing";
+        }
+    }
     if(!admitted){
         buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL,0,0);
         static std::atomic_flag reported=ATOMIC_FLAG_INIT;
@@ -175,7 +181,7 @@ extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geome
         comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
         g_spu_trampoline_fn=nullptr;reference(comparison);expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
     }
-    const buzz::GeometryConversionCallees functions{formatter,buzz::geometry_conversion_stride};
+    const buzz::GeometryConversionCallees functions{formatter,buzz::geometry_conversion_stride,builtins};
     const auto path=buzz::execute_geometry_conversion_control(*ctx,plan.control,functions);
     if(path!=plan.path)buzz_geometry_job_native_fail(ctx,"conversion control path escaped admission");
     if(comparison){

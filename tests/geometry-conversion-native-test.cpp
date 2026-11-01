@@ -7,6 +7,9 @@
 #include "../port/native_geometry_i16_output.h"
 #include "../port/native_geometry_cmp_output.h"
 #include "../port/native_geometry_u8_integer_output.h"
+#include "../port/native_geometry_builtin_float3_output.h"
+#include "../port/native_geometry_builtin20_output.h"
+#include "../port/native_geometry_builtin24_cmp_output.h"
 #include "../port/native_function_check.h"
 #include <cassert>
 #include <cstdio>
@@ -56,6 +59,18 @@ static void formatter(spu_context* c){
     const GeometryFormatterCallees f{{d0,d1,d2,d3,d4,d5,d6},conversion_control_oracle::buzz_job_6eba_spu_func_00004610,conversion_control_oracle::buzz_job_6eba_spu_func_00004618};
     execute_geometry_formatter(*c,plan,f);++formatter_calls;
 }
+static unsigned builtin_calls[4]{};
+static void builtin_data(spu_context* c,unsigned format){
+    const auto finish=conversion_control_oracle::buzz_job_6eba_spu_func_00005648;const char* why=nullptr;
+    switch(format){
+    case 0:{GeometryBuiltinFloat3Output p;assert(read_geometry_builtin_float3_output(*c,p,&why));emit_geometry_builtin_float3_output(*c,p,finish);break;}
+    case 1:{GeometryBuiltin20Output p;assert(read_geometry_builtin20_output(*c,p,&why));emit_geometry_builtin20_output(*c,p,finish);break;}
+    case 2:{GeometryBuiltin24Output p;assert(read_geometry_builtin24_output(*c,p,&why));emit_geometry_builtin24_output(*c,p,finish);break;}
+    case 3:{GeometryBuiltin24CmpOutput p;assert(read_geometry_builtin24_cmp_output(*c,p,&why));emit_geometry_builtin24_cmp_output(*c,p,finish);break;}
+    }++builtin_calls[format];
+}
+static void b0(spu_context* c){builtin_data(c,0);}static void b1(spu_context* c){builtin_data(c,1);}static void b2(spu_context* c){builtin_data(c,2);}static void b3(spu_context* c){builtin_data(c,3);}
+static const buzz_geometry_builtin_output_functions builtin_library{{b0,b1,b2,b3},conversion_control_oracle::buzz_job_6eba_spu_func_00005648};
 static void compare(spu_context& native,spu_context& reference,spu_context& production,unsigned trial){
     if(trial>=3){
         unsigned random=trial+123;auto word=[&](){random^=random<<13;random^=random>>17;random^=random<<5;return random;};
@@ -73,9 +88,56 @@ static void compare(spu_context& native,spu_context& reference,spu_context& prod
     }
     const auto expected=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;buzz_conversion_original_run(&production);
     equal(production,reference,trial,"closed C reference");assert(g_spu_trampoline_fn==expected);
-    g_spu_trampoline_fn=spu_indirect_branch;const GeometryConversionCallees functions{formatter,geometry_conversion_stride};
+    g_spu_trampoline_fn=spu_indirect_branch;const GeometryConversionCallees functions{formatter,geometry_conversion_stride,&builtin_library};
     assert(execute_geometry_conversion_control(native,plan.control,functions)==plan.path);
     equal(native,reference,trial,"full native");assert(g_spu_trampoline_fn==expected);++strict_cases;
+}
+static void compare_builtins(const spu_context& base,spu_context& native,spu_context& reference,spu_context& production){
+    const unsigned manager=base.gpr[3]._u32[0]&~15u,start=strict_cases;unsigned rejects=0,padded_rejects=0,allowed=0;
+    auto seed=[&](unsigned format,unsigned count,unsigned output,unsigned depth,unsigned bias=0){copy(native,base);native.host_depth=depth;native.gpr[1]._u32[0]+=bias;
+        native.ls[manager]&=~16u;native.ls[manager+4]=format;native.ls[manager+8]=count>>8;native.ls[manager+9]=count;geometry_job_put32(native.ls+manager+0x58,output);};
+    auto run=[&](){compare(native,reference,production,strict_cases);};
+    auto reject=[&](){auto before=std::make_unique<spu_context>();memcpy(before.get(),&native,sizeof native);GeometryConversionAdmission p;p.formatter.fields=123;const auto old=p;const char* why=nullptr;
+        assert(!read_geometry_conversion_native(native,p,&why) && why && !memcmp(before.get(),&native,sizeof native) && !memcmp(&p,&old,sizeof p));++rejects;};
+    for(unsigned format=0;format<4;++format){
+        for(unsigned count=1;count<=65;++count)for(unsigned bias=0;bias<16;++bias)for(unsigned depth=0;depth<3;++depth){seed(format,count,0x28000+bias,depth,bias);run();}
+        for(unsigned offset:{16u,32u,48u,64u,80u})for(unsigned bias=0;bias<16;++bias)for(unsigned depth=0;depth<3;++depth){seed(format,1,0,depth,bias);
+            geometry_job_put32(native.ls+manager+0x58,(native.gpr[1]._u32[0]&~15u)+(offset==80?16:-int(offset)));run();}
+        for(unsigned count:{3u,17u,33u})for(unsigned bias=0;bias<16;++bias)for(unsigned depth=0;depth<3;++depth){seed(format,count,0x28000+bias,depth,bias);native.gpr[3]._u32[0]+=bias;run();}
+        for(unsigned link:{0u,0x54e8u,0x5500u,0x5558u,0x5648u,0x56c8u,0x5760u,0x5e28u})for(unsigned depth=0;depth<3;++depth){seed(format,3,0x28000,depth);native.gpr[0]._u32[0]=link;run();}
+        // Builtin dispatch and stride ignore custom callback/descriptor fields.
+        for(unsigned bias=0;bias<16;++bias)for(unsigned depth=0;depth<3;++depth){seed(format,17,0x28000+bias,depth,bias);
+            geometry_job_put32(native.ls+manager+0x74,0);geometry_job_put32(native.ls+manager+0x88,0xdeadbeef);geometry_job_put32(native.ls+manager+0x8c,0xcafebabe);run();}
+        // Unselected table words may change; the selected target must match.
+        for(unsigned table:{0x5604u,0x4104u})for(unsigned slot=0;slot<4;++slot){seed(format,5,0x28000,slot%3);geometry_job_put32(native.ls+table+slot*4,0x12345678);
+            if(slot==format)reject();else run();}
+        // The outer frame may overwrite the semantic-ID quad before data
+        // setup. Its actual value is loaded by the native kernel, not forecast.
+        for(unsigned bias=0;bias<16;++bias){seed(format,17,0x28000+bias,bias%3);native.gpr[1]._u32[0]=manager+0x180+bias;run();}
+        // Output may overwrite semantic IDs after the setup-only lookup.
+        for(unsigned bias=0;bias<16;++bias){seed(format,3,manager+0x160+bias,bias%3);run();}
+        for(unsigned bias=0;bias<16;++bias){seed(format,17,0x28000+bias,bias%3);native.gpr[1]._u32[0]=0xe6e0+bias;run();}
+        auto relocate=[&](unsigned target){unsigned char bytes[0x170];memcpy(bytes,native.ls+manager,sizeof bytes);for(unsigned i=0;i<sizeof bytes;++i)native.ls[(target+i)&0x3ffff]=bytes[i];native.gpr[3]._u32[0]=target;};
+        for(unsigned bias=0;bias<16;++bias){seed(format,17,0x28000+bias,bias%3);relocate(0x3ff60);native.gpr[3]._u32[0]+=bias;run();}
+        // Large outputs may replace the whole late outer frame and the old
+        // manager; only the relocated live control metadata must stay intact.
+        for(unsigned count:{128u,1024u,4096u,8192u})for(unsigned depth=0;depth<3;++depth){seed(format,count,0xe710,depth);relocate(0xe680);run();}
+        // Exhaust the actual aligned quads around live manager/control bytes.
+        // This includes padding-only collisions beyond count*logical_stride.
+        for(unsigned count:{1u,2u,3u,5u,9u})for(int delta=-128;delta<=160;++delta){seed(format,count,manager+delta,0);
+            const unsigned groups=format?(count+1)/2:(count+3)/4,step=format==1?40:48,quads=format==1?4:3;
+            bool unsafe=false;for(unsigned g=0;g<groups;++g)for(unsigned q=0;q<quads;++q){const unsigned address=(manager+delta+g*step+q*16)&0x3fff0;
+                unsafe|=address<0xe680 || (address<manager+0x90 && manager<address+16);}
+            if(unsafe){reject();++padded_rejects;}else {run();++allowed;}
+        }
+        for(unsigned failure=0;failure<10;++failure){seed(format,5,0x28000,0);switch(failure){
+            case 0:native.ls=reference.ls_store;break;case 1:native.int_enable=1;break;case 2:native.irq_saved=1;break;case 3:native.irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;
+            case 4:native.gpr[3]._u32[0]=0;break;case 5:native.gpr[1]._u32[0]=manager+64;break;
+            case 6:geometry_job_put32(native.ls+manager+0x58,0);break;case 7:geometry_job_put32(native.ls+manager+0x58,0x3fff0);break;
+            case 8:native.ls[manager+8]=0xff;native.ls[manager+9]=0xff;break;case 9:native.gpr[1]._u32[0]=SPU_LS_SIZE-16;break;}reject();}
+    }
+    unsigned children=0;for(auto n:builtin_calls){assert(n);children+=n;}assert(children==strict_cases-start && formatter_calls==1341);
+    printf("PASS builtin conversion:%u complete native full-state/LS/FN roots/%u native data children/all4 formats;73-block original+closed C cross-check;read-only scalar forecast;3depths/biased managers+stacks+outputs/late return-frame aliases/ignored callbacks/selected+unused tables/semantic-ID aliases/minimal stack/wrapped manager/8192vertices;%u unchanged rejects including%u padded metadata collisions;%u safe near-metadata roots;synthetic builtins,not captured cold roots\n",strict_cases-start,children,rejects,padded_rejects,allowed);
 }
 int main(){
     _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);_mm_setcsr((_mm_getcsr()&~_MM_ROUND_MASK)|_MM_ROUND_TOWARD_ZERO|0x8040);
@@ -131,7 +193,7 @@ int main(){
         case 8:geometry_job_put32(native->ls+manager+0x74,native->gpr[1]._u32[0]-224);break;
         case 9:geometry_job_put32(native->ls+manager+0x74,SPU_LS_SIZE);break;
         case 10:geometry_job_put32(native->ls+manager+0x88,0xbeef);break;case 11:geometry_job_put32(native->ls+manager+0x8c,0xbeef);break;
-        case 12:native->ls[manager+4]=0;break;case 13:geometry_job_put32(native->ls+manager+0x74,0);break;
+        case 12:native->ls[manager+4]=0;geometry_job_put32(native->ls+0x5604,0x1234);break;case 13:geometry_job_put32(native->ls+manager+0x74,0);break;
         case 14:geometry_job_put32(native->ls+0x4460,0x1234);break;
         case 15:geometry_job_put32(native->ls+manager+0x58,manager);break;
         case 16:geometry_job_put32(native->ls+manager+0x58,desc);break;
@@ -144,4 +206,5 @@ int main(){
     }
     for(auto n:storage_calls)assert(n);assert(strict_cases==1853 && stride_cases==4096 && formatter_calls==1341);
     printf("PASS complete native conversion:%u strict full-state/LS/FN cases;73-block closed C reference cross-check;read-only forecast equals actual formatter admission;%u formatter calls/all7 native encoders;%u complete stride cases;21 unchanged rejects;static/empty/zero-field,biased descriptor/stack,alias and return-PC collision cases\n",strict_cases,formatter_calls,stride_cases);
+    compare_builtins(*base,*native,*reference,*production);
 }

@@ -1,18 +1,18 @@
-/* Image-41 output-conversion control. The shared formatter and stride getter
- * are explicit callees; this does not replace their data implementations.
- * The production reader forecasts native formatter entry without mutation;
- * the base reader remains useful for explicit mock-callee contract tests. */
+/* Image-41 output-conversion control. Explicit formatter/builtin data callees
+ * keep their own exact contracts. Admission forecasts formatter metadata or
+ * scalar builtin write footprints before any frame/cursor mutation. */
 #pragma once
 #include "native_geometry_commands.h"
 #include "native_geometry_formatter.h"
 
 namespace buzz {
-enum class GeometryConversionPath { existing,empty,descriptor };
+enum class GeometryConversionPath { existing,empty,descriptor,builtin0,builtin1,builtin2,builtin3 };
 struct GeometryConversionControl {};
 struct GeometryConversionCallees {
     buzz_geometry_job_fn formatter,stride;
+    const buzz_geometry_builtin_output_functions* builtins=nullptr;
 };
-inline bool read_geometry_conversion_control(const spu_context& c,GeometryConversionControl& out,const char** reason=nullptr)
+inline bool read_geometry_conversion_control(const spu_context& c,GeometryConversionControl& out,const char** reason=nullptr,bool builtins=false)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
@@ -22,9 +22,11 @@ inline bool read_geometry_conversion_control(const spu_context& c,GeometryConver
     if(sp>=SPU_LS_SIZE || frame<0xe680+96 || uint64_t(frame)+32>SPU_LS_SIZE)return reject("conversion frame span");
     if(geometry_output_overlap(manager,0x90,frame-96,128))return reject("conversion frame/manager alias");
     if(!(c.ls[manager]&16) && geometry_job_be16(c.ls+manager+8)){
-        if(c.ls[manager+4]<4)return reject("builtin output data retained");
-        if(geometry_job_be32(c.ls+manager+0x8c))return reject("custom conversion callback");
-        if(!geometry_job_be32(c.ls+manager+0x74))return reject("missing output descriptor report");
+        if(c.ls[manager+4]<4){if(!builtins)return reject("builtin output data retained");}
+        else {
+            if(geometry_job_be32(c.ls+manager+0x8c))return reject("custom conversion callback");
+            if(!geometry_job_be32(c.ls+manager+0x74))return reject("missing output descriptor report");
+        }
     }
     out={};return true;
 }
@@ -36,10 +38,27 @@ struct GeometryConversionAdmission {
 inline bool read_geometry_conversion_native(const spu_context& c,GeometryConversionAdmission& out,const char** reason=nullptr)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};GeometryConversionAdmission plan;
-    if(!read_geometry_conversion_control(c,plan.control,reason))return false;
+    if(!read_geometry_conversion_control(c,plan.control,reason,true))return false;
     const unsigned manager=c.gpr[3]._u32[0]&~15u;
     if(c.ls[manager]&16){out=plan;return true;}
     if(!geometry_job_be16(c.ls+manager+8)){plan.path=GeometryConversionPath::empty;out=plan;return true;}
+    const unsigned format=c.ls[manager+4];
+    if(format<4){
+        // Only the selected table words determine control flow. Other bytes
+        // remain observable through the original speculative vector loads.
+        static constexpr unsigned dispatch[]={0xc4,0x824,0x15c,0x42c},stride[]={0x68,0x60,0x58,0x58};
+        if(geometry_job_be32(c.ls+0x5604+format*4)!=dispatch[format] || geometry_job_be32(c.ls+0x4104+format*4)!=stride[format])return reject("builtin conversion target");
+        const unsigned count=geometry_job_be16(c.ls+manager+8),groups=format?(count+1)/2:(count+3)/4;
+        const unsigned cursor=geometry_job_be32(c.ls+manager+0x58),step=format==1?40:48,quads=format==1?4:3;
+        // Scalar control/footprint only: no original clone, quantization or
+        // speculative source evaluation is needed to decide eligibility.
+        for(unsigned group=0;group<groups;++group)for(unsigned quad=0;quad<quads;++quad){
+            const unsigned address=(cursor+group*step+quad*16)&0x3fff0;
+            if(address<0xe680)return reject("builtin conversion protected padded write");
+            if(geometry_output_overlap(address,16,manager,0x90))return reject("builtin conversion data/control metadata alias");
+        }
+        plan.path=GeometryConversionPath(unsigned(GeometryConversionPath::builtin0)+format);out=plan;return true;
+    }
     if(geometry_job_be32(c.ls+manager+0x88))return reject("custom stride callback");
     plan.path=GeometryConversionPath::descriptor;
     // Outer frame writes and cursor publication cannot touch manager/descriptor
@@ -131,9 +150,20 @@ inline GeometryConversionPath execute_geometry_conversion_control(spu_context& c
     spu_ls_write128(&c,r[81]._u32[0]+0x50,r[7]);
     if(!r[10]._u16[0]){restore_geometry_conversion_frame(c);return GeometryConversionPath::empty;}
     prepare_geometry_conversion_dispatch(c);
-    r[44]=spu_ls_read128(&c,r[81]._u32[0]+0x80);r[2]=spu_rotqbyi(r[44],12);
-    r[33]=spu_ls_read128(&c,r[81]._u32[0]+0x70);r[3]=spu_rotqbyi(r[33],4);
-    r[4]=r[3];r[3]=r[81];c.pc=0x56ac;geometry_command_call(c,f.formatter,0x56c4);
+    GeometryConversionPath path=GeometryConversionPath::descriptor;
+    if(!r[12]._u32[0]){
+        const unsigned format=r[11]._u32[0];path=GeometryConversionPath(unsigned(GeometryConversionPath::builtin0)+format);
+        if(format>=4 || !f.builtins || !f.builtins->data[format] || !f.builtins->finish)std::abort();
+        // This is a queued jump, not a synchronous callee: r0 and host depth
+        // must remain unchanged. Consume only the proven shared data frontier.
+        c.pc=r[2]._u32[0];g_spu_trampoline_fn=nullptr;f.builtins->data[format](&c);
+        if(c.pc!=0x5648 || g_spu_trampoline_fn!=f.builtins->finish)std::abort();
+        g_spu_trampoline_fn=nullptr;
+    }else {
+        r[44]=spu_ls_read128(&c,r[81]._u32[0]+0x80);r[2]=spu_rotqbyi(r[44],12);
+        r[33]=spu_ls_read128(&c,r[81]._u32[0]+0x70);r[3]=spu_rotqbyi(r[33],4);
+        r[4]=r[3];r[3]=r[81];c.pc=0x56ac;geometry_command_call(c,f.formatter,0x56c4);
+    }
     c.pc=0x5648;r[3]=r[81];geometry_command_call(c,geometry_conversion_cursor,0x5650);
     r[12]=spu_ls_read128(&c,r[81]._u32[0]);r[80]=r[3];r[3]=r[81];r[38]=spu_rotqbyi(r[12],1);r[4]=spu_andi(r[38],255);
     geometry_command_call(c,f.stride,0x5670);
@@ -141,6 +171,6 @@ inline GeometryConversionPath execute_geometry_conversion_control(spu_context& c
     r[24]=spu_ls_read128(&c,r[81]._u32[0]);r[42]=r[3];r[3]=r[81];r[37]=spu_rotqbyi(r[24],6);
     r[45]=spu_mpyu(r[42],r[37]);r[46]=spu_mpyh(r[42],r[37]);r[27]=spu_a(r[46],r[45]);
     r[30]=spu_ai(r[27],15);r[81]=spu_andi(r[30],-16);r[4]=spu_a(r[80],r[81]);
-    geometry_command_call(c,geometry_conversion_publish,0x56a8);restore_geometry_conversion_frame(c);return GeometryConversionPath::descriptor;
+    geometry_command_call(c,geometry_conversion_publish,0x56a8);restore_geometry_conversion_frame(c);return path;
 }
 }

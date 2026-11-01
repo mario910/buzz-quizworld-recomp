@@ -51,7 +51,7 @@ std::atomic<unsigned long long> unorm_output_counts[2][4]{};
 std::atomic<unsigned long long> u8_integer_output_counts[2][4]{};
 std::atomic<unsigned long long> i16_output_counts[2][4]{};
 std::atomic<unsigned long long> formatter_counts[2][4]{},formatter_types[2][7]{};
-std::atomic<unsigned long long> conversion_control_counts[2][3]{};
+std::atomic<unsigned long long> conversion_control_counts[2][7]{};
 std::atomic<unsigned long long> builtin_output_counts[2][4]{};
 std::atomic<unsigned long long> skin_cofactor_counts[2][2]{},skin_cofactor_aliases[2]{};
 std::atomic<unsigned long long> rigid_skin_counts[2][2]{},rigid_skin_aliases[2]{};
@@ -429,8 +429,8 @@ extern "C" int buzz_geometry_job_conversion_control_enabled()
 }
 extern "C" void buzz_geometry_job_conversion_control_result(unsigned path,int checked)
 {
-    if(path>=3)std::abort();const auto total=++conversion_control_counts[!!checked][path];
-    const char* names[]={"existing","empty","descriptor"};
+    if(path>=7)std::abort();const auto total=++conversion_control_counts[!!checked][path];
+    const char* names[]={"existing","empty","descriptor","builtin0","builtin1","builtin2","builtin3"};
     if(total==1 || total==256 || total%5000==0)std::fprintf(stderr,"[geometry-job/conversion-control/%s] %s=%llu PASS\n",names[path],checked?"strict-full-state-return":"native",total);
 }
 extern "C" int buzz_geometry_job_formatter_enabled()
@@ -1139,8 +1139,8 @@ extern "C" void buzz_geometry_job_audit_report()
     if(buzz_geometry_job_mode())for(unsigned format=0;format<4;++format)if(buzz_geometry_job_builtin_output_enabled(format))
         std::fprintf(stderr,"[geometry-job/builtin-output%u] native=%llu strict-full-state-handoff=%llu\n",format,builtin_output_counts[0][format].load(),builtin_output_counts[1][format].load());
     if(buzz_geometry_job_mode() && buzz_geometry_job_conversion_control_enabled()){
-        const char* names[]={"existing","empty","descriptor"};
-        for(unsigned path=0;path<3;++path)std::fprintf(stderr,"[geometry-job/conversion-control/%s] native=%llu strict-full-state-return=%llu\n",names[path],conversion_control_counts[0][path].load(),conversion_control_counts[1][path].load());
+        const char* names[]={"existing","empty","descriptor","builtin0","builtin1","builtin2","builtin3"};
+        for(unsigned path=0;path<7;++path)std::fprintf(stderr,"[geometry-job/conversion-control/%s] native=%llu strict-full-state-return=%llu\n",names[path],conversion_control_counts[0][path].load(),conversion_control_counts[1][path].load());
     }
     if(buzz_geometry_job_mode() && buzz_geometry_job_formatter_enabled()){
         const char* names[]={"empty","known","skipped","mixed"};

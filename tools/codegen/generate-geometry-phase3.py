@@ -72,8 +72,9 @@ def main():
     if len(list(re.finditer(conversion_pattern, source))) != 1:
         raise SystemExit("Expected one pinned conversion-control root")
     source = re.sub(conversion_pattern, lambda m:
+        f"static const buzz_geometry_builtin_output_functions {conversion_name}_builtins = {{{{buzz_job_6eba_spu_func_000056C8, buzz_job_6eba_spu_func_00005E28, buzz_job_6eba_spu_func_00005760, buzz_job_6eba_spu_func_00005A30}}, buzz_job_6eba_spu_func_00005648}};\n"
         f"static void {conversion_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
-        f"void {conversion_name}(spu_context* ctx) {{ buzz_geometry_job_conversion_control(ctx, {conversion_name}_fallback, buzz_conversion_original_run, buzz_job_6eba_spu_func_00004178); }}",
+        f"void {conversion_name}(spu_context* ctx) {{ buzz_geometry_job_conversion_control(ctx, {conversion_name}_fallback, buzz_conversion_original_run, buzz_job_6eba_spu_func_00004178, &{conversion_name}_builtins); }}",
         source, count=1)
     formatter_name = "buzz_job_6eba_spu_func_00004178"
     formatter_pattern = rf"(?ms)^void {formatter_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
@@ -516,7 +517,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 46\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 47\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     support += (DEST / "float-output-original.inc").read_text() + "\n"
