@@ -6256,3 +6256,30 @@ strict checkers remain unchanged. Phase3 and the continuing objective stay
 active,with mandatory strict StageF7 last. Private evidence includes
 `spans-cpu-round-v2-report.json`,`spans-cpu-round-v2/scene-qa.json` and
 `spans-round-v2-clock-alignment.json`.
+
+
+## Isolated formatter span proof: same-EXE menu FPS and CPU
+
+Eight fresh menu runs on the same3df8d057 EXE/MAP9b027e64 complete the
+SPANS0/1/1/0 FPS and separate CPU series. Actual JOB1/all other production
+options1,audit0,geometry827/StageF1 and initial private save stay fixed.
+The public reports accept complete40..98s windows,all hashes/runtime options,
+nonzero actual native coverage and raw CPU/lane/boundary/frame checks. No GPU
+captures,interpreter observer,concurrent build,test or profiler is used.
+No DIFF,first-fallback or unrecordable marker appears.
+
+Menu FPS25.00 ->25.64,+2.56%;pairs+1.07/+4.07. Median,p90 and p99 improve
+in both native pairs. Worker cycles/frame fall2.99%(-2.94/-3.05),process1.84%
+(-1.91/-1.78);worker CPU ms/frame falls1.16%(-1.46/-0.86),process1.19%
+(-1.14/-1.23). Both CPU pairs agree for every metric. CPU-series FPS is
+contextual;the separate FPS report remains primary. See the
+[performance report](native-geometry-phase3-performance.md) for exact tables.
+
+Menu and round now have their own FPS/CPU reversals on one frozen EXE. This
+establishes isolated option measurements,not aggregate JOB0/JOB1 savings or
+completion of phase3. One first-series round native p99 remains worse;the
+next step is an independent round FPS repetition on the same3df EXE. Keep
+SPANS0/JOB0/geometry827/newflags0 until the relevant defaults are justified.
+Cold real/live,round interpreted-count,whole-job and final gates stay open;
+strict checkers/ABI48/61 stages/StageF waiver are unchanged. The continuing
+objective remains active through shared phase4 and final strict StageF7.

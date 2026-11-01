@@ -123,3 +123,19 @@ The primary separate round FPS series improves1.91% on average but has a mixed
 p99;CPU-series frame times are contextual. Same-EXE menu FPS/CPU and round tail
 follow-up remain required. SPANS stays default0. See the
 [round CPU table](native-geometry-phase3-performance.md#isolated-formatter-span-proof-round-cpu).
+
+
+## Isolated span proof: same-EXE menu follow-up
+
+The3df8d057/MAP9b027e64 freeze now has separate reversed menu FPS and CPU
+series as well as the round series. Menu worker cycles/frame fall2.99%,
+process1.84%;worker CPU ms/frame falls1.16%,process1.19%. Both pairs agree
+for all four metrics. Raw OS counters,completed-frame normalization,stable
+named-lane identities and boundary/uncertainty checks pass. No code changed.
+
+Separate menu FPS improves2.56%,with median/p90/p99 lower in both pairs.
+The old B95 menu measurements stay separately bound. These isolated savings
+support CPU cost as a useful metric even when FPS is flat;they do not prove
+power savings or reverse the separately bound aggregate JOB0/JOB1 regression.
+Independent round FPS tail follow-up remains required,so SPANS stays default0.
+See the [same-EXE menu tables](native-geometry-phase3-performance.md#isolated-formatter-span-proof-same-exe-menu-follow-up).

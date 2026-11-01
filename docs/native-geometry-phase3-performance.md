@@ -304,3 +304,54 @@ Next:repeat menu FPS and separate CPU reversals on this same3df frozen EXE,
 then resolve round FPS tails before default acceptance. JOB0/geometry827/all
 new flags0/SPANS0 remain unchanged. Phase3,cold real/live,round interpreted
 counts and aggregate whole-job/default gates remain open.
+
+
+## Isolated formatter span proof: same-EXE menu follow-up
+
+The capture-enabled3df8d057 EXE/MAP9b027e64 now also completes a fresh four-run
+menu FPS reversal and a separate four-run menu CPU reversal. Both keep actual
+JOB1/all other production options1,audit0,geometry827/StageF1 and the same
+initial private save;only SPANS changes0/1/1/0. Each fresh100s run measures
+40..98 renderer seconds. No GPU captures,interpreter observer,concurrent
+build,CPU tests,diagnostic profiler or other game are used. All runtime,
+window/hash/native-coverage and CPU raw-counter/boundary/lane checks pass;
+no DIFF,first-fallback or unrecordable marker appears.
+
+Menu FPS: **25.00 ->25.64 (+2.56%)**,pairs **+1.07%,+4.07%**.
+Both pairs also improve median,p90 and p99.
+
+| Order | SPANS | FPS | Median interval(ms) | p90(ms) | p99(ms) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 25.30 | 39.42 | 52.52 | 60.53 |
+| 2 | 1 | 25.57 | 39.12 | 51.34 | 58.02 |
+| 3 | 1 | 25.70 | 38.88 | 50.89 | 57.77 |
+| 4 | 0 | 24.69 | 40.28 | 52.92 | 60.60 |
+
+| CPU cost per completed frame | Span0 | Span1 | Change | Reversed pair changes |
+| --- | --- | --- | --- | --- |
+| SPURS workers: million cycles | 510.18 | 494.92 | -2.99% | -2.94%, -3.05% |
+| SPURS workers: CPU ms | 136.93 | 135.34 | -1.16% | -1.46%, -0.86% |
+| Whole process: million cycles | 870.89 | 854.83 | -1.84% | -1.91%, -1.78% |
+| Whole process: CPU ms | 235.44 | 232.65 | -1.19% | -1.14%, -1.23% |
+
+Both CPU pairs reduce worker/process cycles **and** CPU time per completed
+frame. CPU-series FPS is contextual(+1.99%);the primary FPS result is+2.56%.
+These values belong to the new3df EXE. The earlier B95 menu series remains
+valid separate evidence rather than being substituted for this same-EXE check.
+
+The same frozen EXE now has isolated menu and round mean-FPS gains and lower
+normalized worker/process CPU costs,with separate observer-free FPS series.
+That completes collection of the menu/round measurement matrix for this option;
+it does not close the round FPS tail follow-up or whole-job/default gates.
+The first round FPS series still contains one native p99=54.80ms versus44.06ms
+in its paired control. Keep SPANS0 until an independent round FPS repetition
+clarifies that result. Do not attribute a cause or discard it because the
+menu or CPU-series tails improve. Questions/cameras vary in round runs.
+
+Private evidence:`spans-fps-menu-v2-report.json`,`spans-cpu-menu-v2-report.json`
+and their complete progress/raw snapshot/log/CSV/phase sets. All16 menu/round
+runs use the same3df EXE/MAP/initial-save and production option map,apart from
+the intended single knob and scene/metric settings. The earlier V3 aggregate
+JOB0/JOB1 regression remains separately bound;no aggregate gain is claimed.
+JOB0/geometry827/new flags0/SPANS0 remain unchanged. Phase3,cold real/live,
+round interpreted-count and final default gates remain open.
