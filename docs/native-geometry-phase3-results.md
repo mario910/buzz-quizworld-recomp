@@ -6101,3 +6101,35 @@ Round A/B/CPU, round interpreter counts, cold real/live and final/default gates
 remain OPEN. JOB0/geometry827/newflags0 and the StageF exception remain unchanged.
 Phase3 and the continuing objective stay active through shared phase4,
 optional5/6 decisions and final strictStageF7.
+
+
+## Profile-guided formatter column proof: opt-in
+
+Separate V3 native/reference menu RIP samples identify formatter admission
+as3.57% of active native pool leaf samples. These diagnostics perturb timing
+and are excluded from FPS/CPU measurement. The
+[performance report](native-geometry-phase3-performance.md#diagnostic-profile-and-formatter-admission-candidate)
+records their scope; the
+[conversion audit](native-geometry-conversion-audit.md#formatter-column-span-proof)
+documents the resulting conservative address-span proof.
+
+The new default-off FORMATTER_SPANS0/1 option accelerates regular read-only
+admission and retains exhaustive checks for every unproven column. It preserves
+signed/modular addressing, dummy/cross writes, metadata protection, iteration
+budgets and admission coverage. Data execution, all-register/LS/control/I/O
+checks and the accepted Stage F contract are unchanged. ABI48/61 stages remain.
+
+50,000 independent quad models and the existing1,908 formatter/1,853 conversion/
+15,988 builtin strict suites pass, as do routing,1,024 mock drivers and480
+getter cases. Six new-frozen corpus arms each pass19,508exact/58,195transfers,
+zero failures/input changes and unchanged ledgers; native whole jobs have zero
+fallback. Live option1 reaches>=35,000 strict formatter and>=45,000 whole-job/I/O
+comparisons. EXE`b95e457fc251aff615fc284a94c60e827969611ba917ff95b595220e1792dc8b`
+and MAP`7ae7077e2141dc60f8b26181164b0d0efcc2182db11b7be4a26549daf843cef1`
+are frozen separately from V3, with15 native source bindings.
+
+No gain is claimed before measurement. This new freeze still needs native
+menu/round frame acceptance and own-switch reversed A/B/normalized CPU checks.
+All existing cold real/live, round interpreter and remaining phase3 gates stay
+OPEN. JOB0/geometry827/newflags0 remain; phase3/continuing goal stay active
+through shared phase4,optional5/6 decisions and final strictStageF7.

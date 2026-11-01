@@ -35,7 +35,7 @@ struct GeometryConversionAdmission {
     GeometryConversionPath path=GeometryConversionPath::existing;
     GeometryFormatter formatter;
 };
-inline bool read_geometry_conversion_native(const spu_context& c,GeometryConversionAdmission& out,const char** reason=nullptr)
+inline bool read_geometry_conversion_native(const spu_context& c,GeometryConversionAdmission& out,const char** reason=nullptr,bool column_spans=true)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};GeometryConversionAdmission plan;
     if(!read_geometry_conversion_control(c,plan.control,reason,true))return false;
@@ -75,7 +75,7 @@ inline bool read_geometry_conversion_native(const spu_context& c,GeometryConvers
     // return values, remain allowed and are observed by actual reloads.
     const unsigned frame=c.gpr[1]._u32[0]&~15u;
     const GeometryFormatterEntry entry{arguments,&published,frame-96,128,frame-128,16};
-    if(!read_geometry_formatter(c,plan.formatter,reason,&entry))return false;
+    if(!read_geometry_formatter(c,plan.formatter,reason,&entry,column_spans))return false;
     out=plan;return true;
 }
 // Complete seven-block standard stride getter, including the speculative table

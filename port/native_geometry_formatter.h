@@ -4,6 +4,8 @@
 #include "native_geometry_job.h"
 #include "native_geometry_context.h"
 #include "spu_helpers.h"
+#include <algorithm>
+#include <cstdint>
 namespace buzz {
 struct GeometryFormatter { unsigned fields=0,known=0,skipped=0,mask=0; };
 struct GeometryFormatterCallees { buzz_geometry_job_fn data[7]{},finish=nullptr,skip=nullptr; };
@@ -108,7 +110,52 @@ struct GeometryFormatterEntry {
     unsigned metadata_exclusion=0,metadata_exclusion_bytes=0;
     unsigned protected_data=0,protected_data_bytes=0;
 };
-inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,const char** reason=nullptr,const GeometryFormatterEntry* entry=nullptr)
+struct GeometryFormatterWriteBounds {
+    unsigned manager,descriptor,descriptor_bytes,protected_data,protected_bytes;
+};
+// Prove the same physical quads as the exhaustive admission below. A regular
+// column advances signed source cursors monotonically and destination quads
+// without wrapping LS. Other layouts retain the exhaustive check.
+inline bool prove_geometry_formatter_column(const u128& cursor,const u128& limit,
+    const u128& route,const u128& cursor_step,const u128& route_step,const u128& dummy,
+    unsigned base,unsigned second_base,bool cross,const GeometryFormatterWriteBounds& bounds,
+    unsigned total,unsigned& groups)
+{
+    const unsigned step=cursor_step._u32[0];
+    if(!step || step>0x7fffffff)return false;
+    const int64_t first=cursor._s32[0],last=limit._s32[0];
+    const uint64_t count=first>last?1:uint64_t(last-first)/step+2;
+    if(count>65536 || uint64_t(total)+count>1048576)return false;
+    auto safe=[&](uint64_t begin,uint64_t end){
+        if(begin<0xe680 || end>SPU_LS_SIZE)return false;
+        const unsigned bytes=unsigned(end-begin);
+        return !geometry_formatter_overlap(unsigned(begin),bytes,bounds.manager,0x170) &&
+            !geometry_formatter_overlap(unsigned(begin),bytes,bounds.descriptor,bounds.descriptor_bytes) &&
+            (!bounds.protected_bytes || !geometry_formatter_overlap(unsigned(begin),bytes,bounds.protected_data,bounds.protected_bytes));
+    };
+    for(unsigned lane=0;lane<4;++lane){
+        if(cursor_step._u32[lane]!=step || (route_step._u32[lane]&15))return false;
+        const int64_t start=cursor._s32[lane],end=limit._s32[lane];
+        if(start+int64_t(count-1)*step>INT32_MAX)return false;
+        const uint64_t actual=start>end?0:std::min(count,uint64_t(end-start)/step+1);
+        for(unsigned side=0;side<(cross?2u:1u);++side){
+            const unsigned selected_base=side?second_base:base;
+            if(actual){
+                // Modulo2^32 and moduloLS commute; aligned steps preserve
+                // the low nibble. Only a non-wrapping physical span is proven.
+                const uint64_t begin=(uint64_t(selected_base)+route._u32[lane])&0x3fff0;
+                const uint64_t finish=begin+(actual-1)*(route_step._u32[lane]&0x3ffff)+16;
+                if(!safe(begin,finish))return false;
+            }
+            if(actual<count){
+                const uint64_t at=(uint64_t(selected_base)+dummy._u32[lane])&0x3fff0;
+                if(!safe(at,at+16))return false;
+            }
+        }
+    }
+    groups=unsigned(count);return true;
+}
+inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,const char** reason=nullptr,const GeometryFormatterEntry* entry=nullptr,bool column_spans=true)
 {
     auto reject=[&](const char* text){if(reason)*reason=text;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
@@ -133,6 +180,7 @@ inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,
     GeometryFormatter plan;
     if(!open_geometry_formatter(r,m) || !prepare_geometry_formatter(r,m)){out=plan;return true;}
     static constexpr unsigned roots[]={0x4478,0x46d0,0x4880,0x4b9c,0x4dd0,0x4fdc,0x52b4};unsigned total=0;
+    const GeometryFormatterWriteBounds bounds{manager,desc,desc_bytes,entry?entry->protected_data:0,entry?entry->protected_data_bytes:0};
     for(;;){
         if(++plan.fields>255)return reject("formatter field budget");
         const unsigned storage=prepare_geometry_formatter_field(r,m);
@@ -146,6 +194,9 @@ inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,
                     auto source=spu_a(spu_il(col*16),r[52]);auto cursor=storage==2?source:spu_a(source,r[29]);
                     auto route=spu_mpya(r[55],spu_a(spu_il(col),r[54]),r[53]);
                     const bool cross=spu_cgti(spu_a(spu_andi(route,15),r[48]),16)._u32[0]!=0;unsigned groups=0;
+                    if(column_spans && prove_geometry_formatter_column(cursor,limit,route,r[29],r[31],r[30],r[67]._u32[0],r[76]._u32[0],cross,bounds,total,groups)){
+                        total+=groups;continue;
+                    }
                     for(;;){
                         if(++groups>65536 || ++total>1048576)return reject("formatter iteration budget");
                         const auto after=spu_cgt(cursor,limit),chosen=spu_selb(route,r[30],after);

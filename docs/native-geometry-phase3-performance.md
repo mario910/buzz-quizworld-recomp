@@ -87,3 +87,38 @@ bind the exact scripts used. A subsequent helper-only change initializes the
 screenshot assembly before future round launches; it does not change game
 code or retrospectively change these menu runs. Original source, saves and
 older frozen artifacts remain pinned. The continuing objective stays active.
+
+
+## Diagnostic profile and formatter admission candidate
+
+Separate10s diagnostic menu samples (renderer40..50s) use the prior V3 frozen
+EXE/MAP and verified names/IDs of all four SPURS pool lanes. They contain20,813
+native and20,681 reference pool samples. The sampler briefly suspends threads
+and filters inactive cycle intervals, so these are active leaf distributions,
+not CPU-time percentages or new FPS measurements. All code symbols, including
+native C++, are resolved; folded aliases/padding remain explicit and external
+caller guesses are excluded.
+
+| Native leaf | Samples | Active pool sample share |
+| --- | --- | --- |
+| `read_geometry_formatter` | 744 | 3.57% |
+| `geometry_unit_values` | 434 | 2.09% |
+| `geometry_unit_final_abi` | 288 | 1.38% |
+| `geometry_unit_setup_abi` | 199 | 0.96% |
+
+The formatter's admission walk checks each eventual write before conversion.
+A new opt-in `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1` (default0) replaces that
+walk with a conservative span proof for regular columns. It retains the exact
+walk whenever the proof is unavailable, including physical LS wrap, signed
+cursor wrap, metadata inside gaps or unusual advances. Decoder arithmetic,
+ordered stores, restored registers and strict checkers are unchanged.
+The [conversion audit](native-geometry-conversion-audit.md#formatter-column-span-proof)
+records the proof and validation. Six replay arms each pass19,508exact jobs /
+58,195transfers, with unchanged native ledgers; the new freeze also passes
+>=35,000 strict live formatter returns and>=45,000 whole-job/I/O checks.
+
+This candidate has **no measured FPS or CPU benefit yet**. It is a different
+frozen EXE (`build-vulkan-phase3-formatter-spans-v1`), not the V3 binary measured
+above. Its own0/1 reversal, actual-native menu/round frames and remaining gates
+are pending; the option stays default0 and the combined driver stays off.
+The earlier menu regression remains the last measured aggregate result.

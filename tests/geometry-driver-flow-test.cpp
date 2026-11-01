@@ -184,6 +184,7 @@ int buzz_geometry_job_unorm_output_enabled(){return unorm_output_mode;}
 int buzz_geometry_job_u8_integer_output_enabled(){return u8_integer_output_mode;}
 int buzz_geometry_job_i16_output_enabled(){return i16_output_mode;}
 int buzz_geometry_job_formatter_enabled(){return formatter_mode;}
+int buzz_geometry_job_formatter_spans_enabled(){return 1;}
 int buzz_geometry_job_conversion_control_enabled(){return conversion_control_mode;}
 int buzz_geometry_job_input_control_enabled(){return input_control_mode;}
 int buzz_geometry_job_builtin_input_enabled(unsigned format){assert(format>=1 && format<=5);return builtin_input_mode[format-1];}

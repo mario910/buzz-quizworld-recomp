@@ -220,6 +220,7 @@ struct Init {
             for(unsigned format=0;format<4;++format)std::fprintf(stderr,"[geometry-job] native builtin output%u=%d (0 lift, 1 native, 2 strict full-state; default off)\n",format,buzz_geometry_job_builtin_output_enabled(format));
             std::fprintf(stderr,"[geometry-job] native conversion control=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_conversion_control_enabled());
             std::fprintf(stderr,"[geometry-job] native formatter=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_formatter_enabled());
+            std::fprintf(stderr,"[geometry-job] formatter column spans=%d (0 exhaustive,1 proven spans;default off)\n",buzz_geometry_job_formatter_spans_enabled());
             std::fprintf(stderr,"[geometry-job] native I16 output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_i16_output_enabled());
             std::fprintf(stderr,"[geometry-job] native U8 integer output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_u8_integer_output_enabled());
             std::fprintf(stderr,"[geometry-job] native UNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_unorm_output_enabled());
@@ -457,6 +458,10 @@ extern "C" void buzz_geometry_job_conversion_control_result(unsigned path,int ch
 extern "C" int buzz_geometry_job_formatter_enabled()
 {
     static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FORMATTER",2);return enabled;
+}
+extern "C" int buzz_geometry_job_formatter_spans_enabled()
+{
+    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FORMATTER_SPANS",1);return enabled;
 }
 extern "C" void buzz_geometry_job_formatter_result(unsigned fields,unsigned known,unsigned skipped,unsigned mask,int checked)
 {

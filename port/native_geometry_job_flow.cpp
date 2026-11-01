@@ -220,7 +220,7 @@ extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geome
         fallback(ctx);return;
     }
     buzz::GeometryConversionAdmission plan;const char* reason=nullptr;
-    bool admitted=reference && buzz::read_geometry_conversion_native(*ctx,plan,&reason);
+    bool admitted=reference && buzz::read_geometry_conversion_native(*ctx,plan,&reason,buzz_geometry_job_formatter_spans_enabled()!=0);
     if(admitted && plan.path==buzz::GeometryConversionPath::descriptor){
         if(!formatter || !buzz_geometry_job_formatter_enabled()){admitted=false;reason="native formatter disabled or missing";}
         const int modes[]={buzz_geometry_job_snorm_output_enabled(),buzz_geometry_job_float_output_enabled(),
@@ -272,7 +272,7 @@ extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_f
     }
     buzz::GeometryFormatter plan;const char* reason=nullptr;
     bool admitted=reference && functions && functions->finish && functions->skip;
-    if(admitted)admitted=buzz::read_geometry_formatter(*ctx,plan,&reason);
+    if(admitted)admitted=buzz::read_geometry_formatter(*ctx,plan,&reason,nullptr,buzz_geometry_job_formatter_spans_enabled()!=0);
     if(admitted){
         // The formatter's read-only scan checks every eventual data store and
         // the same iteration bounds as the complete data readers. Its stronger

@@ -63,6 +63,8 @@ static void d3(spu_context* c){data(c,3);}static void d4(spu_context* c){data(c,
 static void compare(spu_context& native,spu_context& reference,unsigned trial){
     static auto admission=std::make_unique<spu_context>();memcpy(admission.get(),&native,sizeof native);
     GeometryFormatter plan;const char* why=nullptr;if(!read_geometry_formatter(native,plan,&why)){fprintf(stderr,"formatter reject trial%u %s\n",trial,why);abort();}
+    GeometryFormatter exhaustive;assert(read_geometry_formatter(native,exhaustive,&why,nullptr,false));
+    assert(plan.fields==exhaustive.fields && plan.known==exhaustive.known && plan.skipped==exhaustive.skipped && plan.mask==exhaustive.mask);
     assert(!memcmp(admission.get(),&native,sizeof native));
     const auto sp=reference.gpr[1]._u32[0];entries.clear();formatter_oracle::observer=observe;formatter_oracle::mock_data=recipe?mock:nullptr;g_spu_trampoline_fn=nullptr;
     formatter_oracle::buzz_job_6eba_spu_func_00004178(&reference);
@@ -76,7 +78,73 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial){
     if(!recipe)assert(entries.size()==plan.known);
     for(unsigned i=0;i<entries.size();++i){equal(*entries[i],*expected_entries[i],"child",trial);++child_cases;}++strict_cases;
 }
+// Independent scalar enumeration of actual quads, including per-lane dummy
+// selection. The production proof uses spans and division instead.
+static bool enumerate_column(u128 cursor,const u128& limit,u128 route,const u128& step,const u128& advance,const u128& dummy,
+    unsigned base,unsigned second,bool cross,const GeometryFormatterWriteBounds& b,unsigned total,unsigned& groups)
+{
+    for(unsigned g=1;g<=65536;++g){
+        if(++total>1048576)return false;
+        const bool stop=cursor._s32[0]>limit._s32[0];
+        for(unsigned lane=0;lane<4;++lane)for(unsigned side=0;side<(cross?2u:1u);++side){
+            const unsigned chosen=cursor._s32[lane]>limit._s32[lane]?dummy._u32[lane]:route._u32[lane];
+            const unsigned at=((side?second:base)+chosen)&0x3fff0;
+            if(at<0xe680)return false;
+            for(unsigned byte=0;byte<16;++byte){const uint64_t address=uint64_t(at)+byte;
+                if((address>=b.manager && address<uint64_t(b.manager)+0x170) ||
+                   (address>=b.descriptor && address<uint64_t(b.descriptor)+b.descriptor_bytes) ||
+                   (b.protected_bytes && address>=b.protected_data && address<uint64_t(b.protected_data)+b.protected_bytes))return false;
+            }
+        }
+        if(stop){groups=g;return true;}
+        for(unsigned lane=0;lane<4;++lane){cursor._u32[lane]+=step._u32[lane];route._u32[lane]+=advance._u32[lane];}
+    }
+    return false;
+}
+static void test_column_proof()
+{
+    unsigned state=0x91a739,proved=0,retained=0;
+    for(unsigned trial=0;trial<50000;++trial){
+        u128 cursor{},limit{},route{},step{},advance{},dummy{};
+        const unsigned delta=1+(random_word(state)%1024),wanted=random_word(state)%96;
+        const int start=int(random_word(state)%0x20000)-0x10000;
+        unsigned base=(trial%17==0?0xfffff000u:0x10000u)+(random_word(state)&15);
+        GeometryFormatterWriteBounds b{0xea00,0xf400,64,0x2d010,16};
+        for(unsigned lane=0;lane<4;++lane){
+            cursor._s32[lane]=start+(int(random_word(state)%7)-3)*int(delta);limit._s32[lane]=start+int(wanted*delta);
+            step._u32[lane]=delta;advance._u32[lane]=(random_word(state)%128)*16+(random_word(state)&15)*0x40000;
+            unsigned target=0x10000+random_word(state)%0x17000;
+            if(trial%11==0)target=0xe5f0;if(trial%13==0)target=0x3ffe0;
+            route._u32[lane]=target-base;dummy._u32[lane]=0x30000+lane*16-base;
+        }
+        if(trial%19==0)advance._u32[0]|=1;
+        if(trial%23==0)step._u32[3]++;
+        if(trial%29==0){cursor._s32[0]=INT32_MAX-8;limit._s32[0]=INT32_MAX;step=spu_il(16);}
+        if(trial%5==0)b.protected_data=(base+route._u32[1])&0x3fff0;
+        const unsigned total=trial%31==0?1048550:0;const bool cross=trial&1;
+        unsigned groups=123456,expected=0;
+        if(prove_geometry_formatter_column(cursor,limit,route,step,advance,dummy,base,base+16,cross,b,total,groups)){
+            assert(enumerate_column(cursor,limit,route,step,advance,dummy,base,base+16,cross,b,total,expected) && groups==expected);++proved;
+        }else {assert(groups==123456);++retained;}
+    }
+    assert(proved>10000 && retained>1000);
+    GeometryFormatterWriteBounds b{0xe680,0xe900,16,0,0};unsigned groups=0,expected=0;
+    const auto zero=spu_il(0),one=spu_il(1),limit=spu_il(65535);
+    assert(prove_geometry_formatter_column(one,limit,zero,one,zero,zero,0x10000,0x10010,true,b,983040,groups) && groups==65536);
+    assert(enumerate_column(one,limit,zero,one,zero,zero,0x10000,0x10010,true,b,983040,expected) && expected==groups);
+    groups=77;assert(!prove_geometry_formatter_column(one,limit,zero,one,zero,zero,0x10000,0x10010,true,b,983041,groups) && groups==77);
+    assert(!prove_geometry_formatter_column(one,spu_il(65536),zero,one,zero,zero,0x10000,0x10010,true,b,0,groups) && groups==77);
+    // A protected gap lies inside the conservative span but is never written.
+    // The proof must defer, while the retained exact enumeration accepts it.
+    b.protected_data=0x10010;b.protected_bytes=16;
+    assert(!prove_geometry_formatter_column(zero,spu_il(16),zero,spu_il(16),spu_il(32),spu_il(0x4000),0x10000,0x10010,false,b,0,groups));
+    assert(enumerate_column(zero,spu_il(16),zero,spu_il(16),spu_il(32),spu_il(0x4000),0x10000,0x10010,false,b,0,expected));
+    b.protected_bytes=0;
+    assert(prove_geometry_formatter_column(zero,spu_il(16),zero,spu_il(16),spu_il(0x40000),zero,0x10000,0x10010,false,b,0,groups) && groups==3);
+    printf("PASS formatter column proof:50000 independent scalar-quad models;%u proven/%u retained;per-lane tails,cross stores,modular high bits,physical-wrap deferral,protected gaps and65536/1048576 budgets\n",proved,retained);
+}
 int main(){
+    test_column_proof();
     _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);_mm_setcsr((_mm_getcsr()&~_MM_ROUND_MASK)|_MM_ROUND_TOWARD_ZERO|0x8040);
     auto base=std::make_unique<spu_context>(),native=std::make_unique<spu_context>(),reference=std::make_unique<spu_context>();memset(base.get(),0,sizeof(*base));base->ls=base->ls_store;base->image_id=41;base->pc=0x56ac;
     auto* file=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_4178.bin","rb");assert(file);assert(fread(base->gpr,sizeof base->gpr,1,file)==1 && fread(base->ls,SPU_LS_SIZE,1,file)==1 && fgetc(file)==EOF);fclose(file);
@@ -157,6 +225,7 @@ int main(){
         }
         memcpy(reference.get(),native.get(),sizeof(*native));GeometryFormatter p{123,456};const char* why=nullptr;
         assert(!read_geometry_formatter(*native,p,&why) && why && p.fields==123 && p.known==456 && !memcmp(native.get(),reference.get(),sizeof(*native)));
+        assert(!read_geometry_formatter(*native,p,&why,nullptr,false) && p.fields==123 && p.known==456 && !memcmp(native.get(),reference.get(),sizeof(*native)));
     }
     for(auto n:native_types)assert(n);
     assert(frame_models==96 && collisions==24 && unknown==32 && seven_family==195 && strict_cases==1908);

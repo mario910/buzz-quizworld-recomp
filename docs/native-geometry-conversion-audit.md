@@ -1090,3 +1090,59 @@ Original source, phase2 generator, all old frozen apps, saves/template pins
 and JOB0/geometry827/newflags0 defaults stay unchanged. Phase3 and the
 continuing objective remain active, followed by shared phase4, documented
 optional5/6 decisions, and strict StageF phase7 LAST.
+
+
+## Formatter column span proof
+
+`BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1` defaults to0. It applies to formatter
+admission in both the native formatter and its enclosing conversion forecast.
+The existing FORMATTER/JOB checked modes continue comparing all guest state;
+no checker field, tolerance or Stage F exception changes. The C driver ABI48
+and61 stage ledgers remain unchanged; the new getter is not a new data stage.
+
+For an eligible column, source cursors advance by the same positive signed
+step. The proof derives the lane0 loop count, including its final dummy group,
+and checks each lane for absence of signed wrap. Each lane's real-write prefix
+and dummy suffix are handled separately. Destination advances must be quad
+aligned. Modulo2^32 commutes with moduloLS, so high address/advance bits can be
+removed before proving a non-wrapping physical interval. That interval must be
+aboveE680 and disjoint from manager/descriptor metadata and the parent's
+protected control slot. Cross-quad writes are checked for both bases.
+
+An interval may contain unwritten gaps. If it overlaps protected bytes, or any
+other proof condition fails, the existing per-quad enumeration decides the
+column. This preserves admitted sparse/aliased cases rather than rejecting
+them. The65,536 per-column and1,048,576 whole-root budgets are unchanged.
+The proof and retained scan are read-only; only the existing native execution
+performs conversion and late frame restoration.
+
+Validation:
+
+- 50,000 independent scalar-quad models:12,022 proven and37,978 delegated to
+  the retained scan. Models enumerate each quad/byte rather than using spans
+  or loop-count division. They cover per-lane tails, cross stores, high-bit
+  modular addresses/advances, wrap, protected gaps and exact budget edges.
+- All1,908 strict formatter roots,2,643 exact child entries,2,028 native data
+  roots across all7 encoders and15 unchanged rejects pass. Both admission
+  modes agree on every tested admitted plan and rejected context.
+- Conversion regression:1,853 strict controller cases,1,341 formatter calls,
+  4,096 stride cases/21 rejects;15,988 builtin roots/children and4,472 unchanged
+  rejects (including4,424 metadata collisions),1,356 safe boundary cases.
+- Production routing/1,024 modeled drivers pass. Runtime getters increase
+  to480 cases; the new option accepts0/1, defaults0 and rejects2/malformed input.
+- Six frozen corpus arms each pass19,508exact jobs/58,195transfers,zero input
+  changes/failures and unchanged existing stage ledgers. Enabled whole jobs
+  execute19,508 natively/zero whole-job fallback. The explicit span-off arm
+  also passes the strict whole-job gate.
+- A checked menu on the new freeze passes>=35,000 strict formatter returns
+  and>=45,000 strict whole-job/I/O comparisons,with the new option1. Periodic
+  counts are lower bounds after forced shutdown,not final fallback totals.
+
+Freeze: `build-vulkan-phase3-formatter-spans-v1`, EXE
+`b95e457fc251aff615fc284a94c60e827969611ba917ff95b595220e1792dc8b`, MAP
+`7ae7077e2141dc60f8b26181164b0d0efcc2182db11b7be4a26549daf843cef1`.
+Fifteen native source copies and the unchanged generated C bind the build.
+The prior V3 sources/EXE/MAP, original lift/generator/saves and all evidence
+remain preserved. Actual-native menu/round frames, own-switch reversed A/B,
+CPU savings and default acceptance for this freeze remain OPEN. No performance
+benefit is claimed; new input/cold data coverage is not created by this change.
