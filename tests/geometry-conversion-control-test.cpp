@@ -74,7 +74,7 @@ static void seed(spu_context& c,unsigned trial,unsigned path){
     geometry_job_put32(c.ls+manager+0x74,0x24000);geometry_job_put32(c.ls+manager+0x88,0);geometry_job_put32(c.ls+manager+0x8c,0);
     c.ls[0x24001]=uint8_t(trial);
     const unsigned table[]={0x68,0x60,0x58,0x58};for(unsigned i=0;i<4;++i)geometry_job_put32(c.ls+0x4104+i*4,table[i]);
-    c.host_depth=trial%3;c.policy_mode=trial%3;c.resident_ovl=trial%5;c.int_enable=trial&1;c.event_mask=trial*13;c.mfc_tag_status=trial*123;c.resv_valid=trial&1;
+    c.host_depth=trial%3;c.policy_mode=trial%3;c.resident_ovl=trial%5;c.int_enable=0;c.event_mask=trial*13;c.mfc_tag_status=trial*123;c.resv_valid=trial&1;
 }
 static void compare(spu_context& native,spu_context& reference,unsigned trial,bool real=false){
     GeometryConversionControl plan;const char* why=nullptr;assert(read_geometry_conversion_control(native,plan,&why));const auto sp=native.gpr[1]._u32[0];
@@ -114,15 +114,16 @@ int main(){
         assert(fread(native->gpr,sizeof native->gpr,1,file)==1 && fread(native->ls,SPU_LS_SIZE,1,file)==1 && fgetc(file)==EOF);fclose(file);native->host_depth=depth;
         copy(*reference,*native);compare(*native,*reference,20000+depth,true);
     }
-    for(unsigned failure=0;failure<11;++failure){seed(*native,0,2);switch(failure){
+    for(unsigned failure=0;failure<14;++failure){seed(*native,0,2);switch(failure){
         case 0:native->ls=reference->ls_store;break;case 1:native->int_enable=1;native->event_status=native->event_mask=1;break;
         case 2:native->gpr[3]._u32[0]=0;break;case 3:native->gpr[3]._u32[0]=SPU_LS_SIZE-0x80;break;
         case 4:native->gpr[1]._u32[0]=0xe680;break;case 5:native->gpr[1]._u32[0]=SPU_LS_SIZE-16;break;
         case 6:native->gpr[1]._u32[0]=SPU_LS_SIZE;break;case 7:native->gpr[1]._u32[0]=0x3d080;break;
         case 8:native->ls[0x3d004]=0;break;case 9:geometry_job_put32(native->ls+0x3d08c,0xbeef);break;
-        case 10:geometry_job_put32(native->ls+0x3d074,0);break;}
+        case 10:geometry_job_put32(native->ls+0x3d074,0);break;
+        case 11:native->int_enable=1;break;case 12:native->irq_saved=1;break;case 13:native->irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;}
         memcpy(reference.get(),native.get(),sizeof(*native));GeometryConversionControl plan;const char* why=nullptr;
         assert(!read_geometry_conversion_control(*native,plan,&why) && why && !memcmp(native.get(),reference.get(),sizeof(*native)));
     }
-    printf("PASS conversion control: %u strict full-state/LS/FN/child-entry cases;16 callee recipes;%u independent frame/publication models;3 real-input original-data combinations;11 unchanged rejects;production/native data gates OPEN\n",strict_cases,independent);
+    printf("PASS conversion control: %u strict full-state/LS/FN/child-entry cases;16 callee recipes;%u independent frame/publication models;3 real-input original-data combinations;14 unchanged rejects;production/native data gates OPEN\n",strict_cases,independent);
 }

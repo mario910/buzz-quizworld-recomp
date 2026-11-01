@@ -1,5 +1,6 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_pipeline.h"
+#include "../port/native_geometry_conversion_control.h"
 #include "../port/native_function_check.h"
 #include "../port/native_geometry_snorm_output.h"
 #include "../port/native_geometry_float_output.h"
@@ -80,6 +81,8 @@ static int unorm_output_mode=0;
 static int u8_integer_output_mode=0;
 static int i16_output_mode=0;
 static int formatter_mode=0;
+static int conversion_control_mode=0;
+static unsigned conversion_control_native=0,conversion_control_checked=0,conversion_control_fallback=0,conversion_control_references=0,conversion_control_fallback_calls=0;
 static unsigned formatter_native=0,formatter_checked=0,formatter_fallback=0,formatter_references=0,formatter_fallback_calls=0,formatter_children=0;
 static unsigned float_output_native=0,float_output_fallback=0,float_output_checked=0,float_output_references=0,float_output_fallback_calls=0;
 static unsigned half_output_native=0,half_output_fallback=0,half_output_checked=0,half_output_references=0,half_output_fallback_calls=0;
@@ -173,6 +176,8 @@ int buzz_geometry_job_unorm_output_enabled(){return unorm_output_mode;}
 int buzz_geometry_job_u8_integer_output_enabled(){return u8_integer_output_mode;}
 int buzz_geometry_job_i16_output_enabled(){return i16_output_mode;}
 int buzz_geometry_job_formatter_enabled(){return formatter_mode;}
+int buzz_geometry_job_conversion_control_enabled(){return conversion_control_mode;}
+void buzz_geometry_job_conversion_control_result(unsigned,int checked){if(checked)++conversion_control_checked;}
 void buzz_geometry_job_formatter_result(unsigned,unsigned,unsigned,unsigned,int checked){if(checked)++formatter_checked;}
 void buzz_geometry_job_float_output_result(unsigned,unsigned,int checked){if(checked)++float_output_checked;}
 void buzz_geometry_job_half_output_result(unsigned,unsigned,int checked){if(checked)++half_output_checked;}
@@ -233,6 +238,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL){assert(routing_probe);if(native)++conversion_control_native;else ++conversion_control_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_FORMATTER){assert(routing_probe);if(native)++formatter_native;else ++formatter_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_RING){assert(routing_probe);if(native)++ring_native;else ++ring_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT){assert(routing_probe);if(native)++float_output_native;else ++float_output_fallback;return;}
@@ -757,6 +763,69 @@ static void attribute_routing(spu_context* ctx)
     assert(attribute_references == 9 && attribute_fallback[0] == 3 && attribute_fallback[1] == 1);
     memcpy(ctx,backup.get(),sizeof(*ctx));
 }
+#include "../analysis/native-geometry/phase3/conversion-control-original.inc"
+static void conversion_control_reference(spu_context* c){++conversion_control_references;buzz_conversion_original_run(c);}
+static const spu_context* conversion_control_unchanged=nullptr;
+static buzz_geometry_job_fn conversion_control_queue=nullptr;
+static void conversion_control_fallback_call(spu_context* c){
+    if(conversion_control_unchanged)assert(!memcmp(c,conversion_control_unchanged,sizeof(*c)) && g_spu_trampoline_fn==conversion_control_queue);
+    ++conversion_control_fallback_calls;
+}
+static void conversion_control_formatter(spu_context* c){
+    buzz::GeometryFormatter plan;const char* why=nullptr;assert(buzz::read_geometry_formatter(*c,plan,&why));
+    const buzz::GeometryFormatterCallees functions{{formatter_d0,formatter_d1,formatter_d2,formatter_d3,formatter_d4,formatter_d5,formatter_d6},buzz_formatter_original_00004610,buzz_formatter_original_00004618};
+    buzz::execute_geometry_formatter(*c,plan,functions);
+}
+static void conversion_control_routing(spu_context* ctx)
+{
+    auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
+    auto* fixture=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_54E8.bin","rb");assert(fixture);
+    assert(fread(entry->gpr,sizeof entry->gpr,1,fixture)==1 && fread(entry->ls,SPU_LS_SIZE,1,fixture)==1 && fgetc(fixture)==EOF);fclose(fixture);
+    const unsigned manager=entry->gpr[3]._u32[0]&~15u,desc=buzz::geometry_job_be32(entry->ls+manager+0x74);
+    int* modes[]={&snorm_output_mode,&float_output_mode,&half_output_mode,&unorm_output_mode,&i16_output_mode,&cmp_output_mode,&u8_integer_output_mode};
+    auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;
+        conversion_control_mode=formatter_mode=flow_mode=1;for(auto* m:modes)*m=1;};
+    auto field=[&](unsigned kind){ctx->ls[desc]=1;ctx->ls[desc+1]=23;ctx->ls[desc+9]=kind;
+        const unsigned widths[]={0,6,12,6,3,6,4,3};ctx->ls[desc+12]=widths[kind];};
+    auto checked_call=[&](buzz_geometry_job_fn formatter){auto* expected=buzz::clone_function_state(ctx);const auto incoming=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;buzz_conversion_original_run(expected);const auto finish=g_spu_trampoline_fn;g_spu_trampoline_fn=incoming;
+        buzz_geometry_job_conversion_control(ctx,conversion_control_fallback_call,conversion_control_reference,formatter);
+        assert(buzz::compare_function_state(*ctx,*expected).exact() && ctx->host_depth==expected->host_depth && ctx->image_id==expected->image_id &&
+            ctx->policy_mode==expected->policy_mode && ctx->resident_ovl==expected->resident_ovl && g_spu_trampoline_fn==finish);buzz::release_function_state(expected);};
+    for(unsigned path=0;path<3;++path)for(unsigned depth=0;depth<3;++depth)for(unsigned mode=0;mode<3;++mode){
+        reset();ctx->host_depth=depth;flow_mode=mode==1?2:1;conversion_control_mode=mode==2?2:1;ctx->gpr[1]._u32[0]+=path*4;
+        if(path==0)ctx->ls[manager]|=16;if(path==1)ctx->ls[manager+8]=ctx->ls[manager+9]=0;
+        if(path<2){formatter_mode=0;for(auto* m:modes)*m=0;}checked_call(path<2?nullptr:conversion_control_formatter);
+    }
+    for(unsigned kind=1;kind<=7;++kind)for(unsigned depth=0;depth<3;++depth)for(unsigned mode=0;mode<3;++mode){
+        reset();field(kind);ctx->host_depth=depth;flow_mode=mode==1?2:1;conversion_control_mode=mode==2?2:1;
+        for(auto* m:modes)*m=0;*modes[kind-1]=1;checked_call(conversion_control_formatter);
+    }
+    assert(conversion_control_native==90 && conversion_control_checked==60 && conversion_control_references==60 && !conversion_control_fallback && !conversion_control_fallback_calls);
+    auto unchanged=[&](buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter){auto before=std::make_unique<spu_context>();memcpy(before.get(),ctx,sizeof(*ctx));
+        conversion_control_unchanged=before.get();conversion_control_queue=g_spu_trampoline_fn;
+        buzz_geometry_job_conversion_control(ctx,conversion_control_fallback_call,reference,formatter);
+        assert(!memcmp(ctx,before.get(),sizeof(*ctx)) && g_spu_trampoline_fn==conversion_control_queue);conversion_control_unchanged=nullptr;};
+    reset();conversion_control_mode=0;unchanged(conversion_control_reference,conversion_control_formatter);
+    reset();ctx->image_id=40;unchanged(conversion_control_reference,conversion_control_formatter);
+    reset();auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_conversion_control(foreign,conversion_control_fallback_call,conversion_control_reference,conversion_control_formatter);buzz::release_function_state(foreign);
+    for(unsigned failure=0;failure<19;++failure){reset();switch(failure){
+        case 2:formatter_mode=0;break;case 3:ctx->ls=entry->ls_store;break;case 4:ctx->int_enable=1;break;case 5:ctx->irq_saved=1;break;
+        case 6:ctx->irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;case 7:ctx->ls[manager+4]=0;break;
+        case 8:buzz::geometry_job_put32(ctx->ls+manager+0x8c,0xbeef);break;case 9:buzz::geometry_job_put32(ctx->ls+manager+0x88,0xbeef);break;
+        case 10:buzz::geometry_job_put32(ctx->ls+manager+0x74,0);break;
+        case 11:buzz::geometry_job_put32(ctx->ls+manager+0x74,ctx->gpr[1]._u32[0]-32);break;
+        case 12:buzz::geometry_job_put32(ctx->ls+manager+0x74,ctx->gpr[1]._u32[0]-224);break;
+        case 13:buzz::geometry_job_put32(ctx->ls+manager+0x58,0);break;case 14:buzz::geometry_job_put32(ctx->ls+manager+0x58,manager);break;
+        case 15:buzz::geometry_job_put32(ctx->ls+0x4460,0x1234);break;case 16:ctx->gpr[1]._u32[0]=0xe680;break;case 17:ctx->gpr[3]._u32[0]=0;break;
+        case 18:ctx->ls[manager+8]=0;ctx->ls[manager+9]=1;buzz::geometry_job_put32(ctx->ls+manager+0x58,(ctx->gpr[1]._u32[0]&~15u)-128);break;}
+        unchanged(failure==0?nullptr:conversion_control_reference,failure==1?nullptr:conversion_control_formatter);
+    }
+    for(unsigned kind=1;kind<=7;++kind){reset();field(kind);*modes[kind-1]=0;unchanged(conversion_control_reference,conversion_control_formatter);}
+    assert(conversion_control_native==90 && conversion_control_checked==60 && conversion_control_references==60 && conversion_control_fallback==26 && conversion_control_fallback_calls==29);
+    for(auto* m:modes)*m=0;conversion_control_mode=formatter_mode=0;flow_mode=1;
+    buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+}
 static void routing_inside(spu_context* ctx)
 {
     {
@@ -817,6 +886,7 @@ static void routing_inside(spu_context* ctx)
         for(auto* m:modes)*m=0;formatter_mode=0;flow_mode=1;
         buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
     }
+    conversion_control_routing(ctx);
 
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
@@ -1712,6 +1782,9 @@ int main(int argc, char** argv)
     index_control_mode=1;buzz_geometry_job_index_control(native.get(),index_control_fallback_call,index_control_reference,&index_control_oracle::library);
     assert(index_control_fallback_calls==19 && index_control_references==20 && index_control_native==30 && index_control_checked==20 && index_control_fallback==15);index_control_mode=0;
     puts("Complete index control routing:five paths,both strict modes/depths,biased stack/manager,return-PC collisions,incoming continuation;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
+    conversion_control_mode=1;buzz_geometry_job_conversion_control(native.get(),conversion_control_fallback_call,nullptr,nullptr);
+    assert(conversion_control_native==90 && conversion_control_checked==60 && conversion_control_references==60 && conversion_control_fallback==26 && conversion_control_fallback_calls==30);conversion_control_mode=0;
+    puts("Complete conversion control routing:90 native/60 strict roots;all3 paths/all7 encoders;26 unchanged owned rejects;formatter/encoder dependencies and off/foreign/image/post-scope PASS");
     formatter_mode=1;buzz_geometry_job_formatter(native.get(),formatter_fallback_call,nullptr,nullptr);
     assert(formatter_native==117 && formatter_checked==78 && formatter_references==78 && formatter_fallback==28 && formatter_fallback_calls==32);formatter_mode=0;
     puts("Complete formatter routing:117 native/78 strict roots,81 all7 data callees;28 unchanged unsupported +off/foreign/image/post-scope;used-switch dependencies and original46-block reference PASS");

@@ -5220,3 +5220,95 @@ may justify enabling a proven path later. Next is 54E8 production control with
 IRQ and child admission review, then built-ins and remaining cold acceptance.
 Phase 3 and the continuing goal remain active; strict Stage F reconstruction
 stays LAST.
+
+## Native 54E8 descriptor control in production
+
+The seven-block enclosing controller is now production opt-in under
+`BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL=0/1/2`, default **0**, with ABI 45 and
+stage 50 (51 ledger stages). The complete standard stride getter and ordered
+cursor/publication helpers run natively inside this control group. Nonempty
+built-in output formats, reporting and arbitrary callbacks remain retained paths;
+this milestone does not close their implementation or acceptance gates.
+
+Admission rejects every enabled/saved/active interrupt context. It forecasts the
+formatter entry using local GPR arguments and an overlay of the pending cursor
+publication, without writing the context, executing lifted code or converting
+data. Manager and descriptor metadata must avoid both frames, and all formatter
+store destinations/work bounds are checked. Data must also avoid the formatter slot that restores the parent manager pointer,
+so subsequent stride-callback admission stays valid. Other frame and
+input overlaps remain supported: actual ordered writes and late frame reloads remain authoritative.
+Descriptor work requires the actual formatter switch and every used encoder;
+static/empty roots need no formatter dependency. All rejected dependencies or
+unsupported paths fall back before outer frame/cursor writes.
+
+The strict root reference is the pinned original **73-block** graph with its own
+synchronous drainer and computed-target dispatcher. Nested reference calls stay
+in that original graph; custom/reporting frontiers fail instead of executing an
+unaudited callback. No reference callee uses a new native helper. Comparisons
+retain all 128 GPRs, all LS bytes, architectural/channel/control state, PC, queued
+function, image/depth/policy/overlay, without exclusions or repair.
+
+A new one-vertex frame-alias regression failed before the saved-manager slot
+guard and passes after it. An additional 96 positive cases cover late outer-frame
+vectors and the saved formatter result vector; those aliases stay admitted.
+V1 positive corpus/live logs are retained as historical
+evidence; acceptance below uses the rebuilt V2 executable. No comparison field
+was relaxed.
+
+Validation passes:
+
+- **1,853 complete native conversion cases**, including 1,341 native formatter
+  calls/all seven encoders, all stack biases, descriptor biases, alias cases and
+  return-PC collisions. Forecast and actual formatter admission agree; successful
+  admission leaves the full context unchanged. Except three captured GPR/LS entry
+  anchors at modeled depths, inputs are explicitly synthetic, with randomized
+  GPR vectors and architectural controls. The production C oracle independently
+  matches the separate original test oracle on every case.
+- **4,096 complete stride cases** across all 256 format selectors, descriptor
+  biases/null/wrapped pointers and modeled depths, preserving speculative loads
+  and full-vector results. The native helper assumes a standard getter; production
+  admission excludes the custom callback before any mutation.
+- **4,195 standalone control cases**, 16 identical mock-callee recipes and
+  96 independent frame/publication models; the stronger IRQ rule now has
+  14 unchanged rejects. The composed reader separately has 21 unchanged rejects.
+- **90 native / 60 strict routing roots**, all three paths/seven encoders and
+  26 unchanged owned rejects, plus off/foreign/image/post-scope checks. Static and
+  empty cases work with the formatter and all encoders disabled; used disabled
+  dependencies reject descriptor work. The 1,908-case formatter regression,
+  1,024 mock-driver scenarios/19,508 real entry transcripts, 53 runtime controller
+  cases, 392 configuration cases and seven audit tests also pass.
+
+Five same-frozen-EXE corpus arms each pass **19,508 exact jobs / 58,195 transfers**
+with zero input divergence or failure. Checked and independent arms each have
+**7,201 strict native descriptor-control returns**; native mode has 7,201 native
+returns, all with zero fallback. The independent arm retains exactly formatter
+plus seven encoder dependencies, with all other newer stages off. Their ledgers
+match the parent formatter build; all other comparable ledgers also match.
+Existing/empty control paths remain absent from real corpus coverage. Cold I16
+and U8 integer real/live acceptance remains OPEN.
+
+Live native-Stage-F menu logs reach at least **25,000 strict control returns**
+and **30,000 strict whole-job comparisons**. Actual-native menu and actual-round
+1280x720 readbacks look normal. The first automated round stopped at round selection
+and is not accepted as a round; a retry with visual navigation checkpoints reached
+the actual challenge/question stage. Both histories are preserved. Periodic logs
+establish lower bounds, not final
+fallback totals. These functional runs do not establish FPS or CPU savings.
+
+Frozen `build-vulkan-phase3-conversion-control-v2`:
+
+- EXE SHA256: `d5cf99722e434b5a8df72e502debfdda36430cc78d669a4e702e65127834c9f8`
+- MAP SHA256: `6401c5d71104e6673bafe399e5aae1256a130073d298c0b8a6c300e1b45118d9`
+- Generated C SHA256: `ff32dfdc15f74c4901ccc579f38d14ca9a1282a6cdf742604678ca32d362f66d`
+
+Private conversion-control-v2 evidence binds this commit's sources, the parent
+formatter proofs, original source/generator/save/template pins, frozen EXE/map/C
+and five native source copies, both reference oracles, all tests, five corpus
+arms, three scenes and two inspected native readbacks. Raw/derived files remain
+ignored. Defaults remain JOB0 / geometry827 / new switches0.
+
+Next: native built-in output formats 0..3, then remaining input built-ins and
+cold acceptance. Final interpreter counts, reversed same-frozen menu/round A/B,
+normalized worker/process cycles/time and default-on gates stay OPEN. Flat FPS
+with repeatable CPU savings remains a valid criterion after correctness/render
+gates. Phase 3 and the continuing objective remain active; strict Stage F stays LAST.

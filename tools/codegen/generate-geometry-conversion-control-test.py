@@ -32,6 +32,37 @@ def main():
     lines += [f'case 0x{pc:X}:{PREFIX}{pc:08X}(c);return;' for pc in sorted(pcs|{0x6158})]
     lines += ['default:fprintf(stderr,"conversion unknown dispatch %X\\n",c->pc);abort();}}','}']
     output=ROOT/'analysis/native-geometry/phase3/test-conversion-control-reference.inc';output.write_text('\n'.join(lines)+'\n')
+    private='buzz_conversion_original_'
+    production='static void buzz_conversion_original_dispatch(spu_context*);\nstatic void buzz_conversion_original_drain(spu_context*,uint32_t);\n'
+    production+='\n'.join(f'static void {private}{pc:08X}(spu_context*);' for pc in sorted(pcs|{0x6158}))+'\n'
+    production+=f'static void {private}00006158(spu_context* ctx){{buzz_geometry_job_native_fail(ctx,"conversion reference reporting frontier");}}\n'
+    for pc in sorted(pcs):
+        body=re.sub(PREFIX+r'([0-9A-F]+)',lambda m:private+f'{int(m[1],16):08X}',audit.ring.reachable_text(functions[pc]))
+        body=body.replace('spu_drain_call(', 'buzz_conversion_original_drain(')
+        # Unaudited callbacks must never be invoked by the cloned reference.
+        body=body.replace('spu_indirect_branch(ctx);', 'buzz_geometry_job_native_fail(ctx,"conversion reference custom callback");')
+        production+=f'static void {private}{pc:08X}(spu_context* ctx) {{{body}}}\n'
+    production+='static void buzz_conversion_original_dispatch(spu_context* ctx){switch(ctx->pc){\n'
+    production+='\n'.join(f'case 0x{pc:X}:{private}{pc:08X}(ctx);return;' for pc in sorted(pcs|{0x6158}))
+    production+='\ndefault:buzz_geometry_job_native_fail(ctx,"conversion reference escaped closed graph");}}\n'
+    production+=r'''static void buzz_conversion_original_drain(spu_context* ctx,uint32_t link){
+    for(unsigned steps=0;!(ctx->pc==link && (!g_spu_trampoline_fn || g_spu_trampoline_fn==spu_indirect_branch));++steps){
+        const buzz_geometry_job_fn next=g_spu_trampoline_fn;
+        if(!next || steps>=1048576)buzz_geometry_job_native_fail(ctx,"conversion reference synchronous frontier");
+        g_spu_trampoline_fn=NULL;if(next==spu_indirect_branch)buzz_conversion_original_dispatch(ctx);else next(ctx);
+    }g_spu_trampoline_fn=NULL;
+}
+static void buzz_conversion_original_run(spu_context* ctx){
+    const unsigned stack=ctx->gpr[1]._u32[0];buzz_conversion_original_000054E8(ctx);
+    for(unsigned steps=0;!(ctx->gpr[1]._u32[0]==stack && ctx->pc==ctx->gpr[0]._u32[0] &&
+        g_spu_trampoline_fn==(ctx->host_depth?NULL:spu_indirect_branch));++steps){
+        const buzz_geometry_job_fn next=g_spu_trampoline_fn;
+        if(!next || steps>=1048576)buzz_geometry_job_native_fail(ctx,"conversion reference root frontier");
+        g_spu_trampoline_fn=NULL;if(next==spu_indirect_branch)buzz_conversion_original_dispatch(ctx);else next(ctx);
+    }
+}
+'''
+    (ROOT/'analysis/native-geometry/phase3/conversion-control-original.inc').write_text(production)
     print('Pinned conversion control oracle:73 original standard blocks;report trap;optional identical formatter/stride boundaries')
 
 if __name__=='__main__':main()

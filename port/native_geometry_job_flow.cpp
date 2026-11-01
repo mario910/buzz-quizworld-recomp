@@ -48,6 +48,7 @@
 #include "native_geometry_u8_integer_output.h"
 #include "native_geometry_i16_output.h"
 #include "native_geometry_formatter.h"
+#include "native_geometry_conversion_control.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -89,6 +90,51 @@ void run_ring_reference(spu_context* ctx)
     if(!original)buzz_geometry_job_native_fail(ctx,"missing ring reference scope");
     buzz::run_geometry_ring_reference(*ctx,original->entry,*original->functions,original->frontier);
 }
+}
+
+extern "C" void buzz_geometry_job_conversion_control(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_conversion_control_enabled()){
+        fallback(ctx);return;
+    }
+    buzz::GeometryConversionAdmission plan;const char* reason=nullptr;
+    bool admitted=reference && buzz::read_geometry_conversion_native(*ctx,plan,&reason);
+    if(admitted && plan.path==buzz::GeometryConversionPath::descriptor){
+        if(!formatter || !buzz_geometry_job_formatter_enabled()){admitted=false;reason="native formatter disabled or missing";}
+        const int modes[]={buzz_geometry_job_snorm_output_enabled(),buzz_geometry_job_float_output_enabled(),
+            buzz_geometry_job_half_output_enabled(),buzz_geometry_job_unorm_output_enabled(),
+            buzz_geometry_job_i16_output_enabled(),buzz_geometry_job_cmp_output_enabled(),buzz_geometry_job_u8_integer_output_enabled()};
+        for(unsigned i=0;i<7;++i)if((plan.formatter.mask&(1u<<i)) && !modes[i]){
+            admitted=false;reason="used output encoder disabled";break;
+        }
+    }
+    if(!admitted){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/conversion-control] first fallback: %s\n",reason?reason:"missing conversion reference");
+        fallback(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_conversion_control_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    const buzz::GeometryConversionCallees functions{formatter,buzz::geometry_conversion_stride};
+    const auto path=buzz::execute_geometry_conversion_control(*ctx,plan.control,functions);
+    if(path!=plan.path)buzz_geometry_job_native_fail(ctx,"conversion control path escaped admission");
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/conversion-control] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"conversion control strict data/LS/register/control/continuation differs");
+        }
+        buzz_geometry_job_conversion_control_result(unsigned(path),1);
+    }
+    buzz_geometry_job_conversion_control_result(unsigned(path),0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL,1,0);
 }
 
 extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_formatter_functions* functions)

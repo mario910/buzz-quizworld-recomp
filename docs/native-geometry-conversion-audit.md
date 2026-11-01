@@ -1,8 +1,8 @@
 # Image-41 output conversion: remaining native inventory
 
 Status: source/format audit and callback replay protection, 2026-11-01.
-Shared formatter `4178` is now routed as a complete native opt-in controller.
-`54E8` still has a standalone native control kernel awaiting production integration.
+Shared formatter `4178` and enclosing descriptor control `54E8` are now routed
+as complete native opt-in controllers. Built-in output formats remain pending.
 All seven storage payloads now have complete native opt-in implementations.
 I16/storage-5 and U8-integer/storage-7 still have open real/live gates; their
 nonzero new coverage is explicitly synthetic. Shared formatter/control and
@@ -20,12 +20,12 @@ closed whole-function proof for arbitrary callback targets.
 
 | Region | Blocks | Remaining work |
 |---|---|---|
-| `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
+| `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Complete opt-in descriptor control; final gates OPEN |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
 | Shared formatter `4178` and attribute control | 9 | Complete opt-in controller: 1,908 strict cases; 7,201 strict real roots; final gates OPEN |
 | Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
-| Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
-| Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
+| Stride getter `40C8` and its paths | 7 | Complete standard native helper inside 54E8; 4,096 strict cases; custom callback retained |
+| Getter `2728` / publication `2738` | 2 | Native ordered helpers inside 54E8 control |
 
 The four built-in **output** formats are separate from the still-pending
 built-in **input** formats 1..5 under `93F0`.
@@ -673,3 +673,65 @@ reversed same-frozen menu/round A/B and normalized worker/process CPU measuremen
 remain OPEN. No FPS or CPU benefit is claimed; the switch remains default off.
 Next is production integration of 54E8 control, including complete IRQ and
 synchronous formatter/stride admission, then built-in output/input formats.
+
+## Native 54E8 descriptor control in production
+
+The seven-block enclosing controller is now production opt-in under
+`BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL=0/1/2`, default **0**, with ABI 45 and
+stage 50 (51 ledger stages). The complete standard stride getter and ordered
+cursor/publication helpers run natively inside this control group. Nonempty
+built-in output formats, reporting and arbitrary callbacks remain retained paths;
+this milestone does not close their implementation or acceptance gates.
+
+Admission rejects every enabled/saved/active interrupt context. It forecasts the
+formatter entry using local GPR arguments and an overlay of the pending cursor
+publication, without writing the context, executing lifted code or converting
+data. Manager and descriptor metadata must avoid both frames, and all formatter
+store destinations/work bounds are checked. Data must also avoid the formatter slot that restores the parent manager pointer,
+so subsequent stride-callback admission stays valid. Other frame and
+input overlaps remain supported: actual ordered writes and late frame reloads remain authoritative.
+Descriptor work requires the actual formatter switch and every used encoder;
+static/empty roots need no formatter dependency. All rejected dependencies or
+unsupported paths fall back before outer frame/cursor writes.
+
+The strict root reference is the pinned original **73-block** graph with its own
+synchronous drainer and computed-target dispatcher. Nested reference calls stay
+in that original graph; custom/reporting frontiers fail instead of executing an
+unaudited callback. No reference callee uses a new native helper. Comparisons
+retain all 128 GPRs, all LS bytes, architectural/channel/control state, PC, queued
+function, image/depth/policy/overlay, without exclusions or repair.
+
+A new one-vertex frame-alias regression failed before the saved-manager slot
+guard and passes after it. An additional 96 positive cases cover late outer-frame
+vectors and the saved formatter result vector; those aliases stay admitted.
+V1 positive corpus/live logs are retained as historical
+evidence; acceptance below uses the rebuilt V2 executable. No comparison field
+was relaxed.
+
+Validation passes:
+
+- **1,853 complete native conversion cases**, including 1,341 native formatter
+  calls/all seven encoders, all stack biases, descriptor biases, alias cases and
+  return-PC collisions. Forecast and actual formatter admission agree; successful
+  admission leaves the full context unchanged. Except three captured GPR/LS entry
+  anchors at modeled depths, inputs are explicitly synthetic, with randomized
+  GPR vectors and architectural controls. The production C oracle independently
+  matches the separate original test oracle on every case.
+- **4,096 complete stride cases** across all 256 format selectors, descriptor
+  biases/null/wrapped pointers and modeled depths, preserving speculative loads
+  and full-vector results. The native helper assumes a standard getter; production
+  admission excludes the custom callback before any mutation.
+- **4,195 standalone control cases**, 16 identical mock-callee recipes and
+  96 independent frame/publication models; the stronger IRQ rule now has
+  14 unchanged rejects. The composed reader separately has 21 unchanged rejects.
+- **90 native / 60 strict routing roots**, all three paths/seven encoders and
+  26 unchanged owned rejects, plus off/foreign/image/post-scope checks. Static and
+  empty cases work with the formatter and all encoders disabled; used disabled
+  dependencies reject descriptor work. The 1,908-case formatter regression,
+  1,024 mock-driver scenarios/19,508 real entry transcripts, 53 runtime controller
+  cases, 392 configuration cases and seven audit tests also pass.
+
+Full corpus, live, native-frame and frozen-build evidence is recorded in the
+[phase-3 results](native-geometry-phase3-results.md#native-54e8-descriptor-control-in-production).
+Built-in output formats, cold acceptance and final interpreter/A/B/CPU/default
+gates remain OPEN; the switch stays default off.

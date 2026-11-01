@@ -99,24 +99,37 @@ inline void close_geometry_formatter(spu_context& c,u128* r,GeometryFormatterMem
     // The original queued frame tail is entered with its queue already popped.
     g_spu_trampoline_fn=nullptr;SPU_RET(&c);
 }
-inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,const char** reason=nullptr)
+// A parent may forecast a synchronous entry using host-local arguments and
+// its pending cursor publication. Only metadata must avoid the parent's frame;
+// data may still touch frame bytes and is observed by actual late reloads.
+struct GeometryFormatterEntry {
+    const u128* registers=nullptr;
+    const u128* cursor=nullptr;
+    unsigned metadata_exclusion=0,metadata_exclusion_bytes=0;
+    unsigned protected_data=0,protected_data_bytes=0;
+};
+inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,const char** reason=nullptr,const GeometryFormatterEntry* entry=nullptr)
 {
     auto reject=[&](const char* text){if(reason)*reason=text;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
     if(c.int_enable || c.irq_saved || c.irq_frame)return reject("active interrupt context");
-    const unsigned manager=c.gpr[3]._u32[0]&~15u,sp=c.gpr[1]._u32[0],frame=sp&~15u;
-    if(c.gpr[3]._u32[0]>=SPU_LS_SIZE || manager<0xe680 || uint64_t(manager)+0x170>SPU_LS_SIZE)return reject("formatter manager span");
+    const auto* arguments=entry && entry->registers?entry->registers:c.gpr;
+    const unsigned manager=arguments[3]._u32[0]&~15u,sp=arguments[1]._u32[0],frame=sp&~15u;
+    if(arguments[3]._u32[0]>=SPU_LS_SIZE || manager<0xe680 || uint64_t(manager)+0x170>SPU_LS_SIZE)return reject("formatter manager span");
     if(sp>=SPU_LS_SIZE || frame<0xe680+128)return reject("formatter frame span");
     if(geometry_formatter_overlap(manager,0x170,frame-128,128))return reject("formatter frame/manager alias");
     unsigned desc=0,desc_bytes=0;
     if(!(c.ls[manager]&16) && geometry_job_be16(c.ls+manager+8)){
-        const unsigned raw=c.gpr[4]._u32[0];desc=raw&~15u;
+        const unsigned raw=arguments[4]._u32[0];desc=raw&~15u;
         if(raw>=SPU_LS_SIZE || desc<0xe680)return reject("formatter descriptor span");
         const unsigned count=c.ls[desc];const uint64_t end=(uint64_t(raw)+8+count*8+15)&~uint64_t(15);
         if(end>SPU_LS_SIZE)return reject("formatter descriptor span");desc_bytes=unsigned(end-desc);
         if(geometry_formatter_overlap(desc,desc_bytes,manager,0x170) || geometry_formatter_overlap(desc,desc_bytes,frame-128,128))return reject("formatter metadata/frame alias");
     }
-    u128 r[128];memcpy(r,c.gpr,sizeof r);GeometryFormatterMemory m{const_cast<spu_context&>(c),false,manager+0x50};
+    if(entry && (geometry_formatter_overlap(manager,0x170,entry->metadata_exclusion,entry->metadata_exclusion_bytes) ||
+        geometry_formatter_overlap(desc,desc_bytes,entry->metadata_exclusion,entry->metadata_exclusion_bytes)))return reject("formatter parent frame/metadata alias");
+    u128 r[128];memcpy(r,arguments,sizeof r);GeometryFormatterMemory m{const_cast<spu_context&>(c),false,manager+0x50};
+    if(entry && entry->cursor){m.cursor=*entry->cursor;m.has_cursor=true;}
     GeometryFormatter plan;
     if(!open_geometry_formatter(r,m) || !prepare_geometry_formatter(r,m)){out=plan;return true;}
     static constexpr unsigned roots[]={0x4478,0x46d0,0x4880,0x4b9c,0x4dd0,0x4fdc,0x52b4};unsigned total=0;
@@ -139,6 +152,7 @@ inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,
                         for(unsigned lane=0;lane<4;++lane)for(unsigned side=0;side<(cross?2u:1u);++side){
                             const unsigned address=(r[side?76:67]._u32[0]+chosen._u32[lane])&0x3fff0;
                             if(address<0xe680)return reject("formatter protected data write");
+                            if(entry && entry->protected_data_bytes && geometry_formatter_overlap(address,16,entry->protected_data,entry->protected_data_bytes))return reject("formatter saved parent control pointer");
                             if(geometry_formatter_overlap(address,16,manager,0x170) || geometry_formatter_overlap(address,16,desc,desc_bytes))return reject("formatter data/metadata alias");
                         }
                         if(after._u32[0])break;cursor=spu_a(cursor,r[29]);route=spu_a(route,r[31]);
