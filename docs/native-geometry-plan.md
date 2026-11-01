@@ -52,8 +52,9 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: production wrappers/native93F0 entry for all
-six builtin inputs, expanded real cold coverage and final acceptance.
+Current next implementation: protect native caller control/scratch/table
+assumptions and compose the native93F0 controller with production wrappers and
+independent switches; then expanded real cold coverage and final acceptance.
 Input1 now has a complete standalone decoder:5,646 strict cases,256 independent
 byte models,32,768 independent CMP float components and3,216 full original93F0
 cases/3,168 native data children. Its production/cold/live/final gates stay OPEN.
@@ -70,6 +71,10 @@ Input5 now has its complete standalone15-byte fixed12/three-unit decoder:
 5,838 strict cases,288 byte models,3,145,728 independent position components
 and3,216 original93F0 cases/3,168 native children. All17 builtin input data
 blocks have implementations; production composition and final gates stay OPEN.
+Complete standalone standard93F0 now composes all six formats, including raw0
+with its existing limits:8,391 strict roots/7,796 dispatch boundaries/8,391
+independent frame byte models,23 unchanged rejects and full input1..5 regressions.
+Production parent-safety/integration, cold and final gates stay OPEN.
 The [input audit](native-geometry-input-audit.md) maps all23 standard blocks
 and six95C4 routes. The native54E8
 output controller now handles all seven paths, including all four complete
@@ -1069,6 +1074,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | Complete standard93F0 standalone control+native data | CPU root/prefix/frame-model tests | not measured | not measured | 23-block original oracle/all6 formats;8,391strict roots/7,796exact dispatch boundaries/8,391independent frame models;23unchanged rejects;40quad frame/metadata forecast+all5data regressions;production parent-safety/cold/final OPEN;app unchanged |
 | 2026-11-01 | Builtin input5 standalone fixed12/three-unit decoder | CPU function/model/original-control tests | not measured | not measured | All2blocks+four publications/delayed pipeline/table-read timing/final9498ABI;5,838strict/288byte models/3,145,728position components/3,216full93F0;20unchanged rejects;shared helper extraction+full input4 regression;production/cold/final OPEN;app unchanged |
 | 2026-11-01 | Builtin input4 standalone fixed12/packed-unit decoder | CPU function/model/original-control tests | not measured | not measured | All2blocks+delayed pipeline/table-read timing/final9498ABI;5,806strict/288ordered byte models/3,145,728independent position components/3,216full93F0;16unchanged rejects;production/cold/final OPEN;app unchanged |
 | 2026-11-01 | Builtin inputs2/3 standalone 24-byte decoders | CPU function/model/original-control tests | not measured | not measured | All5/3blocks+ordered metadata/read-lookahead/final9498ABI;5,678/5,710strict;each256byte models/32,768CMP;input2 262,144signed16;each3,216full93F0;14/17unchanged rejects;split IDs read/store fix+input1 regression;production/cold/final OPEN;app unchanged |

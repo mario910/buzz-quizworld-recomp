@@ -19,7 +19,8 @@ Additional-stream BF8 orchestration is also native opt-in with strict
 corpus/live checks. Its `0x7118/7298` run-list data decoder now has a native
 opt-in implementation; its separate validation is recorded below.
 The custom `0x93F0` dispatcher also has a native implementation through its
-exact descriptor tail handoff; built-in input formats 1..5 remain separate.
+exact descriptor tail handoff. A complete standalone standard93F0 controller
+now composes raw0 and builtin formats1..5; production composition remains open.
 The `0x9F8` skin/rigid controller now has native opt-in control through its
 exact weighted-data/normalization tail or return boundary. `0xAF18` now has
 native palette/frame/batch/dispatch/publication control, separately switched.
@@ -5924,3 +5925,32 @@ The frozen app, ABI47,55-stage ledger, original pins and JOB0/geometry827/
 newflags0 defaults remain unchanged. No FPS/CPU gain is claimed. The goal stays
 active through phase3, shared phase4, optional-phase decisions and strict
 StageF7 last.
+
+## Complete standard93F0: standalone native control and data
+
+`native_geometry_input_control.h` now implements the complete shared frame,
+empty path,95C4 dispatch, composition of native input formats1..5 and late9498
+restoration. Raw0 reuses its established native full-root implementation and
+admission limits. All128 GPRs, LS, architecture, channels, control, PC/function,
+image/depth/policy/overlay remain strict, with no original native-arm blocks,
+state repair or expanded StageF exception.
+
+The [input audit](native-geometry-input-audit.md#complete-standard93f0-control-standalone-composition)
+records the40-quad frame/metadata forecast, actual late-frame aliases and limits.
+Validation passes8,391 complete native/original93F0 roots,7,796 full-state
+pre-data boundaries and8,391 independent frame byte models. All23 rejects
+preserve context/plan/queue. Roots cover all six standard formats, empty calls,
+biased managers/stacks, source/parameter/metadata/return-link frame aliases,
+wrapped stacks, arbitrary mask quads and only-selected-target validation.
+Full regressions of all five standalone decoders pass unchanged after factoring
+shared metadata admission. The initial fixture's incorrectly encoded biased
+pointer table was corrected; kernel arithmetic/checkers were unchanged.
+
+This is synthetic function composition, not production routing, real cold
+coverage, a new frozen executable or live acceptance. No switch/ABI/default
+changes and no FPS/CPU gain are claimed. Next: protect native parent control
+assumptions and scratch/table/secondary-stream footprints before production
+integration, add independent switches and compiled-app checks, then complete
+all cold/final gates. Existing frozen app/ABI47/55 stages and JOB0/geometry827/
+newflags0 remain unchanged. Phase3/continuing goal stay active through shared
+phase4 and final strictStageF7.

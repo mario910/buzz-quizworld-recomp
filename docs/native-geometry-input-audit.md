@@ -377,3 +377,93 @@ coverage does not close that milestone. Real cold/live/render/interpreter/
 reversed frozen A/B/normalized CPU/default gates remain open. No app/ABI/switch/
 default/FPS/CPU claim changes. Continue production integration next, then the
 remaining phase3 gates and shared phase4, with strict StageF7 last.
+
+## Complete standard93F0 control: standalone composition
+
+`native_geometry_input_control.h` now composes the complete shared
+93F0/9408/9518/9580/9498 control with all five new builtin decoders. Nonempty
+raw0 reuses the established complete native raw-stream implementation and its
+existing admission limits. Empty calls use the new common frame/return path,
+ignoring unused format, source and callback arguments exactly as the original.
+No original setup, data block, tail or state repair executes on the native arm.
+This implementation is standalone; production routing is still open.
+
+Admission caches the count/config quad before forecasting the28 actual frame
+stores, in their original order. The read-only overlay now holds40 quads,
+covering those spills plus all metadata publications. Shared metadata admission
+is factored out of formats1..5, preserving each family's separate IDs read/store
+bases, selected pointers, counters and dummy-output footprints. All five full
+regressions pass unchanged. Root metadata is evaluated against the post-spill
+overlay, so IDs, table pointers and publications can alias the saved frame.
+Eligibility performs no payload arithmetic, original-function execution or
+context/LS clone. It preserves context and incoming queue; rejection also
+preserves the caller's plan.
+
+Frame writes must individually remain at or above E680 after actual LS masking;
+biased and wrapped stack addresses retain original semantics. For nonempty
+calls, only the selected95C4 word must match its known target. Other table words
+remain arbitrary and observable through speculative vector loads. Formats>=6
+retain the existing custom path. Formats1..5 forecast complete metadata/data
+footprints using the count cached before spills. Raw0 retains its existing
+range, alignment, nonalias and standard-shuffle restrictions. Empty calls do
+not inspect unused dispatch words or source/parameter ranges.
+
+Execution materializes the full prefix ABI, including all upper vector lanes,
+then directly runs the selected complete native decoder. It finally restores
+r80..r104, r126 and r0 from actual late LS and computes the real return PC/queue
+for the current host depth. It does not restore a cached entry state. Source,
+parameter, manager/config, IDs, pointer-table, publication and return-link frame
+aliases are therefore retained, including changes to the saved return address.
+
+Validation passes **8,391 strict complete93F0 comparisons**, **7,796 exact
+pre-data dispatch boundaries** and **8,391 independent frame byte models**.
+Root totals are595 empty,54 raw0,1,549 each formats1/2 and1,548 each formats3/4/5.
+Coverage includes2,560 broad alias cases across formats1..5,512 arbitrary-mask
+cases across19 constant quads,240 properly encoded biased managers,352 empty
+ignored-format/frame-alias/wrapped-stack roots,80 corrupt-unselected-target
+cases,30 large-count roots up to4,095 vertices and three host depths.
+All23 rejection cases preserve context/plan/queue, including every selected
+95C4 slot and protected dummy output rows.
+
+The frame byte model uses scalar big-endian writes and explicit LS masking,
+without calling the native spill helper or SPU store primitive. Dispatch checks
+compare every GPR/LS/architectural/channel/control field and PC/function before
+any payload runs. Complete-root checks compare the same fields after the real
+late tail; return PCs are not masked, normalized or repaired. The generator
+pins all23 original standard blocks and a95DC trap, and also emits a closed
+private original production reference for future wrapper integration.
+
+Full standalone regressions remain:
+
+| Format | Strict data cases | Byte models | Full original93F0 / strict native children | Rejects |
+| --- | --- | --- | --- | --- |
+| 1 | 5,646 | 256 | 3,216 /3,168 | 14 |
+| 2 | 5,678 | 256 | 3,216 /3,168 | 14 |
+| 3 | 5,710 | 256 | 3,216 /3,168 | 17 |
+| 4 | 5,806 | 288 | 3,216 /3,168 | 16 |
+| 5 | 5,838 | 288 | 3,216 /3,168 | 20 |
+
+All earlier independent numeric component counts remain unchanged. Input4/5
+byte models still use SPU unit arithmetic and do not claim an independent unit
+numeric oracle. The initial root fixture incorrectly combined biased manager
+addresses with an unshifted pointer table and was correctly rejected at
+trial108. Ordinary fixtures now keep managers aligned;240 separate biased
+manager fixtures explicitly rotate their table bytes. No controller arithmetic
+or strict checker was corrected to make the fixtures pass. Failed logs remain
+private alongside the final passing logs.
+
+Run `tests/scripts/test-geometry-input-control.ps1`. The suite uses real54E8 LS
+only as the pinned image-constant anchor, then supplies synthetic arguments,
+manager/buffers and frames. This is not real cold coverage or a compiled-app
+result. No production wrapper/switch/ABI/executable/default changes or FPS/CPU
+benefit are claimed.
+
+Before production composition, audit and protect the assumptions of native
+ATTRIBUTES and the whole-job caller. For example, ATTRIBUTES retains its manager
+pointer in a host local, but a data/frame alias can change the r80 restored by
+93F0; exact standalone93F0 behavior alone does not prove that enclosing native
+control exact. Guards must run before unsafe parent mutation. Whole-job scratch/
+table bounds and secondary-stream slot demand also need to account for the
+extra delayed-unit rows. These production protections, independent switches,
+compiled-app replay, cold real/live/render/interpreter/reversed A/B/normalized
+CPU/default gates remain open. Phase3 stays active and strict StageF7 stays last.

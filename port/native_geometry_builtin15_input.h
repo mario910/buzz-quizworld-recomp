@@ -8,18 +8,8 @@ inline bool read_geometry_builtin15_input(const spu_context& c,GeometryBuiltin15
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
     if(c.int_enable || c.irq_saved || c.irq_frame)return reject("active interrupt context");
-    const unsigned bytes=0u-c.gpr[42]._u32[0];if(!bytes || (bytes&31) || bytes>1048576)return reject("builtin15 input counter");
-    GeometryBuiltinInputMemory memory{c};const auto selector=c.gpr[80],table=c.gpr[83];
-    const auto a=reserve_geometry_builtin_input(memory,selector,1,c.gpr[3]._u32[0]+0x160,table,c.gpr[35]);
-    const auto b=reserve_geometry_builtin_input(memory,selector,2,c.gpr[3]._u32[0]+0x160,table,c.gpr[37]);
-    const auto d=reserve_geometry_builtin_input(memory,selector,3,c.gpr[82]._u32[0]+0x160,table,c.gpr[61]);
-    const auto e=reserve_geometry_builtin_input(memory,selector,4,c.gpr[82]._u32[0]+0x160,table,c.gpr[39]);
-    if(!memory.allowed)return reject("builtin15 input protected metadata write");
-    const unsigned groups=bytes/32,offset=c.gpr[36]._u32[0]+c.gpr[42]._u32[0];const u128 pointers[]={a.pointer,b.pointer,d.pointer,e.pointer};
-    for(auto pointer:pointers)for(unsigned group=0;group<groups;++group)for(unsigned row=0;row<2;++row)
-        if(((pointer._u32[0]+offset+group*32+row*16)&0x3fff0)<0xe680)return reject("builtin15 input protected data write");
-    const u128 delayed[]={b.pointer,d.pointer,e.pointer};for(auto pointer:delayed)for(unsigned row=0;row<2;++row)
-        if(((pointer._u32[0]+c.gpr[36]._u32[0]+c.gpr[49]._u32[0]+row*16)&0x3fff0)<0xe680)return reject("builtin15 input protected padding write");
+    unsigned groups=0;GeometryBuiltinInputMemory memory{c};
+    if(!read_geometry_builtin_input_metadata(memory,geometry_builtin_input_metadata(c),5,groups,reason))return false;
     out={groups};return true;
 }
 inline void open_geometry_builtin15_input(spu_context& c,u128* r)
