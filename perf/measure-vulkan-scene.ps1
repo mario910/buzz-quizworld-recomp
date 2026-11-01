@@ -18,6 +18,7 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [double[]]$CpuWindow = @(),
       [ValidateRange(26,120)][int]$RoundIntroSeconds = 26,
       [ValidateRange(0,900)][int]$ContentShotAt = 0,
+      [ValidateRange(0,900000)][int]$ContentReadbackAtMs = 0,
       [string]$InterpreterBinding = '', [string]$InterpreterOutput = '',
       [int[]]$InterpreterAt = @(15,60),
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
@@ -28,6 +29,7 @@ $prefix = Join-Path $root "analysis/vk-scene-$Tag"
 foreach ($suffix in @('.csv','.stderr.log')) { if (Test-Path -LiteralPath ($prefix + $suffix)) { throw "Measurement already exists: $prefix$suffix" } }
 [IO.Directory]::CreateDirectory((Join-Path $root 'analysis')) | Out-Null
 $keys = @('BUZZ_PC_SETTINGS','BUZZ_RENDER_PERF','BUZZ_SCRIPT','BUZZ_TEST_INPUT_FILE')
+if ($ContentReadbackAtMs) { $keys += @('PS3RECOMP_VK_DUMP','PS3RECOMP_VK_DUMP_ONCE_AT_MS','PS3RECOMP_VK_PRESENT_READBACK') }
 $extra = @()
 if ($Env) { foreach ($kv in $Env -split ';') { $extra += ($kv -split '=', 2)[0] } }
 $previous = @{}
@@ -40,7 +42,8 @@ $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
 if ($CpuBinding -and -not $CpuOutput) { throw 'CpuBinding requires a fresh CpuOutput path' }
 if ($CpuOutput -and -not $CpuBinding) { throw 'CpuOutput requires CpuBinding' }
 if ($CpuWindow.Count -and ($CpuWindow.Count -ne 2 -or $CpuWindow[0] -le 0 -or $CpuWindow[1] -le $CpuWindow[0] -or $CpuWindow[1] -gt 900 -or -not $CpuBinding)) { throw 'CpuWindow requires a CPU binding and two ascending seconds in (0,900]' }
-if ($ContentShotAt -and -not $Shots) { throw 'ContentShotAt requires Shots' }
+if ($ContentShotAt -and -not ($Shots -or $ContentReadbackAtMs)) { throw 'ContentShotAt requires Shots or timed readback' }
+if ($ContentReadbackAtMs -and ($Shots -or -not $ContentShotAt -or $ContentReadbackAtMs -ge $ContentShotAt*1000)) { throw 'Timed readback requires later ContentShotAt, without Shots' }
 if ($InterpreterBinding -and $CpuBinding) { throw 'Interpreter diagnostics require a separate run from CPU measurements' }
 if ([bool]$InterpreterBinding -ne [bool]$InterpreterOutput) { throw 'InterpreterBinding and InterpreterOutput must be supplied together' }
 if ($InterpreterBinding) {
@@ -57,6 +60,12 @@ try {
     # Avoid building the small C# capture helper during a running experiment.
     if ($Shots) { & (Join-Path $PSScriptRoot 'claude-gamectl.ps1') init }
     if ($Env) { foreach ($kv in $Env -split ';') { $k, $v = $kv -split '=', 2; [Environment]::SetEnvironmentVariable($k, $v, 'Process') } }
+    if ($ContentReadbackAtMs) {
+        if (Test-Path -LiteralPath ($prefix+'-content.ppm')) { throw 'Content readback already exists' }
+        $env:PS3RECOMP_VK_DUMP=$prefix+'-content.ppm'
+        $env:PS3RECOMP_VK_DUMP_ONCE_AT_MS="$ContentReadbackAtMs"
+        $env:PS3RECOMP_VK_PRESENT_READBACK='0'
+    }
     [IO.File]::WriteAllText(($prefix + '.ini'), "version=1`nvolume=0`nfps_limit=$Limit`nfullscreen=0`noffline=1`nrenderer=auto`n")
     $env:BUZZ_PC_SETTINGS = $prefix + '.ini'
     $env:BUZZ_RENDER_PERF = $prefix + '.csv'
@@ -133,7 +142,10 @@ try {
             if ($sceneProcess.HasExited) { throw 'Game exited before content screenshot' }
             Start-Sleep -Milliseconds 250
         }
-        Shot 'content'
+        if ($ContentReadbackAtMs) {
+            & (Join-Path $root 'toolenv/Scripts/python.exe') (Join-Path $PSScriptRoot 'frame-readback.py') ($prefix+'-content.ppm') ($prefix+'-content.png')
+            if ($LASTEXITCODE) { throw 'Content GPU readback conversion failed' }
+        } else { Shot 'content' }
         Phase 'content-shot'
     }
     while (((Get-Date) - $t0).TotalSeconds -lt $end) {

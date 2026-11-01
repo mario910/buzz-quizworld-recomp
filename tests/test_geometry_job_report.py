@@ -127,5 +127,44 @@ class JobReportTests(unittest.TestCase):
             log.write_text(log.read_text().replace('spans=1','spans=0'));events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
             with self.assertRaisesRegex(ValueError,'Runtime span'):reporter.report(path,root)
 
+    def gpu_round_fixture(self,root):
+        path,events=self.option_fixture(root);qa={}
+        for start,done in zip(events[::2],events[1::2]):
+            run=start['run'];tag=run['tag']
+            run.update(scene='Round',window_seconds=[200,270],content_method='gpu-once',content_capture_ms=190000,content_tool_sha256='f'*64)
+            csv_path=root/f'vk-scene-{tag}.csv'
+            with csv_path.open('w',newline='') as stream:
+                writer=csv.writer(stream);writer.writerow(('frame','elapsed_ms','interval_ms','drain_ms'))
+                for i in range(751):writer.writerow((i,i*400,400,20))
+            log=root/f'vk-scene-{tag}.stderr.log'
+            log.write_text(log.read_text()+'[RSX vulkan] one-shot frame dump armed delay_ms=190000 continuous_readback=0\n[RSX vulkan] one-shot frame dump complete frame=475 elapsed_ms=190010.000 continuous_readback=0\n')
+            done.update(csv_sha256=reporter.sha(csv_path),log_sha256=reporter.sha(log))
+            (root/f'{tag}.phases.jsonl').write_text('\n'.join(json.dumps(p) for p in (dict(phase='content-shot',elapsed_ms=195100),dict(phase='end',elapsed_ms=300000))))
+            ppm=root/f'vk-scene-{tag}-content.ppm';png=root/f'vk-scene-{tag}-content.png'
+            rgb=b'\x12\x34\x56'*(1280*720);ppm.write_bytes(b'P6\n1280 720\n255\n'+rgb);png.write_bytes(reporter.readback.png_bytes(1280,720,rgb))
+            qa[tag]=dict(inspected=True,sha256=reporter.sha(png),ppm_sha256=reporter.sha(ppm))
+        self.save(path,events);qa_path=root/'qa.json';qa_path.write_text(json.dumps(qa));return path,events,qa_path
+
+    def test_round_requires_one_native_frame_before_timing_and_exact_pixels(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_,qa=self.gpu_round_fixture(root)
+            self.assertEqual(reporter.report(path,root,qa)['scene'],'Round')
+
+    def test_round_rejects_late_repeated_or_continuous_readbacks(self):
+        for change in ('late','repeated','continuous','wrong-frame'):
+            with self.subTest(change=change),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);path,events,qa=self.gpu_round_fixture(root);log=root/'vk-scene-job-2.stderr.log';text=log.read_text()
+                if change=='late':text=text.replace('elapsed_ms=190010.000','elapsed_ms=200010.000')
+                elif change=='repeated':text+=text.splitlines()[-1]+'\n'
+                elif change=='continuous':text=text.replace('continuous_readback=0','continuous_readback=1')
+                else:text=text.replace('frame=475','frame=510')
+                log.write_text(text);events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
+                with self.assertRaises(ValueError):reporter.report(path,root,qa)
+
+    def test_round_rejects_png_that_is_not_the_native_rgb_readback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_,qa=self.gpu_round_fixture(root);ppm=root/'vk-scene-job-2-content.ppm';ppm.write_bytes(ppm.read_bytes()[:-1]+b'\x00')
+            with self.assertRaisesRegex(ValueError,'PNG differs'):reporter.report(path,root,qa)
+
 
 if __name__=='__main__':unittest.main()

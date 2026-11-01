@@ -6159,3 +6159,43 @@ Round interpreter counts,cold real/live paths and phase3 completion remain open.
 The continuing objective stays active through shared phase4,optional5/6 decisions
 and strict StageF7 LAST. Original saves,sources,checkers and frozen apps remain
 unchanged;no new game build was made for this measurement increment.
+
+
+## Pre-window round capture correction
+
+Rejected the first isolated round timing attempt:its195s PrintWindow PNG was
+black,so no round FPS/CPU result or scene gate was accepted. The partial run,
+raw files and pinned scripts remain private. Windows Graphics Capture also
+failed twice with CreateForMonitor0x80070057 in a separate functional test.
+
+Added an opt-in single timed GPU readback in SDKcommitac0f6aef,without enabling
+continuous readback. The runner requests190s,converts the lossless image at195s
+and measures200..270s. The reporter binds the actual capture to its CSV frame,
+requires completion before195s and readback0,compares native PPM/PNG pixels and
+still requires manual inspection. It rejects duplicate/late/continuous captures
+and changed native pixels. Thirteen real-GPU smoke tests and13 reporter tests
+pass;normal periodic dumps and explicit readback suppression also pass.
+
+The new3df8d057 frozen EXE has normal inspected native menu and actual green
+challenge/result-arena images,each from one GPU readback bound to a timing row.
+The round image shows Poprawne0,the host and Adam robot;no question-screen
+claim is made. All15 frozen native geometry sources and generated C match the
+prior formatter-spans freeze exactly;ABI48/61 stages,strict state comparison,
+defaults and the narrow StageF contract exception remain unchanged.
+
+This capture repair is necessary to make the round performance gate reviewable.
+It does not establish a speed change. The earlier menu benefit belongs to the
+b95e457f EXE;new-EXE round FPS/CPU and repeated menu pairs are still required.
+JOB0/geometry827/all new flags0,including SPANS0,remain the defaults.
+Phase3 and the continuing phase4/optional5/6/final strictStageF7 objective remain
+active;round interpreted counts and cold real/live gates remain open.
+
+
+New-freeze validation after the capture repair:all six replay arms each pass
+19,508exact jobs/58,195transfers,zero divergent inputs/zero failures. Enabled
+arms execute19,508native jobs with zero whole-job fallback;every earlier stage
+ledger is unchanged,and SPANS0/1 agree. A separate80s checked menu run passes
+at least45,000 strict whole-job/I/O and35,000 strict formatter returns,without
+DIFF,first-fallback or unrecordable errors. Periodic live counts are lower
+bounds,not final fallback totals. These correctness checks do not replace
+cold real/live,interpreter or new-EXE performance/default gates.

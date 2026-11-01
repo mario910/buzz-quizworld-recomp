@@ -79,6 +79,21 @@ The optional window fixture starts without activation. Device selection is
 `PS3RECOMP_VK_DUMP=absolute-path.ppm` plus `PS3RECOMP_VK_DUMP_EVERY=N` enables
 explicit developer captures. Disable captures for performance measurements.
 
+`PS3RECOMP_VK_DUMP_ONCE_AT_MS=190000` instead captures one frame at or after
+190 seconds from backend initialization. It requires a nonempty `VK_DUMP`
+path and an integer delay in1..3600000ms. With `VK_PRESENT_READBACK=0`, it
+allocates the staging buffer at setup, records one GPU copy, waits for its
+fence, writes the PPM and retires the request even if writing fails. It does
+not enable continuous presentation readback. The completion log binds the
+internal present number, elapsed time and retained readback setting.
+
+The geometry round runner uses this opt-in diagnostic before its200..270s
+measurement window. Its report requires exactly one successful capture,
+readback0, an associated pre195s timing row, exact lossless PPM/PNG pixels and
+manual inspection. This avoids black `PrintWindow` Vulkan captures and keeps
+the measured window free of capture work. Each new EXE still needs its own
+frozen measurements; earlier results remain bound to the earlier binary.
+
 ## Experimental submission diagnostics
 
 `PS3RECOMP_VK_DRAW_BATCH=64` opts into bounded small-draw batching (0, the

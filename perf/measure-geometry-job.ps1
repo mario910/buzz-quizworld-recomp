@@ -12,7 +12,7 @@ param([Parameter(Mandatory)][ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$
 $ErrorActionPreference='Stop'
 $geometryRoot=Split-Path -Parent $PSScriptRoot
 $geometryClearedPrevious=@{}
-foreach ($geometryKey in @('BUZZ_REPLAY_CORPUS','PS3RECOMP_VK_DUMP','PS3RECOMP_VK_DUMP_EVERY')) {
+foreach ($geometryKey in @('BUZZ_REPLAY_CORPUS','PS3RECOMP_VK_DUMP','PS3RECOMP_VK_DUMP_EVERY','PS3RECOMP_VK_DUMP_ONCE_AT_MS')) {
     $geometryClearedPrevious[$geometryKey]=[Environment]::GetEnvironmentVariable($geometryKey,'Process')
     Remove-Item ('Env:'+$geometryKey) -ErrorAction SilentlyContinue
 }
@@ -31,10 +31,12 @@ try {
     $geometryHelper=Join-Path $PSScriptRoot 'measure-vulkan-scene.ps1'
     $geometryRuntime=Join-Path $geometryRoot 'port/native_geometry_job.cpp'
     $geometryRunner=$PSCommandPath
+    $geometryContentTool=Join-Path $PSScriptRoot 'frame-readback.py'
     $geometryPins=@{}
     foreach ($geometryPath in @($geometryTemplateSave,$geometryExe,$geometryMap,$geometryHelper,$geometryRuntime,$geometryRunner)) {
         $geometryPins[$geometryPath]=(Get-FileHash -LiteralPath $geometryPath).Hash.ToLowerInvariant()
     }
+    if ($Scene -eq 'Round') { $geometryPins[$geometryContentTool]=(Get-FileHash -LiteralPath $geometryContentTool).Hash.ToLowerInvariant() }
     $geometryCpuTool=Join-Path $PSScriptRoot 'measure-process-work.py'
     $geometryCpuToolHash='';$geometryBindingHash=''
     if ($CpuBinding) {
@@ -71,10 +73,13 @@ try {
         $geometryEnvironment=(@($geometrySelected.Keys | ForEach-Object { "$_=$($geometrySelected[$_])" }) -join ';')
         $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0"
         $geometryRecord=[ordered]@{ tag=$geometryRunTag;scene=$Scene;metric=$Metric;job=$geometryJob;arm=$geometryArm;knob=$geometryKnob;index=$geometryIndex;window_seconds=$geometryWindow;exe_sha256=$geometryPins[$geometryExe];map_sha256=$geometryPins[$geometryMap];save_sha256=$geometryPins[$geometryTemplateSave];helper_sha256=$geometryPins[$geometryHelper];runner_sha256=$geometryPins[$geometryRunner];runtime_options_sha256=$geometryPins[$geometryRuntime];job_options=$geometrySelected;geometry_mask=827;stage_f=1;dump_every=0;cpu_binding_sha256=$geometryBindingHash;cpu_tool_sha256=$geometryCpuToolHash;round_intro_seconds=50;content_shot_at=195 }
+        $geometryRecord.content_method=if ($Scene -eq 'Round') { 'gpu-once' } else { 'none' }
+        $geometryRecord.content_capture_ms=if ($Scene -eq 'Round') { 190000 } else { 0 }
+        $geometryRecord.content_tool_sha256=if ($Scene -eq 'Round') { $geometryPins[$geometryContentTool] } else { '' }
         [ordered]@{ state='start';run=$geometryRecord } | ConvertTo-Json -Depth 5 -Compress | Add-Content -LiteralPath $geometryProgress -Encoding utf8
         Write-Output "Starting $geometryRunTag ($Metric)"
         $geometryArgs=@{ Scene=$Scene;Tag=$geometryRunTag;Seconds=100;RoundSeconds=140;RoundIntroSeconds=50;BuildDirectory=$BuildDirectory;Env=$geometryEnvironment;PhaseLog=(Join-Path $geometryOut "$geometryRunTag.phases.jsonl") }
-        if ($Scene -eq 'Round') { $geometryArgs.Shots=$true;$geometryArgs.ContentShotAt=195 }
+        if ($Scene -eq 'Round') { $geometryArgs.ContentReadbackAtMs=190000;$geometryArgs.ContentShotAt=195 }
         $geometryCpuPath=Join-Path $geometryOut "$geometryRunTag.cpu.json"
         if ($CpuBinding) { $geometryArgs.CpuBinding=$CpuBinding;$geometryArgs.CpuOutput=$geometryCpuPath;$geometryArgs.CpuWindow=$geometryWindow }
         & $geometryHelper @geometryArgs *> (Join-Path $geometryOut "$geometryRunTag.run.log")

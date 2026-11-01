@@ -1,5 +1,6 @@
 """Validate one same-EXE 0/1/1/0 series: whole JOB or one option with JOB1."""
 import argparse
+import csv
 import hashlib
 import importlib.util
 import json
@@ -16,6 +17,7 @@ def load(name, filename):
 
 ab=load('geometry_ab','geometry-ab-report.py')
 work=load('process_work','measure-process-work.py')
+readback=load('frame_readback','frame-readback.py')
 sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -38,6 +40,8 @@ def report(progress,csv_directory,scene_qa=None):
     if [r['job'] for r in runs]!=([0,1,1,0] if knob=='JOB' else [1]*4):raise ValueError('Option comparison must retain JOB1 in every arm')
     for field in ('scene','metric','window_seconds','exe_sha256','map_sha256','save_sha256','helper_sha256','runner_sha256','runtime_options_sha256','geometry_mask','stage_f','dump_every','cpu_binding_sha256','cpu_tool_sha256','round_intro_seconds','content_shot_at'):
         if any(r[field]!=runs[0][field] for r in runs):raise ValueError('Series differs in '+field)
+    for field in ('content_method','content_capture_ms','content_tool_sha256'):
+        if any(r.get(field)!=runs[0].get(field) for r in runs):raise ValueError('Series differs in '+field)
     scene=runs[0]['scene'];metric=runs[0]['metric']
     if scene not in ('Menu','Round') or metric not in ('Fps','Cpu'):raise ValueError('Unknown series method')
     window={'Menu':[40,98],'Round':[200,270]}[scene]
@@ -74,6 +78,18 @@ def report(progress,csv_directory,scene_qa=None):
             checks=[p for p in phases if p['phase']=='content-shot']
             if len(checks)!=1 or checks[0]['elapsed_ms']>=window[0]*1000:raise ValueError('Scene screenshot overlaps the measurement window')
             if not qa[tag]['inspected'] or sha(shot)!=qa[tag]['sha256']:raise ValueError('Round screenshot was not accepted')
+            if run.get('content_method')=='gpu-once':
+                if run.get('content_capture_ms')!=190000 or not re.fullmatch('[0-9a-f]{64}',run.get('content_tool_sha256','')):raise ValueError('Missing timed-readback settings')
+                if text.count('one-shot frame dump armed delay_ms=190000 continuous_readback=0')!=1 or 'one-shot frame dump FAILED' in text or 'frame dump requires presentation readback' in text:raise ValueError('Invalid one-shot readback mode')
+                captures=re.findall(r'one-shot frame dump complete frame=(\d+) elapsed_ms=([0-9.]+) continuous_readback=(\d+)',text)
+                if len(captures)!=1 or captures[0][2]!='0' or not 190000<=float(captures[0][1])<195000:raise ValueError('One-shot readback did not finish before the measurement window')
+                with csv_path.open(newline='') as stream:
+                    captured=[row for row in csv.DictReader(stream) if int(row['frame'])==int(captures[0][0])]
+                if len(captured)!=1 or not 180000<=float(captured[0]['elapsed_ms'])<195000:raise ValueError('Captured frame overlaps the measurement window or has no timing row')
+                ppm=csv_directory/f'vk-scene-{tag}-content.ppm';width,height,rgb=readback.read_ppm(ppm)
+                if (width,height)!=(1280,720) or not any(rgb) or shot.read_bytes()!=readback.png_bytes(width,height,rgb):raise ValueError('Scene PNG differs from native readback')
+                if qa[tag].get('ppm_sha256')!=sha(ppm):raise ValueError('Native readback was not accepted')
+            elif run.get('content_method') not in (None,'printwindow'):raise ValueError('Unknown round content method')
         frame=ab.summarize(csv_path,*window)
         item=dict(tag=tag,job=run['job'],arm=run.get('arm',run['job']),native_raw0_lower_bound=native_roots,frame_times=frame)
         if metric=='Cpu':

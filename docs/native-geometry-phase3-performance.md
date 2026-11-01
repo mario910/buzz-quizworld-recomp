@@ -160,3 +160,55 @@ other options and the runtime option marker,in addition to earlier validity
 checks. Private results: `spans-fps-menu-v1-report.json`,
 `spans-cpu-menu-v1-report.json`,their complete progress/raw-counter/log/CSV sets,
 `formatter-spans-v1-cpu-binding.json` and `formatter-spans-v1-frame-qa.json`.
+
+
+## Round scene-proof capture correction
+
+The first isolated round FPS attempt (`spans-fps-round-v1`) is **invalid**.
+The inspected195s PrintWindow PNG contains a title bar and a black Vulkan
+client. Its own launcher/game were stopped;the partial CSV/logs/phases/image
+and exact failed scripts are preserved privately. No four-run report or round
+performance result was accepted. A separate functional Windows Graphics
+Capture attempt failed twice with CreateForMonitor0x80070057;no result was
+inferred from it.
+
+The SDK now supports opt-in `PS3RECOMP_VK_DUMP_ONCE_AT_MS`. It allocates the
+staging buffer at setup,waits until the requested time,records one GPU copy,
+waits for its fence,writes the exact PPM and retires the request even on write
+failure. Continuous presentation readback remains0. Thirteen GPU smoke tests
+pass,including exact first-clear pixels retained after later different clears,
+legacy periodic dumps,normal window readback,explicit readback suppression and
+invalid delay/path rejection. Thirteen report tests pass,including rejection
+of late,repeated,continuous or unbound captures and inconsistent RGB pixels.
+
+The round runner requests one190s capture,converts its exact RGB to PNG at195s
+and keeps the200..270s measurement window free of capture work. Acceptance
+requires a single successful completion with readback0,a captured-frame CSV
+row before195s,lossless PPM/PNG agreement and explicit visual inspection.
+It uses no PrintWindow or screenshot-helper compilation in these runs.
+
+New frozen `build-vulkan-phase3-span-capture-v1` (EXE3df8d057,SDKac0f6aef)
+has passed native menu and actual green challenge/result-arena captures.
+The round image shows the host,Adam robot and Poprawne0 scoreboard;it is
+not a question screenshot. The individual readbacks are bound to matching
+frame-timing rows and completed functional runs. The15 native geometry sources,
+generated C,ABI48,61 counters,strict checkers and StageF exception are unchanged.
+These are functional runs,not accepted timing results.
+
+The earlier b95e457f menu benefit remains bound to that earlier EXE. Round
+FPS/CPU and repeat menu pairs must use the new frozen EXE before the own-switch
+performance gate can close. JOB0/geometry827/newflags0/SPANS0 remain unchanged;
+phase3,round interpreter proof,cold real/live and final default gates stay open.
+Private evidence includes `spans-fps-round-v1-invalid.json`,
+`spans-capture-v1-frames-qa.json`,`spans-capture-v1-frozen-hashes.json` and the
+new `spans-capture-v1-cpu-binding.json`.
+
+
+New-freeze validation after the capture repair:all six replay arms each pass
+19,508exact jobs/58,195transfers,zero divergent inputs/zero failures. Enabled
+arms execute19,508native jobs with zero whole-job fallback;every earlier stage
+ledger is unchanged,and SPANS0/1 agree. A separate80s checked menu run passes
+at least45,000 strict whole-job/I/O and35,000 strict formatter returns,without
+DIFF,first-fallback or unrecordable errors. Periodic live counts are lower
+bounds,not final fallback totals. These correctness checks do not replace
+cold real/live,interpreter or new-EXE performance/default gates.

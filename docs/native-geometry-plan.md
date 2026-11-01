@@ -52,13 +52,15 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: isolated formatter-SPANS0/1 round FPS and separate
-CPU reversals on the b95e457f freeze. Its actual-native menu/actual-question
-frames now pass. Menu option-only pairs (JOB1 in all arms) improve25.01 ->25.73FPS
-(+2.88%);worker cycles/frame fall3.17%,process2.07%,with both pairs agreeing.
-SPANS remains default0 pending round/final acceptance. The
-[performance report](native-geometry-phase3-performance.md) separates this
-individual-option benefit from the prior V3 aggregate JOB0/JOB1 regression.
+Current next milestone: finish formatter-SPANS0/1 round FPS and separate
+CPU reversals using the new capture-enabled3df8d057 freeze,then repeat menu
+pairs on that same EXE. The initial round timing attempt was rejected because
+PrintWindow returned a black client image. A timed single GPU readback now
+proves actual native menu/round content before the timing window,without
+continuous readback. See the [performance report](native-geometry-phase3-performance.md).
+The separately bound b95e457f menu pairs remain valid:25.01 ->25.73FPS(+2.88%),
+worker cycles/frame-3.17%,process-2.07%,both pairs agreeing. They do not establish
+performance on the new EXE or aggregate JOB0/JOB1 benefit. SPANS remains default0.
 Round interpreted counts and cold real/live gates remain OPEN;inputs1..5
 remain real/live0. Whole-job/default decisions and strict StageF7 remain open.
 All five standard input decoders and the complete standard93F0 controller
@@ -1077,6 +1079,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | One-shot pre-window scene proof repair | New3df8d057 freeze;rejected black roundV1;13GPU+13report tests;normal native menu/actual round | not measured | not measured | 6arms19,508exact/58,195transfers;unchanged ledgers/SPANS0vs1;>=45,000strict whole-job/I/O+35,000formatter;one190sGPU capture/readback0 andlosslessRGB;new-EXE reversed timings/default gates OPEN |
 | 2026-11-01 | Formatter SPANS isolated menu +native frames | JOB1 in all arms;SPANS0/1/1/0;4FPS+4separateCPU runs;40..98s | 25.01 ->25.73 | pending | FPS+2.88%(pairs+3.19/+2.58);worker cycles/frame-3.17%(-3.42/-2.91),process-2.07%(-2.36/-1.77);CPUms-4.25%/-2.40%;normal menu+actual-question readbacks;round/final/default pending;no aggregate JOB0 claim |
 | 2026-11-01 | Formatter admission span proof | Separate native/reference diagnostic profiles;50,000quad models+strict suites+6corpus arms+checked menu | not measured | not measured | New0/1 default0;3.57%active pool samples identify reader;conservative signed/modular span proof,exact scan retained;all19,508native/0whole-job fallback;live>=35,000strict formatter/45,000whole jobs;frames/reversedAB/CPU/default OPEN |
 | 2026-11-01 | ABI48 whole-job reversed menu FPS + separate CPU | Four FPS +four CPU runs,40..98s,same EXE/save | 27.74 ->25.30 | pending | FPS-8.78%(pairs-8.63/-8.92);pool cycles/frame+15.92%(+16.55/+15.29);process+9.19%(+9.81/+8.57);CPUms pool+16.02%/process+9.13%;combined default-off;profile next;round/cold/interpreter gates OPEN |
