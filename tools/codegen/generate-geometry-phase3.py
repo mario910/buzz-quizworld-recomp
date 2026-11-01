@@ -20,11 +20,22 @@ def main():
         raise SystemExit("Unreviewed phase-2 adapter; audit before updating the parent pin")
     subprocess.run([sys.executable, str(parent_generator)], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-index-control-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-transform-control-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    transform_name = "buzz_job_6eba_spu_func_00006608"
+    transform_pattern = rf"(?ms)^void {transform_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(transform_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned enclosing transform root")
+    transform_library = ",".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x6188,0x6e08,0x69e8,0x6958,0x66c8))
+    source = re.sub(transform_pattern, lambda m:
+        f"static void {transform_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"static const buzz_geometry_transform_functions {transform_name}_library = {{{transform_library}}};\n"
+        f"void {transform_name}(spu_context* ctx) {{ buzz_geometry_job_transform_control(ctx, {transform_name}_fallback, buzz_transform_control_original_00006608, &{transform_name}_library); }}",
+        source, count=1)
     prepare_name = "buzz_job_6eba_spu_func_00006188"
     prepare_pattern = rf"(?ms)^void {prepare_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(prepare_pattern, source))) != 1:
@@ -369,8 +380,9 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 33\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 34\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
+    support += (DEST / "transform-control-original.inc").read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

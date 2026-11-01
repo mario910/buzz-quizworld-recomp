@@ -1310,8 +1310,8 @@ existing Stage F from new native work and explicitly tracks cold variants.
 and the full 480-byte-frame return. Its `TRANSFORM_FINISH=0/1/2` job option
 (default 0) has strict full-state checks, with no Stage F waiver. Count/end
 stores preserve CHD/CWD-selected fields and late frame aliases; wrapped reads
-and all GPR lanes remain exact. Complete native enclosing 6608 flow remains open; vertex
-setup is separately native below. The separate phase-3 results record actual acceptance gates.
+and all GPR lanes remain exact. Complete enclosing 6608 control is separately native below; alternate data
+and final gates remain open. The separate phase-3 results record actual acceptance gates.
 
 
 ### Native vertex matrix preparation
@@ -1324,3 +1324,16 @@ four setup paths; preparation never writes LS. Own `VERTEX_PREPARE=0/1/2`
 defaults to zero and compares full state before the existing Stage F loop.
 See the [transform contract](native-geometry-transform-audit.md) and
 [phase-3 results](native-geometry-phase3-results.md) for cold-path and final gates.
+
+
+### Complete enclosing transform control
+
+`native_geometry_transform_control.h` owns 6608 frames/PIC, reporting preflight,
+6790 full cull ABI, bypass and normal/alternate mode selection. Preparation,
+normal/alternate data and footer callbacks remain independently controlled.
+Own `TRANSFORM_CONTROL=0/1/2` defaults to zero. Strict comparison binds identical
+retained data callbacks to an independent original controller graph and checks
+all state, with no Stage F waiver or repaired registers. Normal composition is
+native control/setup/finish plus existing Stage F loops; alternate 69E8/6B18
+data remains original. See the [transform contract](native-geometry-transform-audit.md)
+and [phase-3 results](native-geometry-phase3-results.md) for precise coverage/gates.

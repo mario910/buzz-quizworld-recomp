@@ -7,7 +7,7 @@ subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 Transform/cull `6608` now has a separate [audited contract](native-geometry-transform-audit.md).
 Its 6958/66C8 result/frame finalization is native opt-in below; complete enclosing
-flow remains open. Vertex preparation is now separately native opt-in below;
+flow now also has native opt-in control below. Alternate data remains original;
 strict Stage F cleanup remains last.
 
 Native payload implementations now exist for all nine descriptor storage
@@ -1348,7 +1348,7 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
 | `0x09F8` | Skin/rigid controller | Native opt-in controller now complete; AF18 data flow and complete B880 region remain separate work, detailed below |
 | `0xAEA0` | Index decoding | Complete native opt-in control and five data regions; cold/final gates remain open |
-| `0x6608` | Transform/cull | Native opt-in 6958/66C8 finalization and 6188 setup; enclosing/alternate paths open; strict Stage F remains phase 7 last |
+| `0x6608` | Transform/cull | Native opt-in enclosing control, 6188 setup and 6958/66C8 finalization; alternate data remains original; strict Stage F remains phase 7 last |
 | `0x2B80` | Output buffer sizing | Native opt-in layout/size path above; unsupported families retain library |
 | `0x37C0` | Ring allocation/atomics | Retained library |
 | `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
@@ -1457,7 +1457,7 @@ The required phase-3 data inventory after this increment is:
 | `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
 | `0xC14C/C280/B5A0`, normalized direction data | Complete native one/two/three-stream implementations with strict synthetic/composed checks; own switch default0 | Nonzero real/native corpus and >=256 live gates OPEN in all variants; final performance/default decision |
 | `0xAEA0`, index stage | Complete native opt-in control and five data regions | Cold coverage and final interpreter/A/B/CPU/default gates |
-| `0x6608`, transform stage | Native opt-in 6958/66C8 suffix and 6188 setup; existing Stage F inner kernels; enclosing/alternate original | Complete native enclosing/alternate flow; strict Stage F remains phase 7 last |
+| `0x6608`, transform stage | Complete native enclosing control, 6188 setup and 6958/66C8 suffix; existing Stage F inner kernels; alternate data original | Native alternate data, cold/final gates; strict Stage F remains phase 7 last |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
 | `0x54E8`, vertex conversion | Validated inner leaves; enclosing stage original | Complete native conversion stage and validation |
 
@@ -4014,3 +4014,135 @@ Private `phase3/vertex-prepare-v1-*` evidence binds committed sources/docs,
 source/fixture/save pins, frozen EXE/map/C/native copies, original setup closure,
 prior transform-finish proof, standalone/routing/configuration tests, five
 replays and live scenes.
+
+
+## Complete enclosing transform control (6608)
+
+`port/native_geometry_transform_control.h` replaces complete enclosing control:
+6608/6618 frame/PIC setup, 6744 flag checks, the entire 6790 cull configuration,
+66B8 bypass, 69B0 alternate dispatch and 6DFC/6E00/710C/7110 mode thunks.
+The independent vertex, normal/alternate cull and finalization callbacks retain
+their switches and contracts. With prior preparation/finalization enabled,
+the observed normal transform flow composes native control and setup with
+the existing Stage F loops and native publication/frame return. Alternate
+69E8/6B18 data is **still original**, with implementation/real/live gates open.
+This milestone completes enclosing control, not the remaining native inventory.
+
+Read-only eligibility checks owned LS, pending interrupts, manager and full
+480-byte-frame spans, manager/frame overlap and the reporting frontier before
+any mutation. Unsupported layouts/reporting inputs retain the original flow
+once, without native credit. The controller owns only bounded frame/manager
+writes; retained data callbacks keep their own input/write contracts. It
+preserves full-vector PIC subtraction, original ordered spills, biased pointer
+selectors, the full split-multiply/carry division ABI, rounded batches/masks,
+attribute-table selection, all constants/prefetches and each mode's temporary
+registers. Both bypass paths restore the entire frame; active footer restoration
+observes actual late LS contents and the loaded return link.
+
+`BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares all 128 GPRs/all LS, architectural/channel/control state and actual
+PC/FN/image/depth/policy/overlay. The private pinned original graph contains
+all **12 enclosing blocks**, pure 2738 publication and a reporting trap.
+Its vertex and normal/alternate data boundaries deliberately call the **same
+public retained data callbacks** as the native controller. The cull bridge
+only binds their queued public 6958 to the private original footer; it changes
+no state or data algorithm. Thus the existing Stage F volatile-register
+exception remains inside those existing callees. The new controller has **no
+waiver, exclusion, tolerance or state repair**. Strict Stage F reconstruction
+remains phase 7 last. Stage 39 / 40 counters / protocol 34 track seven paths.
+
+**5,505 strict full-state/LS/return cases** pass, with independent full-state
+observations at every vertex, cull and footer entry before clobbering/restoration
+could mask setup errors. They comprise 4,096 random, 1,152 targeted integrations
+(eight child/baseline combinations x nine modes x 16 byte biases), one pinned
+real 6608 entry and **256 independent bypass/frame byte models**. Eight
+combinations cover preparation/footer off/native and two retained-data model
+contracts. Synthetic data models are explicit orchestration tests; the corpus
+and live gates below execute actual data callbacks.
+
+Targets include all 192 admissible flag bytes, normal/alternate modes 1/2/3,
+idle and both bypasses, all upper
+lanes, biased stack/manager, both depth classes, incoming continuations, data
+feedback into later metadata and late writes to saved r0. Return links name
+6608/6958/66C8 interior PCs. Footer continuation is identified by the actual
+restore function, preventing a loaded return PC of 66C8 from restoring twice.
+Independent models manually write every spill and selected publication byte,
+compare all 262,144 LS bytes and verify full stack/link/nonvolatile restoration
+at eight stack placements and all biases. Nine rejects preserve all context/
+LS bytes and the plan: foreign LS, pending interrupt, bad manager/frame spans,
+manager/frame overlap and reporting input.
+
+Review found callback-PC selection depended on distinct normal/alternate
+function addresses. A strengthened routing check first reproduced the bug;
+the implementation now chooses PC from the source branch, including shared
+callbacks. The test then exposed truncation of a high-bit mode by SPU ILA;
+its fixture now stores all 32 bits. Diagnostics and the superseded V1 frozen
+build are retained. Neither checker nor expected PC was relaxed. All acceptance
+evidence uses the corrected **V2** EXE; no replay used V1.
+
+Real-owner routing passes **42 native / 28 strict / 28 original-controller
+references** and 16 counted unsupported fallbacks. Seven paths, both strict
+modes/depths, biased pointers, incoming continuations, overwritten interior
+return links and shared cull callbacks pass. Off/foreign/image/null reference/
+null library/all five missing callbacks/invalid fields/post-scope pass.
+The 1,024 outer models and 19,508 real-entry models pass. Runtime code is
+unchanged between V1/V2: its 43 scenarios, **304 production-getter cases** and
+durable first-fallback check pass. The corrected production build succeeds.
+
+Frozen `build-vulkan-phase3-transform-control-v2`:
+EXE `7d6074254221c358130af102a76ddf7c7078a52832bd55060d6e5817762f673e`;
+map `bd468f1c7cae34e1bbdea78029cc6d9308d0ead9697d82cd16b9c4d6775caa42`;
+generated C `a350a0711a6d5ec252b3619435013a7617b982366d7a52438edbf580663a8fe1`.
+Frozen C, the private original controller closure and four compiled native/
+controller/header copies are retained. Original lift, phase-2 generator,
+save/template and source/fixture pins are unchanged.
+
+All five frozen arms pass **19,508 exact jobs / 58,195 transfers**, zero input
+changes and failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | TRANSFORM_CONTROL | Native/strict/fallback |
+|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline |
+| Independent control | 2 | 0 | 1 | 19,508/19,508/0 |
+| Combined native | 1 | 1 | 1 | 19,508/0/0 |
+| Combined checked | 2 | 1 | 1 | 19,508/19,508/0 |
+| Kernel checked | 1 | 1 | 2 | 19,508/19,508/0 |
+
+Each enabled arm has **6,970 mode-1 + 10,467 mode-2 + 2,071 mode-3** native
+roots and zero control fallback. Bypass/idle/alternate have zero observed
+real/live coverage; their real/live gates remain open. Both JOB=2 arms pass
+all whole-job state/I/O comparisons. Combined arms retain all 19,508 native
+preparation/finalization/index-control roots, every prior index data region,
+1,628 AF18, 6,113 weighted-skin and 5,018 basic-direction roots, zero respective
+corpus fallback. Independent control keeps older child implementations.
+
+Functional live runs use the same frozen V2 EXE, JOB=1, older flags=1,
+GEOMETRY=1 / Stage F=1 / leaf 827, fresh private saves and background/native
+mailbox/mute, with no compilation/CPU-test/profiling overlap:
+
+| Scene | JOB/TRANSFORM_CONTROL | Frames / last elapsed ms | Control lower bounds |
+|---|---|---|---|
+| checked-menu | 1/2 | 1,415 / 59,711.999 | strict: one>=35,000; two>=335,000; three>=85,000 |
+| menu | 1/1 | 2,288 / 74,671.581 | native: one>=270,000; two>=2,300,000; three>=615,000 |
+| round | 1/1 | 6,085 / 196,373.649 | native: one>=640,000; two>=5,070,000; three>=1,250,000 |
+
+Checked menu ran 60s, native menu 75s, native round 60s after navigation.
+At least **455,000 strict live controller comparisons** pass, including
+>=256 each for modes 1/2/3 with actual native Stage F callbacks. No differences,
+halts, unexpected continuations or first control fallback were observed.
+Periodic counters are lower bounds; forced shutdown provides no final live
+fallback totals. Inspected 1280x720 actual-native menu/studio/crowd and actual
+green-round host/player/score readbacks are normal.
+
+No FPS/CPU benefit is claimed. Final interpreter, reversed same-frozen-EXE
+menu/round A/B, normalized worker/process cycles/time and default gates remain
+**OPEN**. Repeatable CPU savings can justify flat-FPS default-on after all
+correctness/render gates. JOB=0 / leaf 827 / new flags=0 remain unchanged.
+Phase 3 and the continuing goal remain active: alternate cull data, ring/atomic
+flow, complete conversion, builtins/cold coverage and final gates still need
+work. Strict Stage F reconstruction remains mandatory last.
+
+Private `phase3/transform-control-v2-*` evidence binds committed sources/docs,
+source/fixture/save pins, V2 frozen EXE/map/C/native copies, original controller,
+prior vertex-preparation proof, standalone/routing/configuration tests, five
+replays and scenes; V1 artifacts remain separately marked as diagnostics.

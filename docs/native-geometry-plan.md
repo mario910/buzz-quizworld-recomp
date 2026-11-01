@@ -52,16 +52,15 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: the remaining enclosing image-41 transform flow
-`6608` and alternate cull data. Complete 6188 vertex preparation is now native
-opt-in through the queued Stage F boundary. The separate
-[transform audit](native-geometry-transform-audit.md) documents their boundaries;
-6958/66C8 publication/frame return is now native opt-in. These are
-followed by ring/atomic flow `37C0`, conversion `54E8` and builtins 1..5 after
-source/contract audits. The complete recognized `AEA0/7390` index controller
-and all five data regions now have native opt-in implementations, with their
-[source/format contract](native-geometry-index-audit.md) and separate evidence
-below. Their completion does not close phase 3 or the final validation gates.
+Current next implementation: image-41 alternate transform/cull data
+`69E8/6B18`, followed by ring/atomic flow `37C0`, conversion `54E8` and builtins
+1..5 after source/contract audits. Complete enclosing `6608` control now has
+a native opt-in implementation, composing prior 6188 preparation and
+6958/66C8 finalization with the accepted existing Stage F normal loops.
+Its [transform contract](native-geometry-transform-audit.md) distinguishes
+retained alternate data, cold paths and final acceptance gates. The complete
+recognized `AEA0/7390` index controller and all five data regions are also
+native opt-in. These milestones do not close phase 3 or the final gates.
 
 ## Why these jobs
 
@@ -739,6 +738,22 @@ normal. Five/other formats remain cold with open real/live gates. Enclosing
 default gates remain OPEN. See the [phase-3 results](native-geometry-phase3-results.md#complete-vertex-matrix-preparation-618865ec65fc).
 JOB=0 / leaf 827 / new flags=0 remain unchanged; strict Stage F stays last.
 
+### Complete native enclosing transform control
+
+Complete 6608/6618/6744/6790/bypass/mode dispatch is native opt-in. Own
+`BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2` defaults to zero. The new checker
+compares ALL state using identical public retained data callbacks on each arm;
+no Stage F waiver is applied to controller state. Preflight rejects reporting/
+unsafe frame/manager cases before writes. 5,505 strict cases, eight child/
+baseline combinations, child-entry traces, 256 byte models, nine rejects,
+API routing and 304 configuration cases pass. All five V2 corpus arms pass
+19,508 exact / 58,195 transfers, all controller roots native / zero fallback
+(6,970/10,467/2,071 in modes 1/2/3). Strict live comparisons reach >= 455,000;
+actual-native frames are normal. Alternate 69E8/6B18 DATA remains original;
+bypass/idle/alternate real/live and final interpreter/reversed A/B/CPU/default
+gates remain OPEN. See the [phase-3 results](native-geometry-phase3-results.md#complete-enclosing-transform-control-6608).
+JOB=0 / leaf 827 / new flags=0 remain; strict Stage F stays last.
+
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
 reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
@@ -871,6 +886,7 @@ subject to the kernel gates before replacement.
 | AEA0/7390 complete index control/setup/publication | n/a | complete native opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2`, default 0 | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=455,000 strict live; native scene frames normal | not measured | |
 | 6958/66C8 transform finalization | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2`, default 0 | 4,929 strict incl320 byte models; six rejects; five arms19,508 exact/58,195 transfers; all native/0fallback | >=465,000 strict publish; normal native frames; count-only real/live0 OPEN | not measured | |
 | 6188/65EC/65FC vertex preparation | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2`, default 0 | 8,513 strict; every format/bias; 256 special FP;64 matrix models;six rejects;five exact arms/all native | >=470,000 strict live;normal native frames;five/other real/live0 OPEN | not measured | |
+| 6608 complete enclosing transform control | n/a | complete native opt-in; alternate data/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2`, default0 | 5,505 strict;8 combinations;256 byte models;9rejects;five V2 exact arms/allnative0fallback | >=455,000 strict live;normal frames;cold paths OPEN | not measured | |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
@@ -922,6 +938,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Complete native enclosing 6608 control | Menu/actual round (functional) | not measured | not measured | 5,505 strict;8 child/baseline combinations;256 byte models;9 rejects;304 configs;five V2 arms19,508exact/58,195transfers;allnative/0fallback;>=455,000strict live;own0/1/2 default0;alternate data/cold/final gates OPEN |
 | 2026-11-01 | Complete native 6188 vertex preparation | Menu/actual round (functional) | not measured | not measured | 8,513 strict;all256formatsx16biases;256specialFP;64matrix models;six rejects;296config;five arms19,508exact/58,195transfers;allnative/0fallback;>=470,000strict live;own0/1/2 default0;enclosing/cold/final gates OPEN |
 | 2026-11-01 | Native 6958/66C8 transform publication/frame return | Menu/actual round (functional) | not measured | not measured | 4,929 strict incl320 byte models; six rejects; 288 config cases; five arms19,508 exact/58,195 transfers; all native/0fallback; >=465,000 strict live; own0/1/2 default0; enclosing/cold/final gates OPEN |
 | 2026-11-01 | Complete AEA0/7390 index control/setup/publication | Menu/actual round (functional) | not measured | not measured | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; 280 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=455,000 strict live; own 0/1/2 default 0; final gates OPEN |

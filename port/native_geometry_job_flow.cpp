@@ -37,6 +37,7 @@
 #include "native_geometry_index_control.h"
 #include "native_geometry_transform_finish.h"
 #include "native_geometry_vertex_prepare.h"
+#include "native_geometry_transform_control.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -181,6 +182,53 @@ extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
+}
+
+extern "C" void buzz_geometry_job_transform_reference_cull(spu_context* ctx,buzz_geometry_job_fn root,
+                                                           buzz_geometry_job_fn boundary,buzz_geometry_job_fn replacement)
+{
+    // Bind the identical accepted data callback to the private original
+    // controller's footer. No data algorithm or state repair runs here.
+    buzz::run_geometry_transform_cull(*ctx,root,boundary);g_spu_trampoline_fn=replacement;
+}
+extern "C" void buzz_geometry_job_transform_control(spu_context* ctx,buzz_geometry_job_fn fallback,
+                                                     buzz_geometry_job_fn reference,const buzz_geometry_transform_functions* f)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_transform_control_enabled()){
+        fallback(ctx);return;
+    }
+    buzz::GeometryTransformControl plan;
+    if(!reference || !f || !f->vertex || !f->cull || !f->alternate || !f->finish || !f->restore ||
+       !buzz::read_geometry_transform_control(*ctx,plan)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL,0,0);fallback(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_transform_control_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;const unsigned stack=ctx->gpr[1]._u32[0],depth=ctx->host_depth;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;!(comparison->gpr[1]._u32[0]==stack && comparison->pc==comparison->gpr[0]._u32[0] &&
+            g_spu_trampoline_fn==(depth?nullptr:spu_indirect_branch));++steps){
+            const auto next=g_spu_trampoline_fn;
+            if(!next || next==spu_indirect_branch || steps>=32)buzz_geometry_job_native_fail(ctx,"transform control reference escaped frame return");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    const auto path=buzz::execute_geometry_transform_control(*ctx,plan,*f);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/transform-control] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"transform control strict frame/setup/call/return differs");
+        }
+        buzz_geometry_job_transform_control_result(unsigned(path),1);
+    }
+    buzz_geometry_job_transform_control_result(unsigned(path),0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL,1,0);
 }
 
 extern "C" void buzz_geometry_job_vertex_prepare(spu_context* ctx,buzz_geometry_job_fn reference,buzz_geometry_job_fn vertex)

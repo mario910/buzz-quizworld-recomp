@@ -1,8 +1,8 @@
 # Image-41 transform/cull stage: contract and native inventory
 
 Status: source/real-input audit complete; native `6958/66C8` finalization and
-`6188/65EC/65FC` vertex preparation are opt-in.
-**Complete native `6608` flow and final acceptance remain OPEN.**
+`6188/65EC/65FC` vertex preparation and complete enclosing `6608` control are
+opt-in. **Alternate cull data and final acceptance remain OPEN.**
 The continuing objective and mandatory last strict Stage F phase are unchanged.
 
 Source SHA-256:
@@ -104,7 +104,7 @@ the established Stage F kernels remain separately controlled.
 `native_geometry_vertex_prepare.h` computes the entire setup in host vectors,
 then materializes the exact register ABI and queues `63E0`. It does not execute
 the existing Stage F loop during its new strict comparison. The enclosing
-`6608` stage remains separate, including its frame and cull dispatch.
+`6608` stage has separate native control below, including frame/cull dispatch.
 
 The three first-stage basis vectors pair with **Y/Z/X** coefficients from
 manager+130/+120. Each uses the source's multiply followed by FMA. A second
@@ -133,6 +133,51 @@ biases, arbitrary table bytes, special FP bit patterns and both manager-span
 limits have strict standalone coverage; real/live evidence is recorded in the
 separate phase-3 results, with cold formats kept distinct.
 
+## Complete enclosing native control: 6608
+
+`native_geometry_transform_control.h` owns the full frame/PIC, active flag
+checks, 6790 configuration, bypass and normal/alternate mode dispatch. Five
+callbacks retain vertex preparation, normal cull, alternate cull, finalization
+and the independently disabled footer's original restore continuation.
+With preparation/finalization enabled, normal observed flow composes native
+control/setup/finish with the existing Stage F loops. Alternate 69E8/6B18 data
+remains original and is the next native-data implementation.
+
+Before writes, eligibility checks owned LS, pending interrupts, manager and
+480-byte-frame bounds, their disjointness and the reporting condition. This
+prevents speculative CC70 execution or frame spills changing the initial
+decision. Unsupported/reporting inputs execute retained flow once, without
+native credit. The controller's own frame/manager writes are bounded; retained
+data callbacks keep their own source-compatible read/write contracts.
+
+Frame setup preserves the ordered spills and full-vector PIC subtraction.
+After ordinary LINK(6798), depth/drain/image restoration of the vertex call,
+host values construct the exact full cull ABI: count/quotient/carries, source
+and output pointers, rounded batches, selectors, masks, tables, PIC addresses
+and prefetch vectors. All temporaries and branch-specific upper lanes remain
+observable inputs to the data callbacks. Modes 1/2/3 reach ordinary cull;
+high-bit modes 1/2/3 reach alternate data; unrecognized modes finalize zero
+kept triangles. Bypass either publishes the original pointer or skips that
+publication based on the full sentinel word, then returns the existing count.
+
+`BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2` defaults to 0. The new strict checker
+compares ALL GPR/LS/architectural/channel/control/continuation state against a
+private source-pinned original graph containing all 12 enclosing blocks,
+2738 publication and a reporting trap. Both arms deliberately use identical
+public retained vertex/cull callbacks. The bridge only rebinds their queued
+public footer to the private original footer. It adds no data algorithm,
+register repair, waiver, exclusion or tolerance. The established Stage F
+exception is neither extended nor applied to new controller state.
+
+Returns require restored SP, the actual loaded link and depth-specific FN.
+The disabled footer is drained only by its restore function identity, so a
+loaded return PC equal to 66C8 cannot cause an extra restore. Cull-entry PC
+follows the selected source branch even when normal/alternate callbacks share
+one function address. Standalone checks also compare full state at every child
+entry, before a data clobber or frame restoration could hide setup errors.
+Synthetic callback models are explicit orchestration tests; separate corpus/
+live evidence executes actual callbacks. Stage F strict cleanup remains last.
+
 ## Proof scope and remaining native work
 
 Four independent scalar reconstructions match all GPRs and all LS bytes at
@@ -148,13 +193,13 @@ Native full-state/corpus/live/frame evidence is in the separate
 
 | Required region | Current state |
 |---|---|
-| `6608/6618/66B8/6744/6790/69B0` and mode thunks | Complete native enclosing flow/setup remains OPEN |
+| `6608/6618/66B8/6744/6790/69B0` and mode thunks | Complete native enclosing control/setup opt-in; cold/final gates OPEN |
 | `6188/65EC/65FC` vertex preparation | Complete native opt-in through queued `63E0`; cold/final performance/default gates OPEN |
 | `63E0/6490` vertex and `6E08/6EE8` cull | Existing accepted Stage F contract; strict reconstruction remains phase 7 last |
 | `69E8/6B18` alternate data form | Original/cold; native implementation and real/live gates OPEN |
 | `6958/66C8` publication/frame return | Complete native opt-in; final performance/default gates OPEN |
 
-No complete-stage native coverage, FPS or CPU improvement is claimed by this
-audit. JOB=0 / leaf 827 / new flags=0 remain unchanged. Final interpreter,
+No complete alternate-data acceptance, FPS or CPU improvement is claimed by
+this audit. JOB=0 / leaf 827 / new flags=0 remain unchanged. Final interpreter,
 reversed same-EXE menu/round A/B, normalized worker/process CPU measurements
 and defaults remain open, alongside the other image-41 stages and cold paths.
