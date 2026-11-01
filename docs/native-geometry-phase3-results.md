@@ -5441,3 +5441,90 @@ frame/cursor mutation; pure-data admission alone cannot authorize that parent.
 Cold real/live, interpreter, reversed A/B, normalized worker/process CPU and
 default gates remain OPEN. Phase 3 and the continuing goal stay active; strict
 Stage F reconstruction stays LAST.
+
+## Built-in 24-byte outputs: standalone formats 2 and 3
+
+Both remaining output built-ins now have complete standalone native kernels:
+
+| Format | Original blocks | Per-vertex layout | Native header |
+| --- | --- | --- | --- |
+| 2 | `5760/5970/5978` | raw XYZ semantic1, CMP11/11/10 semantic2, SNORM16x4 semantic3 | `native_geometry_builtin24_output.h` |
+| 3 | `5A30/5D18/5D20` | raw XYZ semantic1, CMP11/11/10 semantics2/3/4 | `native_geometry_builtin24_cmp_output.h` |
+
+Each kernel replaces setup, backedge and loop, ending at the exact queued
+PC/function `5648`. Host-local vectors hold the complete pipeline and all
+128 final guest register vectors remain exact. Neither path executes a lifted
+setup, data loop or tail. CMP retains scale-first FMA operand order, RTZ
+signed31 conversion, the actual CF20 shift vector, both shuffles and bit
+selection. Format2 also retains the full signed32 SNORM conversion before
+packing high 16-bit halves; its intermediate integer results are tested too.
+Format3 reuses the read-only stream lookup and 24-byte span admission from
+format2, with its own native packing and data pipeline.
+
+Each iteration consumes two vertices and writes three ordered quads at
+`+32,+16,+0`, advancing 48 bytes. Every physical quad is aligned/masked as in
+the original. Initial reads prefetch three pairs of every stream. Two pairs
+are already converted; the next cached pair is converted before stores, then
+fresh future pairs are read after all stores, even on the final iteration.
+Only nonfinal iterations copy the backedge raw-XYZ cache. These details matter
+for overlapping/wrapped streams, output aliases and final speculative state.
+
+Admission rejects foreign LS, all enabled/saved/active interrupt contexts,
+zero/odd/greater-than-65,536 rounded counts and every actual destination quad
+below E680. It does not mutate context; rejection also preserves the plan.
+The low r29 lane controls iteration while upper lanes keep their original
+vector arithmetic. At E680, 8,464 rounded vertices end exactly at 40000;
+8,466 wrap a padded store into protected LS and reject. Biased pointers and
+source/manager wraps are tested. This is pure-data admission: a future parent
+must additionally protect its manager/configuration/callback metadata from
+every actual padded store before changing its frame/cursors.
+
+Validation for **each format** passes:
+
+- **5,663 strict full GPR/LS/architectural/channel/control/PC/function cases**:
+  4,096 broad input/output and cross-stream alias cases, 1,024 arbitrary
+  control cases, 256 special-FP cases, wrapped-manager reads, boundary counts,
+  biased pointers and three modeled host depths.
+- **256 independent ordered byte models**, with raw XYZ/output aliases,
+  distinct quantized streams and fresh post-store prefetch.
+- **32,772 independent dyadic CMP encodings**, across all 8,193 grid values
+  with distinct component triples and signed saturation.
+- **828 full original-controller comparisons / 828 native strict child
+  roots**, including 48 late outer-frame aliases. Only the selected format's
+  data is native; controller/getter remain original on both arms.
+- **12 unchanged rejects**, plus **7 conversion-audit tests** for the group.
+
+Format2 additionally passes **131,088 independent full-SNORM32 components**.
+Its initial and expanded suites passed without kernel/checker changes. The
+initial format3 suite correctly rejected missing setup survivors r76 and then
+r79, with output LS already equal. Both survivors were implemented; the whole
+suite then passed. Final expanded runs use distinct streams in independent
+byte models and include output aliases to format3's fourth stream. Neither
+the comparator nor arithmetic contract was weakened. Failure logs are retained.
+
+Each oracle generator pins the original source and captured54E8 anchor, emits
+the three original data blocks plus a distinct5648 trap, and separately emits
+the full73-block original conversion graph with a native-only child hook.
+These original-derived files and captured inputs stay private. Each format uses a
+distinct full-graph filename, so generating one oracle cannot replace the other. Calibration
+mutates the captured controller format byte and runs original setup to the
+new data entry; it is **synthetic, not a captured cold root**. Architectural
+controls and host depths are modeled. Reproducible GPR/LS anchor SHA256:
+
+- Format2: `41d9c5666e38f734b77dcf5ea511e694ed704f489c744531e189a5d8cd25a76e`.
+- Format3: `c163f89c17cfbe766359683d781c24c25f1e6ca6e96227e9e0774f14f58a4029`.
+
+Run `tests/scripts/test-geometry-builtin24-output.ps1` and
+`tests/scripts/test-geometry-builtin24-cmp-output.ps1` for the respective suites.
+No production routing, runtime switch, ABI, executable, real corpus/live/render
+or performance change is claimed. The conversion-control-v2 frozen files,
+source/generator/save/template pins and JOB0/geometry827/newflags0 defaults
+remain unchanged. Formats0..3 now all have complete standalone kernels.
+
+Next: add the four production wrappers and independent switches, then native
+54E8 built-in dispatch with callback-safe admission before outer mutation.
+Real cold roots/live coverage, whole-job acceptance, normal actual-native
+frames, interpreter checks, reversed same-frozen A/B and normalized worker/
+process CPU gates remain OPEN. There is no new FPS or CPU benefit claim.
+Phase3 and the continuing objective remain active, followed by shared phase4,
+documented optional5/6 decisions and strict StageF phase7 LAST.

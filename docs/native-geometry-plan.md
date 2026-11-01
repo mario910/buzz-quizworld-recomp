@@ -7,7 +7,7 @@ within reach of weaker CPUs (Steam Deck, laptops, Switch 2-class ARM).
 
 This is a living document. Update the tracker tables after every session.
 
-## Continuing objective (2026-10-31)
+## Continuing objective (2026-11-01)
 
 The user has authorized continuing through the remaining phases until the
 native geometry functions are finished, documenting and committing each
@@ -52,14 +52,18 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: built-in output formats 2/3, then production
-routing/switches and enclosing admission for all four built-ins, followed by
+Current next implementation: production routing/switches and callback-safe
+enclosing admission for all four completed output built-ins, followed by
 remaining input built-ins and cold acceptance. Format0 has a complete standalone
 raw XYZ kernel (6,178 strict cases/5,154 independent byte models/828 full original-
 controller comparisons); no production or cold real/live acceptance is claimed.
 Format1 also has a complete standalone kernel: 5,663 strict cases, 256 independent
 byte models, 32,772 dyadic CMP encodings and 828 full original-controller cases.
-Its production and cold real/live gates also remain OPEN. The [output-conversion audit](native-geometry-conversion-audit.md)
+Its production and cold real/live gates also remain OPEN.
+Formats2/3 now each have a complete standalone kernel: 5,663 strict cases,
+256 independent byte models, 32,772 CMP encodings and 828 full original-controller
+cases; format2 also has 131,088 independent full-SNORM32 components. All four
+production/cold/final gates remain OPEN. The [output-conversion audit](native-geometry-conversion-audit.md)
 includes its shared `4178` formatter, seven storage payloads and four output
 built-ins: 73 standard non-reporting blocks, still requiring complete native
 work beyond existing phase-2 prefixes. Descriptor-path outer control is now production opt-in: 1,853 complete native
@@ -977,6 +981,8 @@ subject to the kernel gates before replacement.
 | 69E8/6B18/6B10 alternate cull data | n/a | implemented; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2`, default0 | 5,448 strict;288 numeric+288 composed;256 special FP;4 rejects;five compatibility arms exact;new real0 | new live0 OPEN;>=45,000 whole-job checks;normal compatible frames | not measured | |
 | 37C0 output ring allocation | n/a | production opt-in; cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_RING=0/1`, default0; strict JOB2 | 5,821 strict +7 rejects; six arms exact;7,201 native/strict roots,0 fallback | >=35,000 strict ring /45,000 whole-job;normal native menu/round | not measured | kernel `206eb5f`; integration in git log |
 | 54E8 / 4178 output conversion | n/a | native descriptor control/formatter/all7 storage opt-in; output built-ins OPEN | separate control/formatter/encoder flags, default0 | original73-block graph;strict native whole descriptor roots and data as below | cold/final gates OPEN | not measured | audit and implementations in git log |
+| 5760/5970/5978 built-in output format2 | n/a | complete standalone kernel; production/cold/final gates OPEN | no routing/switch yet | 5,663strict;256independent byte models;32,772independent CMP encodings;131,088full-SNORM32 components;1,024arbitrary controls;256special-FP;828full original-controller/native-child;48late-frame aliases;12unchanged rejects;7audit tests | real/live/render OPEN;no executable change | not measured | kernel in git log |
+| 5A30/5D18/5D20 built-in output format3 | n/a | complete standalone kernel; production/cold/final gates OPEN | no routing/switch yet | 5,663strict;256independent byte models;32,772independent CMP encodings;1,024arbitrary controls;256special-FP;828full original-controller/native-child;48late-frame aliases;12unchanged rejects;7audit tests | real/live/render OPEN;no executable change | not measured | kernel in git log |
 | 5E28/6050/6058 built-in output format1 | n/a | complete standalone kernel; production/cold/final gates OPEN | no routing/switch yet | 5,663strict;256independent byte models;32,772independent CMP encodings;1,024arbitrary controls;256special-FP;828full original-controller/native-child;48late-frame aliases;12unchanged rejects;7audit tests | real/live/render OPEN;no executable change | not measured | kernel in git log |
 | 56C8/5718 built-in output format0 | n/a | complete standalone kernel; production/cold/final gates OPEN | no routing/switch yet | 6,178 strict;5,154 independent byte models;1,024 arbitrary masks;1,024 special-FP-bit;828 full original-controller/native-child cases;48 late-frame aliases;8 unchanged rejects;7 audit tests | real/live/render OPEN;no executable change | not measured | kernel in git log |
 | 54E8 descriptor-path outer control | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL=0/1/2`, default0 | 1,853 full native cases;4,096 stride;4,195 control;90 routing/60 strict;26 unchanged owned rejects;five exact arms19,508jobs/58,195transfers;7,201strict/0fallback | >=25,000 strict control/>=30,000 whole-job;normal native menu/round;existing/empty and cold coverage separate | not measured | implementation in git log |
@@ -1045,6 +1051,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | Built-in outputs2/3 standalone 24-byte kernels | CPU function/model tests | not measured | not measured | All3blocks each;raw XYZ+CMP+SNORM or3CMP;ordered stores/post-store prefetch/5648 ABI;each5,663strict/256byte models/32,772CMP/828full original-controller;format2 131,088full-SNORM32;12rejects each;production/corpus/live/render/performance OPEN;default app unchanged |
 | 2026-11-01 | Built-in output1 standalone 20-byte kernel | CPU function/model tests | not measured | not measured | All3blocks;raw XYZ+2CMP;ordered padded stores/post-store prefetch/5648 ABI;5,663strict/256byte models/32,772numeric/828full original-controller;12rejects;production/corpus/live/render/performance OPEN;default app unchanged |
 | 2026-11-01 | Built-in output0 standalone raw XYZ kernel | CPU function/model tests | not measured | not measured | All2blocks/final prefetch/ordered padded stores/5648 ABI;6,178strict/5,154byte models/828full original-controller cases;8rejects;production/corpus/live/render/performance OPEN;default app unchanged |
 | 2026-11-01 | Native 54E8 descriptor conversion control | Menu/actual round (functional) | not measured | not measured | Own0/1/2 default0;ABI45/51stages;1,853full native +4,096stride +4,195control;90routing/60strict;five exact arms19,508jobs/58,195transfers;7,201strict/0fallback;>=25,000strict live;normal native frames;final gates OPEN |
