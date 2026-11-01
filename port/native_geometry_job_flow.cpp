@@ -39,6 +39,7 @@
 #include "native_geometry_vertex_prepare.h"
 #include "native_geometry_transform_control.h"
 #include "native_geometry_alternate_cull.h"
+#include "native_geometry_ring.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -68,6 +69,39 @@ void run_blend_list_reference(spu_context* ctx)
     }
     g_spu_trampoline_fn = nullptr; original->tail(ctx);
 }
+struct RingReference {
+    buzz_geometry_job_fn entry;
+    const buzz_geometry_ring_functions* functions;
+    unsigned frontier;
+};
+thread_local const RingReference* ring_reference=nullptr;
+void run_ring_reference(spu_context* ctx)
+{
+    const auto* original=ring_reference;
+    if(!original)buzz_geometry_job_native_fail(ctx,"missing ring reference scope");
+    buzz::run_geometry_ring_reference(*ctx,original->entry,*original->functions,original->frontier);
+}
+}
+
+extern "C" void buzz_geometry_job_ring(spu_context* ctx,buzz_geometry_job_fn reference,const buzz_geometry_ring_functions* functions)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_ring_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometryRing plan;
+    if(!functions || !functions->tail || !functions->initial_report || !functions->shared_report || !buzz::read_geometry_ring(*ctx,plan)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RING,0,0);reference(ctx);return;
+    }
+    auto* check=buzz_geometry_job_io_root_begin(ctx);
+    const buzz::GeometryRingContinuations callbacks{functions->initial_report,functions->shared_report};
+    const unsigned frontier=buzz::allocate_geometry_ring(*ctx,plan,callbacks);
+    const RingReference original{reference,functions,frontier};const auto* previous=ring_reference;ring_reference=&original;
+    buzz_geometry_job_io_root_end(ctx,check,run_ring_reference);ring_reference=previous;
+    if(check)buzz_geometry_job_ring_result(frontier,1);
+    buzz_geometry_job_ring_result(frontier,0);
+    // Retained reporting starts from the current state after I/O. It never
+    // restarts the root, and does not earn a complete native-return credit.
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RING,!frontier,0);
 }
 
 extern "C" void buzz_geometry_job_blend_lists(spu_context* ctx, buzz_geometry_job_fn reference,

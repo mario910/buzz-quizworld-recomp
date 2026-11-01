@@ -1,8 +1,8 @@
 # Image-41 output allocator: implementation contract
 
-Status: native kernel and standalone state/I/O comparisons, 2026-11-01.
-Production routing, runtime switch, full native corpus, live/render and
-performance gates remain OPEN. This follows alternate cull data in phase 3.
+Status: production opt-in and strict root I/O integration, 2026-11-01.
+Final acceptance/performance/default gates remain OPEN. This follows
+alternate cull data in phase 3.
 
 ## Audited boundary and control flow
 
@@ -110,7 +110,8 @@ report with input/source hashes. Seven tests include altered publication EA,
 cross-job refresh, reordered reservations and failed replay rejection.
 Raw traces, guest addresses, snapshots and reports remain under ignored
 `analysis/`. No production code, default, frozen EXE or save changed in this
-audit. Production allocator routing and phase-3 final gates remain unfinished.
+audit. Native implementation and production evidence follow below; phase-3
+final gates remain unfinished.
 
 ## Native allocation kernel and standalone evidence
 
@@ -133,9 +134,9 @@ retained continuation from a fully native allocator return; it cannot count
 as complete native coverage. The caller must supply both valid reporting
 functions before admission.
 
-The kernel is **not yet wired into the production driver**. Its own runtime
-switch and production I/O-root checker integration are the next step; no
-production ABI, frozen game build, default or save changes in this increment.
+The kernel is now wired through the public `37C0` phase-3 adapter. The
+original entry body, internal blocks and reporting continuations remain
+available. The production switch/checker and evidence are described below.
 
 `tests/scripts/test-geometry-ring.ps1` generates a private pinned original
 oracle and compiles/runs the kernel using the reviewed SPU helper flags.
@@ -168,6 +169,32 @@ This is one real-data anchor, not full native corpus/live acceptance.
 
 Oracle boundary recognition requires PC and function identity, since a linker
 can merge identical abort stubs. The comparator has no exclusions; diagnostic
-logs remain private. Full-corpus
-native routing/checking, live comparisons, native menu/round rendering,
-interpreter counts, reversed frozen-EXE A/B and CPU/default gates remain OPEN.
+logs remain private. Production replay/live/render evidence follows below;
+final interpreter, reversed frozen-EXE A/B and CPU/default gates remain OPEN.
+
+## Production switch and strict root boundary
+
+`BUZZ_GEOMETRY_JOB_RING=0/1` defaults to **0**. Value 1 enables the allocator
+only on the owning native image-41 pipeline; JOB=0, foreign owners/images,
+disabled switches or unsupported entry state retain the original path. All
+three library functions (tail and both reporters) must exist before mutation.
+Value 2 is rejected. Use **JOB=2 / RING=1** for strict root and whole-job I/O
+comparison; JOB=1 performs native execution without claiming a strict check.
+
+The root checker replays an already recorded channel slice. Its shared
+reference drainer requires both PC and actual function identity at `38D0`,
+`3DD0` and `4078`; it executes the actual tail once or stops before the
+retained reporter. Each of the 5,821 standalone cases also exercises this
+production drainer against a fresh replay cursor, with complete state and
+continuation comparison. Neither shadow changes external line bytes or real
+command/read counts. Existing root-checker tests cover state/I/O corruption
+that a later caller could otherwise overwrite.
+
+`[geometry-job/ring] native` counts complete allocator returns only. Its
+`fallback` includes rejected owned entries and retained reporting handoffs.
+Separate `ring/retained-initial-report` and `ring/retained-shared-report`
+counters identify exact post-DMA handoffs. They receive no complete native
+credit and never restart the original allocator. Strict counts increment
+only when an actual non-null I/O checkpoint was compared. Stage 41 extends
+the controller to 42 counters and generated adapter ABI 36; defaults remain
+JOB=0 / geometry mask 827 / new switches=0.

@@ -218,6 +218,10 @@ The cold interrupt-enable helper computes unregistered target `3CF4`, whose
 captured instruction branches to `3B28`; resolver/interpreter acceptance is
 still open. Its lexical C tail is not executable. The source boundary and validation
 requirements are recorded in the [allocator audit](native-geometry-ring-audit.md).
+The native allocator is now opt-in via `BUZZ_GEOMETRY_JOB_RING=0/1`, default 0;
+JOB=2 verifies all root state and I/O. Original reporting-entry handoffs retain
+the exact current state after DMA and are counted separately from full native
+returns. No allocation is restarted after effects.
 
 When begin=end, `0x3B88` selects the shared fallback line at ringBase. When
 twice the rounded request exceeds lane capacity, `0x3D00` selects fallback.

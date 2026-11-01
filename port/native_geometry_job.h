@@ -59,6 +59,13 @@ typedef struct buzz_geometry_transform_functions {
 } buzz_geometry_transform_functions;
 enum { BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL = 39 };
 enum { BUZZ_GEOMETRY_JOB_ALTERNATE_CULL = 40 };
+enum { BUZZ_GEOMETRY_JOB_RING = 41 };
+typedef struct buzz_geometry_ring_functions {
+    buzz_geometry_job_fn tail,initial_report,shared_report;
+} buzz_geometry_ring_functions;
+int buzz_geometry_job_ring_enabled(void);
+void buzz_geometry_job_ring_result(unsigned frontier,int checked);
+void buzz_geometry_job_ring(spu_context*,buzz_geometry_job_fn reference,const buzz_geometry_ring_functions*);
 int buzz_geometry_job_alternate_cull_enabled(void);
 void buzz_geometry_job_alternate_cull_result(unsigned iterations,int checked);
 void buzz_geometry_job_alternate_cull(spu_context*,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish);

@@ -8,6 +8,24 @@
 namespace buzz {
 struct GeometryRing {};
 struct GeometryRingContinuations { buzz_geometry_job_fn initial_report,shared_report; };
+// Used only against a recorded I/O slice: never execute a second real DMA arm.
+inline void run_geometry_ring_reference(spu_context& c,buzz_geometry_job_fn entry,const buzz_geometry_ring_functions& f,unsigned frontier)
+{
+    g_spu_trampoline_fn=nullptr;entry(&c);
+    for(unsigned steps=0;;++steps){
+        const auto next=g_spu_trampoline_fn;
+        if(c.pc==0x38d0 && next==f.tail){
+            if(frontier)buzz_geometry_job_native_fail(&c,"ring reference returned instead of reporting");
+            g_spu_trampoline_fn=nullptr;next(&c);return;
+        }
+        if((c.pc==0x3dd0 && next==f.initial_report) || (c.pc==0x4078 && next==f.shared_report)){
+            if(frontier!=c.pc)buzz_geometry_job_native_fail(&c,"ring reporting boundary differs");
+            return;
+        }
+        if(!next || steps>=1000000)buzz_geometry_job_native_fail(&c,"ring reference escaped root boundary");
+        g_spu_trampoline_fn=nullptr;next(&c);
+    }
+}
 inline bool read_geometry_ring(const spu_context& c,GeometryRing& out,const char** reason=nullptr)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};

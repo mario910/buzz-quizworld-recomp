@@ -8,9 +8,11 @@
 using namespace buzz;
 extern "C" {
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
-void spu_indirect_branch(spu_context*){abort();}
+void spu_indirect_branch(spu_context*);
+void buzz_geometry_job_native_fail(spu_context*,const char* message){fprintf(stderr,"ring reference failure:%s\n",message);abort();}
 }
 #include "../analysis/native-geometry/phase3/test-ring-reference.inc"
+extern "C" void spu_indirect_branch(spu_context* c){assert(c->pc==0x3948);ring_oracle::buzz_job_6eba_spu_func_00003948(c);}
 
 static std::vector<GeometryJobIoOperation> transcript;
 static GeometryJobIoReplay* replay;
@@ -130,6 +132,7 @@ static uint32_t original(spu_context& c)
 }
 static void compare(spu_context& native,spu_context& reference,unsigned trial)
 {
+    auto input=std::make_unique<spu_context>();memcpy(input.get(),&native,sizeof native);input->ls=input->ls_store;
     current_trial=trial;transcript.clear();const unsigned ref_end=original(reference);const auto continuation=g_spu_trampoline_fn;
     uint8_t external[256];memcpy(external,lane,128);memcpy(external+128,shared,128);const unsigned actual_commands=command_count,actual_reads=free_cursor;
     GeometryRing plan;assert(read_geometry_ring(native,plan));GeometryJobIoReplay io(transcript);replay=&io;
@@ -141,6 +144,13 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial)
     }
     assert(g_spu_trampoline_fn==continuation);
     assert(native.image_id==reference.image_id && native.host_depth==reference.host_depth && native.policy_mode==reference.policy_mode && native.resident_ovl==reference.resident_ovl);
+    // Exercise the production root drainer, including both post-DMA reporting
+    // handoffs, on a fresh replay cursor without repeating external effects.
+    GeometryJobIoReplay root_io(transcript);replay=&root_io;
+    const buzz_geometry_ring_functions library{ring_oracle::buzz_job_6eba_spu_func_000038D0,f.initial_report,f.shared_report};
+    run_geometry_ring_reference(*input,ring_oracle::buzz_job_6eba_spu_func_000037C0,library,native_end);replay=nullptr;
+    assert(root_io.finish() && compare_function_state(*input,native).exact() && g_spu_trampoline_fn==continuation);
+    assert(input->image_id==native.image_id && input->host_depth==native.host_depth && input->policy_mode==native.policy_mode && input->resident_ovl==native.resident_ovl);
     assert(actual_commands==command_count && actual_reads==free_cursor && !memcmp(external,lane,128) && !memcmp(external+128,shared,128));
     ++checks;
 }

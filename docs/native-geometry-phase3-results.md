@@ -4321,3 +4321,79 @@ integration and full-corpus/live/render validation. Retained reporting handoffs
 must not earn full native-success credit. Final interpreter/reversed A/B/CPU/
 default gates, phase 3 and the continuing objective remain OPEN. Strict Stage F
 reconstruction stays last.
+
+## Output allocator 37C0: production integration
+
+The public 37C0 wrapper now routes to the native kernel only for its owning
+image-41 pipeline after entry/library admission. Own
+`BUZZ_GEOMETRY_JOB_RING=0/1` defaults to **0**; 2 is invalid. JOB=2 / RING=1
+compares the complete allocator root and its recorded I/O; JOB=1 does not
+claim a strict check. ABI 36 and 42 stage counters include ring stage 41.
+Both reporting handoffs queue the original continuation with exact state,
+without restarting allocation or earning a complete native return credit.
+Enabled/saved interrupts still fall back before mutation. See the
+[production contract](native-geometry-ring-audit.md#production-switch-and-strict-root-boundary).
+
+The shared production reference drainer is also exercised on a fresh recorded
+slice by all **5,821** standalone cases, including both reporting boundaries.
+All GPR/LS/architectural/channel/control/PC/FN state and image/depth/policy/
+overlay agree; neither shadow repeats external commands. Seven reader rejects
+remain unchanged. Driver routing covers 16 native direct calls, 10 counted
+unsupported fallbacks, disabled/foreign/post-scope handling and no false strict
+credit when its test journal is absent. The full driver test passes 1,024
+modeled pipelines and 19,508 real entry models. Runtime tests include 320
+configuration cases and durable first-fallback output; 23 I/O-root controller
+cases and the production build pass. No new checker exception or Stage F waiver.
+
+Frozen `build-vulkan-phase3-ring-v1`:
+EXE `afb728bbb371ad5ccdc5616abb4657242bffde8f545cd6613beb9dc916322531`;
+map `8ef5ccaff28902bdba037ac556ba0af144317efb6544c6cda3d02c1f4df5a694`;
+generated C `0e54667af3a0c81c4ca77804a487ca06f01489f9b3854b7cbf4fc2748a0878e6`.
+
+All six replay arms pass **19,508 exact jobs / 58,195 transfers**, zero input
+changes or failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB/RING | Native ring returns | Strict ring roots | Strict whole jobs |
+|---|---|---|---|---|
+| Driver off | 0/1 | 0 | 0 | 0 |
+| Clean independent ring, all older flags 0 | 2/1 | 7,201 | 7,201 | 19,508 |
+| Combined native | 1/1 | 7,201 | 0 | 0 |
+| Combined checked | 2/1 | 7,201 | 7,201 | 19,508 |
+| Combined with original ring | 2/0 | 0 | 0 | 19,508 |
+| Additional independent run, older alternate flag 1 (zero calls) | 2/1 | 7,201 | 7,201 | 19,508 |
+
+Every enabled ring arm has zero fallback and zero retained reporting handoffs.
+All earlier enabled stage ledgers match the prior alternate-cull build exactly,
+including full transform/index control and prior skin data. The original trace
+establishes normal lane allocation for these captured jobs; this is not new real
+coverage of disabled/shared/interrupt/reporting cases.
+
+Three functional scenes use the same frozen EXE, all older flags=1, RING=1,
+GEOMETRY=1 / actual native Stage F=1 / leaf 827, fresh private saves and native
+mailbox/background/mute. No compilation, CPU tests or profiling overlap:
+
+| Scene | JOB | Frames / last elapsed ms | Ring native / strict lower bounds | Whole-job strict lower bound |
+|---|---|---|---|---|
+| checked-menu | 2 | 1,250 / 59,234.391 | 35,000 / 35,000 | 45,000 |
+| menu | 1 | 2,232 / 74,439.778 | 2,570,000 / 0 | 0 |
+| round | 1 | 6,055 / 196,161.769 | 4,640,000 / 0 | 0 |
+
+Checked menu runs 60s, native menu 75s, native round 60s after 136.5s
+navigation. Both inspected 1280x720 actual-native readbacks are normal: purple
+menu/studio/crowd and green round with host/player/score UI. No mismatch, halt,
+unexpected continuation/capacity or first ring fallback is observed. Forced
+shutdown means periodic counts are lower bounds, not final live fallback totals.
+The root counter does not establish separate direct/shared branch live gates.
+
+JOB=0 / leaf 827 / new switches=0 remain unchanged. No FPS/CPU benefit is
+claimed. Final interpreter, reversed same-frozen-EXE menu/round A/B, normalized
+worker/process cycles/time and default gates stay OPEN, as do cold retained
+paths. Flat FPS with repeatable CPU savings remains a valid future default-on
+reason after correctness/render gates. Phase 3 and the continuing objective
+remain active. Next is complete conversion `54E8`, then builtins 1..5, cold/final
+gates, shared image work, optional-phase decisions and strict Stage F LAST.
+
+Private `ring-v1-*` evidence binds source/helper/save/template pins, original
+kernel/audit proofs, compiled EXE/map/C/native copies, tests, six replay arms,
+three scene logs and native frame QA. Original source, saves and prior frozen
+builds remain unchanged.

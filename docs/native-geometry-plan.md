@@ -52,11 +52,12 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: production integration and validation of native
-image-41 ring/atomic flow `37C0`, followed by complete conversion `54E8` and
-builtins 1..5 after source/contract audits. The allocator kernel now passes
-5,821 standalone strict state/I/O comparisons and seven unchanged rejects;
-it is not yet routed into the game and has no production runtime switch.
+Current next implementation: complete conversion `54E8`, followed by builtins
+1..5 after source/contract audits. Ring/atomic flow `37C0` is now production
+opt-in with `BUZZ_GEOMETRY_JOB_RING=0/1`, default 0; JOB=2 checks its exact root
+state/I/O. It passes 5,821 standalone comparisons, seven unchanged rejects,
+six full-corpus arms and >=35,000 strict live root comparisons. Native menu/
+round frames are normal. Cold retained paths and final acceptance gates stay open.
 The [allocator audit](native-geometry-ring-audit.md) inventories 39 blocks,
 7,201 original allocator calls and 14,422 ordered ring transfers. Its cold
 interrupt-enable continuation `3CF4` contains a branch to `3B28`, but the
@@ -776,8 +777,22 @@ real/native corpus calls. Actual-native Stage F checked menu passes >= 45,000
 whole-job state/I/O comparisons; native menu/round frames are normal, with
 ZERO alternate live calls. Its real/256-live gates remain OPEN. See the
 [phase-3 results](native-geometry-phase3-results.md#complete-alternate-cull-data-69e86b186b10-cold-opt-in).
-Next is 37C0 ring/atomic flow. Other implementations/cold/final gates keep
+Ring/atomic integration is recorded below. Other implementations/cold/final gates keep
 phase 3 active; JOB=0 / leaf 827 / new flags=0 and strict Stage F last remain.
+
+### Ring allocator: production opt-in
+
+`37C0` now has its own binary `BUZZ_GEOMETRY_JOB_RING` switch, default 0.
+JOB=2 replays exact root I/O; JOB=1 executes natively without a strict credit.
+Six frozen-EXE corpus runs each pass 19,508 exact / 58,195 transfers. Enabled
+arms have 7,201 native returns, zero fallback/reporting handoffs; JOB=2 checks
+all 7,201 roots and 19,508 whole jobs. All older enabled stage totals match.
+Live actual-native Stage F menu passes >=35,000 strict ring and >=45,000 whole-
+job comparisons; native menu/round frames are normal. Reporting handoffs and
+enabled interrupts retain original code and cannot earn complete native credit.
+See the [results](native-geometry-phase3-results.md#output-allocator-37c0-production-integration).
+Final interpreter, reversed frozen-EXE A/B, normalized CPU/FPS and default
+gates remain OPEN. Next is complete `54E8`; phase 3 and the goal stay active.
 
 ### Phase 4: image 40 (2-4 sessions)
 Same library routines at shifted offsets (images 40/43/45/47 share them):
@@ -913,6 +928,7 @@ subject to the kernel gates before replacement.
 | 6188/65EC/65FC vertex preparation | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2`, default 0 | 8,513 strict; every format/bias; 256 special FP;64 matrix models;six rejects;five exact arms/all native | >=470,000 strict live;normal native frames;five/other real/live0 OPEN | not measured | |
 | 6608 complete enclosing transform control | n/a | complete native opt-in; alternate data/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2`, default0 | 5,505 strict;8 combinations;256 byte models;9rejects;five V2 exact arms/allnative0fallback | >=455,000 strict live;normal frames;cold paths OPEN | not measured | |
 | 69E8/6B18/6B10 alternate cull data | n/a | implemented; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2`, default0 | 5,448 strict;288 numeric+288 composed;256 special FP;4 rejects;five compatibility arms exact;new real0 | new live0 OPEN;>=45,000 whole-job checks;normal compatible frames | not measured | |
+| 37C0 output ring allocation | n/a | production opt-in; cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_RING=0/1`, default0; strict JOB2 | 5,821 strict +7 rejects; six arms exact;7,201 native/strict roots,0 fallback | >=35,000 strict ring /45,000 whole-job;normal native menu/round | not measured | kernel `206eb5f`; integration in git log |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 

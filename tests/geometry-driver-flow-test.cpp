@@ -64,6 +64,8 @@ static int index_triangles_mode=0;
 static unsigned index_triangles_native=0,index_triangles_fallback=0,index_triangles_checked=0,index_triangles_references=0,index_triangles_fallback_calls=0;
 static int index_control_mode=0;
 static unsigned index_control_native=0,index_control_fallback=0,index_control_checked=0,index_control_references=0,index_control_fallback_calls=0;
+static int ring_mode=0;
+static unsigned ring_native=0,ring_fallback=0,ring_checked=0,ring_references=0;
 static int alternate_cull_mode=0;
 static unsigned alternate_cull_native=0,alternate_cull_fallback=0,alternate_cull_checked=0,alternate_cull_references=0,alternate_cull_fallback_calls=0;
 static int transform_control_mode=0;
@@ -139,6 +141,8 @@ int buzz_geometry_job_index_triangles_enabled(){return index_triangles_mode;}
 void buzz_geometry_job_index_triangles_result(unsigned,int checked){if(checked)++index_triangles_checked;}
 int buzz_geometry_job_index_control_enabled(){return index_control_mode;}
 void buzz_geometry_job_index_control_result(unsigned,int checked){if(checked)++index_control_checked;}
+int buzz_geometry_job_ring_enabled(){return ring_mode;}
+void buzz_geometry_job_ring_result(unsigned frontier,int checked){assert(!frontier);if(checked)++ring_checked;}
 int buzz_geometry_job_alternate_cull_enabled(){return alternate_cull_mode;}
 void buzz_geometry_job_alternate_cull_result(unsigned,int checked){if(checked)++alternate_cull_checked;}
 int buzz_geometry_job_transform_control_enabled(){return transform_control_mode;}
@@ -190,6 +194,7 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_RING){assert(routing_probe);if(native)++ring_native;else ++ring_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_ALTERNATE_CULL){assert(routing_probe);if(native)++alternate_cull_native;else ++alternate_cull_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL){assert(routing_probe);if(native)++transform_control_native;else ++transform_control_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_VERTEX_PREPARE){assert(routing_probe);if(native)++vertex_prepare_native;else ++vertex_prepare_fallback;return;}
@@ -330,6 +335,8 @@ static void skin_dispatch_model(spu_context* ctx,uint32_t pc)
 #include "../analysis/native-geometry/phase3/test-transform-finish-reference.inc"
 #include "../analysis/native-geometry/phase3/test-vertex-prepare-reference.inc"
 #include "../analysis/native-geometry/phase3/test-alternate-cull-reference.inc"
+#include "../analysis/native-geometry/phase3/test-ring-reference.inc"
+static void ring_reference_call(spu_context*){++ring_references;}
 static void alternate_cull_reference(spu_context* c){++alternate_cull_references;alternate_cull_oracle::buzz_job_6eba_spu_func_000069E8(c);}
 static void alternate_cull_fallback_call(spu_context* c){++alternate_cull_fallback_calls;c->pc=c->gpr[0]._u32[0];}
 
@@ -659,6 +666,34 @@ static void attribute_routing(spu_context* ctx)
 }
 static void routing_inside(spu_context* ctx)
 {
+    {
+        auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;
+        ctx->int_enable=0;ctx->irq_saved=0;ctx->irq_frame=nullptr;ctx->policy_mode=0;ctx->resident_ovl=0;
+        ctx->gpr[1]=spu_ila(0x30000);ctx->gpr[3]=spu_ila(0x20000);ctx->gpr[4]=spu_ila(0x100003);ctx->gpr[5]=spu_ila(0x123);ctx->gpr[6]=spu_ila(0x21000);
+        auto* entry=buzz::clone_function_state(ctx);
+        auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;};
+        const buzz_geometry_ring_functions f{ring_oracle::buzz_job_6eba_spu_func_000038D0,ring_oracle::buzz_job_6eba_spu_func_00003DD0,ring_oracle::buzz_job_6eba_spu_func_00004078};
+        ring_mode=1;
+        for(unsigned bias:{0u,3u,8u,15u})for(unsigned depth:{0u,2u})for(unsigned mode:{1u,2u}){
+            reset();flow_mode=mode;ctx->gpr[1]._u32[0]+=bias;ctx->gpr[6]._u32[0]+=bias;ctx->host_depth=depth;ctx->gpr[0]._u32[0]=0x38d0;
+            auto* expected=buzz::clone_function_state(ctx);ring_oracle::buzz_job_6eba_spu_func_000037C0(expected);g_spu_trampoline_fn=nullptr;ring_oracle::buzz_job_6eba_spu_func_00003800(expected);g_spu_trampoline_fn=nullptr;ring_oracle::buzz_job_6eba_spu_func_000038D0(expected);const auto fn=g_spu_trampoline_fn;
+            g_spu_trampoline_fn=spu_indirect_branch;buzz_geometry_job_ring(ctx,ring_reference_call,&f);
+            assert(buzz::compare_function_state(*ctx,*expected).exact() && g_spu_trampoline_fn==fn);buzz::release_function_state(expected);
+        }
+        assert(ring_native==16 && !ring_checked && !ring_fallback && !ring_references);
+        reset();flow_mode=1;ring_mode=0;buzz_geometry_job_ring(ctx,ring_reference_call,&f);ring_mode=1;
+        auto* foreign=buzz::clone_function_state(ctx);buzz_geometry_job_ring(foreign,ring_reference_call,&f);buzz::release_function_state(foreign);
+        ctx->image_id=40;buzz_geometry_job_ring(ctx,ring_reference_call,&f);
+        for(unsigned failure=0;failure<11;++failure){
+            reset();auto functions=f;
+            switch(failure){case 1:functions.tail=nullptr;break;case 2:functions.initial_report=nullptr;break;case 3:functions.shared_report=nullptr;break;case 4:ctx->ls=entry->ls_store;break;case 5:ctx->image_id=40;break;case 6:ctx->policy_mode=1;break;case 7:ctx->resident_ovl=1;break;case 8:ctx->int_enable=1;break;case 9:ctx->irq_saved=1;break;case 10:ctx->irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;}
+            buzz_geometry_job_ring(ctx,ring_reference_call,failure==0?nullptr:&functions);
+        }
+        // Foreign image is an outer routing rejection, not an owned fallback.
+        assert(ring_native==16 && ring_fallback==10 && ring_references==14 && !ring_checked);
+        ring_mode=0;flow_mode=1;buzz::release_function_state(entry);memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);g_spu_trampoline_fn=continuation;
+    }
+
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
         auto reset=[&](){memcpy(ctx,entry,sizeof(*ctx));ctx->ls=ctx->ls_store;g_spu_trampoline_fn=spu_indirect_branch;};
@@ -1346,6 +1381,7 @@ int main(int argc, char** argv)
     index_control_mode=1;buzz_geometry_job_index_control(native.get(),index_control_fallback_call,index_control_reference,&index_control_oracle::library);
     assert(index_control_fallback_calls==19 && index_control_references==20 && index_control_native==30 && index_control_checked==20 && index_control_fallback==15);index_control_mode=0;
     puts("Complete index control routing:five paths,both strict modes/depths,biased stack/manager,return-PC collisions,incoming continuation;separate fallback/reference;owner/foreign/off/image/null/invalid/post-scope PASS");
+    ring_mode=1;buzz_geometry_job_ring(native.get(),ring_reference_call,nullptr);assert(ring_references==15 && ring_native==16 && ring_fallback==10);ring_mode=0;
     alternate_cull_mode=1;buzz_geometry_job_alternate_cull(native.get(),alternate_cull_fallback_call,alternate_cull_oracle::buzz_job_6eba_spu_func_00006958);
     assert(alternate_cull_fallback_calls==9 && alternate_cull_references==12 && alternate_cull_native==18 && alternate_cull_checked==12 && alternate_cull_fallback==5);alternate_cull_mode=0;
     puts("Complete alternate cull routing:warmup/short/bulk,both strict modes/depths,wrapped output,incoming continuation;owner/off/foreign/image/null/invalid/post-scope PASS");
