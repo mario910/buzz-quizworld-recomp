@@ -8,8 +8,8 @@ The six-word95C4 table contains offsets relative to95C4:
 | --- | --- | --- | --- | --- |
 | 0 | 013C | 9700 | 9700,97A8 | Existing complete raw XYZ input; admission limits retained |
 | 1 | 1334 | A8F8 | A8F8,AAF8,AB00 | Complete standalone XYZ+2CMP decoder; production/cold gates OPEN |
-| 2 | 10E4 | A6A8 | A6A8,A750,A860,A864,A868 | Required native implementation OPEN |
-| 3 | 0DCC | A390 | A390,A5D0,A5D8 | Required native implementation OPEN |
+| 2 | 10E4 | A6A8 | A6A8,A750,A860,A864,A868 | Complete standalone XYZ+CMP+signed16x4 decoder; production/cold gates OPEN |
+| 3 | 0DCC | A390 | A390,A5D0,A5D8 | Complete standalone XYZ+3CMP decoder; production/cold gates OPEN |
 | 4 | 08AC | 9E70 | 9E70,A170 | Parameterized packed family; exact byte/numeric map and native implementation OPEN |
 | 5 | 0234 | 97F8 | 97F8,9BB0 | Parameterized packed family; exact byte/numeric map and native implementation OPEN |
 
@@ -113,3 +113,99 @@ control pointers used by native callers survive every accepted data write;
 pure-data frame aliases alone cannot authorize that parent. Cold real/256-live,
 native frames, interpreter, reversed A/B, normalized CPU and default gates
 remain OPEN. Phase3/continuing goal stay active; strict StageF phase7 stays LAST.
+
+## Built-in 24-byte inputs: complete standalone formats 2 and 3
+
+Both 24-byte input families now have complete standalone native decoders:
+
+| Format | Original blocks | Input vertex / output streams | Header |
+| --- | --- | --- | --- |
+| 2 | `A6A8/A750/A860/A864/A868` | raw XYZ +CMP11/11/10 +signed16x4 /3float4 streams | `native_geometry_builtin24_input.h` |
+| 3 | `A390/A5D0/A5D8` | raw XYZ +3CMP11/11/10 /4float4 streams | `native_geometry_builtin24_cmp_input.h` |
+
+Each kernel replaces every setup/data/backedge block and queues the exact
+9498 PC/function before common frame restoration. Host-local vectors retain
+the pipeline, all128 final GPR vectors and all LS/architectural/channel/
+control state. No lifted setup, loop, tail, tolerance or state repair is used.
+Both reuse the native metadata overlay and CMP-vector decoder from input1.
+Input2 adds exact signed16 conversion (`csflt139`) and converted-input-first
+FMA with the actual scale/bias; all four components, including W, are decoded.
+
+Each iteration reads a physical48-byte source pair from three aligned quads
+and produces two float4 rows per stream. Source pointers retain their raw
+bias in the final ABI; source data reads use the original quad alignment,
+without input1's byte-alignment shuffle. Initial source quads are loaded
+before metadata publication. The next pair is prefetched after all metadata
+stores; every subsequent fresh pair follows all six (format2) or eight
+(format3) ordered data stores, including on the final iteration. Input advances
+48 bytes and each output32 bytes. Nonfinal source-cache copies are explicit;
+format2's intermediate nop block is absorbed without changing final state.
+
+Admission reads only metadata/control footprints. It requires owned LS,
+all enabled/saved/active IRQ contexts absent, and a terminating negative
+low r42 count of1..1,048,576 bytes divisible by32. Every actual quad-aligned,
+LS-masked metadata/data store must stay at or above E680. Data destinations
+use the actual slot pointer plus r36+r42; cancellation is not assumed. Metadata
+source/destination addresses follow each original family:
+
+- Input2: first IDs read/write through r3, second read through r3 **but write
+  through r82**, third read/write through r82. Three reservations publish
+  semantics1/2/3 via incoming r35/r37/r61.
+- Input3: first two IDs read/write through r3, last two through r82. Four
+  reservations publish semantics1/2/3/4 via r35/r37/r61/r39.
+
+The shared reservation helper now accepts a distinct IDs store address;
+the existing same-address overload retains input1 behavior. Input2's first
+suite reached the split-manager case at trial5635 and detected incorrect
+GPR/LS output from writing the second IDs quad to its read address. The helper
+and input2 caller now preserve the original separate read/store destinations.
+All input2 cases then pass, and the complete input1 regression also passes.
+The numeric/checker contracts remain unchanged. The failed comparison log is
+retained. Input3's complete first suite passes without runtime corrections.
+
+Validation passes **5,678 strict full-state/LS/PC/function cases for input2**
+and **5,710 for input3**. Each suite includes4,096 broad metadata/source/output/
+cross-stream aliases,1,024 arbitrary-control cases,256 special-FP coefficient
+cases,32 split-manager cases, boundary counts up to2,048 pairs and three
+depth anchors. Input3 additionally has32 fourth-publication/IDs aliases.
+Each has **256 independent ordered byte models**, including source/metadata
+overlap and post-store prefetch, plus **8,192 independent CMP words /32,768
+float components**. Input2 additionally covers **all65,536 signed16 codes /
+262,144 independent components**, checking both the full converted float and
+scaled result. Its expected fused result uses the exact integer numerator
+`0x800080*(2*signed16+1)*2^-39` with explicit24-bit RTZ packing, without SPU
+numeric helpers or a floating-point tolerance.
+
+For each format, **3,216 full original93F0 cases /3,168 native strict data
+children** pass:48 empty roots, all sixteen source/stack/destination biases,
+three host depths, ignored builtin arguments and48 late-frame/return-link
+aliases. Only the selected data family is native; original setup and9498
+restoration remain on both arms. Input2 has14 unchanged rejects; input3 has17,
+including fourth-publication and fourth-stream protected writes. Rejection
+preserves context, plan and incoming function queue. Two input-inventory and
+seven conversion-audit tests also pass.
+
+The private references are the five/three original data blocks with distinct
+9498 traps and separate ten-/eight-block original93F0 graphs with native-only
+data hooks and95DC traps. Calibrations mutate the synthetic manager format
+argument and execute original setup; they are not captured cold roots.
+Reproducible GPR/LS SHA256:
+
+- Input2: `9a584efd407eebf6c93d85585d9b0943e88013ab8e2156ad2fc7c36fe71638b6`.
+- Input3: `1dd49c03f02f3c348d863359498ab47c237cf833c586c106a50894e49bac485a`.
+
+Run `tests/scripts/test-geometry-builtin24-input.ps1` and
+`tests/scripts/test-geometry-builtin24-cmp-input.ps1`. No production routing,
+runtime switch, ABI, executable, real corpus/live/render or FPS/CPU change is
+claimed. Input1's full5,646-case/256-model/32,768-component/3,216-original-root
+regression verifies the shared helper change. All builtin-control-v1 frozen
+files, original source/generator/save/template pins and JOB0/geometry827/
+newflags0 defaults remain unchanged.
+
+Next: required input4/5 packed families, then production wrappers and native
+93F0 shared control with admission that protects native callers' saved control
+pointers before unsafe mutation. Pure-data frame aliases do not prove that
+parent safe. Cold real/256-live/native-frame, interpreter, reversed frozen
+A/B, normalized CPU and default gates remain OPEN. Phase3/continuing goal
+stay active; shared phase4 follows, optional5/6 decisions are recorded and
+strict StageF phase7 remains LAST.

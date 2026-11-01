@@ -21,14 +21,16 @@ struct GeometryBuiltinInputMemory {
 struct GeometryBuiltinInputSlot {
     u128 ids,equal,gather,leading,index,offset,byte_mask,address,ids_after,table,publish_before,pointer,word_mask,publish_after;
 };
-inline GeometryBuiltinInputSlot reserve_geometry_builtin_input(GeometryBuiltinInputMemory& m,u128 selector,unsigned semantic,unsigned ids,u128 table,u128 publication)
+inline GeometryBuiltinInputSlot reserve_geometry_builtin_input(GeometryBuiltinInputMemory& m,u128 selector,unsigned semantic,unsigned ids,u128 table,u128 publication,unsigned ids_store)
 {
     GeometryBuiltinInputSlot s;s.ids=m.read(ids);s.equal=spu_ceqb(selector,s.ids);s.gather=spu_gbb(s.equal);s.leading=spu_clz(s.gather);
     s.index=spu_ai(s.leading,-16);s.offset=spu_shli(s.index,2);s.byte_mask=spu_cbd(s.index,0);s.address=spu_a(table,s.offset);
-    s.ids_after=spu_shufb(spu_il(semantic),s.ids,s.byte_mask);m.store(ids,s.ids_after);
+    s.ids_after=spu_shufb(spu_il(semantic),s.ids,s.byte_mask);m.store(ids_store,s.ids_after);
     s.table=m.read(table._u32[0]+s.offset._u32[0]);s.publish_before=m.read(publication._u32[0]);s.pointer=spu_rotqby(s.table,s.address);
     s.word_mask=spu_cwd(publication,0);s.publish_after=spu_shufb(s.pointer,s.publish_before,s.word_mask);m.store(publication._u32[0],s.publish_after);return s;
 }
+inline GeometryBuiltinInputSlot reserve_geometry_builtin_input(GeometryBuiltinInputMemory& m,u128 selector,unsigned semantic,unsigned ids,u128 table,u128 publication)
+{return reserve_geometry_builtin_input(m,selector,semantic,ids,table,publication,ids);}
 struct GeometryBuiltinInputCmp {u128 shifted,masked,converted,scaled;};
 inline GeometryBuiltinInputCmp decode_geometry_builtin_input_cmp(u128 bits,u128 shifts,u128 mask,u128 scale,u128 bias)
 {
