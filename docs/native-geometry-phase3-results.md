@@ -4454,3 +4454,36 @@ strict Stage F reconstruction LAST. The continuing objective stays active.
 Private `conversion-callback-v1-*` and `conversion-audit-v1` evidence records
 the source commit, frozen artifacts, tests, original snapshots and three replay
 arms; raw/derived game artifacts remain outside version control.
+
+## Output-conversion descriptor control: standalone implementation
+
+The [native control kernel](native-geometry-conversion-audit.md#native-descriptor-control-kernel-standalone)
+now implements frame setup/restoration, static and empty returns, complete
+descriptor dispatch scratch state and ordered cursor publication. Formatter
+data and stride remain explicit callees. Nonempty built-ins, custom conversion
+callbacks and missing-descriptor reporting reject before writes; so do foreign
+LS, pending interrupts, invalid spans and frame/manager aliasing. This is a
+standalone increment without production routing or a new switch/ABI.
+
+**4,195 strict comparisons pass**, including all GPR/LS, architectural/channel/
+control/PC state, final scheduled function and formatter/stride entry states.
+Sixteen callee recipes exercise clobbered volatile vectors, changed metadata
+and overwritten saved frame slots. The kernel preserves actual late loads
+instead of repairing state or reusing stale entry metadata. Ninety-six
+independent static/empty frame/publication models cover every stack bias and
+three stack boundaries. Three real-input cases use original data at host depths
+0/1/2; eleven admission rejects leave the full context unchanged.
+
+The pinned private oracle includes all 73 standard blocks. The initial test
+harness omitted its synchronous stride hook; correcting that hook yields the
+passing results without a production-checker or kernel change. Original traces,
+generated oracle, test EXE/object, diagnostic and final logs are sealed privately
+with source/helper/snapshot/save/template bindings. No compilation or CPU test
+overlapped a game run.
+
+No production build, native full-corpus/live/render/performance/default claim
+is made for this kernel. The prior callback-build replay evidence remains bound
+to its executable. Next is production integration and the remaining shared
+formatter/storage/output built-ins, then separate input built-ins and required
+final gates. Phase 3 and the continuing native-function objective remain OPEN;
+strict Stage F reconstruction remains LAST.

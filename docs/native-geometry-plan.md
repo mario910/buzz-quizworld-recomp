@@ -56,7 +56,10 @@ Current next implementation: complete conversion `54E8`, followed by builtins
 1..5 after source/contract audits. The [output-conversion audit](native-geometry-conversion-audit.md)
 includes its shared `4178` formatter, seven storage payloads and four output
 built-ins: 73 standard non-reporting blocks, still requiring complete native
-work beyond existing phase-2 prefixes. Custom callback boundaries are now
+work beyond existing phase-2 prefixes. Descriptor-path outer control now has a
+standalone native kernel (4,195 strict cases, including late callee changes),
+without production routing; formatter/data and all final gates remain OPEN.
+Custom callback boundaries are now
 excluded from paired replay until independently audited; they execute once
 on the retained arm. This is comparison protection, not native conversion.
 Ring/atomic flow `37C0` is now production
@@ -936,6 +939,7 @@ subject to the kernel gates before replacement.
 | 69E8/6B18/6B10 alternate cull data | n/a | implemented; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2`, default0 | 5,448 strict;288 numeric+288 composed;256 special FP;4 rejects;five compatibility arms exact;new real0 | new live0 OPEN;>=45,000 whole-job checks;normal compatible frames | not measured | |
 | 37C0 output ring allocation | n/a | production opt-in; cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_RING=0/1`, default0; strict JOB2 | 5,821 strict +7 rejects; six arms exact;7,201 native/strict roots,0 fallback | >=35,000 strict ring /45,000 whole-job;normal native menu/round | not measured | kernel `206eb5f`; integration in git log |
 | 54E8 / 4178 output conversion | n/a | 73-block inventory audited; native implementation OPEN | no new conversion switch yet | original19,508 exact/58,195 transfers;17,278 field dispatches;3 GPR/LS frame models +publication;7 audit tests | native/live/render OPEN | not measured | audit in git log |
+| 54E8 descriptor-path outer control | n/a | standalone kernel; production/data OPEN | no routing/switch/ABI change yet | 4,195 strict;16 callee recipes;96 independent models;3 real-input/original-data cases;11 unchanged rejects | full native corpus/live/render OPEN | not measured | kernel in git log |
 | Custom callback comparison boundaries | n/a | guarded; unaudited callback jobs skip paired replay | ABI37; existing driver switch | 53 runtime +320 configuration cases;3 full-corpus arms exact, all stage ledgers unchanged | callback real/live coverage OPEN | not measured | guard in git log |
 | 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |

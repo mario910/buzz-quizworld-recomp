@@ -127,3 +127,48 @@ Raw snapshots, generated code, traces, reports and frozen executables remain
 private under ignored `analysis/`/build directories. The next implementation
 must cover the controller, shared formatter and payload inventory above;
 completion of orchestration alone cannot close output conversion or phase 3.
+
+## Native descriptor-control kernel: standalone
+
+`native_geometry_conversion_control.h` implements the enclosing frame,
+static/empty paths, descriptor dispatch setup and output publication. It uses
+explicit formatter/stride callees; their data is not claimed as newly native.
+Nonempty built-in outputs, custom conversion callbacks and missing-descriptor
+reporting reject before mutation, alongside foreign LS, pending interrupts,
+out-of-range spans and frame/manager aliasing. Static and empty paths do not
+call a formatter. There is no production wrapper, new switch or ABI change yet.
+
+The kernel preserves full-vector PIC arithmetic, all dispatch scratch vectors,
+stack-bias-dependent word stores and actual late frame reloads. It reloads
+configuration, count and pointers in the original order around each callee;
+callee changes are not replaced by cached entry metadata. The original stride
+getter remains an explicit call, including its guarded callback behavior.
+The reader validates control spans, not the formatter's data ranges or the
+effects of arbitrary stride callbacks. Production integration must admit those
+callees and use the root I/O boundary; a pure cloned-state checker must not
+repeat an unaudited callback.
+
+**4,195 strict standalone cases pass**, comparing every GPR/LS byte,
+architectural/channel/control/PC state, final scheduled function and child
+entry states. Sixteen callee recipes include volatile-register clobbers,
+changed format/count/cursors/stride and overwritten saved frame vectors.
+There are 96 independent static/empty frame/publication models across all
+16 stack biases and three stack boundaries. Three additional cases execute
+the first real captured input with original formatter data at host depths
+0/1/2; they are control comparisons, not native-data corpus acceptance.
+Eleven reader rejects leave the entire input context unchanged.
+
+The private oracle contains the pinned original 73-block standard graph with
+an explicit reporting trap and identical callee boundaries. Its first test
+attempt exposed a missing stride hook in the test drainer; the hook now wraps
+the synchronous call itself. The production checker and kernel were unchanged
+by that harness correction. The diagnostic is retained privately.
+
+```powershell
+& tests/scripts/test-geometry-conversion-control.ps1
+```
+
+Production integration, native shared formatter/storage/output built-ins,
+full-corpus native coverage, >=256 live checks, native frames and final
+interpreter/reversed A/B/CPU/default gates remain OPEN. This standalone kernel
+does not change the game's executable, defaults, saves or current routing.
