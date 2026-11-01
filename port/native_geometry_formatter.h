@@ -97,7 +97,7 @@ inline void close_geometry_formatter(spu_context& c,u128* r,GeometryFormatterMem
 {
     r[1]=spu_ai(r[1],128);r[3]=r[70];
     for(unsigned reg=80;reg<=82;++reg)r[reg]=m.read(r[1]._u32[0]-(reg-79)*16);
-    r[126]=m.read(r[1]._u32[0]-64);memcpy(c.gpr,r,sizeof(c.gpr));
+    r[126]=m.read(r[1]._u32[0]-64);if(r!=c.gpr)memcpy(c.gpr,r,sizeof(c.gpr));
     // The original queued frame tail is entered with its queue already popped.
     g_spu_trampoline_fn=nullptr;SPU_RET(&c);
 }
@@ -222,7 +222,7 @@ inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,
 template<class Data>
 inline void execute_geometry_formatter_registers(spu_context& c,const GeometryFormatter&,Data data)
 {
-    u128 r[128];memcpy(r,c.gpr,sizeof r);GeometryFormatterMemory m{c,true,(c.gpr[3]._u32[0]&~15u)+0x50};
+    auto* r=c.gpr;GeometryFormatterMemory m{c,true,(c.gpr[3]._u32[0]&~15u)+0x50};
     if(open_geometry_formatter(r,m) && prepare_geometry_formatter(r,m)){
         do {
             const unsigned storage=prepare_geometry_formatter_field(r,m);
@@ -236,12 +236,12 @@ inline void execute_geometry_formatter_registers(spu_context& c,const GeometryFo
 inline void execute_geometry_formatter(spu_context& c,const GeometryFormatter& plan,const GeometryFormatterCallees& f)
 {
     execute_geometry_formatter_registers(c,plan,[&](spu_context& ctx,u128* r,unsigned storage){
-        memcpy(ctx.gpr,r,sizeof(ctx.gpr));ctx.pc=r[4]._u32[0];g_spu_trampoline_fn=nullptr;f.data[storage-1](&ctx);
+        ctx.pc=r[4]._u32[0];g_spu_trampoline_fn=nullptr;f.data[storage-1](&ctx);
         for(unsigned steps=0;!((ctx.pc==0x4610 && g_spu_trampoline_fn==f.finish)||(ctx.pc==0x4618 && g_spu_trampoline_fn==f.skip));++steps){
             if(!g_spu_trampoline_fn || g_spu_trampoline_fn==spu_indirect_branch || steps>=2048)std::abort();
             const auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(&ctx);
         }
-        const bool converted=ctx.pc==0x4610;memcpy(r,ctx.gpr,sizeof(ctx.gpr));return converted;
+        return ctx.pc==0x4610;
     });
 }
 }

@@ -25,7 +25,7 @@ inline void pack_geometry_builtin_float3(u128* r)
 }
 inline void emit_geometry_builtin_float3_output(spu_context& c,const GeometryBuiltinFloat3Output& plan,buzz_geometry_job_fn finish)
 {
-    u128 r[128];memcpy(r,c.gpr,sizeof r);
+    auto* r=c.gpr;
     r[35]=spu_ila(65535);r[34]=spu_ls_read128(&c,r[81]._u32[0]+0x50);r[11]=r[3];r[32]=spu_and(r[10],r[35]);
     r[15]=spu_ls_read128(&c,0xd970);r[16]=spu_ls_read128(&c,0xd9f0);r[30]=spu_ai(r[32],3);r[14]=spu_ls_read128(&c,0xda50);
     r[10]=spu_rotmi(r[30],-2);r[31]=spu_rotqbyi(r[34],12);r[9]=spu_ai(r[31],64);
@@ -38,6 +38,6 @@ inline void emit_geometry_builtin_float3_output(spu_context& c,const GeometryBui
         spu_ls_write128(&c,r[11]._u32[0]+32,r[12]);spu_ls_write128(&c,r[11]._u32[0],r[8]);spu_ls_write128(&c,r[11]._u32[0]+16,r[13]);
         r[11]=r[36];r[13]=spu_shufb(r[38],r[39],r[16]);r[12]=spu_shufb(r[39],r[40],r[14]);r[8]=spu_shufb(r[37],r[38],r[15]);
     }
-    memcpy(c.gpr,r,sizeof r);c.pc=0x5648;g_spu_trampoline_fn=finish;
+    c.pc=0x5648;g_spu_trampoline_fn=finish;
 }
 }

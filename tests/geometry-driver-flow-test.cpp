@@ -260,6 +260,8 @@ int buzz_geometry_job_descriptors_enabled() { return descriptors_enabled; }
 void buzz_geometry_job_descriptor_checked_result() { abort(); }
 void buzz_geometry_job_descriptor_dispatched(unsigned) { abort(); }
 int buzz_geometry_job_mode() { return flow_mode; }
+int buzz_geometry_job_debug_stages() { return 1; } // Legacy stage-debug fixture.
+int buzz_geometry_job_owns_admission(const spu_context*) { return 0; } // direct fixture calls have no controller scope
 void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }

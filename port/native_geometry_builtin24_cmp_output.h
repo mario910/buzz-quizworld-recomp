@@ -61,8 +61,8 @@ inline void step_geometry_builtin24_cmp(spu_context& c,u128* r)
 }
 inline void emit_geometry_builtin24_cmp_output(spu_context& c,const GeometryBuiltin24CmpOutput& plan,buzz_geometry_job_fn finish)
 {
-    u128 r[128];memcpy(r,c.gpr,sizeof r);open_geometry_builtin24_cmp(c,r);
+    auto* r=c.gpr;open_geometry_builtin24_cmp(c,r);
     for(unsigned group=0;group<plan.groups;++group){step_geometry_builtin24_cmp(c,r);if(group+1<plan.groups){r[46]=r[26];r[45]=r[27];}}
-    memcpy(c.gpr,r,sizeof r);c.pc=0x5648;g_spu_trampoline_fn=finish;
+    c.pc=0x5648;g_spu_trampoline_fn=finish;
 }
 }

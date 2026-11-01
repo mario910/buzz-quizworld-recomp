@@ -7,7 +7,7 @@ struct GeometryFullPass { uint32_t state[16]{}; };
 struct GeometryFullCommands {
     GeometryCommandBuffer reservation;
     GeometryCommandFormat format;
-    std::vector<GeometryFullPass> passes;
+    uint32_t pass_count=0;
     uint32_t stack = 0, metadata = 0, groups = 0, enabled = 0, indices = 0, leading = 0;
     uint32_t raw_end = 0, relocated_end = 0;
 };
@@ -40,38 +40,28 @@ inline bool read_geometry_full_commands(const spu_context& ctx, GeometryFullComm
     const uint32_t remaining = p.indices - p.leading;
     const uint64_t minimum = uint64_t(count) * (40 + (p.leading ? 8 : 0) + ((uint64_t(remaining) + 255) / 256) * 4);
     if (minimum > SPU_LS_SIZE - p.reservation.start) return false;
-    std::vector<unsigned> packets;
-    if (p.reservation.first_ready < p.reservation.count) for (unsigned i = 0; i < 4; ++i) packets.push_back(1);
-    for (unsigned i = 0; i < p.enabled * 2; ++i) packets.push_back(1);
+    GeometryCommandFootprint packets(p.reservation.start,args[5]._u32[0]!=0);
+    if (p.reservation.first_ready < p.reservation.count) for (unsigned i = 0; i < 4; ++i) packets.add(1);
+    for (unsigned i = 0; i < p.enabled * 2; ++i) packets.add(1);
     for (unsigned pass = 0; pass < count; ++pass) {
         GeometryFullPass entry;
         if (p.metadata) {
             for (unsigned i = 0; i < 16; ++i) entry.state[i] = geometry_job_be32(ctx.ls + p.metadata + 16 + pass * 64 + i * 4);
-            if (p.groups & 2) { if (entry.state[0] != 8) packets.push_back(1); if (entry.state[2] != 8) packets.push_back(2); }
-            if (p.groups & 1) { if (entry.state[12] != 8) packets.push_back(1); if (entry.state[14] != 8) packets.push_back(1); }
-            if (p.groups & 4) { if (entry.state[6] != 8) packets.push_back(1); if (entry.state[8] != 8) packets.push_back(2); }
-            if ((p.groups & 8) && entry.state[4] != 8) { packets.push_back(1); if (entry.state[5]) packets.push_back(1); }
+            if (p.groups & 2) { if (entry.state[0] != 8) packets.add(1); if (entry.state[2] != 8) packets.add(2); }
+            if (p.groups & 1) { if (entry.state[12] != 8) packets.add(1); if (entry.state[14] != 8) packets.add(1); }
+            if (p.groups & 4) { if (entry.state[6] != 8) packets.add(1); if (entry.state[8] != 8) packets.add(2); }
+            if ((p.groups & 8) && entry.state[4] != 8) { packets.add(1); if (entry.state[5]) packets.add(1); }
         }
-        packets.push_back(1); packets.push_back(2); packets.push_back(1);
-        if (p.leading) packets.push_back(1);
+        packets.add(1); packets.add(2); packets.add(1);
+        if (p.leading) packets.add(1);
         uint32_t left = remaining;
-        while (left > 0x7ff00) { packets.push_back(2047); left -= 0x7ff00; }
-        packets.push_back((left + 255) / 256); packets.push_back(1);
-        p.passes.push_back(entry);
+        while (left > 0x7ff00) { packets.add(2047); left -= 0x7ff00; }
+        packets.add((left + 255) / 256); packets.add(1);
+        ++p.pass_count;
     }
-    for (unsigned i = 0; i < p.enabled; ++i) packets.push_back(1);
-    if (args[5]._u32[0] && geometry_job_be32(ctx.ls + p.reservation.records + 16)) { packets.push_back(1); packets.push_back(1); }
-    uint32_t raw = p.reservation.start, relocated = raw;
-    for (unsigned words : packets) {
-        raw += 4 * (words + 1);
-        if (!args[5]._u32[0]) { relocated = raw; continue; }
-        unsigned bytes = words * 4;
-        while (bytes > 124 - (relocated & 127)) {
-            const unsigned available = 124 - (relocated & 127);
-            bytes -= available; relocated += available + 4;
-        }
-        relocated += bytes + 4;
-    }
+    for (unsigned i = 0; i < p.enabled; ++i) packets.add(1);
+    if (args[5]._u32[0] && geometry_job_be32(ctx.ls + p.reservation.records + 16)) { packets.add(1); packets.add(1); }
+    const uint32_t raw=packets.raw,relocated=packets.relocated;
     if (args[5]._u32[0] && relocated > p.reservation.limit) return false;
     const uint32_t touched = std::max(p.reservation.end, args[5]._u32[0] ?
         ((relocated + 127) & ~127u) + 128 : ((raw + 15) & ~15u));
@@ -82,12 +72,13 @@ inline bool read_geometry_full_commands(const spu_context& ctx, GeometryFullComm
     for (unsigned a = 0; a < 6; ++a) for (unsigned b = a + 1; b < 6; ++b)
         if (sizes[a] && sizes[b] && geometry_output_overlap(starts[a], sizes[a], starts[b], sizes[b])) return false;
     p.raw_end = raw; p.relocated_end = relocated;
-    output = std::move(p); return true;
+    output = p; return true;
 }
 
 inline void emit_geometry_full_commands(spu_context& ctx, const GeometryFullCommands& p,
                                        const buzz_geometry_command_functions& functions)
 {
+    GeometryCommandAdmissionScope admission(ctx, p.reservation, p.raw_end, p.relocated_end, 0x1380, 0x1a68);
     auto& r = ctx.gpr; const u128 old_stack = r[1];
     spu_ls_write128(&ctx, p.stack + 16, r[0]);
     for (unsigned reg = 80; reg <= 89; ++reg) spu_ls_write128(&ctx, p.stack - (reg - 79) * 16, r[reg]);
@@ -126,8 +117,12 @@ inline void emit_geometry_full_commands(spu_context& ctx, const GeometryFullComm
     r[45] = spu_ori(r[45], 256); r[46] = spu_iohl(r[46], 0x1824); r[48] = spu_iohl(r[48], 0xff00);
     r[50] = spu_iohl(r[50], 0x1824); r[22] = spu_sfi(r[10], 0); r[32] = spu_ila(65535);
     r[35] = spu_il(1); r[36] = spu_il(2305); r[42] = spu_il(5); r[49] = spu_il(8192); r[51] = spu_il(16); r[47] = spu_il(8188);
-    for (unsigned pass = 0; pass < p.passes.size(); ++pass) {
-        const auto& state = p.passes[pass].state;
+    for (unsigned pass = 0; pass < p.pass_count; ++pass) {
+        // Admission proves metadata disjoint from every span the callees write.
+        GeometryFullPass entry;
+        if(p.metadata)for(unsigned i=0;i<16;++i)
+            entry.state[i]=geometry_job_be32(ctx.ls+p.metadata+16+pass*64+i*4);
+        const auto& state=entry.state;
         r[21] = spu_ai(r[21], -1);
         if (p.metadata) {
             r[13] = spu_a(r[88], r[51]); const uint32_t at = r[13]._u32[0];
@@ -263,7 +258,7 @@ inline void emit_geometry_full_commands(spu_context& ctx, const GeometryFullComm
         r[16] = spu_il(4); r[15] = spu_ai(r[6], 8); r[70] = spu_cwd(r[6], 0); r[13] = spu_cwd(r[6], 4);
         r[68] = geometry_command_word(ctx, r[6]._u32[0], 0x41808, &r[69]);
         r[67] = geometry_command_word(ctx, r[6]._u32[0] + 4, 0, &r[5]);
-        if (pass + 1 < p.passes.size()) r[51] = spu_ai(r[51], 64);
+        if (pass + 1 < p.pass_count) r[51] = spu_ai(r[51], 64);
     }
     r[5] = r[89]; r[44] = spu_cwd(r[1], 8); r[3] = r[84]; r[4] = spu_ai(r[1], 32);
     r[42] = geometry_command_word(ctx, r[1]._u32[0] + 0x28, r[15]._u32[0], &r[43]);

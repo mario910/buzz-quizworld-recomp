@@ -1030,9 +1030,11 @@ phase 7 is cancelled. The Course correction governs the historical rows below.
 | Revised work | Status | Latest evidence |
 | --- | --- | --- |
 | 3a: remove overhead | wip; menu parity failed | V3: FPS -2.784%, worker cycles/frame +4.418%, process cycles/frame +2.454%; corpus/live/menu render pass; round gates not attempted; defaults off |
+| Job-boundary checker | exact; optional full-state debug retained | Four full-corpus arms, 12 real-job fault fixtures, >=1,415,000 completed live comparisons; concurrent-input skips excluded; normal native menu |
 | 3b: host SoA / AVX2 pipeline | todo | Prioritize float/half/CMP output, unit vectors, weighted skin, index triangles; no new cold coverage |
 
 Measurements and decisions: [native-geometry-phase3a-results.md](native-geometry-phase3a-results.md).
+Checker validation: [native-geometry-job-boundary-results.md](native-geometry-job-boundary-results.md).
 
 ### Phase 0
 

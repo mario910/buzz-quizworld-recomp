@@ -93,8 +93,8 @@ inline void close_geometry_builtin15_input(spu_context& c,u128* r)
 }
 inline void decode_geometry_builtin15_input(spu_context& c,const GeometryBuiltin15Input& p,buzz_geometry_job_fn finish)
 {
-    u128 r[128];memcpy(r,c.gpr,sizeof r);open_geometry_builtin15_input(c,r);
+    auto* r=c.gpr;open_geometry_builtin15_input(c,r);
     for(unsigned group=0;group<p.groups;++group)step_geometry_builtin15_input(c,r);
-    close_geometry_builtin15_input(c,r);memcpy(c.gpr,r,sizeof r);c.pc=0x9498;g_spu_trampoline_fn=finish;
+    close_geometry_builtin15_input(c,r);c.pc=0x9498;g_spu_trampoline_fn=finish;
 }
 }

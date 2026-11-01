@@ -39,6 +39,9 @@ typedef struct buzz_geometry_descriptor_functions {
 } buzz_geometry_descriptor_functions;
 int buzz_geometry_job_audit_enabled(void);
 int buzz_geometry_job_mode(void);
+// Optional full register/LS checks at stage boundaries under JOB2. The job
+// acceptance contract always checks published I/O and job exit controls.
+int buzz_geometry_job_debug_stages(void);
 int buzz_geometry_job_publish_enabled(void);
 void buzz_geometry_job_publish_result(int native);
 enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
@@ -250,6 +253,9 @@ void buzz_geometry_job_descriptor_dispatched(unsigned storage);
 void buzz_geometry_job_audit_run(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_run(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn native,
                            buzz_geometry_job_eligibility_fn);
+/* True only during the controller's contiguous JOB1 supports/native calls.
+ * Admission recipes may be handed off inside this owner scope, never later. */
+int buzz_geometry_job_owns_admission(const spu_context*);
 int buzz_geometry_job_native_eligible(const spu_context*);
 void buzz_geometry_job_native_start(spu_context*, const buzz_geometry_job_functions*);
 void buzz_geometry_job_native_fail(spu_context*, const char* reason);

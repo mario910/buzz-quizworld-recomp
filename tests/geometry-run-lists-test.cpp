@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdio>
 #include <memory>
+#include <vector>
 using namespace buzz;
 extern "C" {
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
@@ -38,20 +39,22 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial)
     memcpy(&reference,&native,sizeof(native));reference.ls=reference.ls_store;
     GeometryRunList p;const char* why=nullptr;
     if(!read_geometry_run_list(native,p,&why)){fprintf(stderr,"run-list rejected trial%u:%s\n",trial,why);abort();}
+    std::vector<uint16_t> codes;
+    for(unsigned i=0;i<p.bytes;i+=2)codes.push_back(geometry_job_be16(native.ls+p.base+i));
     g_spu_trampoline_fn=nullptr;buzz_job_6eba_spu_func_00007118(&reference);
     if(g_spu_trampoline_fn==buzz_job_6eba_spu_func_00007298){g_spu_trampoline_fn=nullptr;buzz_job_6eba_spu_func_00007298(&reference);}
     const auto expected_next=g_spu_trampoline_fn;
     g_spu_trampoline_fn=nullptr;expand_geometry_run_list(native,p);
     const auto diff=compare_function_state(native,reference);
     if(!diff.exact() || g_spu_trampoline_fn!=expected_next){
-        fprintf(stderr,"run-list trial%u codes%zu:r%d byte%d LS%X/%u state%s\n",trial,p.codes.size(),diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+        fprintf(stderr,"run-list trial%u codes%zu:r%d byte%d LS%X/%u state%s\n",trial,codes.size(),diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
         if(diff.first_register>=0)for(unsigned i=0;i<4;++i)fprintf(stderr,"lane%u %08X/%08X\n",i,native.gpr[diff.first_register]._u32[i],reference.gpr[diff.first_register]._u32[i]);
         abort();
     }
     assert(native.host_depth==reference.host_depth && native.image_id==reference.image_id);
     // Independent format expectation: consecutive scaled offsets per control.
     unsigned out=0;
-    for(const auto code:p.codes)for(unsigned j=0;j<(code&31)+1;++j){
+    for(const auto code:codes)for(unsigned j=0;j<(code&31)+1;++j){
         const unsigned expected=((code>>5)+j)*16;
         assert(geometry_job_be16(native.ls+p.base+out*2)==expected);++out;
     }

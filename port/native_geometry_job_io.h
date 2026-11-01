@@ -11,7 +11,7 @@ namespace buzz {
 
 // Same architectural controls as compare_function_state, except PC: a driver
 // may combine blocks between channel operations. Its final PC is checked by
-// the full-state comparator. Host MFC pointers, locks and clocks are never
+// the job-exit comparator. Host MFC pointers, locks and clocks are never
 // copied to the shadow. Channels compare their logical queue contents.
 #define BUZZ_JOB_CONTROL_FIELDS(X) \
     X(status) X(stop_code) X(decrementer) X(srr0) \
@@ -98,6 +98,22 @@ struct GeometryJobControls {
 };
 #undef BUZZ_JOB_CONTROL_FIELDS
 #undef BUZZ_JOB_CHANNEL_FIELDS
+
+// Job boundaries expose architectural controls and the host continuation,
+// rather than intermediate SPU registers or unpublished local-store bytes.
+// The ordered I/O transcript separately checks every published byte.
+inline const char* geometry_job_exit_difference(const spu_context& expected, const spu_context& actual)
+{
+    if (expected.pc != actual.pc) return "pc";
+    if (const char* field = GeometryJobControls::capture(expected).difference(actual)) return field;
+    if (expected.host_depth != actual.host_depth) return "host_depth";
+    if (expected.image_id != actual.image_id) return "image_id";
+    if (expected.policy_mode != actual.policy_mode) return "policy_mode";
+    if (expected.resident_ovl != actual.resident_ovl) return "resident_ovl";
+    if (bool(expected.irq_frame) != bool(actual.irq_frame)) return "irq_frame";
+    if ((expected.ls == expected.ls_store) != (actual.ls == actual.ls_store)) return "local-store ownership";
+    return nullptr;
+}
 
 struct GeometryJobLsInput {
     uint32_t lsa = 0;

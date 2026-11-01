@@ -1,4 +1,4 @@
-/* Image-41 output allocation. Host-local vectors preserve the complete ABI;
+/* Image-41 output allocation. The job register bank is used directly;
  * only channel controls and ordered LS accesses touch the context mid-root.
  * A nonzero result is an original reporting continuation, never a restart. */
 #pragma once
@@ -37,7 +37,7 @@ inline bool read_geometry_ring(const spu_context& c,GeometryRing& out,const char
 
 class GeometryRingAllocation {
     spu_context& c;
-    u128 r[128];
+    u128 (&r)[128];
     u128 load(uint32_t address){return spu_ls_read128(&c,address);}
     void store(uint32_t address,u128 value){spu_ls_write128(&c,address,value);}
     void wr(unsigned channel,unsigned reg){buzz_geometry_job_wrch(&c,channel,r[reg]);}
@@ -62,11 +62,11 @@ class GeometryRingAllocation {
     {
         r[80]=spu_il(1344);r[3]=r[12];r[1]=spu_a(r[1],r[80]);const uint32_t sp=r[1]._u32[0];
         r[0]=load(sp+16);for(unsigned reg=80;reg<=96;++reg)r[reg]=load(sp-(reg-79)*16);r[126]=load(sp-288);
-        memcpy(c.gpr,r,sizeof r);SPU_RET(&c);
+        SPU_RET(&c);
     }
     uint32_t frontier(uint32_t pc)
     {
-        memcpy(c.gpr,r,sizeof r);c.pc=pc;g_spu_trampoline_fn=nullptr;return pc;
+        c.pc=pc;g_spu_trampoline_fn=nullptr;return pc;
     }
     void direct()
     {
@@ -244,7 +244,7 @@ class GeometryRingAllocation {
         reconsider_lane();return 0;
     }
 public:
-    explicit GeometryRingAllocation(spu_context& context):c(context){memcpy(r,c.gpr,sizeof r);}
+    explicit GeometryRingAllocation(spu_context& context):c(context),r(context.gpr){}
     uint32_t run()
     {
         g_spu_trampoline_fn=nullptr;open();if(r[4]._u32[0]){direct();close();return 0;}

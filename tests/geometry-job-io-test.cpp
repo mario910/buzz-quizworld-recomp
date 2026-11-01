@@ -56,8 +56,42 @@ static std::vector<GeometryJobIoOperation> record(spu_context& ctx,
     return ops;
 }
 
+static void job_exit_contract()
+{
+    auto expected=context(), actual=context();
+    assert(!geometry_job_exit_difference(*expected,*actual));
+    actual->gpr[2]._u64[0]^=1; actual->gpr[127]._u64[1]^=1;
+    actual->ls[0xe800]^=1; actual->ls[SPU_LS_SIZE-1]^=1;
+    assert(!geometry_job_exit_difference(*expected,*actual)); // Not published by this job.
+    assert(!compare_function_state(*expected,*actual).exact()); // Optional debug still sees them.
+    const char* fields[]={"pc","status","stop_code","list_stall_stat","host_depth","image_id","policy_mode","resident_ovl"};
+    for(unsigned i=0;i<8;++i){
+        auto changed=context();
+        switch(i){
+        case 0: changed->pc^=4; break;
+        case 1: changed->status^=1; break;
+        case 2: changed->stop_code^=1; break;
+        case 3: changed->list_stall_stat^=1; break;
+        case 4: changed->host_depth^=1; break;
+        case 5: changed->image_id^=1; break;
+        case 6: changed->policy_mode^=1; break;
+        case 7: changed->resident_ovl^=1; break;
+        }
+        const auto* difference=geometry_job_exit_difference(*expected,*changed);
+        assert(difference && !strcmp(difference,fields[i]));
+    }
+    actual->ch_out_mbox.count=1;actual->ch_out_mbox.value=actual->ch_out_mbox.q[0]=1;
+    assert(!strcmp(geometry_job_exit_difference(*expected,*actual),"ch_out_mbox"));
+    actual->ch_out_mbox={}; actual->ls=expected->ls_store;
+    assert(!strcmp(geometry_job_exit_difference(*expected,*actual),"local-store ownership"));
+    actual->ls=actual->ls_store;
+    actual->irq_frame=reinterpret_cast<decltype(actual->irq_frame)>(uintptr_t(1));
+    assert(!strcmp(geometry_job_exit_difference(*expected,*actual),"irq_frame"));
+    puts("Job exit contract: internal GPR/LS differences allowed; PC/control/channel/host-state/LS-ownership faults rejected PASS");
+}
 int main()
 {
+    job_exit_contract();
     auto reference = context();
     std::array<uint8_t, 128> guest{};
     unsigned commits = 0;

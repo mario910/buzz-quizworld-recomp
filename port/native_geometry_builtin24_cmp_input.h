@@ -49,8 +49,8 @@ inline void step_geometry_builtin24_cmp_input(spu_context& c,u128* r)
 }
 inline void decode_geometry_builtin24_cmp_input(spu_context& c,const GeometryBuiltin24CmpInput& p,buzz_geometry_job_fn finish)
 {
-    u128 r[128];memcpy(r,c.gpr,sizeof r);open_geometry_builtin24_cmp_input(c,r);
+    auto* r=c.gpr;open_geometry_builtin24_cmp_input(c,r);
     for(unsigned group=0;group<p.groups;++group){step_geometry_builtin24_cmp_input(c,r);if(group+1<p.groups)r[17]=r[15];}
-    memcpy(c.gpr,r,sizeof r);c.pc=0x9498;g_spu_trampoline_fn=finish;
+    c.pc=0x9498;g_spu_trampoline_fn=finish;
 }
 }

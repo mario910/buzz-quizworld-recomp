@@ -1,6 +1,7 @@
 /* Whole-driver shadow I/O and incremental native flow. Real I/O executes once.
  * The native outer driver calls the existing SPU-ABI library wrappers. */
 #include "native_geometry_job.h"
+#include "native_geometry_ledger.h"
 #include "native_geometry_job_io.h"
 #include "spu_dma.h"
 #include <atomic>
@@ -25,34 +26,10 @@ extern int buzz_geometry_debug;
 
 namespace {
 using namespace buzz;
-// Live native ledger counter. All four pool lanes count every stage call, so
-// one shared atomic per counter bounced its cache line between lanes. Each
-// thread increments only its own cache-line slot; load() sums the slots for
-// summaries. ++ returns the calling thread's count, so periodic log values
-// are per-thread lower bounds of the total (first events log once per thread).
-class Counter {
-    static constexpr unsigned slots = 8;
-    struct alignas(64) Slot { std::atomic<unsigned long long> value{0}; };
-    Slot slot[slots];
-    static unsigned index()
-    {
-        // Constant-initialized TLS: no per-access dynamic-init guard.
-        static std::atomic<unsigned> next{0};
-        thread_local unsigned mine = ~0u;
-        if (mine == ~0u) mine = next.fetch_add(1, std::memory_order_relaxed) % slots;
-        return mine;
-    }
-public:
-    unsigned long long operator++() { return *this += 1; }
-    unsigned long long operator+=(unsigned long long n) { return slot[index()].value.fetch_add(n, std::memory_order_relaxed) + n; }
-    unsigned long long load() const
-    {
-        unsigned long long total = 0;
-        for (const auto& s : slot) total += s.value.load(std::memory_order_relaxed);
-        return total;
-    }
-    operator unsigned long long() const { return load(); }
-};
+// Private cache-line slots keep the d0a688b sharding. ++ reports a writer's
+// local total (an overflow-bin total after the inventory fills); quiescent
+// load() sums every owner and stays exact across thread creation/exit.
+using Counter=GeometryLedgerCounter;
 // Environment options are immutable once read. A function-local `static const`
 // pays the thread-safe-static guard (a TLS epoch check) on every hot call;
 // this constant-initialized cache is a plain relaxed load after the first read.
@@ -121,6 +98,12 @@ Recording recordings[8]; // Persistent storage; foreign observers never touch ve
 thread_local Recording* recording = nullptr;
 thread_local unsigned owner_token = 0;
 thread_local spu_context* shadow = nullptr;
+thread_local const spu_context* admission_owner=nullptr;
+struct AdmissionOwnerScope {
+    const spu_context* previous;
+    explicit AdmissionOwnerScope(const spu_context* c):previous(admission_owner){admission_owner=c;}
+    ~AdmissionOwnerScope(){admission_owner=previous;}
+};
 thread_local GeometryJobIoReplay* replay = nullptr;
 
 void unsupported(Recording& r, const char* reason)
@@ -335,6 +318,11 @@ static int output_option(const char* name, int maximum_value = 1)
     if (!value) return 0;
     if (value[0] < '0' || value[0] > '0' + maximum_value || value[1]) std::abort();
     return value[0] - '0';
+}
+extern "C" int buzz_geometry_job_debug_stages()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return output_option("BUZZ_GEOMETRY_DEBUG_STAGES"); });
 }
 extern "C" int buzz_geometry_job_layout_enabled()
 {
@@ -1046,18 +1034,26 @@ static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
         shadow = nullptr;
         replay = nullptr;
         if (!io.finish()) mismatch(io.error(), ctx);
-        const auto difference = buzz::compare_function_state(*expected, *copy);
-        if (!difference.exact() || continuation != g_spu_trampoline_fn) {
+        const auto* exit_difference = buzz::geometry_job_exit_difference(*expected, *copy);
+        if (exit_difference || continuation != g_spu_trampoline_fn) {
+            std::fprintf(stderr, "[geometry-job-audit] job exit controls=%s\n",
+                         exit_difference ? exit_difference : "continuation");
+            mismatch("job exit state/continuation", ctx);
+        }
+        const bool debug_stages = buzz_geometry_job_debug_stages() != 0;
+        const auto difference = debug_stages ? buzz::compare_function_state(*expected, *copy) : buzz::FunctionDifference{};
+        if (debug_stages && !difference.exact()) {
             std::fprintf(stderr, "[geometry-job-audit] r%d byte%d LS=%05X bytes=%u controls=%s\n",
                          difference.first_register, difference.first_register_byte, difference.first_ls,
                          difference.ls_bytes, difference.first_state ? difference.first_state : "equal");
-            mismatch("full driver exit state/continuation", ctx);
+            mismatch("debug full driver exit state", ctx);
         }
         (r->transfers > 1 ? drawn : culled).fetch_add(1);
         const auto n = checked.fetch_add(1) + 1;
         if (n == 256 || n % 5000 == 0)
-            std::fprintf(stderr, "[%s] strict full-state + I/O %llu PASS\n",
-                         native_trial ? "geometry-job/native-outer" : "geometry-job-audit", n);
+            std::fprintf(stderr, "[%s] %s + I/O %llu PASS\n",
+                         native_trial ? "geometry-job/native-outer" : "geometry-job-audit",
+                         debug_stages ? "debug full-state" : "job-boundary", n);
         matched = true;
     } else {
         const auto n = skipped.fetch_add(1);
@@ -1092,7 +1088,7 @@ struct buzz_geometry_io_root_check {
 
 extern "C" buzz_geometry_io_root_check* buzz_geometry_job_io_root_begin(spu_context* ctx)
 {
-    if (!is_shadow(ctx)) return nullptr;
+    if (!is_shadow(ctx) || !buzz_geometry_job_debug_stages()) return nullptr;
     if (!replay || replay->error()) mismatch("I/O root without valid parent transcript", ctx);
     return new buzz_geometry_io_root_check{buzz::clone_function_state(ctx), ctx, replay,
                                           replay->consumed(), g_spu_trampoline_fn};
@@ -1128,15 +1124,23 @@ extern "C" void buzz_geometry_job_io_root_end(spu_context* ctx, buzz_geometry_io
     delete check;
 }
 
+extern "C" int buzz_geometry_job_owns_admission(const spu_context* ctx)
+{
+    return ctx && admission_owner==ctx;
+}
+
 extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn reference,
                                       buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn supports)
 {
     const int mode = buzz_geometry_job_mode();
     if (!mode) { buzz_geometry_job_audit_run(ctx, reference); return; }
     ++native_attempted;
+    // Only JOB1 calls supports/native contiguously on the same context.
+    // JOB2 clones and original/reference execution never inherit this proof.
+    AdmissionOwnerScope admission(mode==1?ctx:nullptr);
     // Always test the original entry. Cloning an external LS or letting the
     // preamble mutate before this decision cannot turn a fallback into native.
-    if (!eligible(ctx) || !supports(ctx)) { ++native_fallback; reference(ctx); return; }
+    if (!eligible(ctx) || !supports(ctx)) { admission_owner=nullptr; ++native_fallback; reference(ctx); return; }
     if (mode == 2) {
         if (audit_pair(ctx, reference, native, true)) { ++native_compared; ++native_executed; }
         else ++native_fallback;

@@ -1,6 +1,9 @@
 # Phase 3a measurements
 
 Status: in progress. Default remains JOB0; new options remain off.
+V1–V3 record the source state at each freeze. The implementation is now an
+experimental checkpoint; these rejected measurements do not establish native
+performance acceptance.
 
 ## V1: shared job bank, bounded plans and reused formatter admission
 

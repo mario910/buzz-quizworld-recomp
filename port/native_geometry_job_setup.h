@@ -41,11 +41,8 @@ inline bool read_geometry_job_setup(const spu_context& ctx, GeometryJobSetup& ou
     return true;
 }
 
-inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
-                                 const char** reason = nullptr,bool input_parents=false)
+inline void commit_geometry_job_setup(spu_context& ctx,const GeometryJobSetup& setup)
 {
-    GeometryJobSetup setup;
-    if (!read_geometry_job_setup(ctx, setup, reason,input_parents)) return false;
     const auto& entry = setup.entry;
     const auto& object = entry.input[GeometryJobEntry::object];
     const auto& descriptor = entry.input[GeometryJobEntry::output_descriptor];
@@ -92,8 +89,13 @@ inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
         ctx.ls[descriptor.lsa + 1] = 12;
         ctx.ls[descriptor.lsa + 2] = 1;
     }
-    output = setup;
-    if (reason) *reason = nullptr;
-    return true;
+}
+inline bool prepare_geometry_job(spu_context& ctx,GeometryJobSetup& output,
+                                 const char** reason=nullptr,bool input_parents=false)
+{
+    GeometryJobSetup setup;
+    if(!read_geometry_job_setup(ctx,setup,reason,input_parents))return false;
+    commit_geometry_job_setup(ctx,setup);output=setup;
+    if(reason)*reason=nullptr;return true;
 }
 } // namespace buzz

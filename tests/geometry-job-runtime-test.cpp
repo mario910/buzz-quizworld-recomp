@@ -79,6 +79,9 @@ static void producer(spu_context* ctx)
     if (calls == 2 && selected("bad_exit")) ctx->ls[0x3ffff] ^= 1;
     if (calls == 2 && selected("bad_register")) ctx->gpr[127]._u32[3] ^= 1;
     if (calls == 2 && selected("bad_control")) ctx->list_stall_stat ^= 1;
+    if (calls == 2 && selected("bad_image")) ctx->image_id ^= 1;
+    if (calls == 2 && selected("bad_policy")) ctx->policy_mode ^= 1;
+    if (calls == 2 && selected("bad_overlay")) ctx->resident_ovl ^= 1;
     if (calls == 1 && selected("unstable_exit")) ctx->event_status = 0x80;
     if (calls == 2 && selected("post_exit_input")) retained->event_status = 0x80;
     if (calls == 1 && selected("unstable_queue")) {
@@ -92,14 +95,16 @@ static void producer(spu_context* ctx)
     ctx->pc = ctx->gpr[0]._u32[0];
     if (!ctx->host_depth) g_spu_trampoline_fn = spu_indirect_branch; // Ordinary SPU_RET.
 }
-static void reference(spu_context* ctx) { ++reference_calls; producer(ctx); }
+static void reference(spu_context* ctx) { assert(!buzz_geometry_job_owns_admission(ctx)); ++reference_calls; producer(ctx); }
 static void native(spu_context* ctx)
 {
     if (buzz_geometry_job_mode() == 1) assert(ctx->host_depth == 0);
+    assert(bool(buzz_geometry_job_owns_admission(ctx))==(buzz_geometry_job_mode()==1));
     ++native_calls; producer(ctx);
 }
 static int supports(const spu_context* ctx)
 {
+    assert(bool(buzz_geometry_job_owns_admission(ctx))==(buzz_geometry_job_mode()==1));
     ++eligibility_calls;
     assert(ctx->ls[0xe80f] == 0xa5 && ctx->pc == 0x1c18 && calls == 0);
     return !selected("unsupported");
@@ -133,7 +138,7 @@ int main(int argc, char** argv)
         assert(argc==4);
         struct Option {const char* name;int(*get)();};
         const Option options[]={
-            {"PUBLISH",buzz_geometry_job_publish_enabled},{"LAYOUT",buzz_geometry_job_layout_enabled},
+            {"DEBUG_STAGES",buzz_geometry_job_debug_stages},{"PUBLISH",buzz_geometry_job_publish_enabled},{"LAYOUT",buzz_geometry_job_layout_enabled},
             {"VERTEX",buzz_geometry_job_vertex_enabled},{"COMMANDS",buzz_geometry_job_commands_enabled},
             {"COMMAND_PUBLISH",buzz_geometry_job_command_publish_enabled},{"EMIT",buzz_geometry_job_emit_enabled},
             {"FULL_COMMANDS",buzz_geometry_job_full_commands_enabled},{"ATTRIBUTES",buzz_geometry_job_attributes_enabled},
@@ -205,7 +210,9 @@ int main(int argc, char** argv)
         ctx->ls = external.get();
     }
     const int mode = buzz_geometry_job_mode();
+    assert(!buzz_geometry_job_owns_admission(ctx.get()));
     buzz_geometry_job_run(ctx.get(), reference, native, supports);
+    assert(!buzz_geometry_job_owns_admission(ctx.get()));
     buzz_geometry_job_audit_report();
     assert(guest_writes == 1 && ctx->ls[0xe80f] == 0xa5 && ctx->host_depth == 0);
     assert(direct_effects==(selected("direct_reference") || selected("callback_reference")?1u:0u));
@@ -215,7 +222,8 @@ int main(int argc, char** argv)
     } else if (selected("off")) {
         assert(calls == 1 && reference_calls == 1 && !native_calls && !eligibility_calls);
         assert(!buzz_geometry_job_audit_failures());
-    } else if (selected("pass") || selected("post_exit_input") || selected("post_exit_queue")) {
+    } else if (selected("pass") || selected("post_exit_input") || selected("post_exit_queue") ||
+               (!buzz_geometry_job_debug_stages() && (selected("bad_exit") || selected("bad_register")))) {
         assert(calls == 2 && !buzz_geometry_job_audit_failures());
         assert(g_spu_trampoline_fn == spu_indirect_branch);
         assert(native_calls == (mode == 2 ? 1 : 0));

@@ -8,6 +8,7 @@
 
 using namespace buzz;
 static std::vector<GeometryJobIoOperation> operations;
+static unsigned prepare_reused=0, publish_reused=0;
 
 static void channel_write(spu_context* ctx, uint32_t channel, u128 value)
 {
@@ -92,10 +93,26 @@ static void seed(spu_context& ctx, unsigned trial)
     ctx.mfc_eah = trial * 0x109u; ctx.mfc_tag_status = trial * 0x127u;
     ctx.resv_ea = trial * 128; ctx.resv_valid = trial & 1;
 }
-static void native_prepare(spu_context* ctx) { GeometryCommandBuffer p; assert(read_geometry_command_buffer(*ctx,p)); prepare_geometry_command_buffer(*ctx,p); SPU_RET(ctx); }
+static void native_prepare(spu_context* ctx) {
+    GeometryCommandBuffer p; assert(read_geometry_command_buffer(*ctx,p));
+    const auto* cached=geometry_command_admission ? geometry_command_admission->take_prepare(*ctx) : nullptr;
+    assert(cached); ++prepare_reused;
+    // Compare initialized members; padding before the aligned vector fields
+    // is not part of the reservation contract.
+    assert(!memcmp(&p,cached,11*sizeof(uint32_t)));
+    assert(!memcmp(&p.context_arg,&cached->context_arg,8*sizeof(u128)));
+    prepare_geometry_command_buffer(*ctx,*cached); SPU_RET(ctx);
+}
 static void native_bind(spu_context* ctx) { GeometryCommandBindings p; assert(read_geometry_command_bindings(*ctx,false,p)); bind_geometry_command_attributes(*ctx,p); SPU_RET(ctx); }
 static void native_reset(spu_context* ctx) { GeometryCommandBindings p; assert(read_geometry_command_bindings(*ctx,true,p)); reset_geometry_command_bindings(*ctx,p); SPU_RET(ctx); }
-static void native_publish(spu_context* ctx) { GeometryCommandPublication p; assert(read_geometry_command_publication(*ctx,p)); publish_geometry_commands(*ctx,p); SPU_RET(ctx); }
+static void native_publish(spu_context* ctx) {
+    GeometryCommandPublication p,expected; assert(read_geometry_command_publication(*ctx,expected));
+    const auto* forecast=geometry_command_admission ? geometry_command_admission->take_publish(*ctx) : nullptr;
+    assert(forecast); ++publish_reused;
+    assert(read_geometry_command_publication(*ctx,p,nullptr,forecast));
+    assert(!memcmp(&p,&expected,sizeof p));
+    publish_geometry_commands(*ctx,p); SPU_RET(ctx);
+}
 static void compare(spu_context& native, spu_context& reference, unsigned trial)
 {
     memcpy(&reference, &native, sizeof native); reference.ls = reference.ls_store;
@@ -107,6 +124,7 @@ static void compare(spu_context& native, spu_context& reference, unsigned trial)
     const buzz_geometry_command_functions original{buzz_job_6eba_spu_func_000032C8,buzz_job_6eba_spu_func_00000100,buzz_job_6eba_spu_func_00000020,buzz_job_6eba_spu_func_000027A0};
     const buzz_geometry_command_functions combined{native_prepare,native_bind,native_reset,native_publish};
     emit_geometry_position_commands(native, plan, (trial < 8192 ? trial & 4096 : trial & 1) ? combined : original); native.pc = native.gpr[0]._u32[0];
+    assert(!geometry_command_admission);
     const auto diff = compare_function_state(native, reference);
     if (!diff.exact()) {
         fprintf(stderr, "position command case%u indices=%u start=%X expectedend=%X differs: r%d byte%d LS=%X/%u controls=%s\n", trial,
@@ -177,5 +195,7 @@ int main()
         if (read_geometry_position_commands(*native,plan)) { fprintf(stderr,"position rejection %u unexpectedly accepted\n",rejection); abort(); }
         assert(operations.empty() && !memcmp(native.get(),reference.get(),sizeof(*native)) && !memcmp(&plan,&before,sizeof plan));
     }
+    assert(prepare_reused>4000 && publish_reused==prepare_reused);
+    printf("Command proof reuse: %u preparation / %u publication matches independent readers PASS\n",prepare_reused,publish_reused);
     puts("Native position commands: 8320 strict full-state/channel cases with original/native callees (64 null-EA/minimum-reservation, 64 full-8192-byte-batch cases), 26 unchanged-state/no-I/O rejections PASS");
 }

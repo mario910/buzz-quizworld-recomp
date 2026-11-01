@@ -10,7 +10,12 @@ The audited EU 1.00 lift has SHA-256
 Derived code, memory dumps, corpus bytes and detailed traces remain under
 ignored `analysis/native-geometry/` and must not be committed.
 
-## Groundwork and strictness
+Current acceptance follows the job-boundary rule in the plan. JOB2 checks
+ordered I/O and job exit controls; `BUZZ_GEOMETRY_DEBUG_STAGES=1` adds the
+historical full-state diagnostics. Corpus job-boundary gates explicitly use
+`BUZZ_REPLAY_CONTRACT=1`; 0/unset retain the full exit-state debug comparison.
+
+## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for
 all 65,536 control encodings. Inputs are r3=aligned LS base, r4=encoded byte

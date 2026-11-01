@@ -89,7 +89,7 @@ template<bool Last> BUZZ_GEOMETRY_HOT void step_geometry_cmp_output(spu_context&
 }
 // Execute an admitted plan on 128 initialized host vectors. Only the supplied
 // bank and LS are updated; PC and trampoline are left to the ABI caller.
-// The bank must be disjoint from the context, including LS and c.gpr.
+// The bank may be c.gpr; it must not alias local store.
 inline bool emit_geometry_cmp_output_registers(spu_context& c,u128* r,const GeometryCmpOutput& p)
 {
     if(!p.columns)return false;
@@ -106,8 +106,8 @@ inline bool emit_geometry_cmp_output_registers(spu_context& c,u128* r,const Geom
 inline void emit_geometry_cmp_output(spu_context& c,const GeometryCmpOutput& p,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip)
 {
     if(!p.columns){c.pc=0x4618;g_spu_trampoline_fn=skip;return;}
-    u128 r[128];memcpy(r,c.gpr,sizeof r);
+    auto* r=c.gpr;
     emit_geometry_cmp_output_registers(c,r,p);
-    memcpy(c.gpr,r,sizeof r);c.pc=0x4610;g_spu_trampoline_fn=finish;
+    c.pc=0x4610;g_spu_trampoline_fn=finish;
 }
 }
