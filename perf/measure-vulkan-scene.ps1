@@ -15,6 +15,9 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
       [string]$PhaseLog = '',
       [string]$CpuBinding = '', [string]$CpuOutput = '',
+      [double[]]$CpuWindow = @(),
+      [ValidateRange(26,120)][int]$RoundIntroSeconds = 26,
+      [ValidateRange(0,900)][int]$ContentShotAt = 0,
       [string]$InterpreterBinding = '', [string]$InterpreterOutput = '',
       [int[]]$InterpreterAt = @(15,60),
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
@@ -36,6 +39,8 @@ $interpreterObserver = $null
 $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
 if ($CpuBinding -and -not $CpuOutput) { throw 'CpuBinding requires a fresh CpuOutput path' }
 if ($CpuOutput -and -not $CpuBinding) { throw 'CpuOutput requires CpuBinding' }
+if ($CpuWindow.Count -and ($CpuWindow.Count -ne 2 -or $CpuWindow[0] -le 0 -or $CpuWindow[1] -le $CpuWindow[0] -or $CpuWindow[1] -gt 900 -or -not $CpuBinding)) { throw 'CpuWindow requires a CPU binding and two ascending seconds in (0,900]' }
+if ($ContentShotAt -and -not $Shots) { throw 'ContentShotAt requires Shots' }
 if ($InterpreterBinding -and $CpuBinding) { throw 'Interpreter diagnostics require a separate run from CPU measurements' }
 if ([bool]$InterpreterBinding -ne [bool]$InterpreterOutput) { throw 'InterpreterBinding and InterpreterOutput must be supplied together' }
 if ($InterpreterBinding) {
@@ -49,6 +54,8 @@ if ($CpuBinding) {
     if (Test-Path -LiteralPath $CpuOutput) { throw 'CPU measurement already exists' }
 }
 try {
+    # Avoid building the small C# capture helper during a running experiment.
+    if ($Shots) { & (Join-Path $PSScriptRoot 'claude-gamectl.ps1') init }
     if ($Env) { foreach ($kv in $Env -split ';') { $k, $v = $kv -split '=', 2; [Environment]::SetEnvironmentVariable($k, $v, 'Process') } }
     [IO.File]::WriteAllText(($prefix + '.ini'), "version=1`nvolume=0`nfps_limit=$Limit`nfullscreen=0`noffline=1`nrenderer=auto`n")
     $env:BUZZ_PC_SETTINGS = $prefix + '.ini'
@@ -72,6 +79,7 @@ try {
     if ($CpuBinding) {
         $cpuStart = if ($Scene -eq 'Menu') { 40 } else { 150 }
         $cpuEnd = if ($Scene -eq 'Menu') { 98 } else { 220 }
+        if ($CpuWindow.Count) { $cpuStart,$cpuEnd = $CpuWindow }
         $cpuArgs = @(('"' + (Join-Path $PSScriptRoot 'measure-process-work.py') + '"'),
             'measure', '--pid', "$procId", '--exe', ('"' + $exe + '"'),
             '--binding', ('"' + $CpuBinding + '"'), '--output', ('"' + $CpuOutput + '"'),
@@ -105,7 +113,7 @@ try {
         1..9 | ForEach-Object { Key $orange; Start-Sleep 1 }; Start-Sleep 2
         Key $red; Start-Sleep 6                  # single-player challenges
         Phase 'scene-load'
-        Key $red; Start-Sleep 26                 # first challenge
+        Key $red; Start-Sleep $RoundIntroSeconds # first challenge host intro
         Phase 'player-setup'
         Key $red; Start-Sleep 6                  # join
         Key $red; Start-Sleep 5                  # load profile
@@ -117,6 +125,16 @@ try {
         Phase 'solo-round'
         Shot 'round'
         $end = $roundStart + $RoundSeconds
+    }
+    if ($ContentShotAt) {
+        if ($ContentShotAt -ge $end) { throw 'Content screenshot must precede scene shutdown' }
+        while (((Get-Date)-$t0).TotalSeconds -lt $ContentShotAt) {
+            $sceneProcess.Refresh()
+            if ($sceneProcess.HasExited) { throw 'Game exited before content screenshot' }
+            Start-Sleep -Milliseconds 250
+        }
+        Shot 'content'
+        Phase 'content-shot'
     }
     while (((Get-Date) - $t0).TotalSeconds -lt $end) {
         $sceneProcess.Refresh()

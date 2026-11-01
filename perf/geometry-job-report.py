@@ -1,0 +1,104 @@
+"""Validate and summarize one complete same-EXE JOB0/JOB1/JOB1/JOB0 series."""
+import argparse
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import re
+import statistics
+
+
+def load(name, filename):
+    spec=importlib.util.spec_from_file_location(name,Path(__file__).with_name(filename))
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module
+
+
+ab=load('geometry_ab','geometry-ab-report.py')
+work=load('process_work','measure-process-work.py')
+sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def comparison(values):
+    if any(v<=0 for v in values):raise ValueError('Nonpositive measurement')
+    baseline=statistics.mean(values[i] for i in (0,3));native=statistics.mean(values[i] for i in (1,2))
+    return dict(baseline=baseline,native=native,change_percent=100*(native/baseline-1),
+        pair_changes_percent=[100*(values[b]/values[a]-1) for a,b in ((0,1),(3,2))])
+
+
+def report(progress,csv_directory,scene_qa=None):
+    events=[json.loads(line) for line in progress.read_text(encoding='utf-8-sig').splitlines() if line.strip()]
+    if len(events)!=8 or [e['state'] for e in events]!=['start','done']*4:raise ValueError('Need four complete sequential runs')
+    starts=[e['run'] for e in events[::2]];done=events[1::2];runs=[e['run'] for e in done]
+    if starts!=runs or len({r['tag'] for r in runs})!=4:raise ValueError('Duplicate or changed run metadata')
+    if [r['job'] for r in runs]!=[0,1,1,0] or [r['index'] for r in runs]!=[1,2,3,4]:raise ValueError('Need JOB0/JOB1/JOB1/JOB0 order')
+    for field in ('scene','metric','window_seconds','exe_sha256','map_sha256','save_sha256','helper_sha256','runner_sha256','runtime_options_sha256','geometry_mask','stage_f','dump_every','cpu_binding_sha256','cpu_tool_sha256','round_intro_seconds','content_shot_at'):
+        if any(r[field]!=runs[0][field] for r in runs):raise ValueError('Series differs in '+field)
+    scene=runs[0]['scene'];metric=runs[0]['metric']
+    if scene not in ('Menu','Round') or metric not in ('Fps','Cpu'):raise ValueError('Unknown series method')
+    window={'Menu':[40,98],'Round':[200,270]}[scene]
+    if runs[0]['window_seconds']!=window or runs[0]['dump_every'] or runs[0]['geometry_mask']!=827 or runs[0]['stage_f']!=1:raise ValueError('Wrong window/common settings')
+    option_keys=set(runs[0]['job_options'])
+    if 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL' not in option_keys:raise ValueError('Missing production input option')
+    for run in runs:
+        if set(run['job_options'])!=option_keys:raise ValueError('Option inventory differs')
+        for key,value in run['job_options'].items():
+            expected=0 if key.startswith('BUZZ_GEOMETRY_JOB_AUDIT') else run['job']
+            if value!=expected:raise ValueError('Mismatched job option '+key)
+    if metric=='Cpu' and (not runs[0]['cpu_binding_sha256'] or not runs[0]['cpu_tool_sha256']):raise ValueError('CPU series lacks observer binding')
+    if metric=='Fps' and any(runs[0][f] for f in ('cpu_binding_sha256','cpu_tool_sha256')):raise ValueError('FPS series contains CPU observer')
+    if scene=='Round':
+        if not scene_qa:raise ValueError('Round requires inspected content screenshots before acceptance')
+        qa=json.loads(scene_qa.read_text())
+        if set(qa)!=set(r['tag'] for r in runs):raise ValueError('Incomplete round scene QA')
+    summaries=[];methods=set()
+    for event,run in zip(done,runs):
+        tag=run['tag'];csv_path=csv_directory/f'vk-scene-{tag}.csv';log=csv_directory/f'vk-scene-{tag}.stderr.log'
+        if sha(csv_path)!=event['csv_sha256'] or sha(log)!=event['log_sha256']:raise ValueError('Completed-run file hash differs')
+        text=log.read_text(errors='replace')
+        if any(token in text for token in ('] DIFF','SPU HALT','MISMATCH')):raise ValueError('Game reported a validation failure')
+        if '[stagef] mode=1' not in text or '[geometry-native] mode=1 kernels=0x33B' not in text:raise ValueError('Runtime common settings differ')
+        native_roots=max(map(int,re.findall(r'\[geometry-job/input-control/raw0\] native=(\d+) PASS',text)),default=0)
+        if run['job'] and ('[geometry-job] mode=1:' not in text or native_roots<256):raise ValueError('Missing actual native whole-job/input coverage')
+        if not run['job'] and ('[geometry-job] mode=1:' in text or native_roots):raise ValueError('Reference arm used native jobs')
+        phases=[json.loads(line) for line in (progress.parent/f'{tag}.phases.jsonl').read_text(encoding='utf-8-sig').splitlines()]
+        if not phases or phases[-1]['phase']!='end':raise ValueError('Scene did not finish')
+        if scene=='Round':
+            shot=csv_directory/f'vk-scene-{tag}-content.png'
+            checks=[p for p in phases if p['phase']=='content-shot']
+            if len(checks)!=1 or checks[0]['elapsed_ms']>=window[0]*1000:raise ValueError('Scene screenshot overlaps the measurement window')
+            if not qa[tag]['inspected'] or sha(shot)!=qa[tag]['sha256']:raise ValueError('Round screenshot was not accepted')
+        frame=ab.summarize(csv_path,*window)
+        item=dict(tag=tag,job=run['job'],native_raw0_lower_bound=native_roots,frame_times=frame)
+        if metric=='Cpu':
+            cpu_path=progress.parent/f'{tag}.cpu.json'
+            if sha(cpu_path)!=event['cpu_sha256']:raise ValueError('CPU completed-run hash differs')
+            cpu=json.loads(cpu_path.read_text())
+            if cpu['status']!='complete' or cpu['exe_sha256']!=run['exe_sha256'] or cpu['binding_sha256']!=run['cpu_binding_sha256'] or cpu['window_seconds']!=window:raise ValueError('CPU binding/window mismatch')
+            if len(cpu['snapshots'])!=2 or any(abs(s['elapsed_ns']/1e9-t)>.05 for s,t in zip(cpu['snapshots'],window)):raise ValueError('CPU boundary missed')
+            item['cpu']=work.summarize(*cpu['snapshots']);methods.add(cpu['method'])
+        summaries.append(item)
+    result=dict(scene=scene,metric=metric,window_seconds=window,exe_sha256=runs[0]['exe_sha256'],map_sha256=runs[0]['map_sha256'],save_sha256=runs[0]['save_sha256'],
+        progress_sha256=sha(progress),settings=runs[0],runs=summaries,
+        fps=comparison([r['frame_times']['fps'] for r in summaries]),
+        limitation='One reversed series;round questions/cameras may vary. FPS and CPU series are separate;this does not close cold correctness/interpreter/default gates.')
+    if metric=='Cpu':
+        if len(methods)!=1:raise ValueError('CPU methods differ')
+        result['cpu_method']=methods.pop()
+        for owner in ('pool','process'):
+            result[owner]={key:comparison([r['cpu'][owner][key] for r in summaries]) for key in ('cycles_per_frame','cpu_ms_per_frame')}
+    if scene=='Round':result['scene_qa_sha256']=sha(scene_qa)
+    return result
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('progress',type=Path);parser.add_argument('--csv-directory',type=Path,default=Path('analysis'));parser.add_argument('--scene-qa',type=Path);parser.add_argument('--output',type=Path,required=True)
+    args=parser.parse_args();result=report(args.progress,args.csv_directory,args.scene_qa)
+    with args.output.open('x',encoding='utf-8') as stream:json.dump(result,stream,indent=2);stream.write('\n')
+    print(f"{result['scene']} {result['metric']} FPS: {result['fps']}")
+    for owner in ('pool','process'):
+        if owner in result:print(owner,result[owner])
+
+
+if __name__=='__main__':main()

@@ -1,0 +1,89 @@
+# Phase3 native whole-job performance
+
+Status: **menu regression; keep JOB0/geometry827/new flags0**. Phase3 remains
+open. These results evaluate the combined native configuration, not individual
+kernels and not the still-unobserved cold formats.
+
+## Method and binding
+
+Two separate fresh reversed series use JOB0/JOB1/JOB1/JOB0. The FPS series
+has no CPU observer; the CPU series uses existing OS process/thread counters
+and a map-bound presentation counter. Both use the40..98s menu camera window,
+100s runs, uncapped/background/muted settings, no GPU dumps and no interpreter
+observer. Every run starts from the same private saved profiles. No game build,
+CPU tests or diagnostic profiling runs concurrently.
+
+- Frozen build: `build-vulkan-phase3-input-routing-v3`, ABI48/61 stages.
+- EXE: `bec8b85965eb662a171004af33060e30dc0e868a50e016d2c4cb45e2ea6efbd6`.
+- MAP: `729a12aef82a51d8c8ddeb5810345681440886c734583ae5043725e55023da5d`.
+- Initial save: `92ed9caf2b90849aac2e0236f334f3138548ef288b519badcdfb48d2342f2845`.
+- Both arms retain geometry mask827 and native StageF1. JOB0 disables the new
+  job options; JOB1 enables all recognized production options, with audit off.
+  The complete option maps are bound in the progress JSON, along with tool,
+  runtime-options source, save, EXE and MAP hashes.
+- Every native measurement has nonzero actual whole-job/raw0 coverage checked
+  from its runtime log. Corpus/live correctness remains separately established.
+
+## FPS series
+
+Mean FPS: **27.74 -> 25.30 (-8.78%)**.
+Reversed pair changes: -8.63%, -8.92%.
+
+| Order | JOB | FPS | Median interval(ms) | p90(ms) | p99(ms) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 0 | 27.65 | 35.20 | 47.58 | 53.33 |
+| 2 | 1 | 25.26 | 39.59 | 51.48 | 59.30 |
+| 3 | 1 | 25.34 | 39.71 | 51.55 | 59.47 |
+| 4 | 0 | 27.82 | 35.23 | 47.90 | 53.44 |
+
+## Separate CPU-cost series
+
+The denominator is completed presentations, with stable identities for the
+four named SPURS pool lanes and the process. Raw snapshots are recomputed;
+missed boundaries, frame uncertainty, counter resets, incomplete/reordered
+runs, changed settings, changed files and zero native coverage fail reporting.
+CPU time is summed thread work, so it can exceed the wall interval per frame.
+
+| Cost per completed frame | JOB0 | JOB1 | Change | Pair changes |
+| --- | --- | --- | --- | --- |
+| SPURS workers: million cycles | 438.06 | 507.78 | +15.92% | +16.55%, +15.29% |
+| SPURS workers: CPU ms | 118.98 | 138.03 | +16.02% | +15.02%, +17.01% |
+| Whole process: million cycles | 797.28 | 870.53 | +9.19% | +9.81%, +8.57% |
+| Whole process: CPU ms | 216.90 | 236.71 | +9.13% | +8.94%, +9.31% |
+
+Native has higher worker and process cost per completed frame in both pairs.
+The total cycles consumed over the fixed wall window alone would conceal
+this: the native run completes fewer frames. This is why raw CPU percentage
+or cycles/second is not the optimization decision.
+
+## Decision, limitations and next work
+
+Do not enable the combined native configuration by default. It regresses
+menu FPS and normalized CPU cost. This result does not attribute the loss to
+an individual function or invalidate its exactness checks. The useful next
+step is a separate diagnostic profile, then targeted changes and a new frozen
+validation/measurement series. Keep the strict checker and fallback accounting.
+
+The old36.3FPS baseline and45..50FPS forecast were different samples/estimates;
+these paired same-EXE values are the applicable comparison for this build.
+Round reversed A/B and CPU measurements have not run. Round interpreter counts,
+cold real/live coverage and the other phase3/default gates remain open.
+Flat FPS with repeatable CPU savings may still justify individual options
+after their correctness/render gates; this aggregate configuration has no such
+savings. Strict StageF reconstruction remains phase7 LAST.
+
+The first attempted series (`job-fps-menu-v1`) is invalid: an empty replay
+variable activated replay and the app exited before the scene. The corrected
+runner removes replay and dump variables entirely. The failed files and source
+are preserved; no partial attempt is included in these results. Seven report
+tests pass, including incomplete/mixed/hash-tampered series, missing native
+coverage and a cached summary hiding a CPU counter reset.
+
+Private evidence is under `analysis/native-geometry/phase3/`:
+`job-fps-menu-v2-report.json`, `job-cpu-menu-v1-report.json`, their complete
+four-run progress/phase/log/CSV sets, and `job-ab-v2-cpu-binding.json`.
+`frozen-job-menu-v2-measure-scene.ps1` and `frozen-job-menu-v2-runner.ps1`
+bind the exact scripts used. A subsequent helper-only change initializes the
+screenshot assembly before future round launches; it does not change game
+code or retrospectively change these menu runs. Original source, saves and
+older frozen artifacts remain pinned. The continuing objective stays active.

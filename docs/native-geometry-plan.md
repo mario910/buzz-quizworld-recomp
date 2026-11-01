@@ -52,14 +52,16 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: interpreter-count checks, reversed same-frozen ABI48
-menu/round A/B, normalized worker/process CPU/cycles and expanded cold real
-coverage before default decisions. Live whole-job/raw0 checks pass at least
-45,000 strict comparisons each; actual-native menu and actual-question round
-readbacks are visually verified. New builtin inputs1..5 remain real/live0.
-Menu interpreter counts are absolutely zero in both diagnostic arms. Actual
-rounds show pre-existing image2 interpretation and matching entry inventories;
-the round count gate remains OPEN pending workload-aligned evidence.
+Current next milestone: diagnose the measured ABI48 menu regression, then
+optimize and repeat strict/frozen validation before default decisions. Reversed
+menu pairs give27.74 ->25.30FPS (-8.78%); separate worker cycles/frame rise15.92%
+and process cycles/frame9.19%, with both pairs agreeing. The
+[performance report](native-geometry-phase3-performance.md) records the evidence.
+Round reversed A/B/CPU, round interpreted-count proof and cold real/live gates
+remain OPEN. Live whole-job/raw0 checks pass at least45,000 strict comparisons
+each; actual-native menu and actual-question frames are verified. New builtin
+inputs1..5 remain real/live0. Menu interpreter counts are absolutely zero in
+both diagnostic arms; round counts include pre-existing image2 interpretation.
 All five standard input decoders and the complete standard93F0 controller
 are implemented and integrated behind independent default-off switches.
 Their standalone and production-routing checks pass; real coverage of the
@@ -974,7 +976,7 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
-| Whole-job driver | n/a | wip; native outer control, SPU-ABI library/data-path integration and final gates open | `BUZZ_GEOMETRY_JOB=0/1/2`, default 0 | 19,508 exact / 58,195 transfers in all three modes; 1,024 synthetic outer paths | >=445,000 strict outer-flow + I/O matches | not measured for native driver | |
+| Whole-job driver | n/a | ABI48 opt-in; measured menu CPU/FPS regression; cold/round/final gates OPEN | `BUZZ_GEOMETRY_JOB=0/1/2`, default0 | Five arms19,508exact/58,195transfers;enabled19,508native/0whole-job fallback;strict synthetic/routing proofs in results | >=45,000strict whole-job/I/O on current freeze;normal native menu/actual question | Menu27.74 ->25.30;worker cycles/frame+15.92%;default-off | 272a375 |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x2B80 output sizing | n/a | native opt-in; shared host layout; final gates open | `BUZZ_GEOMETRY_JOB_LAYOUT=0/1`, default 0 | 7,201 native sizes, zero fallback; independent/combined 19,508-job replay exact; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x35F0 vertex publication | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_VERTEX=0/1`, default 0 | 7,201 native publications, zero fallback; 7,201 host-layout reuses in combined runs; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks and layout reuses; normal native menu/round intro dumps | not measured | |
@@ -1075,6 +1077,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | ABI48 whole-job reversed menu FPS + separate CPU | Four FPS +four CPU runs,40..98s,same EXE/save | 27.74 ->25.30 | pending | FPS-8.78%(pairs-8.63/-8.92);pool cycles/frame+15.92%(+16.55/+15.29);process+9.19%(+9.81/+8.57);CPUms pool+16.02%/process+9.13%;combined default-off;profile next;round/cold/interpreter gates OPEN |
 | 2026-11-01 | ABI48 interpreter diagnostics | Fresh JOB0/JOB1 menu+actual round;mask827/StageF1 | not measured | not measured | Menu15/60s absolute0 in both;round240s observed300,699,624/300,952,932,allimage2/same5pages;whole-run entries2:07B4C/A6C8+40:02A18 match;positive legacy stats non-atomic;roundcount/reversedAB/CPU/default OPEN;8observer tests |
 | 2026-11-01 | ABI48 input routing live/render | Checked menu80s/native menu75s/visually verified solo round | not measured | not measured | >=45,000strict whole-job/I/O +45,000strict raw0 input returns;normal1280x720 menu+actual-question readbacks;native raw0 >=2,750,000menu/11,415,000round inclnavigation;no mismatch/first-fallback messages;periodic lower bounds;inputs1..5real/live0;interpreter/reversedAB/normalizedCPU/default OPEN |
 | 2026-11-01 | Standard93F0 and5 builtin input production wrappers | CPU routing/parent/layout/getter tests +5 frozen corpus arms | not measured | not measured | ABI48/61stages;3,876production/1,938parent strict/1,440child strict;576parent roots/292layouts/877rejects;472getters;each19,508exact/58,195transfers/zero whole-job fallback;raw0controller19,508real;new1..5real/live0;parent scratch/frame guards;initial5,838coverage regression corrected;live/final/default OPEN |

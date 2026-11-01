@@ -6074,3 +6074,30 @@ Reversed same-frozen menu/round FPS A/B, separate normalized worker/process
 CPU/cycles, cold real/live paths and default decisions remain OPEN. Phase3
 and the continuing objective remain active through shared phase4, optional5/6
 decisions and final strictStageF7.
+
+
+## First complete ABI48 whole-job menu A/B and CPU series
+
+The [separate performance report](native-geometry-phase3-performance.md) records
+same-frozen-EXE JOB0/JOB1/JOB1/JOB0 FPS and separate CPU series, each with the
+same initial save, StageF1, geometry mask827 and40..98s menu window. Seven
+report tests and all eight completed measurement runs pass their validity
+checks, including actual native coverage and raw counter reconstruction.
+
+The combined native configuration regresses FPS **27.74 ->25.30 (-8.78%)**;
+both pairs agree. Worker cycles/frame rise **15.92%**, process cycles/frame
+**9.19%**, worker CPU ms/frame **16.02%** and process CPU ms/frame **9.13%**,
+all in the same direction in both reversed pairs. Do not enable this combined
+configuration by default. This aggregate result does not identify which
+individual functions cause the cost; the next step is separate diagnostic
+profiling and targeted optimization, with strict validation retained.
+
+The first trial activated replay via an empty environment variable and exited;
+it is invalid and preserved separately. Corrected measurements remove replay
+and dump variables entirely. A later screenshot-helper pre-initialization
+change keeps future round captures from compiling C# during a running scene;
+the exact earlier menu scripts are archived and the game EXE is unchanged.
+Round A/B/CPU, round interpreter counts, cold real/live and final/default gates
+remain OPEN. JOB0/geometry827/newflags0 and the StageF exception remain unchanged.
+Phase3 and the continuing objective stay active through shared phase4,
+optional5/6 decisions and final strictStageF7.

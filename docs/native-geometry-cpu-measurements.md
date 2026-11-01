@@ -86,3 +86,13 @@ menu arms remain absolutely zero at15/60s. Actual-round arms have the same
 five image2 pages at240s and matching whole-run image2/image40 entry keys;
 this leaves the round instruction-count gate open. See the
 [phase3 diagnostics](native-geometry-phase3-results.md#map-bound-interpreter-diagnostics-on-abi48).
+
+
+## Phase3 combined whole-job result
+
+The first reversed JOB0/JOB1 menu series finds **higher**, not lower, normalized
+CPU cost: worker cycles/frame+15.92%, process+9.19%, worker CPU ms/frame+16.02%
+and process+9.13%, with both pairs agreeing. Separate FPS pairs regress8.78%.
+The [phase3 performance report](native-geometry-phase3-performance.md) binds
+the actual EXE/MAP/settings and records the per-run data. Defaults remain off;
+individual option savings cannot be inferred from this aggregate test.
