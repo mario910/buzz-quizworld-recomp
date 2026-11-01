@@ -6462,3 +6462,29 @@ behind an independent switch,with unchanged ordered LS effects and complete
 parent/child strict boundaries. This is an implementation task;the timings do
 not complete the full host-buffer pipeline. Cold real/live,round interpreted
 counts,aggregate/default gates and phase3 remain open. Strict StageF7 stays last.
+
+
+## Exact interpreter counter foundation
+
+A new opt-in atomic, cumulative image/page observer replaces the unreliable
+positive legacy statistics for future diagnostic runs. It counts actual
+executor dispatches, never resets or silently truncates, and rejects full
+inventory/overflow. Startup arming distinguishes enabled zero from unarmed or
+disabled counters. Offline reporting runs only after synchronous replay; live
+snapshots quiesce all target threads and restore their previous suspend counts.
+See [the contract and commands](native-geometry-interpreter-counts.md).
+
+The production interpreter fixture passes literal instruction/page counts,
+STOP/rejoin/HLE/step-cap boundaries and complete268,816-byte context identity
+with the setting unset/0/1. Four threads pass800,000 updates, shared/private
+keys and first-arm races. Full inventory, saturation and strict config failures
+are explicit. A real Windows process snapshot captures81,920 intermediate
+updates with8threads, then exactly800,000 across5buckets; injected ABI failure
+resumes the process and its orderly exit passes. Fifteen new observer tests
+and8legacy tests pass. The full game builds and links.
+
+This commits the tool foundation,not actual-game round-count acceptance. New
+frozen corpus/menu/round diagnostics remain next; no FPS or CPU saving is
+claimed. JOB0/geometry827/newflags0/SPANS0/REGISTERS0 stay unchanged,with the
+exact observer also0 by default and explicitly0 in benchmark arms. Phase3
+remains active through the continuing objective; strict StageF7 remains last.

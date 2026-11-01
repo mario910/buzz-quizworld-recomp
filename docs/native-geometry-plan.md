@@ -59,6 +59,11 @@ are complete:menuFPS+0.894%,round+0.169% with mixed pairs/tails;worker cycles/fr
 -0.341%/-0.010%,round worker CPUtime-1.148% in both pairs,process results mixed.
 REGISTERS stays0 after this small/mixed result. The implementation remains an
 opt-in first host-data boundary.
+The [exact interpreter counter foundation](native-geometry-interpreter-counts.md)
+now passes production-state neutrality, concurrent recorder/process and observer
+failure tests. It defaults off and is explicitly off in FPS/CPU series. Freeze
+the new build for corpus and matched live diagnostics; the round count gate
+remains open until actual-game evidence establishes the comparison.
 REGISTERS0/1 integrates all seven cores directly with the formatter's host
 bank,default0. Ten frozen arms each pass19,508exact jobs/58,195transfers,
 unchanged old ledgers and7,201host roots/17,278children where enabled. New

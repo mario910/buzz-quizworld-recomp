@@ -591,6 +591,25 @@ static void harness_guest_caller(uint32_t opd, uint64_t a0, uint64_t a1,
 
 #include "pc_runtime.h"
 #include "pc_overlay.h"
+#include "spu_interp_counts.h"
+static int report_replay_interpreter_counts()
+{
+    if (!spu_interp_counts_enabled()) return 0;
+    /* Offline replay is synchronous and returns before any game workers boot.
+     * All interpreter writers are quiescent here; live runs use the observer. */
+    spu_interp_count_row rows[SPU_INTERP_COUNT_CAPACITY];
+    spu_interp_count_info info;
+    const size_t count = spu_interp_counts_read(rows, SPU_INTERP_COUNT_CAPACITY, &info);
+    fprintf(stderr, "[spu-interp-exact] replay enabled=%d flags=%u unbucketed=%llu total=%llu buckets=%zu\n",
+            info.enabled, info.flags, (unsigned long long)info.unbucketed_steps,
+            (unsigned long long)info.total, count);
+    if (info.enabled != 1 || info.flags || info.unbucketed_steps || count > SPU_INTERP_COUNT_CAPACITY)
+        return 74;
+    for (size_t i = 0; i < count; ++i)
+        fprintf(stderr, "[spu-interp-exact] image=%d page=0x%05X steps=%llu\n",
+                rows[i].image, rows[i].page, (unsigned long long)rows[i].steps);
+    return 0;
+}
 int main(int argc, char** argv)
 {
     /* Configure streams before their first use. Buffers must outlive all
@@ -604,6 +623,9 @@ int main(int argc, char** argv)
             live_logs ? _IONBF : _IOFBF, sizeof stdout_buffer);
     setvbuf(stderr, live_logs ? nullptr : stderr_buffer,
             live_logs ? _IONBF : _IOFBF, sizeof stderr_buffer);
+    /* Arm even when no interpreter is entered, so enabled-zero is explicit. */
+    if (spu_interp_counts_enabled())
+        fprintf(stderr, "[boot] exact interpreted-instruction counters enabled (diagnostic run)\n");
 #if defined(BUZZ_SPU_AVX2) || defined(BUZZ_SPU_SSE41)
     // This TU remains baseline x86: reject incompatible CPUs before entering
     // lifted SPU code. The test includes OS AVX register-state support.
@@ -678,8 +700,11 @@ int main(int argc, char** argv)
     }
 
     /* Offline job corpus replay (port/job_corpus.cpp): no game boot. */
-    if (const char* corpus = getenv("BUZZ_REPLAY_CORPUS"))
-        return buzz_job_corpus_replay(corpus);
+    if (const char* corpus = getenv("BUZZ_REPLAY_CORPUS")) {
+        const int replay_result = buzz_job_corpus_replay(corpus);
+        const int diagnostic_result = report_replay_interpreter_counts();
+        return replay_result ? replay_result : diagnostic_result;
+    }
 
     uint32_t entry = ppu_load_elf(argv[1]);
     if (!entry) {

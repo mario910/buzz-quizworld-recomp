@@ -71,7 +71,7 @@ try {
         foreach ($geometryOption in $geometryOptions) { $geometrySelected[$geometryOption]=if ($geometryOption -like 'BUZZ_GEOMETRY_JOB_AUDIT*') { 0 } else { $geometryJob } }
         if ($Option) { $geometrySelected[$Option]=$geometryArm }
         $geometryEnvironment=(@($geometrySelected.Keys | ForEach-Object { "$_=$($geometrySelected[$_])" }) -join ';')
-        $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0"
+        $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0;SPU_INTERP_EXACT=0"
         $geometryRecord=[ordered]@{ tag=$geometryRunTag;scene=$Scene;metric=$Metric;job=$geometryJob;arm=$geometryArm;knob=$geometryKnob;index=$geometryIndex;window_seconds=$geometryWindow;exe_sha256=$geometryPins[$geometryExe];map_sha256=$geometryPins[$geometryMap];save_sha256=$geometryPins[$geometryTemplateSave];helper_sha256=$geometryPins[$geometryHelper];runner_sha256=$geometryPins[$geometryRunner];runtime_options_sha256=$geometryPins[$geometryRuntime];job_options=$geometrySelected;geometry_mask=827;stage_f=1;dump_every=0;cpu_binding_sha256=$geometryBindingHash;cpu_tool_sha256=$geometryCpuToolHash;round_intro_seconds=50;content_shot_at=195 }
         $geometryRecord.content_method=if ($Scene -eq 'Round') { 'gpu-once' } else { 'none' }
         $geometryRecord.content_capture_ms=if ($Scene -eq 'Round') { 190000 } else { 0 }
