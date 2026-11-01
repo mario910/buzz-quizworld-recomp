@@ -7,6 +7,90 @@ within reach of weaker CPUs (Steam Deck, laptops, Switch 2-class ARM).
 
 This is a living document. Update the tracker tables after every session.
 
+## Course correction (2026-11-01, supersedes conflicting text below)
+
+**Status: the phase-3 whole-job path is slower than the lift it replaces.**
+JOB1 vs JOB0 on the menu: FPS -8.78%, SPURS worker cycles/frame +15.9%
+([performance](native-geometry-phase3-performance.md)). The cause is the
+method, not a missing kernel. Each "native" kernel is a transliteration of
+the SPU instruction stream (`spu_shufb`/`spu_rotqbii` on a `u128 r[128]`
+bank over LS), required to reproduce every register, dummy iteration,
+prefetch and dead final value at every function boundary. That is the same
+work the lifted C already does at -O2, plus overhead. Differential RIP
+samples (`spans-rip-v3`, native vs off) attribute the extra lane time:
+
+| Overhead | Share of active lane samples |
+| --- | --- |
+| Shared atomic ledgers + option getters (`native_geometry_job.cpp`) | ~4.5% |
+| Admission walks `read_*`/`prove_*` repeating each loop before emit | ~4.9% |
+| SPU-ABI shims: 2 KiB bank copies, `*_setup_abi`/`*_final_abi`/spills | ~4% |
+| Outlined per-group encoder helpers returning ~700-byte structs | ~3.7% |
+
+Already corrected (measure on top of these, keep them):
+
+- `d0a688b`: per-thread sharded ledger counters, constant-initialized option
+  cache, force-inlined encoder helpers. Menu JOB1 34.99 -> 35.94 FPS
+  (+2.7%, both reversed pairs); JOB1 vs JOB0 gap -7.3% -> -4.8%.
+- Closed-form output-encoder admission, narrowed weighted-skin palette scan,
+  no per-call heap in unit vectors (exact; differential test
+  `tests/geometry-output-admission-test.cpp`). Menu JOB1 35.21 -> 36.57 FPS
+  (+3.9%, pairs +3.89%/+3.84%); JOB1 vs JOB0 gap now -3.3%.
+- `b934a88`: the Vulkan runtime set follows `renderer` in `game-build.json`.
+  Before it, a frozen build directory without "vulkan" in its name silently
+  ran with FIFO present and no batching (~5 FPS). Name freezes
+  `build-vulkan-*` anyway and check the run log for `present mode mailbox`.
+
+### New exactness boundary: the job, not the function
+
+Ground rule 1 now means **bit-exact at the job boundary**: the ordered
+DMA/atomic/channel transcript, every byte the job publishes (vertex, index
+and RSX command output) and the job's exit state. Corpus replay already
+checks exactly this (19,508 jobs / 58,195 transfers); live whole-job I/O
+comparison checks it in game. SPU floating-point semantics still apply to
+every published value (RTZ, denormal flush, no contraction unless the SPU
+op fuses).
+
+Inside a job, native code no longer reproduces SPU registers, LS scratch,
+dummy/lookahead iterations, prefetches, dead final register values or
+SPU-ABI call frames that nothing outside the job observes. Per-function
+strict full-state checkers stay available as debugging tools; they are not
+required gates for new work and must not dictate data layout.
+
+Consequences:
+
+- Stop writing new per-function SPU-ABI transliterations, including cold
+  storage formats with zero real coverage. Unsupported descriptors fall
+  back to the lifted job as a whole.
+- Phase 7 (strict Stage F register reconstruction) is cancelled. Stage F
+  only has to meet the job-boundary gate like everything else.
+- Default decisions require JOB1 to be at least as fast as JOB0, in FPS
+  or in worker cycles per completed frame, before any further coverage work.
+
+### Phase 3 work order from here
+
+1. **3a: remove the remaining overhead without changing outputs.** One host
+   register bank per job (REGISTERS everywhere, no `memcpy` of `c.gpr` per
+   call); drop the per-call admission walks that the job-level admission
+   already implies; no heap allocation on the hot path (`std::vector` in
+   `color`, `fixed_stream`, `float32_stream`, `half_stream`, `typed_stream`,
+   `blend_scatter`, `full_commands`, `position_commands`, `run_lists`,
+   `command_publish`). Measure. Target: JOB1 >= JOB0 on the menu.
+2. **3b: host data pipeline.** For a recognized job, decode its Edge input
+   streams once into host little-endian SoA float/int arrays; skin,
+   transform and cull on those arrays with AVX2 (8 lanes, not 4-lane u128
+   emulation); write each output stream once, in its final format, into
+   the LS/DMA area the job publishes. Start with the profile's hottest
+   paths: float/half/CMP output, unit vectors, weighted skin, index
+   triangles. Unrecognized jobs run the lifted job unchanged.
+3. **Gates per step:** exact corpus replay of all job outputs; live
+   whole-job I/O comparison (>=10,000 jobs); native menu and round frames
+   inspected; same-EXE reversed menu and round FPS plus worker/process
+   CPU per completed frame.
+4. **Housekeeping:** collapse the 61 per-stage option switches into
+   `BUZZ_GEOMETRY_JOB` plus a few group switches once 3b replaces those
+   stages. Keep results documents short: a table per measurement and the
+   decision, not a narrative of every proof.
+
 ## Continuing objective (2026-11-01)
 
 The user has authorized continuing through the remaining phases until the
@@ -191,17 +275,16 @@ uncapped) above 30, and is the prerequisite for any low-power target.
 
 ## Ground rules
 
-1. **Bit-exact or it does not ship.** Every native function must reproduce
-   the lift's registers, local store, DMA/atomic stream and exit state for
-   every corpus job. Floating point follows SPU semantics (round toward
+1. **Bit-exact at the job boundary or it does not ship** (revised
+   2026-11-01, see the course correction above). Every native job must
+   reproduce the lift's DMA/atomic/channel stream, all published output
+   bytes and its exit state for every corpus job. Intra-job SPU registers
+   and LS scratch are not part of the contract. Floating point follows SPU semantics (round toward
    zero, flush denormals, no FMA contraction unless the SPU op fuses);
    mirror the stage F build flags (`-mavx2 -mfma -frounding-math
    -ffp-contract=off`, `SPU_NATIVE_RTZ_*`).
-   Existing stage F is an explicitly accepted baseline exception (2026-10-30):
-   reproduce its established volatile-register/cull contract while reporting
-   strict differences separately. New kernels must pass strict full-state
-   comparisons. This exception is temporary: the final phase 7 removes it
-   after Stage F passes the same strict gates. See [data map and harness](native-geometry-data.md).
+   The former Stage F volatile-register exception and the phase 7 strict
+   reconstruction are obsolete under the job-boundary rule. See [data map and harness](native-geometry-data.md).
 2. **One function per step.** Replace a single lifted function (or a
    tightly coupled group), prove it, measure it, commit it. Never a big-bang
    rewrite.
