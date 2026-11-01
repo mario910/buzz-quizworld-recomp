@@ -1,6 +1,10 @@
 /* Port-only image-41 whole-job checks and incremental native flow hooks. */
 #pragma once
 #include "spu_context.h"
+/* Per-group encoder helpers: when outlined, their large Pack structs are
+ * materialized in memory for every group even though only the final group
+ * reads most fields. Inlining lets dead fields fold away; same operations. */
+#define BUZZ_GEOMETRY_HOT inline __attribute__((always_inline))
 #ifdef __cplusplus
 extern "C" {
 #endif

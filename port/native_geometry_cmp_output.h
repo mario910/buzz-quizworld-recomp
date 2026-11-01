@@ -6,7 +6,7 @@
 namespace buzz {
 struct GeometryCmpOutput { unsigned columns=0,groups=0,cross_columns=0; };
 struct GeometryCmpOutputPack { u128 input[4],scaled[4],integer[4],shifted[4],first[2],second[2],packed[2],rotated[2]; };
-inline GeometryCmpOutputPack pack_geometry_cmp_output(const u128* r,const u128* input)
+BUZZ_GEOMETRY_HOT GeometryCmpOutputPack pack_geometry_cmp_output(const u128* r,const u128* input)
 {
     GeometryCmpOutputPack p;
     for(unsigned i=0;i<4;++i){
@@ -44,7 +44,7 @@ inline bool read_geometry_cmp_output(const spu_context& c,GeometryCmpOutput& out
     }
     out={columns,total,cross_columns};return true;
 }
-inline void cache_geometry_cmp_output(u128* r,const GeometryCmpOutputPack& p)
+BUZZ_GEOMETRY_HOT void cache_geometry_cmp_output(u128* r,const GeometryCmpOutputPack& p)
 {
     r[17]=p.packed[0];r[22]=p.rotated[0];r[16]=p.packed[1];r[20]=p.rotated[1];
 }
@@ -59,7 +59,7 @@ inline bool prepare_geometry_cmp_output_column(spu_context& c,u128* r)
     if(!cross._u32[0])return false;
     const auto left=spu_sfi(low,16);r[25]=spu_selb(r[49],spu_shlqby(r[63],left),spu_fsmb(spu_shl(r[45],left)));return true;
 }
-template<bool Last> inline void step_geometry_cmp_output(spu_context& c,u128* r,bool cross)
+template<bool Last> BUZZ_GEOMETRY_HOT void step_geometry_cmp_output(spu_context& c,u128* r,bool cross)
 {
     const auto source=r[21],after=spu_cgt(source,r[32]),chosen=spu_selb(r[24],r[30],after),cursor=spu_a(source,r[29]),route=spu_a(r[24],r[31]);
     const u128 cached[]={r[17],r[22],r[16],r[20]};u128 old[4],second[4],value[4],tail[4];

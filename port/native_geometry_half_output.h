@@ -8,7 +8,7 @@ struct GeometryHalfOutput { unsigned columns=0,groups=0,cross_columns=0; };
 struct GeometryHalfOutputPack {
     u128 input[4],rotated[4],original[2],converted[2],magnitude[2],under_max[2],clamped[2],signed_bits[2],small[2],packed[2],high_half[2];
 };
-inline GeometryHalfOutputPack pack_geometry_half_output(const u128* r,const u128* input)
+BUZZ_GEOMETRY_HOT GeometryHalfOutputPack pack_geometry_half_output(const u128* r,const u128* input)
 {
     GeometryHalfOutputPack p;
     for(unsigned i=0;i<4;++i){p.input[i]=input[i];p.rotated[i]=spu_rotqbii(spu_sf(r[38],input[i]),3);}
@@ -48,7 +48,7 @@ inline bool read_geometry_half_output(const spu_context& c,GeometryHalfOutput& o
     }
     out={columns,total,cross_columns};return true;
 }
-inline void cache_geometry_half_output(u128* r,const GeometryHalfOutputPack& p)
+BUZZ_GEOMETRY_HOT void cache_geometry_half_output(u128* r,const GeometryHalfOutputPack& p)
 {
     r[16]=p.packed[0];r[17]=p.packed[1];r[21]=p.high_half[0];r[20]=p.high_half[1];
 }
@@ -66,7 +66,7 @@ inline bool prepare_geometry_half_output_column(spu_context& c,u128* r)
     if(!cross._u32[0])return false;
     const auto left=spu_sfi(low,16);r[25]=spu_selb(r[49],spu_shlqby(r[63],left),spu_fsmb(spu_shl(r[45],left)));return true;
 }
-template<bool Last> inline void step_geometry_half_output(spu_context& c,u128* r,bool cross)
+template<bool Last> BUZZ_GEOMETRY_HOT void step_geometry_half_output(spu_context& c,u128* r,bool cross)
 {
     const auto after=spu_cgt(r[22],r[32]),chosen=spu_selb(r[24],r[30],after),source=r[22];
     const auto cursor=spu_a(source,r[29]),route=spu_a(r[24],r[31]);

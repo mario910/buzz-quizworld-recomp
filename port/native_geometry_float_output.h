@@ -53,7 +53,7 @@ inline bool read_geometry_float_output(const spu_context& c,GeometryFloatOutput&
     }
     out={columns,total,cross_columns};return true;
 }
-inline void step_geometry_float_output(spu_context& c,u128* r,bool cross)
+BUZZ_GEOMETRY_HOT void step_geometry_float_output(spu_context& c,u128* r,bool cross)
 {
     const auto after=spu_cgt(r[21],r[25]),chosen=spu_selb(r[23],r[30],after);
     const auto next_source=spu_a(r[21],r[29]),next_route=spu_a(r[23],r[31]);

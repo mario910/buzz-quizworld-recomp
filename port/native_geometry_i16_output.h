@@ -5,7 +5,7 @@
 namespace buzz {
 struct GeometryI16Output { unsigned columns=0,groups=0,cross_columns=0; };
 struct GeometryI16OutputPack { u128 input[4],integer[4]; };
-inline GeometryI16OutputPack pack_geometry_i16_output(const u128*,const u128* input)
+BUZZ_GEOMETRY_HOT GeometryI16OutputPack pack_geometry_i16_output(const u128*,const u128* input)
 {
     GeometryI16OutputPack p;
     for(unsigned i=0;i<4;++i){p.input[i]=input[i];p.integer[i]=spu_cflts(input[i],157);}
@@ -36,7 +36,7 @@ inline bool read_geometry_i16_output(const spu_context& c,GeometryI16Output& out
     }
     out={columns,total,cross_columns};return true;
 }
-inline void cache_geometry_i16_output(u128* r,const GeometryI16OutputPack& p)
+BUZZ_GEOMETRY_HOT void cache_geometry_i16_output(u128* r,const GeometryI16OutputPack& p)
 {
     r[24]=p.integer[0];r[23]=p.integer[1];r[22]=p.integer[2];r[25]=p.integer[3];
 }
@@ -51,7 +51,7 @@ inline bool prepare_geometry_i16_output_column(spu_context& c,u128* r)
     if(!cross._u32[0])return false;
     const auto left=spu_sfi(low,16);r[21]=spu_selb(r[49],spu_shlqby(r[72],left),spu_fsmb(spu_shl(r[45],left)));return true;
 }
-template<bool Last> inline void step_geometry_i16_output(spu_context& c,u128* r,bool cross)
+template<bool Last> BUZZ_GEOMETRY_HOT void step_geometry_i16_output(spu_context& c,u128* r,bool cross)
 {
     const auto source=r[17],after=spu_cgt(source,r[32]),chosen=spu_selb(r[20],r[30],after),cursor=spu_a(source,r[29]),route=spu_a(r[20],r[31]);
     const u128 cached[]={r[24],r[23],r[22],r[25]};u128 old[4],second[4],value[4],tail[4];

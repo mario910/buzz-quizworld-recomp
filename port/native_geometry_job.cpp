@@ -25,44 +25,85 @@ extern int buzz_geometry_debug;
 
 namespace {
 using namespace buzz;
+// Live native ledger counter. All four pool lanes count every stage call, so
+// one shared atomic per counter bounced its cache line between lanes. Each
+// thread increments only its own cache-line slot; load() sums the slots for
+// summaries. ++ returns the calling thread's count, so periodic log values
+// are per-thread lower bounds of the total (first events log once per thread).
+class Counter {
+    static constexpr unsigned slots = 8;
+    struct alignas(64) Slot { std::atomic<unsigned long long> value{0}; };
+    Slot slot[slots];
+    static unsigned index()
+    {
+        // Constant-initialized TLS: no per-access dynamic-init guard.
+        static std::atomic<unsigned> next{0};
+        thread_local unsigned mine = ~0u;
+        if (mine == ~0u) mine = next.fetch_add(1, std::memory_order_relaxed) % slots;
+        return mine;
+    }
+public:
+    unsigned long long operator++() { return *this += 1; }
+    unsigned long long operator+=(unsigned long long n) { return slot[index()].value.fetch_add(n, std::memory_order_relaxed) + n; }
+    unsigned long long load() const
+    {
+        unsigned long long total = 0;
+        for (const auto& s : slot) total += s.value.load(std::memory_order_relaxed);
+        return total;
+    }
+    operator unsigned long long() const { return load(); }
+};
+// Environment options are immutable once read. A function-local `static const`
+// pays the thread-safe-static guard (a TLS epoch check) on every hot call;
+// this constant-initialized cache is a plain relaxed load after the first read.
+class OptionCache {
+    std::atomic<int> value{-1};
+public:
+    template<class Read> int get(Read read)
+    {
+        int v = value.load(std::memory_order_relaxed);
+        if (v < 0) { v = read(); value.store(v, std::memory_order_relaxed); }
+        return v;
+    }
+};
 std::atomic<unsigned long long> attempted{0}, checked{0}, skipped{0}, failures{0}, drawn{0}, culled{0};
-std::atomic<unsigned long long> native_attempted{0}, native_executed{0}, native_compared{0}, native_fallback{0};
-std::atomic<unsigned long long> publication_native{0}, publication_fallback{0};
-std::atomic<unsigned long long> color_checked{0},unit_vectors_checked{0},half_stream_checked{0},float32_stream_checked{0},fixed_stream_checked{0},snorm_stream_checked{0},i16_stream_checked{0},cmp_stream_checked{0},u8_integer_stream_checked{0},blend_scatter_checked{0},blend_lists_checked{0};
-std::atomic<unsigned long long> descriptor_checked{0},descriptor_dispatches[9]{};
-std::atomic<unsigned long long> custom_stream_checked{0};
-std::atomic<unsigned long long> skin_normalized_counts[2][3]{},skin_normalized_aliases[2][3]{};
-std::atomic<unsigned long long> index_deltas_counts[2][3]{}, index_deltas_aliases[2]{};
-std::atomic<unsigned long long> index_unpack_counts[2][2]{};
-std::atomic<unsigned long long> index_expand_counts[2][3]{}, index_expand_capacity[2]{};
-std::atomic<unsigned long long> index_relocate_counts[2][3]{};
-std::atomic<unsigned long long> index_triangles_counts[2][3]{};
-std::atomic<unsigned long long> index_control_counts[2][5]{};
-std::atomic<unsigned long long> transform_finish_counts[2][2]{};
-std::atomic<unsigned long long> vertex_prepare_counts[2][4]{};
-std::atomic<unsigned long long> transform_control_counts[2][7]{};
-std::atomic<unsigned long long> alternate_cull_counts[2][3]{};
-std::atomic<unsigned long long> ring_counts[2][3]{};
-std::atomic<unsigned long long> float_output_counts[2][4]{};
-std::atomic<unsigned long long> half_output_counts[2][4]{};
-std::atomic<unsigned long long> cmp_output_counts[2][4]{};
-std::atomic<unsigned long long> snorm_output_counts[2][4]{};
-std::atomic<unsigned long long> unorm_output_counts[2][4]{};
-std::atomic<unsigned long long> u8_integer_output_counts[2][4]{};
-std::atomic<unsigned long long> i16_output_counts[2][4]{};
-std::atomic<unsigned long long> formatter_counts[2][4]{},formatter_types[2][7]{};
-std::atomic<unsigned long long> formatter_registers_roots[2]{},formatter_registers_children[2]{};
-std::atomic<unsigned long long> conversion_control_counts[2][7]{};
-std::atomic<unsigned long long> builtin_output_counts[2][4]{};
-std::atomic<unsigned long long> builtin_input_counts[2][5]{},input_control_counts[2][7]{};
-std::atomic<unsigned long long> skin_cofactor_counts[2][2]{},skin_cofactor_aliases[2]{};
-std::atomic<unsigned long long> rigid_skin_counts[2][2]{},rigid_skin_aliases[2]{};
-std::atomic<unsigned long long> skin_flow_counts[2][2]{};
-std::atomic<unsigned long long> skin_dispatch_counts[2][2]{};
-std::atomic<unsigned long long> weighted_skin_counts[2][2]{},weighted_skin_alias_counts[2]{};
-std::atomic<unsigned long long> skin_directions_counts[2][3]{},skin_directions_aliases[2][3]{};
-std::atomic<unsigned long long> run_lists_checked{0},run_lists_expanded_native{0},run_lists_empty_native{0},run_lists_expanded_checked{0},run_lists_empty_checked{0};
-struct OutputCounters { std::atomic<unsigned long long> native{0}, fallback{0}, reused{0}; } output_counters[61];
+Counter native_attempted, native_executed, native_compared, native_fallback;
+Counter publication_native, publication_fallback;
+Counter color_checked,unit_vectors_checked,half_stream_checked,float32_stream_checked,fixed_stream_checked,snorm_stream_checked,i16_stream_checked,cmp_stream_checked,u8_integer_stream_checked,blend_scatter_checked,blend_lists_checked;
+Counter descriptor_checked,descriptor_dispatches[9]{};
+Counter custom_stream_checked;
+Counter skin_normalized_counts[2][3]{},skin_normalized_aliases[2][3]{};
+Counter index_deltas_counts[2][3]{}, index_deltas_aliases[2]{};
+Counter index_unpack_counts[2][2]{};
+Counter index_expand_counts[2][3]{}, index_expand_capacity[2]{};
+Counter index_relocate_counts[2][3]{};
+Counter index_triangles_counts[2][3]{};
+Counter index_control_counts[2][5]{};
+Counter transform_finish_counts[2][2]{};
+Counter vertex_prepare_counts[2][4]{};
+Counter transform_control_counts[2][7]{};
+Counter alternate_cull_counts[2][3]{};
+Counter ring_counts[2][3]{};
+Counter float_output_counts[2][4]{};
+Counter half_output_counts[2][4]{};
+Counter cmp_output_counts[2][4]{};
+Counter snorm_output_counts[2][4]{};
+Counter unorm_output_counts[2][4]{};
+Counter u8_integer_output_counts[2][4]{};
+Counter i16_output_counts[2][4]{};
+Counter formatter_counts[2][4]{},formatter_types[2][7]{};
+Counter formatter_registers_roots[2]{},formatter_registers_children[2]{};
+Counter conversion_control_counts[2][7]{};
+Counter builtin_output_counts[2][4]{};
+Counter builtin_input_counts[2][5]{},input_control_counts[2][7]{};
+Counter skin_cofactor_counts[2][2]{},skin_cofactor_aliases[2]{};
+Counter rigid_skin_counts[2][2]{},rigid_skin_aliases[2]{};
+Counter skin_flow_counts[2][2]{};
+Counter skin_dispatch_counts[2][2]{};
+Counter weighted_skin_counts[2][2]{},weighted_skin_alias_counts[2]{};
+Counter skin_directions_counts[2][3]{},skin_directions_aliases[2][3]{};
+Counter run_lists_checked,run_lists_expanded_native,run_lists_empty_native,run_lists_expanded_checked,run_lists_empty_checked;
+struct OutputCounters { Counter native, fallback, reused; } output_counters[61];
 constexpr const char* output_labels[] = {"output-size", "vertex-publish", "command-buffer", "command-publish", "command-bind", "command-reset", "position-commands", "full-commands", "attributes", "raw-stream", "color-codec", "descriptor-control", "unit-vectors", "half-stream", "float32-stream", "fixed-stream", "snorm-stream", "i16-stream", "cmp-stream", "u8-integer-stream", "blend-scatter", "blend-lists", "run-lists", "custom-stream", "skin-dispatch", "weighted-skin", "skin-directions", "skin-flow", "rigid-skin", "skin-cofactor", "skin-normalized", "index-deltas", "index-unpack", "index-expand", "index-relocate", "index-triangles", "index-control", "transform-finish", "vertex-prepare", "transform-control", "alternate-cull", "ring", "float-output", "half-output", "cmp-output", "snorm-output", "unorm-output", "i16-output", "u8-integer-output", "formatter", "conversion-control", "builtin-float3-output", "builtin20-output", "builtin24-output", "builtin24-cmp-output", "input-control", "builtin20-input", "builtin24-input", "builtin24-cmp-input", "builtin12-input", "builtin15-input"};
 unsigned long long maximum = 512;
 
@@ -271,13 +312,13 @@ struct Init {
 
 extern "C" int buzz_geometry_job_publish_enabled()
 {
-    static const int enabled = [] {
+    static OptionCache enabled;
+    return enabled.get([] {
         const char* value = std::getenv("BUZZ_GEOMETRY_JOB_PUBLISH");
         if (!value) return 0;
         if ((value[0] != '0' && value[0] != '1') || value[1]) std::abort();
         return value[0] - '0';
-    }();
-    return enabled;
+    });
 }
 
 extern "C" void buzz_geometry_job_publish_result(int native)
@@ -297,43 +338,35 @@ static int output_option(const char* name, int maximum_value = 1)
 }
 extern "C" int buzz_geometry_job_layout_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_LAYOUT");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_LAYOUT");});
 }
 extern "C" int buzz_geometry_job_vertex_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_VERTEX");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_VERTEX");});
 }
 extern "C" int buzz_geometry_job_commands_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_COMMANDS");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_COMMANDS");});
 }
 extern "C" int buzz_geometry_job_command_publish_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH");});
 }
 extern "C" int buzz_geometry_job_emit_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_EMIT");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_EMIT");});
 }
 extern "C" int buzz_geometry_job_full_commands_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_FULL_COMMANDS");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FULL_COMMANDS");});
 }
 extern "C" int buzz_geometry_job_attributes_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_ATTRIBUTES");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_ATTRIBUTES");});
 }
 extern "C" int buzz_geometry_job_codecs_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_CODECS");
-    return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_CODECS");});
 }
 extern "C" void buzz_geometry_job_output_result(unsigned stage, int native, int reused_layout)
 {
@@ -364,7 +397,7 @@ extern "C" void buzz_geometry_job_color_checked_result()
 
 extern "C" int buzz_geometry_job_unit_vectors_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_UNIT_VECTORS");return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_UNIT_VECTORS");});
 }
 extern "C" void buzz_geometry_job_unit_vectors_checked_result()
 {
@@ -374,7 +407,7 @@ extern "C" void buzz_geometry_job_unit_vectors_checked_result()
 
 extern "C" int buzz_geometry_job_half_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_HALF_STREAM");return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_HALF_STREAM");});
 }
 extern "C" void buzz_geometry_job_half_stream_checked_result()
 {
@@ -384,7 +417,7 @@ extern "C" void buzz_geometry_job_half_stream_checked_result()
 
 extern "C" int buzz_geometry_job_float32_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FLOAT32_STREAM", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FLOAT32_STREAM", 2);});
 }
 extern "C" void buzz_geometry_job_float32_stream_checked_result()
 {
@@ -394,7 +427,7 @@ extern "C" void buzz_geometry_job_float32_stream_checked_result()
 
 extern "C" int buzz_geometry_job_fixed_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FIXED_STREAM", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FIXED_STREAM", 2);});
 }
 extern "C" void buzz_geometry_job_fixed_stream_checked_result()
 {
@@ -404,24 +437,24 @@ extern "C" void buzz_geometry_job_fixed_stream_checked_result()
 
 extern "C" int buzz_geometry_job_blend_scatter_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BLEND_SCATTER", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BLEND_SCATTER", 2);});
 }
 extern "C" int buzz_geometry_job_blend_lists_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BLEND_LISTS");return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BLEND_LISTS");});
 }
 extern "C" int buzz_geometry_job_run_lists_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_RUN_LISTS",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_RUN_LISTS",2);});
 }
-extern "C" int buzz_geometry_job_input_control_enabled(){static const int enabled=output_option("BUZZ_GEOMETRY_JOB_INPUT_CONTROL",2);return enabled;}
+extern "C" int buzz_geometry_job_input_control_enabled(){static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INPUT_CONTROL",2);});}
 extern "C" int buzz_geometry_job_builtin_input_enabled(unsigned format){
     switch(format){
-    case 1:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT",2);return enabled;}
-    case 2:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_INPUT",2);return enabled;}
-    case 3:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_INPUT",2);return enabled;}
-    case 4:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN12_INPUT",2);return enabled;}
-    case 5:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN15_INPUT",2);return enabled;}
+    case 1:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT",2);});}
+    case 2:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_INPUT",2);});}
+    case 3:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_INPUT",2);});}
+    case 4:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN12_INPUT",2);});}
+    case 5:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN15_INPUT",2);});}
     default:std::abort();}
 }
 extern "C" void buzz_geometry_job_builtin_input_result(unsigned format,int checked){
@@ -435,10 +468,10 @@ extern "C" void buzz_geometry_job_input_control_result(unsigned path,int checked
 extern "C" int buzz_geometry_job_builtin_output_enabled(unsigned format)
 {
     switch(format){
-    case 0:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT",2);return enabled;}
-    case 1:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN20_OUTPUT",2);return enabled;}
-    case 2:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_OUTPUT",2);return enabled;}
-    case 3:{static const int enabled=output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT",2);return enabled;}
+    case 0:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT",2);});}
+    case 1:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN20_OUTPUT",2);});}
+    case 2:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_OUTPUT",2);});}
+    case 3:{static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT",2);});}
     default:std::abort();
     }
 }
@@ -449,7 +482,7 @@ extern "C" void buzz_geometry_job_builtin_output_result(unsigned format,int chec
 }
 extern "C" int buzz_geometry_job_conversion_control_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL",2);});
 }
 extern "C" void buzz_geometry_job_conversion_control_result(unsigned path,int checked)
 {
@@ -459,11 +492,11 @@ extern "C" void buzz_geometry_job_conversion_control_result(unsigned path,int ch
 }
 extern "C" int buzz_geometry_job_formatter_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FORMATTER",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FORMATTER",2);});
 }
 extern "C" int buzz_geometry_job_formatter_spans_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FORMATTER_SPANS",1);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FORMATTER_SPANS",1);});
 }
 extern "C" void buzz_geometry_job_formatter_result(unsigned fields,unsigned known,unsigned skipped,unsigned mask,int checked)
 {
@@ -476,7 +509,7 @@ extern "C" void buzz_geometry_job_formatter_result(unsigned fields,unsigned know
 }
 extern "C" int buzz_geometry_job_formatter_registers_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS",1);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS",1);});
 }
 extern "C" void buzz_geometry_job_formatter_registers_result(unsigned children,unsigned strict_children,int checked)
 {
@@ -488,7 +521,7 @@ extern "C" void buzz_geometry_job_formatter_registers_result(unsigned children,u
 }
 extern "C" int buzz_geometry_job_i16_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_I16_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_I16_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_i16_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -499,7 +532,7 @@ extern "C" void buzz_geometry_job_i16_output_result(unsigned columns,unsigned cr
 }
 extern "C" int buzz_geometry_job_u8_integer_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_u8_integer_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -510,7 +543,7 @@ extern "C" void buzz_geometry_job_u8_integer_output_result(unsigned columns,unsi
 }
 extern "C" int buzz_geometry_job_unorm_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_UNORM_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_UNORM_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_unorm_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -521,7 +554,7 @@ extern "C" void buzz_geometry_job_unorm_output_result(unsigned columns,unsigned 
 }
 extern "C" int buzz_geometry_job_snorm_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SNORM_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SNORM_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_snorm_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -532,7 +565,7 @@ extern "C" void buzz_geometry_job_snorm_output_result(unsigned columns,unsigned 
 }
 extern "C" int buzz_geometry_job_cmp_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_CMP_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_CMP_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_cmp_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -543,7 +576,7 @@ extern "C" void buzz_geometry_job_cmp_output_result(unsigned columns,unsigned cr
 }
 extern "C" int buzz_geometry_job_half_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_HALF_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_HALF_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_half_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -554,7 +587,7 @@ extern "C" void buzz_geometry_job_half_output_result(unsigned columns,unsigned c
 }
 extern "C" int buzz_geometry_job_float_output_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT",2);});
 }
 extern "C" void buzz_geometry_job_float_output_result(unsigned columns,unsigned cross_columns,int checked)
 {
@@ -565,7 +598,7 @@ extern "C" void buzz_geometry_job_float_output_result(unsigned columns,unsigned 
 }
 extern "C" int buzz_geometry_job_ring_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_RING");return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_RING");});
 }
 extern "C" void buzz_geometry_job_ring_result(unsigned frontier,int checked)
 {
@@ -576,7 +609,7 @@ extern "C" void buzz_geometry_job_ring_result(unsigned frontier,int checked)
 }
 extern "C" int buzz_geometry_job_alternate_cull_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_ALTERNATE_CULL",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_ALTERNATE_CULL",2);});
 }
 extern "C" void buzz_geometry_job_alternate_cull_result(unsigned iterations,int checked)
 {
@@ -586,7 +619,7 @@ extern "C" void buzz_geometry_job_alternate_cull_result(unsigned iterations,int 
 }
 extern "C" int buzz_geometry_job_transform_control_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL",2);});
 }
 extern "C" void buzz_geometry_job_transform_control_result(unsigned path,int checked)
 {
@@ -596,7 +629,7 @@ extern "C" void buzz_geometry_job_transform_control_result(unsigned path,int che
 }
 extern "C" int buzz_geometry_job_vertex_prepare_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_VERTEX_PREPARE",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_VERTEX_PREPARE",2);});
 }
 extern "C" void buzz_geometry_job_vertex_prepare_result(unsigned path,int checked)
 {
@@ -608,7 +641,7 @@ extern "C" void buzz_geometry_job_vertex_prepare_result(unsigned path,int checke
 }
 extern "C" int buzz_geometry_job_transform_finish_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH",2);});
 }
 extern "C" void buzz_geometry_job_transform_finish_result(int publish,int checked)
 {
@@ -618,7 +651,7 @@ extern "C" void buzz_geometry_job_transform_finish_result(int publish,int checke
 }
 extern "C" int buzz_geometry_job_index_control_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_INDEX_CONTROL",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INDEX_CONTROL",2);});
 }
 extern "C" void buzz_geometry_job_index_control_result(unsigned path,int checked)
 {
@@ -629,7 +662,7 @@ extern "C" void buzz_geometry_job_index_control_result(unsigned path,int checked
 }
 extern "C" int buzz_geometry_job_index_triangles_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES", 2); return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES", 2);});
 }
 extern "C" void buzz_geometry_job_index_triangles_result(unsigned iterations, int checked)
 {
@@ -641,7 +674,7 @@ extern "C" void buzz_geometry_job_index_triangles_result(unsigned iterations, in
 }
 extern "C" int buzz_geometry_job_index_relocate_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_INDEX_RELOCATE", 2); return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INDEX_RELOCATE", 2);});
 }
 extern "C" void buzz_geometry_job_index_relocate_result(unsigned iterations, int checked)
 {
@@ -653,7 +686,7 @@ extern "C" void buzz_geometry_job_index_relocate_result(unsigned iterations, int
 }
 extern "C" int buzz_geometry_job_index_expand_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_INDEX_EXPAND", 2); return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INDEX_EXPAND", 2);});
 }
 extern "C" void buzz_geometry_job_index_expand_result(unsigned iterations, int checked, int capacity_error)
 {
@@ -665,7 +698,7 @@ extern "C" void buzz_geometry_job_index_expand_result(unsigned iterations, int c
 }
 extern "C" int buzz_geometry_job_index_unpack_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_INDEX_UNPACK", 2); return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INDEX_UNPACK", 2);});
 }
 extern "C" void buzz_geometry_job_index_unpack_result(unsigned width, int checked)
 {
@@ -676,7 +709,7 @@ extern "C" void buzz_geometry_job_index_unpack_result(unsigned width, int checke
 }
 extern "C" int buzz_geometry_job_index_deltas_enabled()
 {
-    static const int enabled = output_option("BUZZ_GEOMETRY_JOB_INDEX_DELTAS", 2); return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_INDEX_DELTAS", 2);});
 }
 extern "C" void buzz_geometry_job_index_deltas_result(unsigned groups, int checked, int aliases)
 {
@@ -688,7 +721,7 @@ extern "C" void buzz_geometry_job_index_deltas_result(unsigned groups, int check
 }
 extern "C" int buzz_geometry_job_skin_normalized_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED",2);});
 }
 extern "C" void buzz_geometry_job_skin_normalized_result(unsigned streams,int checked,int aliases)
 {
@@ -699,7 +732,7 @@ extern "C" void buzz_geometry_job_skin_normalized_result(unsigned streams,int ch
 }
 extern "C" int buzz_geometry_job_skin_cofactor_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SKIN_COFACTOR",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SKIN_COFACTOR",2);});
 }
 extern "C" void buzz_geometry_job_skin_cofactor_result(unsigned count,int checked,int aliases)
 {
@@ -709,7 +742,7 @@ extern "C" void buzz_geometry_job_skin_cofactor_result(unsigned count,int checke
 }
 extern "C" int buzz_geometry_job_rigid_skin_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_RIGID_SKIN",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_RIGID_SKIN",2);});
 }
 extern "C" void buzz_geometry_job_rigid_skin_result(unsigned count,int checked,int aliases)
 {
@@ -719,7 +752,7 @@ extern "C" void buzz_geometry_job_rigid_skin_result(unsigned count,int checked,i
 }
 extern "C" int buzz_geometry_job_skin_flow_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SKIN_FLOW",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SKIN_FLOW",2);});
 }
 extern "C" void buzz_geometry_job_skin_flow_result(int work,int checked)
 {
@@ -729,7 +762,7 @@ extern "C" void buzz_geometry_job_skin_flow_result(int work,int checked)
 }
 extern "C" int buzz_geometry_job_skin_directions_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS",2);});
 }
 extern "C" void buzz_geometry_job_skin_directions_result(unsigned streams,int checked,int aliases)
 {
@@ -741,7 +774,7 @@ extern "C" void buzz_geometry_job_skin_directions_result(unsigned streams,int ch
 }
 extern "C" int buzz_geometry_job_weighted_skin_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN",2);});
 }
 extern "C" void buzz_geometry_job_weighted_skin_result(unsigned count,int checked,int palette_alias)
 {
@@ -756,7 +789,7 @@ extern "C" void buzz_geometry_job_weighted_skin_result(unsigned count,int checke
 }
 extern "C" int buzz_geometry_job_skin_dispatch_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SKIN_DISPATCH",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SKIN_DISPATCH",2);});
 }
 extern "C" void buzz_geometry_job_skin_dispatch_result(int weighted,int checked)
 {
@@ -766,7 +799,7 @@ extern "C" void buzz_geometry_job_skin_dispatch_result(int weighted,int checked)
 }
 extern "C" int buzz_geometry_job_custom_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_CUSTOM_STREAM",2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_CUSTOM_STREAM",2);});
 }
 extern "C" void buzz_geometry_job_custom_stream_checked_result()
 {
@@ -800,7 +833,7 @@ extern "C" void buzz_geometry_job_blend_scatter_checked_result()
 
 extern "C" int buzz_geometry_job_snorm_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_SNORM_STREAM", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_SNORM_STREAM", 2);});
 }
 extern "C" void buzz_geometry_job_snorm_stream_checked_result()
 {
@@ -810,7 +843,7 @@ extern "C" void buzz_geometry_job_snorm_stream_checked_result()
 
 extern "C" int buzz_geometry_job_i16_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_I16_STREAM", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_I16_STREAM", 2);});
 }
 extern "C" void buzz_geometry_job_i16_stream_checked_result()
 {
@@ -820,7 +853,7 @@ extern "C" void buzz_geometry_job_i16_stream_checked_result()
 
 extern "C" int buzz_geometry_job_cmp_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_CMP_STREAM", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_CMP_STREAM", 2);});
 }
 extern "C" void buzz_geometry_job_cmp_stream_checked_result()
 {
@@ -830,7 +863,7 @@ extern "C" void buzz_geometry_job_cmp_stream_checked_result()
 
 extern "C" int buzz_geometry_job_u8_integer_stream_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM", 2);return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM", 2);});
 }
 extern "C" void buzz_geometry_job_u8_integer_stream_checked_result()
 {
@@ -840,7 +873,7 @@ extern "C" void buzz_geometry_job_u8_integer_stream_checked_result()
 
 extern "C" int buzz_geometry_job_descriptors_enabled()
 {
-    static const int enabled=output_option("BUZZ_GEOMETRY_JOB_DESCRIPTORS");return enabled;
+    static OptionCache enabled;return enabled.get([]{return output_option("BUZZ_GEOMETRY_JOB_DESCRIPTORS");});
 }
 extern "C" void buzz_geometry_job_descriptor_checked_result()
 {
@@ -854,13 +887,13 @@ extern "C" void buzz_geometry_job_descriptor_dispatched(unsigned storage)
 
 extern "C" int buzz_geometry_job_mode()
 {
-    static const int mode = [] {
+    static OptionCache mode;
+    return mode.get([] {
         const char* value = std::getenv("BUZZ_GEOMETRY_JOB");
         if (!value) return 0;
         if (value[0] < '0' || value[0] > '2' || value[1]) std::abort();
         return value[0] - '0';
-    }();
-    return mode;
+    });
 }
 
 extern "C" int buzz_geometry_job_audit_enabled()
