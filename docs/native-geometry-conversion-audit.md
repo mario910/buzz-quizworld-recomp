@@ -1,8 +1,8 @@
 # Image-41 output conversion: remaining native inventory
 
 Status: source/format audit and callback replay protection, 2026-11-01.
-`54E8` and shared formatter `4178` still require production integration.
-Both now have standalone native control kernels; neither is routed yet.
+Shared formatter `4178` is now routed as a complete native opt-in controller.
+`54E8` still has a standalone native control kernel awaiting production integration.
 All seven storage payloads now have complete native opt-in implementations.
 I16/storage-5 and U8-integer/storage-7 still have open real/live gates; their
 nonzero new coverage is explicitly synthetic. Shared formatter/control and
@@ -22,7 +22,7 @@ closed whole-function proof for arbitrary callback targets.
 |---|---|---|
 | `54E8/5500/5538/5558/5614/5648/56AC` | 7 | Frame, static/empty paths, conversion dispatch and cursor publication |
 | Built-in output formats 0..3 | 11 | Complete data and speculative padding; all cold in captured jobs |
-| Shared formatter `4178` and attribute control | 9 | Standalone native kernel: 1,908 strict cases; production integration OPEN |
+| Shared formatter `4178` and attribute control | 9 | Complete opt-in controller: 1,908 strict cases; 7,201 strict real roots; final gates OPEN |
 | Seven output storage payloads | 37 | All seven complete opt-in; I16/U8 real/live gates OPEN |
 | Stride getter `40C8` and its paths | 7 | Reuse/extend existing host stride materialization with exact boundaries |
 | Getter `2728` / publication `2738` | 2 | Reuse their ordered full-vector operations |
@@ -617,3 +617,59 @@ that is disabled or not admitted must not be silently counted as native.
 Full real corpus/live/native-frame, interpreter, reversed A/B, normalized CPU
 and default-on gates remain OPEN. This completes the standalone controller,
 not production formatter acceptance or phase 3.
+
+## Shared formatter 4178 production routing
+
+The shared formatter is now routed through its own
+`BUZZ_GEOMETRY_JOB_FORMATTER=0/1/2` switch, default **0**. It runs only for the
+owned native image-41 pipeline context. The retained fallback is separate from
+the private root reference, which executes the complete original 46-block graph,
+including original data encoders. The root checker compares every GPR, LS byte,
+architectural/channel/control field, PC and queued function, plus image, host
+depth, policy and overlay. No reference execution occurs in native mode 1.
+ABI 44 and stage 49 extend the ledger to 50 stages.
+
+Read-only admission checks every eventual data destination and the same child
+iteration bounds, with a stronger whole-formatter work budget. Immutable manager
+and descriptor metadata make those layouts stable across fields. Every used
+complete output encoder must also be enabled and present. An unused disabled
+encoder does not block the root. A disabled or missing used child rejects the
+whole formatter before frame/cursor/data writes. Per-encoder wrappers and their
+own switches/checkers remain active during actual execution.
+
+Production routing tests pass **117 native / 78 strict roots**, with 81 data
+calls spanning all seven encoders; every native-mode exit is also checked
+independently against the original. They exercise static/empty/no-field/skipped/
+known/mixed paths, three host depths and both ways to enable strict checking.
+**28 owned unsupported cases** preserve the entire input context and incoming
+queue, including all seven disabled and all seven missing used-child cases.
+Off, foreign owner, wrong image and post-scope calls do not count as unsupported
+owned roots. The existing 1,024 mock-driver scenarios and 19,508 real entry
+transcripts still pass; 53 runtime controller cases, 384 configuration cases,
+seven audit tests and the 1,908-case standalone suite pass.
+
+Five same-frozen-EXE corpus arms each pass **19,508 exact jobs / 58,195 transfers**
+with zero input divergence or failures. Checked and independent arms each have
+**7,201 strict native formatter returns**, and native mode has 7,201 native
+returns, all with zero fallback. The independent arm retains exactly the seven
+output encoder dependencies; all other newer stages are off. Its coverage is
+identical to the coupled arm. Other stage ledgers match the parent integer-output
+build. All captured formatter roots take the known-field path. Per-storage root
+presence is 1:1,104 / 2:7,201 / 3:4,199 / 4:36 / 5:0 / 6:4,424 / 7:0;
+these are root-presence counts, not sums of child calls or new cold coverage.
+
+Live native-Stage-F menu checks reach at least **30,000 strict formatter
+returns** and **35,000 strict whole-job comparisons**. Actual-native menu and
+round frame readbacks are visually normal. Periodic live logs provide lower
+bounds, not final fallback totals. Empty/skipped/mixed formatter paths and cold
+I16/U8 integer real/live coverage remain unobserved; synthetic coverage is
+reported separately. The first application build caught C++ syntax in the C
+reference generator; it was changed to C pointer declarations/NULL and all final
+checks pass. No native arithmetic or compared-field contract was changed.
+
+[Phase-3 results](native-geometry-phase3-results.md#shared-formatter-4178-production-routing)
+bind the frozen build and private proof chain. Final interpreter counts,
+reversed same-frozen menu/round A/B and normalized worker/process CPU measurements
+remain OPEN. No FPS or CPU benefit is claimed; the switch remains default off.
+Next is production integration of 54E8 control, including complete IRQ and
+synchronous formatter/stride admission, then built-in output/input formats.

@@ -36,10 +36,10 @@ def main():
     production+='''static void buzz_formatter_original_run(spu_context* ctx){
     const unsigned stack=ctx->gpr[1]._u32[0];buzz_formatter_original_00004178(ctx);
     for(unsigned steps=0;!(ctx->gpr[1]._u32[0]==stack && ctx->pc==ctx->gpr[0]._u32[0] &&
-        g_spu_trampoline_fn==(ctx->host_depth?nullptr:spu_indirect_branch));++steps){
-        const auto next=g_spu_trampoline_fn;
+        g_spu_trampoline_fn==(ctx->host_depth?NULL:spu_indirect_branch));++steps){
+        const buzz_geometry_job_fn next=g_spu_trampoline_fn;
         if(!next || steps>=1048576)buzz_geometry_job_native_fail(ctx,"formatter reference frontier");
-        g_spu_trampoline_fn=nullptr;if(next==spu_indirect_branch)buzz_formatter_original_dispatch(ctx);else next(ctx);
+        g_spu_trampoline_fn=NULL;if(next==spu_indirect_branch)buzz_formatter_original_dispatch(ctx);else next(ctx);
     }
 }
 '''

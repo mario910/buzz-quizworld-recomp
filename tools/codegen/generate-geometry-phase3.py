@@ -52,11 +52,23 @@ def main():
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-unorm-output-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-u8-integer-output-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-i16-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-formatter-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    formatter_name = "buzz_job_6eba_spu_func_00004178"
+    formatter_pattern = rf"(?ms)^void {formatter_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(formatter_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned shared formatter root")
+    formatter_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in
+        (0x4478,0x46d0,0x4880,0x4b9c,0x4dd0,0x4fdc,0x52b4))
+    source = re.sub(formatter_pattern, lambda m:
+        f"static const buzz_geometry_formatter_functions {formatter_name}_library = {{{{{formatter_library}}}, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618}};\n"
+        f"static void {formatter_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {formatter_name}(spu_context* ctx) {{ buzz_geometry_job_formatter(ctx, {formatter_name}_fallback, buzz_formatter_original_run, &{formatter_name}_library); }}",
+        source, count=1)
     i16_output_name = "buzz_job_6eba_spu_func_00004DD0"
     i16_output_pattern = rf"(?ms)^void {i16_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(i16_output_pattern, source))) != 1:
@@ -487,7 +499,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 43\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 44\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     support += (DEST / "float-output-original.inc").read_text() + "\n"
@@ -497,6 +509,7 @@ def main():
     support += (DEST / "unorm-output-original.inc").read_text() + "\n"
     support += (DEST / "u8-integer-output-original.inc").read_text() + "\n"
     support += (DEST / "i16-output-original.inc").read_text() + "\n"
+    support += (DEST / "formatter-original.inc").read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

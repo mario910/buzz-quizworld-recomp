@@ -47,6 +47,7 @@
 #include "native_geometry_unorm_output.h"
 #include "native_geometry_u8_integer_output.h"
 #include "native_geometry_i16_output.h"
+#include "native_geometry_formatter.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -88,6 +89,58 @@ void run_ring_reference(spu_context* ctx)
     if(!original)buzz_geometry_job_native_fail(ctx,"missing ring reference scope");
     buzz::run_geometry_ring_reference(*ctx,original->entry,*original->functions,original->frontier);
 }
+}
+
+extern "C" void buzz_geometry_job_formatter(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_formatter_functions* functions)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_formatter_enabled()){
+        fallback(ctx);return;
+    }
+    buzz::GeometryFormatter plan;const char* reason=nullptr;
+    bool admitted=reference && functions && functions->finish && functions->skip;
+    if(admitted)admitted=buzz::read_geometry_formatter(*ctx,plan,&reason);
+    if(admitted){
+        // The formatter's read-only scan checks every eventual data store and
+        // the same iteration bounds as the complete data readers. Its stronger
+        // whole-root budget and immutable metadata prove those child layouts
+        // remain admitted. Require each USED complete encoder switch as well;
+        // disabled unused types must not block a supported root.
+        const int modes[]={buzz_geometry_job_snorm_output_enabled(),buzz_geometry_job_float_output_enabled(),
+            buzz_geometry_job_half_output_enabled(),buzz_geometry_job_unorm_output_enabled(),
+            buzz_geometry_job_i16_output_enabled(),buzz_geometry_job_cmp_output_enabled(),buzz_geometry_job_u8_integer_output_enabled()};
+        for(unsigned i=0;i<7;++i)if((plan.mask&(1u<<i)) && (!modes[i] || !functions->data[i])){
+            admitted=false;reason="used output encoder disabled or missing";break;
+        }
+    }
+    if(!admitted){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FORMATTER,0,0);
+        static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/formatter] first fallback: %s\n",reason?reason:"missing formatter reference/callee");
+        fallback(ctx);return;
+    }
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_formatter_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    buzz::GeometryFormatterCallees callees;
+    for(unsigned i=0;i<7;++i)callees.data[i]=functions->data[i];
+    callees.finish=functions->finish;callees.skip=functions->skip;
+    buzz::execute_geometry_formatter(*ctx,plan,callees);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/formatter] DIFF r%d byte%d LS=%X/%u state=%s\n",diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"formatter strict data/LS/register/control/continuation differs");
+        }
+        buzz_geometry_job_formatter_result(plan.fields,plan.known,plan.skipped,plan.mask,1);
+    }
+    buzz_geometry_job_formatter_result(plan.fields,plan.known,plan.skipped,plan.mask,0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FORMATTER,1,0);
 }
 
 extern "C" void buzz_geometry_job_i16_output(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip)

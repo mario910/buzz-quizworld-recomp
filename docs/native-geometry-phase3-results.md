@@ -5155,3 +5155,68 @@ Real corpus,>=256 live,normal native frames,interpreter,reversed same-frozen-EXE
 A/B,normalized worker/process cycles/time and default gates for the new formatter
 remain OPEN. No FPS/CPU benefit is claimed; phase3 and the continuing goal stay
 active, with strict Stage F reconstruction LAST.
+
+## Shared formatter 4178 production routing
+
+The complete nine-block controller is now production opt-in under
+`BUZZ_GEOMETRY_JOB_FORMATTER=0/1/2`, default **0**, with ABI 44 and a separate
+stage-49 native/fallback ledger. Owner/image checks, immutable metadata/write
+admission and actual used-child switches precede every mutation. Disabled unused
+encoders are allowed; a disabled or missing used encoder sends the entire root
+to its retained fallback. Its strict reference is the private, pinned original
+46-block graph, never native reference data.
+
+Validation on the final source passes:
+
+- 1,908 standalone strict cases / 2,643 exact child entries / 2,028 native data
+  calls across all seven types; independent frame models and alias cases retained.
+- 117 native / 78 strict production-routing roots and 81 complete data calls;
+  28 unchanged owned rejects plus off/foreign/image/post-scope checks.
+- 1,024 mock-pipeline scenarios and 19,508 real entry transcripts; 53 runtime
+  controller cases, 384 production-getter cases and seven audit tests.
+
+The initial application build rejected C++ syntax in the generated C reference
+runner. Explicit C function-pointer types and NULL fixed generation; the final
+application, routing and standalone builds pass. That diagnostic is preserved
+privately. Native arithmetic and strict comparisons were unchanged.
+
+| Frozen corpus arm | Exact jobs | Transfers | Native formatter | Strict formatter | Formatter fallback |
+|---|---:|---:|---:|---:|---:|
+| Checked coupled | 19,508 | 58,195 | 7,201 | 7,201 | 0 |
+| Off | 19,508 | 58,195 | 0 | 0 | 0 |
+| Independent formatter + seven encoders | 19,508 | 58,195 | 7,201 | 7,201 | 0 |
+| Native coupled | 19,508 | 58,195 | 7,201 | 0 | 0 |
+| Retained formatter, earlier stages enabled | 19,508 | 58,195 | 0 | 0 | 0 |
+
+All arms have zero input divergence and zero failures. The independent arm has
+all other newer stages disabled and reproduces the same formatter coverage;
+its seven output-encoder ledgers match the parent. Every other comparable stage
+ledger matches the integer-output parent. Captured roots all take the known-field
+path. Storage presence per formatter root: 1:1,104 / 2:7,201 / 3:4,199 / 4:36 /
+5:0 / 6:4,424 / 7:0. These are not total child calls; other callers account for
+additional output encoder calls. I16/U8 integer real/live gates stay OPEN.
+
+With native Stage F, live menu logs show at least **30,000 strict formatter
+returns** and **35,000 strict whole-job checks**. Separate actual-native menu
+and actual-round readbacks (1280x720) look normal. Lower bounds from periodic
+logs do not establish final fallback totals. These are functional runs, with
+no FPS or CPU benefit claim.
+
+Frozen `build-vulkan-phase3-formatter-v1`:
+
+- EXE SHA256: `a38221e3bffd97eb994e4b8a15562e47deb31cbeb6e0159b73b95b6637784c10`
+- MAP SHA256: `4f81154654c7457c51acf97fb82a3cf01843cd02ef6e757b26b4cdb5b0155b12`
+- Generated C SHA256: `4737d2d2b0f3a1ab66241bc41c1ceeb7dd48aecca03b47e30941da1724dccc6a`
+
+Private formatter-v1 evidence binds committed sources, prior standalone proof
+chain, original source/generator/save/template pins, this frozen EXE/map/C/four
+native source copies, unit/routing/runtime tests, original oracle, five corpus
+arms, three live scenes and two inspected native readbacks. Raw/derived files
+remain ignored. JOB0 / geometry827 / newer switches0 remain unchanged.
+
+Final interpreter, reversed same-frozen menu/round A/B, normalized worker/process
+cycles/time and default gates remain OPEN. Flat FPS with repeatable CPU savings
+may justify enabling a proven path later. Next is 54E8 production control with
+IRQ and child admission review, then built-ins and remaining cold acceptance.
+Phase 3 and the continuing goal remain active; strict Stage F reconstruction
+stays LAST.

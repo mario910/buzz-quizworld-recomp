@@ -62,6 +62,13 @@ enum { BUZZ_GEOMETRY_JOB_ALTERNATE_CULL = 40 };
 enum { BUZZ_GEOMETRY_JOB_RING = 41 };
 enum { BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT = 42 };
 enum { BUZZ_GEOMETRY_JOB_HALF_OUTPUT = 43 };
+typedef struct buzz_geometry_formatter_functions {
+    buzz_geometry_job_fn data[7],finish,skip;
+} buzz_geometry_formatter_functions;
+enum { BUZZ_GEOMETRY_JOB_FORMATTER = 49 };
+int buzz_geometry_job_formatter_enabled(void);
+void buzz_geometry_job_formatter_result(unsigned fields,unsigned known,unsigned skipped,unsigned mask,int checked);
+void buzz_geometry_job_formatter(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_formatter_functions*);
 enum { BUZZ_GEOMETRY_JOB_I16_OUTPUT = 47 };
 int buzz_geometry_job_i16_output_enabled(void);
 void buzz_geometry_job_i16_output_result(unsigned columns,unsigned cross_columns,int checked);

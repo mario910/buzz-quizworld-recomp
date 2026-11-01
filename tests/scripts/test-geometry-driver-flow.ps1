@@ -76,6 +76,8 @@ try {
     if ($LASTEXITCODE) { throw 'U8 integer output routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-i16-output-test.py
     if ($LASTEXITCODE) { throw 'I16 output routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-formatter-test.py
+    if ($LASTEXITCODE) { throw 'Formatter routing oracle generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
