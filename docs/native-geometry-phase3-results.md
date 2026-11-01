@@ -5874,3 +5874,28 @@ parent safe. Cold real/256-live/native-frame, interpreter, reversed frozen
 A/B, normalized CPU and default gates remain OPEN. Phase3/continuing goal
 stay active; shared phase4 follows, optional5/6 decisions are recorded and
 strict StageF phase7 remains LAST.
+
+## Built-in 12-byte input: complete standalone format4
+
+`native_geometry_builtin12_input.h` now replaces complete `9E70/A170`:
+fixed12 XYZ plus two packed-unit vectors, ordered metadata publication,
+delayed normal/tangent stores, table/source alias timing, final flush and
+strict full9498 ABI. The [input audit](native-geometry-input-audit.md#built-in-input-format4-complete-standalone-decoder)
+records the byte/numeric map, exact eligibility and evidence limits.
+
+Validation passes5,806 strict full-state/LS/PC/function cases,288 ordered byte
+models,3,145,728 independent integer position components and3,216 full
+original93F0 comparisons with3,168 strict native data children. Sixteen
+rejections preserve context/plan/queue, including both extra delayed-output
+footprints. Two input-inventory tests pass. Byte models use SPU arithmetic
+for unit reconstruction; their unit numeric operations are not independently
+validated. Full-state comparisons retain the exact original estimate path.
+Only input4 data is native in the integration harness; shared93F0 setup and
+9498 restoration are original on both arms. Synthetic coverage remains
+separate from cold real/live acceptance.
+
+No production routing/switch/ABI/app/default changes and no FPS/CPU benefit
+claim. Frozen pins and JOB0/geometry827/newflags0 stay unchanged. Required
+input5, production wrappers/native93F0 and cold/final gates remain open.
+The continuing objective stays active through shared phase4 and final strict
+StageF7, with optional5/6 decisions recorded before StageF cleanup.

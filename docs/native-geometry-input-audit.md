@@ -10,7 +10,7 @@ The six-word95C4 table contains offsets relative to95C4:
 | 1 | 1334 | A8F8 | A8F8,AAF8,AB00 | Complete standalone XYZ+2CMP decoder; production/cold gates OPEN |
 | 2 | 10E4 | A6A8 | A6A8,A750,A860,A864,A868 | Complete standalone XYZ+CMP+signed16x4 decoder; production/cold gates OPEN |
 | 3 | 0DCC | A390 | A390,A5D0,A5D8 | Complete standalone XYZ+3CMP decoder; production/cold gates OPEN |
-| 4 | 08AC | 9E70 | 9E70,A170 | Parameterized packed family; exact byte/numeric map and native implementation OPEN |
+| 4 | 08AC | 9E70 | 9E70,A170 | Complete standalone fixed12 XYZ +2 packed-unit decoder; production/cold gates OPEN |
 | 5 | 0234 | 97F8 | 97F8,9BB0 | Parameterized packed family; exact byte/numeric map and native implementation OPEN |
 
 Shared blocks are93F0/9408/9518/9580/9498. Setup saves25 nonvolatile vectors
@@ -209,3 +209,98 @@ parent safe. Cold real/256-live/native-frame, interpreter, reversed frozen
 A/B, normalized CPU and default gates remain OPEN. Phase3/continuing goal
 stay active; shared phase4 follows, optional5/6 decisions are recorded and
 strict StageF phase7 remains LAST.
+
+## Built-in input format4: complete standalone decoder
+
+`native_geometry_builtin12_input.h` replaces both `9E70/A170` blocks,
+including setup, every iteration, the delayed-unit flush and all128 final
+GPR vectors at the exact queued9498 PC/function. It runs no lifted setup,
+loop, tail, state repair or relaxed checker. Production routing remains a
+separate milestone.
+
+Each12-byte vertex contains three big-endian unsigned16 position fields
+(bytes0..5) and two packed24-bit unit vectors (bytes6..8 and9..11). Each unit
+word has two10-bit coordinates and a4-bit table selector. A pair consumes24
+source bytes and produces two float4 rows in each of three streams. Source
+reads align three quads then apply byte alignment, including LS wrap.
+
+Position offsets are assembled from four prefetched parameter words. Loads
+use incoming r5+0/4/8/12, but extraction rotates the latter three through
+incoming r34+4/8/12. Actual stack-pointer CWD controls assemble the vector;
+biased stacks and unequal r5/r34 remain supported. Each position field is
+added to its signed32 offset modulo32 bits, then split into a signed whole
+part and unsigned fractional part at12 fractional bits. Exact SPU conversions
+and addition preserve the source rounding; the actual CD60 constant supplies
+W. Unit XY uses scale-first FMA with actual coefficients; Z retains the
+original square/add/subtract/frsqest/fi/multiply sequence. The16-entry table
+is read from actual incoming r8, including reserved selectors, without
+canonicalizing table contents or replacing estimates with square root.
+
+Metadata semantics1/2/3 publish through incoming r35/r37/r61. The first two
+IDs reads and stores use r3; the third uses r82. The shared read-only overlay
+models all six metadata writes before checking the data footprint. Initial
+source and parameter quads are cached before metadata; the next pair is
+prefetched after publication. Source/future pointers may differ (r4/r84).
+
+The unit pipeline is delayed one pair. Its initial stores use incoming r49
+(normally0) relative to the end of each unit stream, even for a single pair.
+Subsequent iterations publish the previous pair, and four final stores flush
+the last valid normal/tangent pair. These extra writes are observable and are
+included in admission. Each iteration preserves this order:
+
+1. Write both position rows, then both delayed normal rows.
+2. Read the current pair's two normal-table quads.
+3. Write both delayed tangent rows, then freshly prefetch three future source
+   quads, including on the final iteration.
+4. Read the current pair's two tangent-table quads.
+
+Table/output/source, metadata/publication and cross-stream aliases therefore
+retain the original visibility. Both the ordinary iteration and final flush
+compose tangent row0 from cached r54 and row1 from r55; no selector or row
+permutation is repaired. Admission requires owned LS, no enabled/saved/active
+interrupt context, a terminating negative low-r42 byte count divisible by32
+and at most1,048,576, and every actual LS-masked metadata/data/padding store
+at or above E680. It performs no payload arithmetic. Context, plan and queue
+are unchanged on rejection. This pure-data contract does not establish the
+safety of native enclosing callers' saved control pointers.
+
+Validation passes **5,806 strict complete GPR/LS/architectural/channel/control/
+PC/function cases**:4,096 broad cases,1,024 arbitrary controls (all13 mask
+quads, independent parameters/future/LUT pointers),256 special-FP coefficient
+cases,288 byte models,32 split managers,64 nonzero/upper-lane delayed counters,
+32 parameter/source/metadata aliases,11 boundary counts up to2,048 pairs and
+three host depths. **288 ordered byte models** independently gather packed
+bytes, assemble position results, model metadata, table-read timing and stores,
+including32 table/output aliases. Their unit arithmetic explicitly uses SPU
+primitives and is not claimed as an independent unit numeric oracle.
+
+**3,145,728 independent position components** cover all65,536 unsigned16
+codes at16 signed-offset/overflow boundaries in XYZ. Expected float bits use
+integer dyadic numerators and explicit24-bit RTZ packing, without SPU numeric
+helpers. **3,216 full original93F0 comparisons /3,168 strict native data
+children** also pass, including48 empty roots, sixteen source/stack/destination
+biases, three host depths, arbitrary LUT arguments and48 late-frame/return-link
+aliases. Shared setup and9498 restoration remain original on both arms.
+**16 unchanged rejects** include both delayed-padding protected footprints.
+Two input-inventory tests pass.
+
+The first compiled5,710-case full-state suite passed without kernel fixes.
+The expanded byte model initially assumed aligned publication addresses in
+its32 new LUT-alias fixtures; the original and native arms already agreed.
+Those fixtures now explicitly supply the canonical metadata layout expected
+by that model. Neither runtime arithmetic nor strict checker changed. The
+initial compile error (mixed auto deduction) and failed model log are retained.
+
+Run `tests/scripts/test-geometry-builtin12-input.ps1`. The generator pins the
+original source/54E8 anchor and emits two private original data blocks with
+a9498 trap, plus a separate seven-block original93F0 graph with native-data
+hook and95DC trap. The synthetic format4 calibration has SHA256
+`c3935ac4aaede08294f18c33871c8de8bb512c166bf36b2648eb5ad63f63d084`.
+It uses original93F0 setup over the real54E8 LS plus a synthetic manager and
+arguments; it is not a captured cold input root.
+
+No production switch, ABI, executable, real corpus/live/render or FPS/CPU
+claim changes. JOB0/geometry827/newflags0 and frozen app/source/save pins stay
+unchanged. Next: input5, production wrappers/native93F0, then cold and final
+acceptance. Phase3 remains open; shared phase4 and final strict StageF7 remain
+in the continuing objective.

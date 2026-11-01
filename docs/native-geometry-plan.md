@@ -52,7 +52,7 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next implementation: required input built-ins4/5, then production
+Current next implementation: required input built-in5, then production
 wrappers/native93F0 entry, expanded real cold coverage and final acceptance.
 Input1 now has a complete standalone decoder:5,646 strict cases,256 independent
 byte models,32,768 independent CMP float components and3,216 full original93F0
@@ -62,6 +62,10 @@ each256 independent byte models/32,768 CMP components/3,216 full original93F0
 cases;input2 also covers262,144 signed16 components. Their production/cold/live/
 final gates remain OPEN. Input1 regression passes after the metadata helper
 learned distinct IDs read/store addresses.
+Input4 now has a complete standalone fixed12/packed-unit decoder:5,806 strict
+cases,288 ordered byte models,3,145,728 independent position components and
+3,216 original93F0 cases/3,168 strict native children. Production/cold/live/
+final gates remain OPEN; the extra delayed-output footprint is preserved.
 The [input audit](native-geometry-input-audit.md) maps all23 standard blocks
 and six95C4 routes. The native54E8
 output controller now handles all seven paths, including all four complete
@@ -1061,6 +1065,7 @@ See the separate
 | 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
 | 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | Builtin input4 standalone fixed12/packed-unit decoder | CPU function/model/original-control tests | not measured | not measured | All2blocks+delayed pipeline/table-read timing/final9498ABI;5,806strict/288ordered byte models/3,145,728independent position components/3,216full93F0;16unchanged rejects;production/cold/final OPEN;app unchanged |
 | 2026-11-01 | Builtin inputs2/3 standalone 24-byte decoders | CPU function/model/original-control tests | not measured | not measured | All5/3blocks+ordered metadata/read-lookahead/final9498ABI;5,678/5,710strict;each256byte models/32,768CMP;input2 262,144signed16;each3,216full93F0;14/17unchanged rejects;split IDs read/store fix+input1 regression;production/cold/final OPEN;app unchanged |
 | 2026-11-01 | Builtin input1 standalone XYZ+2CMP decoder | CPU function/model/original-control tests | not measured | not measured | All3blocks+metadata publication/pipeline/final9498ABI;5,646strict/256byte models/32,768numeric/3,216full93F0;14rejects;23block input inventory;production/corpus/live/render/performance OPEN;app unchanged |
 | 2026-11-01 | Native54E8 all4 builtin paths | Strict integration/routing +5 frozen corpus arms | not measured | not measured | 15,988strict controller/data+4,472unchanged rejects;3,072native/1,536parent-strict/1,536child-strict routing;scalar padded footprint protects control metadata before mutation;ABI47/55stages;each19,508exact/58,195transfers;7,201real descriptor native/0fallback;builtin real/live0 OPEN;default0 |
