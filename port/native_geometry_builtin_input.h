@@ -34,9 +34,10 @@ inline GeometryBuiltinInputSlot reserve_geometry_builtin_input(GeometryBuiltinIn
 struct GeometryBuiltinInputMetadata {
     u128 manager,ids_manager,selector,table,publication[4],bytes,counter,delayed;
 };
+struct GeometryBuiltinInputBounds {unsigned limit,avoid,avoid_bytes;};
 inline GeometryBuiltinInputMetadata geometry_builtin_input_metadata(const spu_context& c)
 {return {c.gpr[3],c.gpr[82],c.gpr[80],c.gpr[83],{c.gpr[35],c.gpr[37],c.gpr[61],c.gpr[39]},c.gpr[36],c.gpr[42],c.gpr[49]};}
-inline bool read_geometry_builtin_input_metadata(GeometryBuiltinInputMemory& memory,const GeometryBuiltinInputMetadata& m,unsigned format,unsigned& out,const char** reason=nullptr)
+inline bool read_geometry_builtin_input_metadata(GeometryBuiltinInputMemory& memory,const GeometryBuiltinInputMetadata& m,unsigned format,unsigned& out,const char** reason=nullptr,const GeometryBuiltinInputBounds* bounds=nullptr)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(format<1 || format>5)return reject("unknown builtin input metadata family");
@@ -48,10 +49,11 @@ inline bool read_geometry_builtin_input_metadata(GeometryBuiltinInputMemory& mem
         pointers[stream]=reserve_geometry_builtin_input(memory,m.selector,stream+1,ids+0x160,m.table,m.publication[stream],destination+0x160).pointer;
     }
     if(!memory.allowed)return reject("builtin input protected metadata write");
+    auto allowed=[&](unsigned address){address&=0x3fff0;return address>=0xe680 && (!bounds || (address+16<=bounds->limit && (address+16<=bounds->avoid || bounds->avoid+bounds->avoid_bytes<=address)));};
     for(unsigned stream=0;stream<streams;++stream)for(unsigned group=0;group<groups;++group)for(unsigned row=0;row<2;++row)
-        if(((pointers[stream]._u32[0]+offset+group*32+row*16)&0x3fff0)<0xe680)return reject("builtin input protected data write");
+        if(!allowed(pointers[stream]._u32[0]+offset+group*32+row*16))return reject("builtin input protected data write");
     if(format>=4)for(unsigned stream=1;stream<streams;++stream)for(unsigned row=0;row<2;++row)
-        if(((pointers[stream]._u32[0]+m.bytes._u32[0]+m.delayed._u32[0]+row*16)&0x3fff0)<0xe680)return reject("builtin input protected padding write");
+        if(!allowed(pointers[stream]._u32[0]+m.bytes._u32[0]+m.delayed._u32[0]+row*16))return reject("builtin input protected padding write");
     out=groups;return true;
 }
 struct GeometryBuiltinInputCmp {u128 shifted,masked,converted,scaled;};

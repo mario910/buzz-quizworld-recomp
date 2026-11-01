@@ -68,6 +68,18 @@ typedef struct buzz_geometry_formatter_functions {
 typedef struct buzz_geometry_builtin_output_functions {
     buzz_geometry_job_fn data[4],finish;
 } buzz_geometry_builtin_output_functions;
+typedef struct buzz_geometry_builtin_input_functions {
+    buzz_geometry_job_fn data[5],finish;
+} buzz_geometry_builtin_input_functions;
+enum { BUZZ_GEOMETRY_JOB_INPUT_CONTROL = 55, BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT = 56,
+       BUZZ_GEOMETRY_JOB_BUILTIN24_INPUT = 57, BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_INPUT = 58,
+       BUZZ_GEOMETRY_JOB_BUILTIN12_INPUT = 59, BUZZ_GEOMETRY_JOB_BUILTIN15_INPUT = 60 };
+int buzz_geometry_job_input_control_enabled(void);
+int buzz_geometry_job_builtin_input_enabled(unsigned format);
+void buzz_geometry_job_input_control_result(unsigned path,int checked);
+void buzz_geometry_job_builtin_input_result(unsigned format,int checked);
+void buzz_geometry_job_input_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn descriptors,const buzz_geometry_builtin_input_functions*);
+void buzz_geometry_job_builtin_input(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format);
 enum { BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL = 50 };
 enum { BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT = 51, BUZZ_GEOMETRY_JOB_BUILTIN20_OUTPUT = 52,
        BUZZ_GEOMETRY_JOB_BUILTIN24_OUTPUT = 53, BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT = 54 };

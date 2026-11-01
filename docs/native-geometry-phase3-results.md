@@ -20,7 +20,8 @@ corpus/live checks. Its `0x7118/7298` run-list data decoder now has a native
 opt-in implementation; its separate validation is recorded below.
 The custom `0x93F0` dispatcher also has a native implementation through its
 exact descriptor tail handoff. A complete standalone standard93F0 controller
-now composes raw0 and builtin formats1..5; production composition remains open.
+now composes raw0 and builtin formats1..5 through production wrappers; cold and
+final gates remain open.
 The `0x9F8` skin/rigid controller now has native opt-in control through its
 exact weighted-data/normalization tail or return boundary. `0xAF18` now has
 native palette/frame/batch/dispatch/publication control, separately switched.
@@ -5954,3 +5955,44 @@ integration, add independent switches and compiled-app checks, then complete
 all cold/final gates. Existing frozen app/ABI47/55 stages and JOB0/geometry827/
 newflags0 remain unchanged. Phase3/continuing goal stay active through shared
 phase4 and final strictStageF7.
+
+## Production standard93F0/input wrappers: ABI48/61 stages
+
+Complete input control and formats1..5 now run through independent default-off
+production switches, with parent whole-return and child full9498 state checks.
+The [input audit](native-geometry-input-audit.md#production-standard93f0-and-builtin-input-routing-abi48)
+records the exact parent/scratch/descriptor contract, switch dependencies,
+validation limits and frozen bindings.
+
+Production routing passes3,876 roots/1,938 parent-strict/1,440 child-strict
+comparisons. Parent validation adds576 original/native roots across all36 format
+pairs and292 layout cases/877 capacity/control rejects, including pure-custom
+and mixed semantic0 descriptors. The8,391-root controller suite, all five full
+data suites,1,024 old modeled driver scenarios,472 production-getter cases and
+53 controller scenarios pass. Input/conversion audit tests pass2/7.
+
+All five final frozen corpus arms pass19,508 exact jobs/58,195 transfers, zero
+input divergence/failure. Enabled whole jobs execute19,508 natively with zero
+fallback. The controller wrapper has19,508 real raw0 roots and zero fallback;
+checked/independent arms add19,508 strict input-root comparisons. Raw0 retains
+its old complete native helper; formats1..5/new common composition remain
+synthetic with zero real/live roots. Older ledgers match after raw-stage migration.
+
+The initial integration's overlarge declared descriptor-span forecast reduced
+native whole-job coverage by5,838 despite exact final outputs. That coverage
+regression was rejected and corrected from an actual C++ entry audit. Metadata
+needs the8-byte header/8-byte rows; speculative trailing quad reads still use
+actual LS. No arithmetic/checker relaxation was made. Final parent guards also
+apply when the new controller is off, before any preamble write. Failed V1 and
+passing intermediate V2 artifacts are retained separately.
+
+Final freeze: `build-vulkan-phase3-input-routing-v3`, ABI48/61 stages,
+EXE`bec8b85965eb662a171004af33060e30dc0e868a50e016d2c4cb45e2ea6efbd6`,
+MAP`729a12aef82a51d8c8ddeb5810345681440886c734583ae5043725e55023da5d`.
+Thirteen frozen native sources and the generated C bind the implementation;
+older source/save/template/executable pins stay intact. No FPS/CPU gain is
+claimed; replay timings are functional measurements. JOB0/geometry827/newflags0
+stay unchanged. Next: live checks/actual-native menu and round rendering,
+interpreter counts/reversed A/B/normalized CPU and cold-path evidence. Phase3
+and the continuing goal remain active; shared phase4 follows and strictStageF7
+remains last.

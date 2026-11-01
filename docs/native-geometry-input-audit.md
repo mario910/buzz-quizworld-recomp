@@ -7,11 +7,11 @@ The six-word95C4 table contains offsets relative to95C4:
 | Format | Offset | Data root | Complete data blocks | Current native status |
 | --- | --- | --- | --- | --- |
 | 0 | 013C | 9700 | 9700,97A8 | Existing complete raw XYZ input; admission limits retained |
-| 1 | 1334 | A8F8 | A8F8,AAF8,AB00 | Complete standalone XYZ+2CMP decoder; production/cold gates OPEN |
-| 2 | 10E4 | A6A8 | A6A8,A750,A860,A864,A868 | Complete standalone XYZ+CMP+signed16x4 decoder; production/cold gates OPEN |
-| 3 | 0DCC | A390 | A390,A5D0,A5D8 | Complete standalone XYZ+3CMP decoder; production/cold gates OPEN |
-| 4 | 08AC | 9E70 | 9E70,A170 | Complete standalone fixed12 XYZ +2 packed-unit decoder; production/cold gates OPEN |
-| 5 | 0234 | 97F8 | 97F8,9BB0 | Complete standalone fixed12 XYZ +3 packed-unit decoder; production/cold gates OPEN |
+| 1 | 1334 | A8F8 | A8F8,AAF8,AB00 | Complete opt-in XYZ+2CMP; cold/live/final gates OPEN |
+| 2 | 10E4 | A6A8 | A6A8,A750,A860,A864,A868 | Complete opt-in XYZ+CMP+signed16x4; cold/live/final gates OPEN |
+| 3 | 0DCC | A390 | A390,A5D0,A5D8 | Complete opt-in XYZ+3CMP; cold/live/final gates OPEN |
+| 4 | 08AC | 9E70 | 9E70,A170 | Complete opt-in fixed12 XYZ+2packed units; cold/live/final gates OPEN |
+| 5 | 0234 | 97F8 | 97F8,9BB0 | Complete opt-in fixed12 XYZ+3packed units; cold/live/final gates OPEN |
 
 Shared blocks are93F0/9408/9518/9580/9498. Setup saves25 nonvolatile vectors
 r80..r104, r126, r0 and r1, reserves448 bytes, reads the16-bit vertex count,
@@ -467,3 +467,121 @@ table bounds and secondary-stream slot demand also need to account for the
 extra delayed-unit rows. These production protections, independent switches,
 compiled-app replay, cold real/live/render/interpreter/reversed A/B/normalized
 CPU/default gates remain open. Phase3 stays active and strict StageF7 stays last.
+
+## Production standard93F0 and builtin input routing: ABI48
+
+The complete standard input controller and all five new data decoders now have
+production wrappers. The generated93F0 entry selects the new controller, which
+uses only the selected data wrapper and queues the real9498 marker before its
+native late restoration. Per-data strict mode checks every register/LS/control
+field at that boundary, including nonvolatile temporaries that the subsequent
+restore would overwrite. Parent strict mode separately checks the complete
+original93F0 return. JOB2 forces both checks. No new tolerance, excluded state,
+original native-arm block or state repair is introduced.
+
+All new switches accept0/1/2 and default0:
+
+| Environment option | Scope |
+| --- | --- |
+| `BUZZ_GEOMETRY_JOB_INPUT_CONTROL` | Complete standard input controller; custom nonempty calls retain their existing route |
+| `BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT` | Format1: XYZ+2CMP |
+| `BUZZ_GEOMETRY_JOB_BUILTIN24_INPUT` | Format2: XYZ+CMP+signed16x4 |
+| `BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_INPUT` | Format3: XYZ+3CMP |
+| `BUZZ_GEOMETRY_JOB_BUILTIN12_INPUT` | Format4: fixed12 XYZ+2 packed units |
+| `BUZZ_GEOMETRY_JOB_BUILTIN15_INPUT` | Format5: fixed12 XYZ+3 packed units |
+
+Controller0 retains the previous raw/custom routing and its original switches;
+it does not enable the new typed inputs. Controller1/2 requires only the selected
+data switch and function plus9498 marker; unused data entries may be disabled
+or null. Empty/raw0 calls require no typed library. A selected data switch0 or
+missing dependency retains the original route before any frame mutation. Data
+wrappers additionally require the enclosing native controller scope: enabling
+a data switch alone cannot enter through an unprotected original parent.
+Per-data2 checks the full data boundary; controller2 checks the full return.
+
+### Protect the native callers before their first write
+
+The native job entry now validates scratch/table/control-frame bounds for both
+existing and new input routing, including when the new controller switch is0.
+This is necessary because native ATTRIBUTES and the outer driver retain host
+values across calls. A standalone decoder can correctly alter a saved register
+through an LS alias while invalidating such an enclosing host assumption.
+
+`native_geometry_input_layout.h` forecasts the two pinned AC68 stream calls
+from the21-input job entry. It uses actual input11 size_flags for secondary
+presence, standard-format slot demand and descriptor semantics, including
+semantic0 slot reuse. Both mixed and pure-custom pairs use their known metadata
+grammar. It proves all declared scratch tables fit, includes32 bytes for delayed
+builtin4/5 rows and the typed64-byte trailing contract, and keeps their domain
+below the relevant saved-control window (576 bytes for standard input calls,
+1920 for descriptor/codec calls). Empty calls protect their frame too. Unsupported
+capacity, descriptor or assertion paths reject the whole job before preamble
+writes; they do not execute and then count fallback as native.
+
+The production93F0 reader additionally requires a bounded manager disjoint from
+its frame and all actual data/dummy stores below that frame, outside manager
+metadata. Standalone functions retain their broader exact alias support. Source
+and parameter read aliases remain allowed where their original order is retained.
+The speculative descriptor quad comes from actual LS: the declared metadata is
+an8-byte header plus8-byte rows, not16 bytes plus rows.
+
+### Validation and the corrected capacity regression
+
+- **3,876 production wrapper roots**, **1,938 strict parent checks** and
+  **1,440 strict child checks** pass. Coverage includes all six formats, empty
+  calls, independent parent/data modes, three depths, sixteen biases, selected
+  dependencies only and off/image/foreign/out-of-parent-scope rejection.
+- **576 full original/native roots across all36 standard-format pairs** retain
+  all26 restored nonvolatile vectors. **292 layout cases /877 capacity/control
+  rejects** cover scratch limits, slot demand, saved frames, pure-custom pairs,
+  mixed semantic0 reuse and empty-frame boundaries. Entry tests prove slot
+  shortage rejects before preamble mutation with the new controller both0 and1.
+- The **8,391-root /7,796-boundary /8,391-independent-frame-model** controller
+  suite and all five complete data suites pass unchanged. The old1,024 mock
+  pipeline scenarios and every older production-routing suite pass. Mock source
+  descriptors now satisfy the actual metadata grammar instead of supplying random
+  bytes for a callee the model never executes.
+- **472 production-getter cases** validate all options, including the six new
+  default0 switches and strict rejection of malformed values. All53 existing
+  controller scenarios pass. Two input-inventory and seven conversion audits pass.
+
+The first frozen integration retained exact output for every job but rejected
+5,838 previously native jobs. This failed the coverage/ledger gate and was not
+accepted. The dedicated C++ entry audit traced every rejection to the extra
+eight bytes incorrectly required in declared descriptor spans. Correcting that
+forecast to the actual header/rows restores19,508 admitted real entries, without
+changing kernel arithmetic, decoder LS loads or any strict checker. The final
+version also keeps these parent protections active on the retained stream route.
+The failed V1 build/logs remain frozen; the intermediate V2 also passes five
+full-corpus arms. V3 is the final source and executable binding below.
+
+All five V3 frozen arms pass **19,508 exact jobs /58,195 transfers each**, with
+zero concurrent-input divergences and zero failures. Enabled native arms execute
+all19,508 whole jobs with **zero whole-job fallback**. The new controller wrapper
+executes **19,508 raw0 roots /zero input fallback**; checked/independent arms also
+perform19,508 strict whole-input checks. Raw0 reuses the established complete
+native helper. Existing stage ledgers are identical after moving its19,508 counts
+from raw-stream to input-control. The retained-controller arm preserves the old
+raw-stream ledger. All five new data formats still have **zero real/live roots**;
+their new common-frame/data composition remains synthetic coverage.
+
+The frozen build is `build-vulkan-phase3-input-routing-v3`, with61 stage ledgers
+and source/ABI48. Exact bindings:
+
+- EXE: `bec8b85965eb662a171004af33060e30dc0e868a50e016d2c4cb45e2ea6efbd6`.
+- MAP: `729a12aef82a51d8c8ddeb5810345681440886c734583ae5043725e55023da5d`.
+- Generated C: `c8c91a05e5c483a4046782f6b47164b9a44e214215bfe672c63db7a6e8b4180f`.
+- Build metadata: `4d548944ff3c76a42c92cf51e4d961889934deb1ca2a5d23b9d974426f4f8107`.
+
+Thirteen native source copies bind this build; all older freezes, original
+lift/generator/save/template pins remain preserved. The generated C is unchanged
+between V1/V2/V3; the corrected host C++ admission and final parent protections
+produce distinct frozen executables. No FPS or CPU gain is inferred from replay
+timings. JOB0/geometry827/newflags0 remain unchanged.
+
+This completes the standard input implementation and production-routing
+milestone. Phase3 stays OPEN for expanded cold real coverage,256 live checks,
+actual-native menu/round frames, interpreter-count checks, reversed frozen A/B,
+normalized worker/process CPU and default decisions. Synthetic/unused formats
+are not promoted to real coverage. The continuing objective proceeds through
+shared phase4 and optional5/6 decisions, with strictStageF7 LAST.

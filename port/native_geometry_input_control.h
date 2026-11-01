@@ -16,11 +16,19 @@ inline void spill_geometry_input_frame(GeometryBuiltinInputMemory& memory,const 
     for(unsigned reg=85;reg<=104;++reg)memory.store(sp-(reg-79)*16,r[reg]);
     memory.store(sp-448,r[1]);
 }
-inline bool read_geometry_input_control(const spu_context& c,GeometryInputControl& out,const char** reason=nullptr)
+inline bool read_geometry_input_control(const spu_context& c,GeometryInputControl& out,const char** reason=nullptr,bool parent_safe=false)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
     if(c.int_enable || c.irq_saved || c.irq_frame)return reject("active interrupt context");
+    const unsigned manager_base=c.gpr[3]._u32[0]&~15u,sp=c.gpr[1]._u32[0],frame=sp&~15u;
+    GeometryBuiltinInputBounds bounds{};
+    if(parent_safe){
+        if(c.gpr[3]._u32[0]>=SPU_LS_SIZE || manager_base<0xe680 || uint64_t(manager_base)+0x190>SPU_LS_SIZE)return reject("input parent manager span");
+        if(sp>=SPU_LS_SIZE || frame<0xe680+448 || uint64_t(frame)+32>SPU_LS_SIZE)return reject("input parent frame span");
+        if(geometry_output_overlap(manager_base,0x190,frame-448,480))return reject("input parent frame/manager alias");
+        bounds={frame-448,manager_base,0x190};
+    }
     // Count is cached before the frame can overwrite its manager/config quad.
     const auto config=spu_ls_read128(&c,c.gpr[3]._u32[0]);const unsigned count=spu_rotqbyi(config,6)._u16[0];
     GeometryInputControl p;p.empty=!count;p.format=c.gpr[6]._u32[0]&255;
@@ -31,10 +39,10 @@ inline bool read_geometry_input_control(const spu_context& c,GeometryInputContro
     static constexpr unsigned targets[]={0x13c,0x1334,0x10e4,0xdcc,0x8ac,0x234};
     const auto slot=spu_ila(0x95c4+p.format*4),word=spu_rotqby(spu_ls_read128(&c,slot._u32[0]),slot);
     if(word._u32[0]!=targets[p.format])return reject("input control dispatch target");
-    if(!p.format){if(!read_geometry_raw_stream(c,p.raw))return reject("raw input contract");out=p;return true;}
+    if(!p.format){if(!read_geometry_raw_stream(c,p.raw))return reject("raw input contract");if(parent_safe && uint64_t(p.raw.destination)+p.raw.groups*64>bounds.limit)return reject("raw input parent frame write");out=p;return true;}
     const auto manager=c.gpr[3],bytes=spu_il(((count+1)&~1u)*16);
     const GeometryBuiltinInputMetadata metadata{manager,manager,spu_il(0),spu_ai(manager,16),{spu_ai(manager,92),spu_ai(manager,96),spu_ai(manager,100),spu_ai(manager,104)},bytes,spu_sfi(bytes,0),spu_il(0)};
-    if(!read_geometry_builtin_input_metadata(memory,metadata,p.format,p.groups,reason))return false;
+    if(!read_geometry_builtin_input_metadata(memory,metadata,p.format,p.groups,reason,parent_safe?&bounds:nullptr))return false;
     out=p;return true;
 }
 inline void open_geometry_input_frame(spu_context& c)
@@ -59,14 +67,17 @@ inline void finish_geometry_input_control(spu_context* c)
     for(unsigned reg=80;reg<=104;++reg)r[reg]=spu_ls_read128(c,r[1]._u32[0]-(reg-79)*16);
     r[126]=spu_ls_read128(c,r[1]._u32[0]-416);SPU_RET(c);
 }
-inline void execute_geometry_input_control(spu_context& c,const GeometryInputControl& p)
+inline void execute_geometry_input_control(spu_context& c,const GeometryInputControl& p,const buzz_geometry_builtin_input_functions* f=nullptr)
 {
     g_spu_trampoline_fn=nullptr;
     if(!p.empty && !p.format){decode_geometry_raw_stream(c,p.raw);SPU_RET(&c);}
     open_geometry_input_frame(c);
     if(!p.empty){
         prepare_geometry_input_dispatch(c);
-        switch(p.format){
+        if(f){
+            f->data[p.format-1](&c);
+            if(c.pc!=0x9498 || g_spu_trampoline_fn!=f->finish)buzz_geometry_job_native_fail(&c,"input data escaped admitted native frontier");
+        }else switch(p.format){
         case 1:decode_geometry_builtin20_input(c,{p.groups},finish_geometry_input_control);break;
         case 2:decode_geometry_builtin24_input(c,{p.groups},finish_geometry_input_control);break;
         case 3:decode_geometry_builtin24_cmp_input(c,{p.groups},finish_geometry_input_control);break;

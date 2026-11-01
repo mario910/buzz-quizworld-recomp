@@ -84,6 +84,12 @@ try {
         & .\toolenv\Scripts\python.exe "tools/codegen/generate-geometry-$geometryBuiltin-output-test.py"
         if ($LASTEXITCODE) { throw 'Builtin output routing oracle generation failed' }
     }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-input-control-test.py
+    if ($LASTEXITCODE) { throw 'Input control routing oracle generation failed' }
+    foreach ($geometryBuiltin in @('builtin20','builtin24','builtin24-cmp','builtin12','builtin15')) {
+        & .\toolenv\Scripts\python.exe "tools/codegen/generate-geometry-$geometryBuiltin-input-test.py"
+        if ($LASTEXITCODE) { throw 'Builtin input routing oracle generation failed' }
+    }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'

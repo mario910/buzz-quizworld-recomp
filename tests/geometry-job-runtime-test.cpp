@@ -112,6 +112,11 @@ static void expected_abort(int)
     std::_Exit(guest_writes == 1 && calls == 2 && direct_effects==0 ? 73 : 74);
 }
 
+static int builtin_input1_option(){return buzz_geometry_job_builtin_input_enabled(1);}
+static int builtin_input2_option(){return buzz_geometry_job_builtin_input_enabled(2);}
+static int builtin_input3_option(){return buzz_geometry_job_builtin_input_enabled(3);}
+static int builtin_input4_option(){return buzz_geometry_job_builtin_input_enabled(4);}
+static int builtin_input5_option(){return buzz_geometry_job_builtin_input_enabled(5);}
 static int builtin0_option(){return buzz_geometry_job_builtin_output_enabled(0);}
 static int builtin1_option(){return buzz_geometry_job_builtin_output_enabled(1);}
 static int builtin2_option(){return buzz_geometry_job_builtin_output_enabled(2);}
@@ -163,6 +168,13 @@ int main(int argc, char** argv)
             {"I16_OUTPUT",buzz_geometry_job_i16_output_enabled},
             {"FORMATTER",buzz_geometry_job_formatter_enabled},
             {"CONVERSION_CONTROL",buzz_geometry_job_conversion_control_enabled},
+            {"INPUT_CONTROL",buzz_geometry_job_input_control_enabled},
+            {"BUILTIN20_INPUT",builtin_input1_option},
+            {"BUILTIN24_INPUT",builtin_input2_option},
+            {"BUILTIN24_CMP_INPUT",builtin_input3_option},
+            {"BUILTIN12_INPUT",builtin_input4_option},
+            {"BUILTIN15_INPUT",builtin_input5_option},
+
             {"BUILTIN_FLOAT3_OUTPUT",builtin0_option},{"BUILTIN20_OUTPUT",builtin1_option},
             {"BUILTIN24_OUTPUT",builtin2_option},{"BUILTIN24_CMP_OUTPUT",builtin3_option},
             {"UNIT_VECTORS",buzz_geometry_job_unit_vectors_enabled},{"HALF_STREAM",buzz_geometry_job_half_stream_enabled},

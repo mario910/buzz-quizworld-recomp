@@ -83,6 +83,9 @@ static int i16_output_mode=0;
 static int formatter_mode=0;
 static int conversion_control_mode=0;
 static int builtin_output_mode[4]{};
+static int input_control_mode=0,builtin_input_mode[5]{};
+static unsigned input_control_native=0,input_control_checked=0,input_control_fallback=0,input_control_references=0,input_control_fallback_calls=0;
+static unsigned builtin_input_native[5]{},builtin_input_checked[5]{},builtin_input_references[5]{},builtin_input_fallback[5]{};
 static unsigned builtin_output_native[4]{},builtin_output_checked[4]{},builtin_output_fallback[4]{},builtin_output_references[4]{},builtin_output_fallback_calls[4]{};
 static unsigned builtin_output_current=0;
 static const spu_context* builtin_output_unchanged=nullptr;
@@ -182,6 +185,10 @@ int buzz_geometry_job_u8_integer_output_enabled(){return u8_integer_output_mode;
 int buzz_geometry_job_i16_output_enabled(){return i16_output_mode;}
 int buzz_geometry_job_formatter_enabled(){return formatter_mode;}
 int buzz_geometry_job_conversion_control_enabled(){return conversion_control_mode;}
+int buzz_geometry_job_input_control_enabled(){return input_control_mode;}
+int buzz_geometry_job_builtin_input_enabled(unsigned format){assert(format>=1 && format<=5);return builtin_input_mode[format-1];}
+void buzz_geometry_job_input_control_result(unsigned path,int checked){assert(path<7);if(checked)++input_control_checked;}
+void buzz_geometry_job_builtin_input_result(unsigned format,int checked){assert(format>=1 && format<=5);if(checked)++builtin_input_checked[format-1];}
 int buzz_geometry_job_builtin_output_enabled(unsigned format){assert(format<4);return builtin_output_mode[format];}
 void buzz_geometry_job_builtin_output_result(unsigned format,int checked){assert(format<4);if(checked)++builtin_output_checked[format];}
 void buzz_geometry_job_conversion_control_result(unsigned,int checked){if(checked)++conversion_control_checked;}
@@ -245,6 +252,8 @@ void buzz_geometry_job_color_checked_result() { ++color_region_checked; }
 int buzz_geometry_job_emit_enabled() { return emit_enabled; }
 int buzz_geometry_job_command_publish_enabled() { return command_publish_enabled; }
 void buzz_geometry_job_output_result(unsigned stage, int native, int) {
+    if(stage==BUZZ_GEOMETRY_JOB_INPUT_CONTROL){assert(routing_probe);if(native)++input_control_native;else ++input_control_fallback;return;}
+    if(stage>=BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT && stage<=BUZZ_GEOMETRY_JOB_BUILTIN15_INPUT){assert(routing_probe);const auto format=stage-BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT;if(native)++builtin_input_native[format];else ++builtin_input_fallback[format];return;}
     if(stage>=BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT && stage<=BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT){assert(routing_probe);const auto f=stage-BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT;if(native)++builtin_output_native[f];else ++builtin_output_fallback[f];return;}
     if(stage==BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL){assert(routing_probe);if(native)++conversion_control_native;else ++conversion_control_fallback;return;}
     if(stage==BUZZ_GEOMETRY_JOB_FORMATTER){assert(routing_probe);if(native)++formatter_native;else ++formatter_fallback;return;}
@@ -934,6 +943,71 @@ static void builtin_control_routing(spu_context* ctx){
     for(auto& flag:builtin_output_mode)flag=0;conversion_control_mode=formatter_mode=0;flow_mode=1;memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);buzz::release_function_state(entry);g_spu_trampoline_fn=continuation;
     puts("Builtin native-parent routing:3072 native/1536 parent strict/1536 child strict roots;all4 formats/4modes/3depths/16biases/4counts;56 unchanged owned rejects+12 off/image/foreign;unused formatter/encoder/builtin function dependencies disabled PASS");
 }
+
+#include "../analysis/native-geometry/phase3/input-control-original.inc"
+#include "../analysis/native-geometry/phase3/builtin20-input-original.inc"
+#include "../analysis/native-geometry/phase3/builtin24-input-original.inc"
+#include "../analysis/native-geometry/phase3/builtin24-cmp-input-original.inc"
+#include "../analysis/native-geometry/phase3/builtin12-input-original.inc"
+#include "../analysis/native-geometry/phase3/builtin15-input-original.inc"
+static const spu_context* input_unchanged=nullptr;
+static buzz_geometry_job_fn input_queue=nullptr;
+static void input_fallback(spu_context* c){assert(input_unchanged && !memcmp(c,input_unchanged,sizeof(*c)) && g_spu_trampoline_fn==input_queue);++input_control_fallback_calls;}
+static void input_reference(spu_context* c){++input_control_references;buzz_input_original_run(c);}
+static void input_reference1(spu_context* c){++builtin_input_references[0];buzz_builtin20_input_original_0000A8F8(c);}
+static void input_reference2(spu_context* c){++builtin_input_references[1];buzz_builtin24_input_original_0000A6A8(c);}
+static void input_reference3(spu_context* c){++builtin_input_references[2];buzz_builtin24_cmp_input_original_0000A390(c);}
+static void input_reference4(spu_context* c){++builtin_input_references[3];buzz_builtin12_input_original_00009E70(c);}
+static void input_reference5(spu_context* c){++builtin_input_references[4];buzz_builtin15_input_original_000097F8(c);}
+static void input_data1(spu_context* c){buzz_geometry_job_builtin_input(c,input_fallback,input_reference1,buzz_job_6eba_spu_func_00009498,1);}
+static void input_data2(spu_context* c){buzz_geometry_job_builtin_input(c,input_fallback,input_reference2,buzz_job_6eba_spu_func_00009498,2);}
+static void input_data3(spu_context* c){buzz_geometry_job_builtin_input(c,input_fallback,input_reference3,buzz_job_6eba_spu_func_00009498,3);}
+static void input_data4(spu_context* c){buzz_geometry_job_builtin_input(c,input_fallback,input_reference4,buzz_job_6eba_spu_func_00009498,4);}
+static void input_data5(spu_context* c){buzz_geometry_job_builtin_input(c,input_fallback,input_reference5,buzz_job_6eba_spu_func_00009498,5);}
+static void input_control_routing(spu_context* ctx){
+    auto* saved=buzz::clone_function_state(ctx);const auto queue=g_spu_trampoline_fn;auto* base=buzz::clone_function_state(ctx);
+    auto* f=fopen("analysis/native-geometry/phase3/conversion-audit-v1/pc_54E8.bin","rb");assert(f);assert(fread(base->gpr,sizeof base->gpr,1,f)==1 && fread(base->ls,SPU_LS_SIZE,1,f)==1 && fgetc(f)==EOF);fclose(f);
+    const bool prior_attributes=attributes_enabled;const auto prior_custom=custom_stream_mode;attributes_enabled=false;custom_stream_mode=0;
+    const buzz_geometry_job_fn data[]={input_data1,input_data2,input_data3,input_data4,input_data5};unsigned roots=0,parent_checks=0,child_checks=0;
+    auto reset=[&](unsigned format,unsigned count,unsigned bias,unsigned depth,unsigned mode){
+        memcpy(ctx,base,sizeof(*ctx));ctx->ls=ctx->ls_store;ctx->int_enable=0;ctx->irq_saved=0;ctx->irq_frame=nullptr;ctx->host_depth=depth;ctx->pc=0x93f0;
+        ctx->gpr[0]=spu_link(0x12345678);ctx->gpr[1]=spu_ila(0x3f000+bias);ctx->gpr[3]=spu_ila(0x3d000);ctx->gpr[4]=spu_ila(0x18000+bias);ctx->gpr[5]=spu_ila(0x20000+bias);ctx->gpr[6]=spu_il(format);
+        memset(ctx->ls+0x3d000,0,0x190);ctx->ls[0x3d008]=count>>8;ctx->ls[0x3d009]=count;for(unsigned slot=0;slot<17;++slot)buzz::geometry_job_put32(ctx->ls+0x3d010+slot*4,(slot<4?0x24000+slot*0x4000:0x30000)+bias);
+        flow_mode=mode==1?2:1;input_control_mode=mode==2?2:1;for(auto& flag:builtin_input_mode)flag=0;if(format>=1 && format<=5)builtin_input_mode[format-1]=mode==3?2:1;g_spu_trampoline_fn=spu_indirect_branch;
+    };
+    auto compare=[&](const buzz_geometry_builtin_input_functions* library,unsigned mode,bool child){
+        auto* expected=buzz::clone_function_state(ctx);g_spu_trampoline_fn=nullptr;buzz_input_original_run(expected);const auto finish=g_spu_trampoline_fn;g_spu_trampoline_fn=spu_indirect_branch;
+        buzz_geometry_job_input_control(ctx,input_fallback,input_reference,nullptr,library);
+        assert(buzz::compare_function_state(*ctx,*expected).exact() && ctx->host_depth==expected->host_depth && ctx->image_id==expected->image_id && ctx->policy_mode==expected->policy_mode && ctx->resident_ovl==expected->resident_ovl && g_spu_trampoline_fn==finish);buzz::release_function_state(expected);
+        ++roots;if(mode==1 || mode==2)++parent_checks;if(child && (mode==1 || mode==3))++child_checks;
+    };
+    for(unsigned format=1;format<=5;++format){buzz_geometry_builtin_input_functions library{};library.data[format-1]=data[format-1];library.finish=buzz_job_6eba_spu_func_00009498;
+        for(unsigned mode=0;mode<4;++mode)for(unsigned depth=0;depth<3;++depth)for(unsigned bias=0;bias<16;++bias)for(unsigned count:{1u,3u,17u}){reset(format,count,bias,depth,mode);compare(&library,mode,true);}
+    }
+    for(unsigned mode=0;mode<4;++mode)for(unsigned depth=0;depth<3;++depth){
+        for(unsigned count:{1u,3u,17u}){reset(0,count,0,depth,mode);compare(nullptr,mode,false);}
+        for(unsigned bias=0;bias<16;++bias)for(unsigned format:{0u,1u,5u,6u,255u}){reset(format,0,bias,depth,mode);compare(nullptr,mode,false);}
+    }
+    assert(roots==3876 && parent_checks==1938 && child_checks==1440 && input_control_native==roots && input_control_checked==parent_checks && input_control_references==parent_checks);
+    for(unsigned i=0;i<5;++i)assert(builtin_input_native[i]==576 && builtin_input_checked[i]==288 && builtin_input_references[i]==288 && !builtin_input_fallback[i]);
+    auto unchanged=[&](spu_context* c,const buzz_geometry_builtin_input_functions* library,buzz_geometry_job_fn reference=input_reference){
+        auto before=std::make_unique<spu_context>();memcpy(before.get(),c,sizeof(*c));input_unchanged=before.get();input_queue=g_spu_trampoline_fn;const auto children=builtin_input_native[0];buzz_geometry_job_input_control(c,input_fallback,reference,nullptr,library);
+        assert(!memcmp(c,before.get(),sizeof(*c)) && g_spu_trampoline_fn==input_queue && children==builtin_input_native[0]);input_unchanged=nullptr;
+    };
+    buzz_geometry_builtin_input_functions library{};library.data[0]=data[0];library.finish=buzz_job_6eba_spu_func_00009498;
+    for(unsigned failure=0;failure<16;++failure){reset(1,17,0,0,0);auto functions=library;switch(failure){
+        case 0:input_control_mode=0;break;case 1:ctx->image_id=40;break;case 2:functions.finish=nullptr;break;case 3:functions.data[0]=nullptr;break;case 4:builtin_input_mode[0]=0;break;
+        case 5:ctx->int_enable=1;break;case 6:ctx->irq_saved=1;break;case 7:ctx->irq_frame=reinterpret_cast<void*>(uintptr_t(1));break;case 8:ctx->ls=base->ls_store;break;
+        case 9:buzz::geometry_job_put32(ctx->ls+0x3d010,0x3f000-32);break;case 10:buzz::geometry_job_put32(ctx->ls+0x3d010,0x3d000);break;case 11:ctx->gpr[3]._u32[0]=0x3f000-96;break;
+        case 12:ctx->gpr[1]._u32[0]=0xe700;break;case 13:ctx->ls[0x95cb]^=1;break;}
+        unchanged(ctx,failure==14?nullptr:&functions,failure==15?nullptr:input_reference);
+    }
+    reset(1,17,0,0,0);auto* foreign=buzz::clone_function_state(ctx);unchanged(foreign,&library);buzz::release_function_state(foreign);
+    reset(1,17,0,0,0);auto before=std::make_unique<spu_context>();memcpy(before.get(),ctx,sizeof(*ctx));input_unchanged=before.get();input_queue=g_spu_trampoline_fn;data[0](ctx);input_unchanged=nullptr;
+    assert(input_control_native==3876 && input_control_checked==1938 && input_control_references==1938 && input_control_fallback==14 && input_control_fallback_calls==18);
+    for(auto& flag:builtin_input_mode)flag=0;input_control_mode=0;flow_mode=1;attributes_enabled=prior_attributes;custom_stream_mode=prior_custom;memcpy(ctx,saved,sizeof(*ctx));ctx->ls=ctx->ls_store;buzz::release_function_state(saved);buzz::release_function_state(base);g_spu_trampoline_fn=queue;
+    puts("Native input production routing:3876 roots/1938 parent strict/1440 child strict;all6 formats/empty/independent options/depths/biases;14 unchanged owned rejects/off/image/foreign and out-of-parent leaf scope PASS");
+}
 static void routing_inside(spu_context* ctx)
 {
     {
@@ -997,6 +1071,7 @@ static void routing_inside(spu_context* ctx)
     conversion_control_routing(ctx);
     builtin_output_routing(ctx);
     builtin_control_routing(ctx);
+    input_control_routing(ctx);
 
     {
         auto* saved=buzz::clone_function_state(ctx);const auto continuation=g_spu_trampoline_fn;auto* entry=buzz::clone_function_state(ctx);
@@ -1777,6 +1852,12 @@ static void synthetic(spu_context& ctx, unsigned trial)
         }
         cursor += size;
     }
+    // The pipeline model does not execute the secondary descriptor decoder,
+    // but its declared metadata must still satisfy the real parent guard.
+    buzz::GeometryJobEntry modeled_input;assert(buzz::read_geometry_job_entry(ctx,modeled_input));
+    auto* modeled_descriptor=ctx.ls+modeled_input.input[20].lsa;
+    memset(modeled_descriptor,0,16);modeled_descriptor[0]=1;modeled_descriptor[1]=16;
+    modeled_descriptor[9]=2;modeled_descriptor[10]=4;modeled_descriptor[11]=2;modeled_descriptor[12]=12;
     put(0xe800, 0);
     static const uint32_t bits[] = {0x10000000, 0x80, 0x100, 8, 32, 64};
     uint32_t flags = 0;
@@ -1820,6 +1901,19 @@ int main(int argc, char** argv)
     const unsigned previous = _mm_getcsr();
     _mm_setcsr((previous & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
     auto native = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
+    synthetic(*native,0);buzz::GeometryJobEntry input_entry;assert(buzz::read_geometry_job_entry(*native,input_entry));
+    const unsigned input_config=input_entry.input[16].lsa;native->ls[input_config+2]=1;native->ls[input_config+3]=5;input_control_mode=0;
+    auto untouched=std::make_unique<unsigned char[]>(sizeof(*native));memcpy(untouched.get(),native.get(),sizeof(*native));
+    assert(!buzz_geometry_job_native_eligible(native.get()) && !memcmp(untouched.get(),native.get(),sizeof(*native)));
+    input_control_mode=1;assert(!buzz_geometry_job_native_eligible(native.get()) && !memcmp(untouched.get(),native.get(),sizeof(*native)));
+    buzz::GeometryJobSetup refused;memset(&refused,0xa5,sizeof refused);unsigned char refused_before[sizeof refused];memcpy(refused_before,&refused,sizeof refused);const char* refuse_reason=nullptr;
+    assert(!buzz::prepare_geometry_job(*native,refused,&refuse_reason,true) && refuse_reason && !memcmp(&refused,refused_before,sizeof refused) && !memcmp(untouched.get(),native.get(),sizeof(*native)));
+    native->ls[input_config]=(native->ls[input_config]&0xf0)|7;memcpy(untouched.get(),native.get(),sizeof(*native));
+    assert(buzz_geometry_job_native_eligible(native.get()) && !memcmp(untouched.get(),native.get(),sizeof(*native)));
+    auto* guarded=buzz::clone_function_state(native.get());auto* baseline=buzz::clone_function_state(native.get());buzz::GeometryJobSetup guarded_setup,baseline_setup;
+    assert(buzz::prepare_geometry_job(*guarded,guarded_setup,nullptr,true) && buzz::prepare_geometry_job(*baseline,baseline_setup));
+    assert(buzz::compare_function_state(*guarded,*baseline).exact());buzz::release_function_state(guarded);buzz::release_function_state(baseline);input_control_mode=0;
+    puts("Input parent entry guard:slot shortage rejected before preamble mutation;valid declared tables accepted;guarded/legacy preamble state identical PASS");
     routing_probe = commands_enabled = command_publish_enabled = emit_enabled = full_enabled = true;
     synthetic(*native, 0); native->host_depth = 1;
     buzz_geometry_job_prepare_commands(native.get(), routing_reference);

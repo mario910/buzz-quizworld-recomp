@@ -49,6 +49,7 @@
 #include "native_geometry_i16_output.h"
 #include "native_geometry_formatter.h"
 #include "native_geometry_conversion_control.h"
+#include "native_geometry_input_control.h"
 #include "native_geometry_builtin_float3_output.h"
 #include "native_geometry_builtin20_output.h"
 #include "native_geometry_builtin24_cmp_output.h"
@@ -59,6 +60,12 @@
 
 namespace {
 thread_local spu_context* native_pipeline_context = nullptr;
+thread_local spu_context* native_input_control_context = nullptr;
+struct NativeInputControlScope {
+    spu_context* previous;
+    explicit NativeInputControlScope(spu_context* c):previous(native_input_control_context){native_input_control_context=c;}
+    ~NativeInputControlScope(){native_input_control_context=previous;}
+};
 struct NativePipelineScope {
     spu_context* previous;
     explicit NativePipelineScope(spu_context* ctx) : previous(native_pipeline_context) { native_pipeline_context = ctx; }
@@ -93,6 +100,65 @@ void run_ring_reference(spu_context* ctx)
     if(!original)buzz_geometry_job_native_fail(ctx,"missing ring reference scope");
     buzz::run_geometry_ring_reference(*ctx,original->entry,*original->functions,original->frontier);
 }
+}
+
+extern "C" void buzz_geometry_job_builtin_input(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format)
+{
+    if(format<1 || format>5)buzz_geometry_job_native_fail(ctx,"unknown builtin input format");
+    if(ctx!=native_pipeline_context || ctx!=native_input_control_context || ctx->image_id!=41 || !buzz_geometry_job_builtin_input_enabled(format)){fallback(ctx);return;}
+    buzz::GeometryBuiltin20Input p1;buzz::GeometryBuiltin24Input p2;buzz::GeometryBuiltin24CmpInput p3;buzz::GeometryBuiltin12Input p4;buzz::GeometryBuiltin15Input p5;
+    const char* reason=nullptr;bool admitted=reference && finish;
+    if(admitted)switch(format){
+    case 1:admitted=buzz::read_geometry_builtin20_input(*ctx,p1,&reason);break;
+    case 2:admitted=buzz::read_geometry_builtin24_input(*ctx,p2,&reason);break;
+    case 3:admitted=buzz::read_geometry_builtin24_cmp_input(*ctx,p3,&reason);break;
+    case 4:admitted=buzz::read_geometry_builtin12_input(*ctx,p4,&reason);break;
+    case 5:admitted=buzz::read_geometry_builtin15_input(*ctx,p5,&reason);break;
+    }
+    const unsigned stage=BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT+format-1;
+    if(!admitted){buzz_geometry_job_output_result(stage,0,0);fallback(ctx);return;}
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_builtin_input_enabled(format)==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;!(comparison->pc==0x9498 && g_spu_trampoline_fn==finish);++steps){const auto next=g_spu_trampoline_fn;
+            if(!next || next==spu_indirect_branch || steps>=65536)buzz_geometry_job_native_fail(ctx,"builtin input reference escaped data frontier");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    switch(format){
+    case 1:buzz::decode_geometry_builtin20_input(*ctx,p1,finish);break;
+    case 2:buzz::decode_geometry_builtin24_input(*ctx,p2,finish);break;
+    case 3:buzz::decode_geometry_builtin24_cmp_input(*ctx,p3,finish);break;
+    case 4:buzz::decode_geometry_builtin12_input(*ctx,p4,finish);break;
+    case 5:buzz::decode_geometry_builtin15_input(*ctx,p5,finish);break;
+    }
+    if(comparison){const auto d=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id && ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);if(!d.exact() || !exact){std::fprintf(stderr,"[geometry-job/builtin-input%u] DIFF r%d byte%d LS=%X/%u state=%s\n",format,d.first_register,d.first_register_byte,d.first_ls,d.ls_bytes,d.first_state?d.first_state:"equal");buzz_geometry_job_native_fail(ctx,"builtin input strict full state differs");}
+        buzz_geometry_job_builtin_input_result(format,1);
+    }
+    buzz_geometry_job_builtin_input_result(format,0);buzz_geometry_job_output_result(stage,1,0);
+}
+extern "C" void buzz_geometry_job_input_control(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn descriptors,const buzz_geometry_builtin_input_functions* functions)
+{
+    auto retained=[&]{buzz_geometry_job_decode_custom_stream(ctx,fallback,descriptors);};
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_input_control_enabled()){retained();return;}
+    if(ctx->ls==ctx->ls_store && (ctx->gpr[6]._u32[0]&255)>=6 && spu_rotqbyi(spu_ls_read128(ctx,ctx->gpr[3]._u32[0]),6)._u16[0]){retained();return;}
+    buzz::GeometryInputControl p;const char* reason=nullptr;bool admitted=reference && buzz::read_geometry_input_control(*ctx,p,&reason,true);
+    if(admitted && !p.empty && p.format)admitted=functions && functions->finish && functions->data[p.format-1] && buzz_geometry_job_builtin_input_enabled(p.format);
+    if(!admitted){buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_INPUT_CONTROL,0,0);static std::atomic_flag reported=ATOMIC_FLAG_INIT;
+        if(!reported.test_and_set())std::fprintf(stderr,"[geometry-job/input-control] first fallback: %s\n",reason?reason:"missing reference/selected native data switch/library");retained();return;}
+    spu_context* comparison=nullptr;buzz_geometry_job_fn expected=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_input_control_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;reference(comparison);expected=g_spu_trampoline_fn;g_spu_trampoline_fn=scheduled;
+    }
+    {NativeInputControlScope scope(ctx);buzz::execute_geometry_input_control(*ctx,p,functions);}
+    if(comparison){const auto d=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id && ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==expected;
+        buzz::release_function_state(comparison);if(!d.exact() || !exact){std::fprintf(stderr,"[geometry-job/input-control] DIFF r%d byte%d LS=%X/%u state=%s\n",d.first_register,d.first_register_byte,d.first_ls,d.ls_bytes,d.first_state?d.first_state:"equal");buzz_geometry_job_native_fail(ctx,"input control strict full state differs");}
+        buzz_geometry_job_input_control_result(p.empty?0:p.format+1,1);
+    }
+    buzz_geometry_job_input_control_result(p.empty?0:p.format+1,0);buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_INPUT_CONTROL,1,0);
 }
 
 extern "C" void buzz_geometry_job_builtin_output(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format)
@@ -1959,7 +2025,9 @@ extern "C" void buzz_geometry_job_decode_descriptors(spu_context* ctx,buzz_geome
 extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)
 {
     buzz::GeometryJobSetup setup;
-    return buzz::read_geometry_job_setup(*ctx, setup);
+    // The old stream path is also callable under native cached parents.
+    // Protect their control frames even when the new input switch is off.
+    return buzz::read_geometry_job_setup(*ctx, setup,nullptr,true);
 }
 
 extern "C" void buzz_geometry_job_native_start(spu_context* ctx, const buzz_geometry_job_functions* functions)
@@ -1967,7 +2035,7 @@ extern "C" void buzz_geometry_job_native_start(spu_context* ctx, const buzz_geom
     buzz::GeometryJobSetup setup;
     buzz::GeometryContextState state;
     const char* reason = nullptr;
-    if (!buzz::prepare_geometry_job(*ctx, setup, &reason)) buzz_geometry_job_native_fail(ctx, reason);
+    if (!buzz::prepare_geometry_job(*ctx, setup, &reason,true)) buzz_geometry_job_native_fail(ctx, reason);
     buzz::materialize_geometry_job_initial_call(*ctx, setup);
     if (!buzz::initialize_geometry_context(*ctx, setup.initialization, state, &reason))
         buzz_geometry_job_native_fail(ctx, reason);

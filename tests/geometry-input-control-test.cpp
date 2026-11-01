@@ -1,5 +1,6 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_input_control.h"
+#include "../port/native_geometry_input_layout.h"
 #include "../port/native_geometry_context.h"
 #include "../port/native_function_check.h"
 #include <cassert>
@@ -11,6 +12,7 @@ extern "C" {
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
 void spu_indirect_branch(spu_context* c){input_control_oracle::dispatch(c);}
 void spu_stop(spu_context*){abort();}
+void buzz_geometry_job_native_fail(spu_context*,const char* reason){fprintf(stderr,"input control native failure: %s\n",reason);abort();}
 void spu_img_restore(spu_context* c,int32_t image){assert(c->image_id==image);}
 void spu_drain_call(spu_context* c,uint32_t link){
     for(unsigned steps=0;!(c->pc==link && (!g_spu_trampoline_fn || g_spu_trampoline_fn==spu_indirect_branch));++steps){assert(steps<1048576 && g_spu_trampoline_fn);auto next=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;next(c);}g_spu_trampoline_fn=nullptr;
@@ -63,6 +65,40 @@ static void seed(spu_context& c,const spu_context& anchor,unsigned trial,unsigne
     c.gpr[0]=spu_link(0x12345678);c.gpr[1]._u32[0]=sp;c.gpr[3]._u32[0]=manager;c.gpr[4]._u32[0]=source;c.gpr[5]._u32[0]=params;c.gpr[6]._u32[0]=(c.gpr[6]._u32[0]&~255u)|format;
     c.pc=0x93f0;c.host_depth=trial%3;c.policy_mode=trial%3;c.resident_ovl=trial%5;c.event_status=random_word();c.event_mask=random_word();c.resv_valid=trial&1;c.mfc_tag_status=random_word();c.int_enable=0;c.irq_saved=0;c.irq_frame=nullptr;
 }
+
+static void parent_layout_tests(const spu_context& anchor,spu_context& c,spu_context& ref){
+    unsigned roots=0,layouts=0,rejects=0;const unsigned streams[]={1,3,3,4,3,4};
+    for(unsigned a=0;a<6;++a)for(unsigned b=0;b<6;++b)for(unsigned count:{1u,2u,7u,8u,9u,16u,31u,65u}){
+        GeometryJobEntry entry;entry.config[0]=7;entry.config[2]=a;entry.config[3]=b;entry.vertices=count;entry.scratch_lsa=0x24000;entry.scratch_bytes=0x10000;entry.frame_lsa=0x3f080;entry.geometry_context_lsa=entry.frame_lsa+0x1a0;entry.input[11].size_flags=1;
+        const unsigned stride=((count+7)&~7u)*16,bytes=8*stride+((a>=4 || b>=4)?32:0);
+        assert(read_geometry_input_layout(anchor,entry));++layouts;
+        auto bad=entry;bad.scratch_bytes=bytes-1;assert(!read_geometry_input_layout(anchor,bad));++rejects;
+        bad=entry;bad.frame_lsa=entry.scratch_lsa+bytes+576-16;assert(!read_geometry_input_layout(anchor,bad));++rejects;
+        bad=entry;bad.config[0]=streams[a]+streams[b]-2;assert(!read_geometry_input_layout(anchor,bad));++rejects;
+        seed(c,anchor,50000+roots,a,count);c.gpr[3]=spu_ila(entry.geometry_context_lsa);const unsigned manager=entry.geometry_context_lsa;
+        memset(c.ls+manager,0,0x190);c.ls[manager]=7;c.ls[manager+2]=a;c.ls[manager+3]=b;c.ls[manager+8]=count>>8;c.ls[manager+9]=count;
+        for(unsigned slot=0;slot<8;++slot)geometry_job_put32(c.ls+manager+16+slot*4,entry.scratch_lsa+slot*stride);
+        for(unsigned stream=0;stream<2;++stream){c.gpr[3]=spu_ila(manager);c.gpr[4]=spu_ila(stream?0x1c000:0x18000);c.gpr[5]=spu_ila(0x20000);c.gpr[6]=spu_il(stream?b:a);
+            copy(ref,c);GeometryInputControl plan;assert(read_geometry_input_control(c,plan,nullptr,true));equal(c,ref,"parent admission",roots);assert(c.ls==c.ls_store);u128 nonvolatile[26];for(unsigned i=0;i<25;++i)nonvolatile[i]=c.gpr[80+i];nonvolatile[25]=c.gpr[126];
+            original(ref);const auto expected=g_spu_trampoline_fn;g_spu_trampoline_fn=nullptr;execute_geometry_input_control(c,plan);equal(c,ref,"parent-layout",roots);assert(g_spu_trampoline_fn==expected);
+            for(unsigned i=0;i<25;++i)assert(!memcmp(&nonvolatile[i],&c.gpr[80+i],16));assert(!memcmp(&nonvolatile[25],&c.gpr[126],16));++roots;
+        }
+    }
+    for(unsigned mode:{4u,5u,7u,8u,9u,10u}){seed(c,anchor,60000+mode,1,17,0,mode);memcpy(&ref,&c,sizeof c);GeometryInputControl exact;assert(read_geometry_input_control(c,exact));GeometryInputControl parent;memset(&parent,0xa5,sizeof parent);unsigned char saved[sizeof parent];memcpy(saved,&parent,sizeof parent);const char* why=nullptr;g_spu_trampoline_fn=spu_indirect_branch;
+        assert(!read_geometry_input_control(c,parent,&why,true) && why && !memcmp(saved,&parent,sizeof parent) && !memcmp(&c,&ref,sizeof c) && g_spu_trampoline_fn==spu_indirect_branch);++rejects;
+    }
+    for(unsigned custom_first=0;custom_first<2;++custom_first){GeometryJobEntry e;e.config[0]=custom_first?2:3;e.config[2]=custom_first?6:1;e.config[3]=custom_first?1:6;e.vertices=8;e.input[11].size_flags=1;e.scratch_lsa=0x24000;e.scratch_bytes=4096;e.frame_lsa=0x3f080;
+        auto& d=e.input[custom_first?19:20];d.lsa=0x18000;d.size=136;memset(c.ls+d.lsa,0,d.size);c.ls[d.lsa]=16;c.ls[d.lsa+1]=16;
+        for(unsigned i=0;i<16;++i){auto* row=c.ls+d.lsa+8+i*8;row[1]=2;row[2]=4;row[3]=0;row[4]=12;}
+        assert(read_geometry_input_layout(c,e));++layouts;d.size=135;assert(!read_geometry_input_layout(c,e));++rejects;d.size=136;c.ls[d.lsa+8+3]=1;assert(!read_geometry_input_layout(c,e));++rejects;
+    }
+    GeometryJobEntry custom;custom.config[0]=1;custom.config[2]=6;custom.config[3]=255;custom.vertices=8;custom.input[11].size_flags=1;custom.scratch_lsa=0x24000;custom.scratch_bytes=4096;custom.frame_lsa=0x3f080;
+    for(unsigned i=0;i<2;++i){auto& d=custom.input[19+i];d.lsa=0x18000+i*16;d.size=16;memset(c.ls+d.lsa,0,16);c.ls[d.lsa]=1;c.ls[d.lsa+1]=16;c.ls[d.lsa+9]=2;c.ls[d.lsa+10]=4;c.ls[d.lsa+11]=i+1;c.ls[d.lsa+12]=12;}
+    assert(read_geometry_input_layout(c,custom));++layouts;custom.config[0]=0;assert(!read_geometry_input_layout(c,custom));++rejects;
+    GeometryJobEntry empty;empty.frame_lsa=0xe680+576-16;assert(!read_geometry_input_layout(c,empty));++rejects;empty.frame_lsa+=16;assert(read_geometry_input_layout(c,empty));++layouts;
+    empty.config[0]=16;empty.input[11].size_flags=1;assert(!read_geometry_input_layout(c,empty));++rejects;
+    assert(roots==576 && layouts==292 && rejects==877);printf("PASS input parent layout:%u full original/native roots (all36 format pairs);%u layout cases/%u unchanged/read-only capacity-control rejects;all26 restored nonvolatile vectors preserved;semantic-zero mixed descriptor slot reuse;pure-custom capacity;empty protected-frame boundary\n",roots,layouts,rejects);
+}
 int main(){
     _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);_mm_setcsr((_mm_getcsr()&~_MM_ROUND_MASK)|_MM_ROUND_TOWARD_ZERO|0x8040);
     auto anchor=std::make_unique<spu_context>(),native=std::make_unique<spu_context>(),ref=std::make_unique<spu_context>(),prefix=std::make_unique<spu_context>();
@@ -91,6 +127,7 @@ int main(){
         memcpy(ref.get(),native.get(),sizeof(*native));GeometryInputControl plan;memset(&plan,0xa5,sizeof plan);auto saved=plan;const char* why=nullptr;g_spu_trampoline_fn=spu_indirect_branch;
         assert(!read_geometry_input_control(*native,plan,&why) && why && !memcmp(&plan,&saved,sizeof plan) && !memcmp(native.get(),ref.get(),sizeof(*native)) && g_spu_trampoline_fn==spu_indirect_branch);
     }
+    parent_layout_tests(*anchor,*native,*ref);
     assert(strict_cases==8391 && prefix_cases==7796 && frame_models==8391);
     printf("PASS whole input control:%u strict complete93F0 roots/%u exact dispatch boundaries/%u independent frame byte models;paths empty/raw/1/2/3/4/5=%u/%u/%u/%u/%u/%u/%u;512 arbitrary-mask cases;240 biased-manager roots;352 empty ignored-format/frame-alias/wrapped-stack roots;80 unselected-target cases;30 large-count roots;23 unchanged rejects;synthetic only\n",strict_cases,prefix_cases,frame_models,paths[0],paths[1],paths[2],paths[3],paths[4],paths[5],paths[6]);
 }

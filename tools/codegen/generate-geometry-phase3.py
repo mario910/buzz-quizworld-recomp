@@ -56,6 +56,9 @@ def main():
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-conversion-control-test.py")], check=True)
     for name in ("builtin-float3", "builtin20", "builtin24", "builtin24-cmp"):
         subprocess.run([sys.executable, str(ROOT / f"tools/codegen/generate-geometry-{name}-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-input-control-test.py")], check=True)
+    for name in ("builtin20", "builtin24", "builtin24-cmp", "builtin12", "builtin15"):
+        subprocess.run([sys.executable, str(ROOT / f"tools/codegen/generate-geometry-{name}-input-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
@@ -67,6 +70,12 @@ def main():
         if len(list(re.finditer(pattern,source)))!=1:raise SystemExit("Expected one pinned builtin output root")
         source=re.sub(pattern,lambda m: f"static void {name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
             f"void {name}(spu_context* ctx) {{ buzz_geometry_job_builtin_output(ctx, {name}_fallback, buzz_{private}_output_original_{root:08X}, buzz_job_6eba_spu_func_00005648, {format}); }}",source,count=1)
+    for format, root, private in ((1,0xa8f8,"builtin20"),(2,0xa6a8,"builtin24"),(3,0xa390,"builtin24_cmp"),(4,0x9e70,"builtin12"),(5,0x97f8,"builtin15")):
+        name=f"buzz_job_6eba_spu_func_{root:08X}"
+        pattern=rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(pattern,source)))!=1:raise SystemExit("Expected one pinned builtin input root")
+        source=re.sub(pattern,lambda m: f"static void {name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {name}(spu_context* ctx) {{ buzz_geometry_job_builtin_input(ctx, {name}_fallback, buzz_{private}_input_original_{root:08X}, buzz_job_6eba_spu_func_00009498, {format}); }}",source,count=1)
     conversion_name = "buzz_job_6eba_spu_func_000054E8"
     conversion_pattern = rf"(?ms)^void {conversion_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(conversion_pattern, source))) != 1:
@@ -393,8 +402,9 @@ def main():
     if len(list(re.finditer(stream_pattern, source))) != 1:
         raise SystemExit("Expected one pinned attribute stream entry")
     source = re.sub(stream_pattern, lambda m:
+        f"static const buzz_geometry_builtin_input_functions {stream_name}_builtins = {{{{buzz_job_6eba_spu_func_0000A8F8, buzz_job_6eba_spu_func_0000A6A8, buzz_job_6eba_spu_func_0000A390, buzz_job_6eba_spu_func_00009E70, buzz_job_6eba_spu_func_000097F8}}, buzz_job_6eba_spu_func_00009498}};\n"
         f"static void {stream_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
-        f"void {stream_name}(spu_context* ctx) {{ buzz_geometry_job_decode_custom_stream(ctx, {stream_name}_reference, buzz_job_6eba_spu_func_00007DF8); }}",
+        f"void {stream_name}(spu_context* ctx) {{ buzz_geometry_job_input_control(ctx, {stream_name}_reference, buzz_input_original_run, buzz_job_6eba_spu_func_00007DF8, &{stream_name}_builtins); }}",
         source, count=1)
     attribute_name = "buzz_job_6eba_spu_func_0000AC68"
     attribute_pattern = rf"(?ms)^void {attribute_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
@@ -517,7 +527,7 @@ def main():
     support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 47\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 48\n"
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     support += (DEST / "float-output-original.inc").read_text() + "\n"
@@ -531,6 +541,9 @@ def main():
     support += (DEST / "conversion-control-original.inc").read_text() + "\n"
     for name in ("builtin-float3", "builtin20", "builtin24", "builtin24-cmp"):
         support += (DEST / (name+"-output-original.inc")).read_text() + "\n"
+    support += (DEST / "input-control-original.inc").read_text() + "\n"
+    for name in ("builtin20", "builtin24", "builtin24-cmp", "builtin12", "builtin15"):
+        support += (DEST / (name+"-input-original.inc")).read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
