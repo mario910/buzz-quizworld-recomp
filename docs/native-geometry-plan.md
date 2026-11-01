@@ -52,16 +52,23 @@ native-function inventory and final strict Stage F gates are complete, with
 optional-phase decisions recorded. Do not mark unfinished work complete just
 to advance to another phase.
 
-Current next milestone: measure the shared-bank formatter on frozenbc0d35df.
+Current next milestone: continue host data across attributes/skin/output and
+close reliable interpreter-count validation, preserving existing StageF
+vertex/cull boundaries until phase7. Shared-bank measurements on frozenbc0d35df
+are complete:menuFPS+0.894%,round+0.169% with mixed pairs/tails;worker cycles/frame
+-0.341%/-0.010%,round worker CPUtime-1.148% in both pairs,process results mixed.
+REGISTERS stays0 after this small/mixed result. The implementation remains an
+opt-in first host-data boundary.
 REGISTERS0/1 integrates all seven cores directly with the formatter's host
 bank,default0. Ten frozen arms each pass19,508exact jobs/58,195transfers,
 unchanged old ledgers and7,201host roots/17,278children where enabled. New
 live checks pass45,000whole-job/I/O +35,000parents +85,833children;separate
 UNORM2 proves>=10,000 strict calls. Native menu/actual round images pass.
-Same-EXE reversed FPS+separate worker/process cycles/CPU remain pending. The
+Same-EXE reversed FPS+separate worker/process cycles/CPU are documented in the
+[performance results](native-geometry-phase3-performance.md#shared-formatter-bank-measurements-and-default-decision). The
 [current phase3 audit](native-geometry-phase3-remaining.md) identifies the
 remaining host-data requirement;SPU-ABI wrappers and LS streams still remain.
-The independent round FPS repetition improves2.22%(pairs+2.61/+1.84),with
+The earlier isolated SPANS round FPS repetition on3df improves2.22%(pairs+2.61/+1.84),with
 median/p90/p99 lower in both pairs. The earlier one-run54.80ms p99 remains
 recorded and was not reproduced. SPANS is validated opt-in;its product default
 stays0 with the experimental parent,and optimized native profiles use SPANS1.
@@ -983,7 +990,7 @@ subject to the kernel gates before replacement.
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
 | External-bank output cores/all7 | n/a | standalone exact; formatter integrated opt-in; fresh game gates OPEN | internal API; existing switches/defaults unchanged | 50,811 poisoned-GPR original-oracle cases +50,811 ABI comparisons; enclosing suites pass | no new executable/live claim | not measured | implementation in git log |
-| Formatter shared host bank | n/a | production opt-in; corpus/live/native frames pass; measurements/cold/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS=0/1`,default0 | 1,776 CPU roots/4 corruption probes;10 bc0 arms19,508exact/58,195transfers;7,201host roots/17,278children;old ledgers unchanged | >=45,000whole-job/I/O+35,000parents+85,833children;separateUNORM>=10,000;normal native menu/round;I16/U8 real0 | not measured | a5fbf3d |
+| Formatter shared host bank | n/a | exact opt-in; measured small/mixed gains; default0;cold/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS=0/1`,default0 | 1,776 CPU roots/4 corruption probes;10 bc0 arms19,508exact/58,195transfers;7,201host roots/17,278children;old ledgers unchanged | >=45,000whole-job/I/O+35,000parents+85,833children;separateUNORM>=10,000;normal native menu/round;I16/U8 real0 | Menu25.616->25.845;round31.725->31.778;workerCPF-0.341%/-0.010%,process mixed;keep0 | a5fbf3d |
 | Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | validated opt-in;mean/CPU gains;tail repetition complete;parent/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O;normal native menu/actual question on b95e457f | Same3df menu25.00 ->25.64,worker CPF-2.99%/process-1.84%;round30.93 ->31.52,worker-4.01%/process-2.82%;round tails open | c8e8e22 |
 | Whole-job driver | n/a | ABI48 opt-in; measured menu CPU/FPS regression; cold/round/final gates OPEN | `BUZZ_GEOMETRY_JOB=0/1/2`, default0 | Five arms19,508exact/58,195transfers;enabled19,508native/0whole-job fallback;strict synthetic/routing proofs in results | >=45,000strict whole-job/I/O on current freeze;normal native menu/actual question | Menu27.74 ->25.30;worker cycles/frame+15.92%;default-off | 272a375 |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
@@ -1081,6 +1088,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-01 | Shared-bank formatter full isolated matrix | Samebc0;16runs actualJOB1,REG0/1/1/0;FPS andCPU separate | Menu25.616->25.845;round31.725->31.778 | mixed p90/p99;all raw retained | FPS+0.894%(bothpairs)/+0.169%(mixed);workerCPF-0.341%/-0.010%;workerCPUms menu flat/round-1.148%(bothpairs);process cycles/time mixed;8normal roundimages;77pins/305sources unchanged;REGISTERS0 retained;host/interpreter/cold/aggregate/final OPEN |
 | 2026-11-01 | Shared-bank formatter frozen corpus/live/render | Newbc0 EXE/dc3 MAP;functional only | not measured | not measured | 10arms each19,508exact/58,195transfers;enabled19,508native/0whole fallback;host7,201roots/17,278children;independent strict knobs +old ledgers exact;live45,000whole-job/35,000parents/85,833children +UNORM>=10,000;normal native menu+actual round;15 reporter tests+old report exact;FPS/CPU/interpreter/cold/final OPEN |
 | 2026-11-01 | Shared-bank formatter production integration | CPU correctness/routing only | not measured | not measured | REGISTERS0/1 default0;1,776 original-state roots incl888 shared-bank/360 strict parents/822 host children/318 strict children;all7 crossing paths,48 frame-alias roots,20 rejects,4 child-corruption probes;488 runtime option cases;fresh game/full host pipeline gates OPEN |
 | 2026-11-01 | External-bank cores/all7 output encoders | CPU correctness suites only | not measured | not measured | 50,811 poisoned-physical-GPR strict original-oracle cases plus50,811 existing ABI comparisons;formatter/conversion/routing pass;no production fusion/new-game acceptance or performance claim;next formatter integration;phase3 OPEN |

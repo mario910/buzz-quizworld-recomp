@@ -193,9 +193,17 @@ This proves the new path's recorded functional gates, **not a speedup or phase
 3 completion**. ABI48/61 stage structures, original references, strict
 checkers and the narrow Stage F exception remain unchanged.
 JOB0/geometry827/new flags0, including REGISTERS0, remain product defaults.
-Next measure isolated REGISTERS0/1/1/0 menu and round FPS and separate
-worker/process cycles/CPU on this same freeze. Interpreter, cold-path,
-remaining host-stream, aggregate and default gates remain open.
+The [four-series measurement matrix](native-geometry-phase3-performance.md#shared-formatter-bank-measurements-and-default-decision)
+is now complete on this same freeze: independent menu FPS+0.894% in both
+pairs, round+0.169% with mixed pairs/tails. Separate worker cycles/frame
+change -0.341% in menu and -0.010% in round; worker time is flat in menu and
+-1.148% in round, the latter lower in both pairs. Process cycles/time remain
+mixed. All16 runs and their raw data are retained, including all eight inspected
+round images. Public reports recompute exactly and all77 pins/305 sources
+remain unchanged. REGISTERS stays0: the recorded gains are small and mixed,
+while the implementation remains a first host-data boundary. Interpreter,
+cold-path, remaining host-stream, aggregate and enclosing-driver default gates
+remain open. This decision does not end phase3.
 
 ## Driver boundary audit
 

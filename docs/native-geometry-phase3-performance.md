@@ -1,10 +1,74 @@
 # Phase3 native whole-job performance
 
-Status: **menu regression; keep JOB0/geometry827/new flags0**. Phase3 remains
-open. These results evaluate the combined native configuration, not individual
-kernels and not the still-unobserved cold formats.
+Status: **keep JOB0/geometry827/new flags0**. Phase3 remains open. The older
+combined menu regression, isolated SPANS gains and newer REGISTERS measurements
+below are separate experiments. REGISTERS has small/mixed gains and stays
+opt-in; the still-unobserved cold formats retain their open gates.
 
-## Method and binding
+## Shared formatter bank: measurements and default decision
+
+The completed four-series matrix uses compiled source `a5fbf3d`, frozen
+`build-vulkan-phase3-formatter-registers-v1`, EXE `bc0d35df` / MAP `dc3e3a05`,
+unchanged generated C/SDK and initial save `92ed9caf`. All16 fresh runs use
+JOB1 and REGISTERS0/1/1/0; all other production options, including SPANS, are1,
+with audit0, geometry827 and StageF1. These measure the isolated shared-bank
+option. The older aggregate JOB0/JOB1 regression remains separate and unresolved.
+
+FPS and CPU use different four-run series. Menu windows are40..98s; round
+windows are200..270s. CPU results use the same map-bound frame counter and
+four named worker lanes plus the process. No compilation, CPU tests, other
+game or diagnostic profiler ran concurrently. All runtime flags, actual native
+coverage, disabled strict checks, raw counter windows and frozen bindings
+pass the public reporter. All77 pins and305 sources are unchanged after the
+matrix. Eight round readbacks were inspected after their apps closed: normal
+green arena, host and Adam robot, with camera/question/score-panel variations.
+Each preserves exact1280x720 PNG/PPM from one190s GPU readback, continuous
+readback0, before the measurement window.
+
+| Independent FPS series | Control -> shared bank | Mean change | Forward / reverse pair |
+| --- | --- | ---: | --- |
+| Menu | 25.616 ->25.845 | +0.894% | +0.994% /+0.795% |
+| Round | 31.725 ->31.778 | +0.169% | +0.627% /-0.288% |
+
+| Scene / frame time | REG0 / REG1 / REG1 / REG0, ms |
+| --- | --- |
+| Menu median | 38.973 /37.951 /38.424 /39.069 |
+| Menu p90 | 51.450 /50.897 /50.977 /50.624 |
+| Menu p99 | 59.795 /57.709 /58.057 /57.241 |
+| Round median | 31.264 /31.111 /31.229 /31.1825 |
+| Round p90 | 38.052 /37.234 /37.849 /37.549 |
+| Round p99 | 43.401 /42.396 /43.470 /42.129 |
+
+Menu FPS and median improve in both pairs. Menu p90/p99 and all round
+comparisons are mixed; the second candidate p99 is0.816ms higher in menu and
+1.341ms higher in round. No run is discarded or replaced.
+
+| Separate CPU series / per completed frame | Control -> shared bank | Mean change | Forward / reverse pair |
+| --- | --- | ---: | --- |
+| Menu worker cycles | 497.111M ->495.414M | -0.341% | -0.543% /-0.141% |
+| Menu worker CPU ms | 134.564 ->134.567 | +0.002% | -0.224% /+0.226% |
+| Menu process cycles | 855.783M ->854.288M | -0.175% | -0.427% /+0.078% |
+| Menu process CPU ms | 232.997 ->231.938 | -0.454% | -0.926% /+0.019% |
+| Round worker cycles | 394.475M ->394.437M | -0.010% | +0.028% /-0.048% |
+| Round worker CPU ms | 107.504 ->106.270 | -1.148% | -1.606% /-0.683% |
+| Round process cycles | 653.867M ->653.565M | -0.046% | -0.147% /+0.055% |
+| Round process CPU ms | 177.476 ->176.950 | -0.296% | -0.651% /+0.063% |
+
+Round worker CPU time improves in both pairs, while worker cycles are nearly
+flat. Menu worker time and process cycles/time in both scenes are mixed.
+The reason for the difference between cycles and time was not established.
+CPU-series FPS is contextual only: menu -0.097%, round -0.049%; it does not
+replace either independent FPS series.
+
+**Decision: retain REGISTERS0.** The implementation is a correct first host-bank
+boundary and remains available for experiments. The measurements do not show
+a broad repeatable saving in cycles/process work or round FPS. Remaining
+pipeline streams, interpreter/cold coverage and enclosing-driver gates stay
+open. CPU savings can justify a native path with flat FPS; these results retain
+the small worker-cycle/menu and worker-time/round observations with their
+limits. No aggregate native-job speedup or phase3 completion is claimed.
+
+## Earlier combined-job baseline: method and binding
 
 Two separate fresh reversed series use JOB0/JOB1/JOB1/JOB0. The FPS series
 has no CPU observer; the CPU series uses existing OS process/thread counters

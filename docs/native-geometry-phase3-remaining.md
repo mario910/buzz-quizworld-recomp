@@ -2,7 +2,8 @@
 
 Current native source:a5fbf3d,ABI48/61 stages,bc0d35df EXE/dc3e3a05 MAP.
 Shared-bank formatter corpus/live/render gates now pass on this new freeze;
-its measurements and default decision remain open. Older SPANS measurements
+its measurements are complete and REGISTERS stays0 after small/mixed gains.
+Older SPANS measurements
 remain bound to their separate3df8d057 freeze.
 This is a current-state audit against the phase3 objective;the chronological
 proofs remain in [the results](native-geometry-phase3-results.md).
@@ -10,11 +11,11 @@ proofs remain in [the results](native-geometry-phase3-results.md).
 | Requirement | Current evidence | Remaining work |
 | --- | --- | --- |
 | Recognized outer control and exact job I/O | Ten bc0 frozen arms each19,508exact jobs/58,195transfers,zero divergent inputs/failures;enabled19,508native roots/zero whole-job fallback;old ledgers unchanged | Preserve these proofs through each data-path change |
-| Host data between stages | Opt-in REGISTERS formatter shares its bank with all7 encoders;7,201 real roots/17,278 children per replay;other vertex streams still use LS | Measure this boundary and implement the remaining host-held pipeline streams |
+| Host data between stages | Opt-in REGISTERS formatter shares its bank with all7 encoders;7,201 real roots/17,278 children per replay;other vertex streams still use LS | Implement remaining host-held attribute/skin/output streams, preserving existing StageF boundaries until final phase7 |
 | Strict state and live checks | New freeze:45,000whole-job/I/O +35,000shared-bank formatter +85,833child comparisons;separateUNORM>=10,000;full GPR/LS/control/continuation | Cold I16/U8 and other cold paths remain open;retain the narrow StageF exception until phase7 |
 | Actual-native rendering | Normal native menu and actual question/green round arena onbc0;exact1280x720 PPM/PNG,one-shot GPU readback0,inspected after close | Repeat relevant visual checks after implementation changes |
 | Interpreted count | Menu observations are absolutely zero;round has positive non-atomic legacy image2 observations and known image40 entry | Round count gate remains open;do not equate matching entry keys with exact instruction counts |
-| FPS and CPU | Same-EXE menu/round reversals show isolated SPANS savings;independent round repetition does not reproduce the first p99 increase | Measure each next implementation and the aggregate native configuration;the older aggregate regression is still a separate result |
+| FPS and CPU | Separatebc0 REGISTERS matrix:menuFPS+0.894%,round+0.169% mixed;workerCPF-0.341%/-0.010%;round worker time-1.148% bothpairs;process/tails mixed | Keep REGISTERS0;measure next data-path changes and aggregate config;older3df SPANS gains and aggregate regression remain separate |
 | Cold paths | Standalone strict cases exist for additional formats/variants | Their individual real/live gates remain open in the tracker |
 | Defaults | JOB0/geometry827/newflags0,including SPANS0/REGISTERS0 | Keep the enclosing driver experimental until its full gates pass;use validated SPANS1 explicitly in the optimized native profile |
 
@@ -22,7 +23,7 @@ The phase3 exit remains unproven while the host-data path,round interpreted
 count,cold required paths and aggregate/default decisions remain open.
 Shared phase4 and final strict StageF7 remain in the continuing objective.
 
-## Shared host register bank: functional gates pass, measurements pending
+## Shared host register bank: measured, default remains off
 
 The retained ABI route in the [formatter](../port/native_geometry_formatter.h)
 publishes and reloads its bank around encoder callbacks, which themselves
@@ -52,8 +53,11 @@ Ten new frozen replay arms now preserve full state/I/O and old ledgers,
 including explicit REGISTERS0/1 and independent child/parent/mixed checks.
 Live whole-job/parent/child comparisons and normal native menu/round images
 pass; a separate UNORM2 run closes its initial live256 gap. I16/U8 real/live0
-is explicitly retained. Next run separate reversed menu/round FPS and CPU
-series on this same bc0 freeze,using the new reporter's real-coverage checks.
+is explicitly retained. All four reversed menu/round FPS and separate CPU
+series pass the new reporter's actual-coverage/raw-data checks on this same
+bc0 freeze. Gains are small/mixed and REGISTERS stays0. Continue the remaining
+host-data flow and reliable interpreter-count gate; this boundary does not
+complete phase3.
 The parent admission must still prove eligibility before mutation;an unexpected
 child rejection cannot turn partially changed state into a fallback.
 
