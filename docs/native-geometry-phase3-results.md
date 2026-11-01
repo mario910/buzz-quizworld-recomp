@@ -7,7 +7,8 @@ subsequent phases after their gates, with strict Stage F reconstruction last.
 The outer driver is native; the complete native data path remains open.
 Transform/cull `6608` now has a separate [audited contract](native-geometry-transform-audit.md).
 Its 6958/66C8 result/frame finalization is native opt-in below; complete enclosing
-flow and vertex preparation remain open, with strict Stage F cleanup last.
+flow remains open. Vertex preparation is now separately native opt-in below;
+strict Stage F cleanup remains last.
 
 Native payload implementations now exist for all nine descriptor storage
 families, plus the primary raw float3 path. Remapped weighted scatter also
@@ -1347,7 +1348,7 @@ coverage of one leaf does not make the entire enclosing stage native.
 | `0x0BF8` | Additional streams/blend and DMA lists | Retained library |
 | `0x09F8` | Skin/rigid controller | Native opt-in controller now complete; AF18 data flow and complete B880 region remain separate work, detailed below |
 | `0xAEA0` | Index decoding | Complete native opt-in control and five data regions; cold/final gates remain open |
-| `0x6608` | Transform/cull | Native opt-in 6958/66C8 finalization; enclosing/vertex/alternate paths open; strict Stage F remains phase 7 last |
+| `0x6608` | Transform/cull | Native opt-in 6958/66C8 finalization and 6188 setup; enclosing/alternate paths open; strict Stage F remains phase 7 last |
 | `0x2B80` | Output buffer sizing | Native opt-in layout/size path above; unsupported families retain library |
 | `0x37C0` | Ring allocation/atomics | Retained library |
 | `0x2DC0` | Index publication | Native opt-in path above; other input families retain library |
@@ -1456,7 +1457,7 @@ The required phase-3 data inventory after this increment is:
 | `0xBF7C`, basic three-stream data | Native implementation with strict synthetic/routing checks; zero real calls | Real corpus/live gates OPEN; final performance/default decision |
 | `0xC14C/C280/B5A0`, normalized direction data | Complete native one/two/three-stream implementations with strict synthetic/composed checks; own switch default0 | Nonzero real/native corpus and >=256 live gates OPEN in all variants; final performance/default decision |
 | `0xAEA0`, index stage | Complete native opt-in control and five data regions | Cold coverage and final interpreter/A/B/CPU/default gates |
-| `0x6608`, transform stage | Native opt-in 6958/66C8 suffix; existing Stage F inner kernels; enclosing/vertex/alternate original | Complete native enclosing/vertex/alternate flow; strict Stage F remains phase 7 last |
+| `0x6608`, transform stage | Native opt-in 6958/66C8 suffix and 6188 setup; existing Stage F inner kernels; enclosing/alternate original | Complete native enclosing/alternate flow; strict Stage F remains phase 7 last |
 | `0x37C0`, output ring/atomics | Original allocator | Native allocation/I/O flow and validation |
 | `0x54E8`, vertex conversion | Validated inner leaves; enclosing stage original | Complete native conversion stage and validation |
 
@@ -3906,3 +3907,110 @@ flags=0 remain unchanged. Phase 3 and the continuing goal remain active.
 Private `phase3/transform-finish-v1-*` evidence binds committed sources/docs,
 source/fixture/save pins, the original audit, frozen EXE/map/C/native copies,
 original closure, prior index-control proof, tests, five replays and scenes.
+
+
+## Complete vertex matrix preparation (6188/65EC/65FC)
+
+`port/native_geometry_vertex_prepare.h` replaces every setup operation through
+queued `63E0`, including both format thunks. Host vectors form three basis
+combinations using Y/Z/X coefficients, compose those and the origin with the
+second four-term matrix, and retain the pre-translation partials. The complete
+handoff ABI is materialized once, including every upper/broadcast lane, source
+pointer, scratch/lookahead pointer, clip bound, scale and path-specific
+temporary. The source's SPU RTZ multiply/FMA order, conversions, comparisons
+and arbitrary table selectors are preserved. No LS bytes are written.
+The [transform contract](native-geometry-transform-audit.md#native-vertex-preparation-618865ec65fc)
+documents the fields and all format paths. The enclosing 6608 control and
+alternate cull data remain open; the Stage F vertex loop runs after this
+boundary and retains only its existing accepted contract.
+
+Own `BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2` defaults to zero. Read-only
+eligibility rejects foreign LS, pending interrupts or unsafe manager spans
+before mutation. Unsupported entries retain the lift without native credit.
+Mode 2 or JOB=2 compares all 128 GPRs/all LS, architectural/channel/control
+state and actual PC/FN/image/depth/policy/overlay against a pinned private
+original 6188/65EC/65FC closure, stopping before `63E0`. No Stage F waiver,
+exclusion or tolerance is used. Incoming continuations are replaced, and
+the reference must reach both the actual function identity and PC. Stage 38 /
+39 counters / protocol 33 distinguish base (0..2), middle (3..4), five (5)
+and other (6..255) formats, whose r6 modes are 0/1/2/0 respectively.
+
+**8,513 strict full-state/LS/handoff cases** pass: 4,096 random, all **256
+formats x 16 manager byte biases**, 256 special-FP cases, one pinned real entry
+and **64 independent exact matrix cases**. They include both manager bounds,
+arbitrary full upper lanes/table bytes, incoming continuations and all format
+branches. Independent integer-valued identity-matrix geometry checks complete
+columns and every Y-column broadcast without tolerance. Six rejects preserve
+every context/LS byte and plan. The first strict comparison caught an X/Y/Z
+coefficient-order mistake; native code was corrected to source Y/Z/X before
+integration and freezing. Its diagnostic is retained. No checker was weakened.
+A test-helper float-field spelling was also corrected before its first run.
+
+Real-owner routing passes **24 native / 16 strict / 16 original-reference**
+calls and seven counted unsupported fallbacks across four format paths, both
+depth classes and both strict modes. Off/foreign/image/null-boundary/invalid/
+post-scope and incoming-continuation cases pass. Original preparation runs
+only in strict checks or retained fallback, never ordinary native mode.
+The 1,024 outer models, 19,508 real-entry models, 43 runtime scenarios,
+**296 production-getter cases**, durable first-fallback check and production
+build pass. Windows PowerShell 5 initially treated expected test stderr as a
+terminating pipeline error; the successful full runner uses PowerShell 7.
+
+Frozen `build-vulkan-phase3-vertex-prepare-v1`:
+EXE `8006dfed46e99793ef3d8d1dcff958ae154f250ab2f5be6553326e3666fa2f06`;
+map `93377f44406aea675a92d9f329e36e53ae6a7c118d4fafecd93d7602a5d1162d`;
+generated C `9770d9870de157dece9ad0c68419d7bf1a8add25e4a89b443f03f05359a7b8d8`.
+Frozen C, original setup closure and four compiled native/controller/header
+copies are retained. Original lift, phase-2 generator, saves, template and
+real-entry fixture remain unchanged.
+
+All five frozen arms pass **19,508 exact jobs / 58,195 transfers**, zero input
+changes and failures, Stage F=2 / leaf 827 / no contract override:
+
+| Arm | JOB | Older flags | VERTEX_PREPARE | Native/strict/fallback |
+|---|---|---|---|---|
+| Off | 0 | 0 | 2 | No native pipeline |
+| Independent preparation | 2 | 0 | 1 | 19,508/19,508/0 |
+| Combined native | 1 | 1 | 1 | 19,508/0/0 |
+| Combined checked | 2 | 1 | 1 | 19,508/19,508/0 |
+| Kernel checked | 1 | 1 | 2 | 19,508/19,508/0 |
+
+Every enabled arm has **10,699 base + 8,809 middle** native roots and zero
+preparation fallback. Five/other formats have **zero real/live coverage**;
+their real/live gates remain open despite full strict synthetic coverage.
+Both JOB=2 arms pass all 19,508 whole-job state/I/O checks. Combined arms retain
+all 19,508 native transform-finish and index-control roots, the five index
+data regions, 1,628 AF18, 6,113 weighted-skin and 5,018 basic-direction roots,
+with zero respective corpus fallback. This composes native preparation with
+the prior native finalization while retaining the existing Stage F loops.
+
+Functional live runs use the same frozen EXE, JOB=1, older flags=1,
+GEOMETRY=1 / Stage F=1 / leaf 827, fresh private saves and background/native
+mailbox/mute, with no compilation/CPU-test/profiling overlap:
+
+| Scene | JOB/VERTEX_PREPARE | Frames / last elapsed ms | Preparation lower bounds |
+|---|---|---|---|
+| checked-menu | 1/2 | 1,389 / 59,687.317 | strict: base>=265,000; middle>=205,000; five>=0; other>=0 |
+| menu | 1/1 | 2,236 / 74,482.861 | native: base>=1,780,000; middle>=1,310,000; five>=0; other>=0 |
+| round | 1/1 | 5,957 / 196,180.764 | native: base>=3,375,000; middle>=3,465,000; five>=0; other>=0 |
+
+Checked menu ran 60s, native menu 75s, native round 60s after navigation.
+At least **470,000 strict live handoffs** pass, including >=256 each in
+base/middle. No differences, halts, unexpected continuations/capacity errors
+or first preparation fallback were observed. Periodic counts are lower
+bounds; forced shutdown provides no final fallback totals. Inspected 1280x720
+actual-native readbacks show normal menu/studio/crowd and actual green-round
+host/player/score UI. Five/other remain distinguished as cold paths.
+
+No FPS/CPU benefit is claimed. Final interpreter, reversed same-frozen-EXE
+menu/round A/B, normalized worker/process cycles/time and default gates remain
+**OPEN**. Repeatable CPU savings can justify flat-FPS default-on decisions
+after correctness/render gates. JOB=0 / leaf 827 / new flags=0 remain unchanged.
+The continuing goal and phase 3 remain active; complete 6608 enclosing flow,
+alternate data and other stages still require implementation and validation.
+Strict Stage F reconstruction remains the mandatory last phase.
+
+Private `phase3/vertex-prepare-v1-*` evidence binds committed sources/docs,
+source/fixture/save pins, frozen EXE/map/C/native copies, original setup closure,
+prior transform-finish proof, standalone/routing/configuration tests, five
+replays and live scenes.

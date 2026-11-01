@@ -36,6 +36,7 @@
 #include "native_geometry_index_triangles.h"
 #include "native_geometry_index_control.h"
 #include "native_geometry_transform_finish.h"
+#include "native_geometry_vertex_prepare.h"
 #include "native_geometry_descriptors.h"
 #include "native_function_check.h"
 #include <atomic>
@@ -180,6 +181,43 @@ extern "C" void buzz_geometry_job_skin_dispatch(spu_context* ctx,buzz_geometry_j
     }
     buzz_geometry_job_skin_dispatch_result(plan.weighted,0);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_SKIN_DISPATCH,1,0);
+}
+
+extern "C" void buzz_geometry_job_vertex_prepare(spu_context* ctx,buzz_geometry_job_fn reference,buzz_geometry_job_fn vertex)
+{
+    if(ctx!=native_pipeline_context || ctx->image_id!=41 || !buzz_geometry_job_vertex_prepare_enabled()){
+        reference(ctx);return;
+    }
+    buzz::GeometryVertexPrepare plan;
+    if(!vertex || !buzz::read_geometry_vertex_prepare(*ctx,plan)){
+        buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_VERTEX_PREPARE,0,0);reference(ctx);return;
+    }
+    spu_context* comparison=nullptr;
+    if(buzz_geometry_job_mode()==2 || buzz_geometry_job_vertex_prepare_enabled()==2){
+        comparison=buzz::clone_function_state(ctx);const auto scheduled=g_spu_trampoline_fn;
+        g_spu_trampoline_fn=nullptr;reference(comparison);
+        for(unsigned steps=0;!(comparison->pc==0x63e0 && g_spu_trampoline_fn==vertex);++steps){
+            const auto next=g_spu_trampoline_fn;
+            if(!next || next==spu_indirect_branch || steps>=2)buzz_geometry_job_native_fail(ctx,"vertex preparation reference escaped Stage F handoff");
+            g_spu_trampoline_fn=nullptr;next(comparison);
+        }
+        g_spu_trampoline_fn=scheduled;
+    }
+    buzz::prepare_geometry_vertices(*ctx,plan,vertex);
+    if(comparison){
+        const auto diff=buzz::compare_function_state(*ctx,*comparison);
+        const bool exact=ctx->host_depth==comparison->host_depth && ctx->image_id==comparison->image_id &&
+            ctx->policy_mode==comparison->policy_mode && ctx->resident_ovl==comparison->resident_ovl && g_spu_trampoline_fn==vertex;
+        buzz::release_function_state(comparison);
+        if(!diff.exact() || !exact){
+            std::fprintf(stderr,"[geometry-job/vertex-prepare] DIFF r%d byte%d LS=%X/%u state=%s\n",
+                diff.first_register,diff.first_register_byte,diff.first_ls,diff.ls_bytes,diff.first_state?diff.first_state:"equal");
+            buzz_geometry_job_native_fail(ctx,"vertex preparation strict matrix/state/handoff differs");
+        }
+        buzz_geometry_job_vertex_prepare_result(plan.path,1);
+    }
+    buzz_geometry_job_vertex_prepare_result(plan.path,0);
+    buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_VERTEX_PREPARE,1,0);
 }
 
 extern "C" void buzz_geometry_job_transform_finish(spu_context* ctx,buzz_geometry_job_fn reference)

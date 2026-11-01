@@ -1310,5 +1310,17 @@ existing Stage F from new native work and explicitly tracks cold variants.
 and the full 480-byte-frame return. Its `TRANSFORM_FINISH=0/1/2` job option
 (default 0) has strict full-state checks, with no Stage F waiver. Count/end
 stores preserve CHD/CWD-selected fields and late frame aliases; wrapped reads
-and all GPR lanes remain exact. Complete native enclosing 6608 flow and vertex
-setup remain open. The separate phase-3 results record actual acceptance gates.
+and all GPR lanes remain exact. Complete native enclosing 6608 flow remains open; vertex
+setup is separately native below. The separate phase-3 results record actual acceptance gates.
+
+
+### Native vertex matrix preparation
+
+The separate `native_geometry_vertex_prepare.h` replaces complete
+6188/65EC/65FC setup through queued Stage F `63E0`. Host matrix chains retain
+Y/Z/X coefficient order, RTZ operations and every final ABI vector. Manager
+flags select the input/scratch pointers and all 256 format bytes select the
+four setup paths; preparation never writes LS. Own `VERTEX_PREPARE=0/1/2`
+defaults to zero and compares full state before the existing Stage F loop.
+See the [transform contract](native-geometry-transform-audit.md) and
+[phase-3 results](native-geometry-phase3-results.md) for cold-path and final gates.

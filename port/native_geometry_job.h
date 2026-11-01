@@ -53,6 +53,10 @@ typedef struct buzz_geometry_index_functions {
 } buzz_geometry_index_functions;
 enum { BUZZ_GEOMETRY_JOB_INDEX_CONTROL = 36 };
 enum { BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH = 37 };
+enum { BUZZ_GEOMETRY_JOB_VERTEX_PREPARE = 38 };
+int buzz_geometry_job_vertex_prepare_enabled(void);
+void buzz_geometry_job_vertex_prepare_result(unsigned path,int checked);
+void buzz_geometry_job_vertex_prepare(spu_context*,buzz_geometry_job_fn reference,buzz_geometry_job_fn vertex);
 int buzz_geometry_job_transform_finish_enabled(void);
 void buzz_geometry_job_transform_finish_result(int publish,int checked);
 void buzz_geometry_job_transform_finish(spu_context*,buzz_geometry_job_fn reference);

@@ -1,7 +1,8 @@
 # Image-41 transform/cull stage: contract and native inventory
 
-Status: source/real-input audit complete; native `6958/66C8` finalization is
-opt-in. **Complete native `6608` flow and final acceptance remain OPEN.**
+Status: source/real-input audit complete; native `6958/66C8` finalization and
+`6188/65EC/65FC` vertex preparation are opt-in.
+**Complete native `6608` flow and final acceptance remain OPEN.**
 The continuing objective and mandatory last strict Stage F phase are unchanged.
 
 Source SHA-256:
@@ -69,7 +70,8 @@ The existing clip/cull record is 16 bytes per vertex, with projected values,
 clip flags and packed screen coordinates. Cull stores overlap successive
 index windows and consume cached/prefetched records. `6EE8` and `6B18` are
 different data paths. Their common finalization is described below; completing
-it does not replace either loop or the vertex-preparation setup.
+it does not replace either loop. Vertex-preparation setup is separately native
+as described below.
 
 ## Native finalization: 6958/66C8
 
@@ -97,6 +99,40 @@ Read-only eligibility bounds manager writes and rejects pending interrupts or
 foreign LS before mutation, without native credit. The enclosing stage and
 the established Stage F kernels remain separately controlled.
 
+## Native vertex preparation: 6188/65EC/65FC
+
+`native_geometry_vertex_prepare.h` computes the entire setup in host vectors,
+then materializes the exact register ABI and queues `63E0`. It does not execute
+the existing Stage F loop during its new strict comparison. The enclosing
+`6608` stage remains separate, including its frame and cull dispatch.
+
+The three first-stage basis vectors pair with **Y/Z/X** coefficients from
+manager+130/+120. Each uses the source's multiply followed by FMA. A second
+four-term chain composes each result and the origin with manager+A0/+B0/+C0
+and LS CD60, preserving the original RTZ multiply/FMA order. Host columns and
+their pre-translation partials supply every volatile final vector, including
+all upper words and broadcast lanes. No reassociation or FP tolerance is used.
+Manager+D0, D8D0/DA90/D960 selectors and the original SPU conversion/comparison
+rules produce the clip bounds and scale. These tables remain arbitrary inputs.
+
+Configuration byte0 bit4 chooses the input pointer, using the low nibble's
+selected manager word when required. Scratch pointers retain full-vector
+arithmetic and the rounded batch-count offset plus 192 bytes of lookahead.
+Manager+140's leading byte selects base (0..2), middle (3..4), five (5) or
+other (6..255) setup. The handoff r6 is respectively 0/1/2/0; other temporary
+vectors differ by the actual source branch and are preserved as well.
+The source's unreachable `65FC -> 6608` lexical tail is excluded.
+
+`BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2` defaults to 0. Read-only eligibility
+checks owned LS, pending interrupts and the manager span before any mutation.
+No LS byte is written by this preparation. Mode 2 or JOB=2 compares all GPRs,
+all LS and architectural/channel/control/PC/FN/image/depth/policy/overlay state
+against the three original setup blocks, stopping at the queued `63E0`.
+There is no Stage F exception in this new check. All 256 formats, all byte
+biases, arbitrary table bytes, special FP bit patterns and both manager-span
+limits have strict standalone coverage; real/live evidence is recorded in the
+separate phase-3 results, with cold formats kept distinct.
+
 ## Proof scope and remaining native work
 
 Four independent scalar reconstructions match all GPRs and all LS bytes at
@@ -113,7 +149,7 @@ Native full-state/corpus/live/frame evidence is in the separate
 | Required region | Current state |
 |---|---|
 | `6608/6618/66B8/6744/6790/69B0` and mode thunks | Complete native enclosing flow/setup remains OPEN |
-| `6188` vertex preparation | Original setup; native replacement remains OPEN |
+| `6188/65EC/65FC` vertex preparation | Complete native opt-in through queued `63E0`; cold/final performance/default gates OPEN |
 | `63E0/6490` vertex and `6E08/6EE8` cull | Existing accepted Stage F contract; strict reconstruction remains phase 7 last |
 | `69E8/6B18` alternate data form | Original/cold; native implementation and real/live gates OPEN |
 | `6958/66C8` publication/frame return | Complete native opt-in; final performance/default gates OPEN |

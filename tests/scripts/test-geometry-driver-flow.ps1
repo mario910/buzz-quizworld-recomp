@@ -54,6 +54,8 @@ try {
     if ($LASTEXITCODE) { throw 'Index control routing oracle generation failed' }
     & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-transform-finish-test.py
     if ($LASTEXITCODE) { throw 'Transform finish routing oracle generation failed' }
+    & .\toolenv\Scripts\python.exe tools/codegen/generate-geometry-vertex-prepare-test.py
+    if ($LASTEXITCODE) { throw 'Vertex preparation routing oracle generation failed' }
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
