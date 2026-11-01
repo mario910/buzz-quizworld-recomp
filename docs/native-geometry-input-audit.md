@@ -11,7 +11,7 @@ The six-word95C4 table contains offsets relative to95C4:
 | 2 | 10E4 | A6A8 | A6A8,A750,A860,A864,A868 | Complete standalone XYZ+CMP+signed16x4 decoder; production/cold gates OPEN |
 | 3 | 0DCC | A390 | A390,A5D0,A5D8 | Complete standalone XYZ+3CMP decoder; production/cold gates OPEN |
 | 4 | 08AC | 9E70 | 9E70,A170 | Complete standalone fixed12 XYZ +2 packed-unit decoder; production/cold gates OPEN |
-| 5 | 0234 | 97F8 | 97F8,9BB0 | Parameterized packed family; exact byte/numeric map and native implementation OPEN |
+| 5 | 0234 | 97F8 | 97F8,9BB0 | Complete standalone fixed12 XYZ +3 packed-unit decoder; production/cold gates OPEN |
 
 Shared blocks are93F0/9408/9518/9580/9498. Setup saves25 nonvolatile vectors
 r80..r104, r126, r0 and r1, reserves448 bytes, reads the16-bit vertex count,
@@ -304,3 +304,76 @@ claim changes. JOB0/geometry827/newflags0 and frozen app/source/save pins stay
 unchanged. Next: input5, production wrappers/native93F0, then cold and final
 acceptance. Phase3 remains open; shared phase4 and final strict StageF7 remain
 in the continuing objective.
+
+## Built-in input format5: complete standalone decoder
+
+`native_geometry_builtin15_input.h` now replaces both `97F8/9BB0` blocks
+through queued9498 with strict full state. Each15-byte vertex contains
+unsigned16 XYZ plus three24-bit packed-unit words at offsets6/9/12. Two
+vertices consume30 bytes and produce two float4 rows in four streams.
+The fixed12 position arithmetic, unit fields, estimate reconstruction and
+ordered table composition are shared with format4 in
+`native_geometry_builtin_fixed_input.h`. Format4's complete regression passes
+after extracting those helpers; its arithmetic and admission do not change.
+
+Format5 retains its own parameter and pipeline contract. The first parameter
+quad loads through incoming r5, while the other three load through incoming
+r34+4/8/12. All four rotations use incoming r34+0/4/8/12, unlike format4's
+first r5 rotation and r5-based loads. Actual stack CWD masks assemble the
+vector, so biased stacks and unequal parameter pointers remain meaningful.
+Metadata has four reservations: semantics1/2 read/write IDs through r3,
+semantics3/4 through r82, with publications via r35/r37/r61/r39. Ordered
+read-only admission models all eight metadata stores without payload math.
+
+The initial source/parameter quads precede metadata writes. The next pair
+comes from actual incoming r84+30 after all publications; future prefetch
+starts at r84+60 and advances30. Initial source remains independent r4.
+Positions store the current pair, while three unit streams delay their output
+one iteration. Initial dummy stores use each stream's end plus incoming r49,
+and six final stores flush the last valid pair. Admission checks these extra
+footprints separately from every logical output row. The original LS order is:
+
+1. Write the two positions and the delayed normal pair; read normal tables0/1.
+2. Write the delayed second unit pair; read its tables in order1 then0.
+3. Write the delayed third unit pair; freshly prefetch source quads in order
+   +16,+32,+0, including on the final iteration; read third-unit tables0/1.
+
+Cached rows are used for all delayed compositions. In particular, second-unit
+row0 uses r73 and row1 r62; third-unit row0 uses r78 and row1 r77. Output/table/
+source aliases retain their original visibility. No selector, dummy output,
+lookahead or final temporary GPR is omitted. Owned LS, all IRQ contexts absent,
+terminating negative low-r42 count and E680 write protection retain the format4
+rules, extended to all four streams and three dummy pairs. Rejection preserves
+context, plan and queue. Enclosing native caller safety remains separate.
+
+Validation passes **5,838 strict full-state/LS/architectural/channel/control/
+PC/function cases**, including4,096 broad aliases,1,024 arbitrary controls and
+all13 constant quads,256 special-FP coefficient cases,32 split managers,
+32 fourth-publication/IDs aliases,64 delayed-counter cases,32 parameter aliases,
+11 count boundaries and three host depths. **288 ordered byte models** include
+source/metadata and table/output overlap for all three delayed unit streams.
+They independently gather bytes and model writes/table reads, but explicitly
+use SPU primitives for unit numeric operations. **3,145,728 independent fixed12
+position components** cover all unsigned16 codes at16 offset/overflow edges,
+using integer dyadic RTZ packing. **3,216 full original93F0 cases /3,168 native
+strict data children** retain original setup/9498 on both arms, with48 empty
+roots, sixteen source/stack/destination biases, three depths, arbitrary LUT
+arguments and48 late-frame/return-link aliases. **20 unchanged rejects** cover
+fourth-publication/data and all three dummy-output protected footprints.
+The first compiled expanded suite passes without kernel/checker corrections.
+
+Run `tests/scripts/test-geometry-builtin15-input.ps1`. The generator emits two
+pinned private original blocks/9498 trap and a separate seven-block original
+control graph/native-data hook/95DC trap. Synthetic format5 calibration SHA256
+is `a581a27292c377580a5c22fc78d6c42d22bcc0ec5e64abc4f3f726bacde1ed89`.
+It is original93F0 setup over real54E8 LS with a synthetic manager and arguments,
+not a captured format5 root. Full format4 regression passes5,806 strict cases,
+288 byte models,3,145,728 independent numeric components and3,216 original roots.
+
+All17 builtin input data blocks now have native implementations (existing raw0
+and complete standalone formats1..5). Their production wrappers and enclosing
+native93F0 control remain to be composed and checked; standalone function
+coverage does not close that milestone. Real cold/live/render/interpreter/
+reversed frozen A/B/normalized CPU/default gates remain open. No app/ABI/switch/
+default/FPS/CPU claim changes. Continue production integration next, then the
+remaining phase3 gates and shared phase4, with strict StageF7 last.

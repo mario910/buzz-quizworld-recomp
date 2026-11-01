@@ -139,7 +139,7 @@ int main(){
     unsigned components=0;const unsigned offsets[]={0,1,4095,4096,0x7fff,0xffff,0x7fffffff,0x80000000,0x80000001,0xffff0000,0xfffff000,0xffffffff,0x01000001,0xff000001,0x12345678,0xdeadbeef};
     const auto mask=spu_ls_read128(entry.get(),0xd280),left=spu_ls_read128(entry.get(),0xd2a0),right=spu_ls_read128(entry.get(),0xd290);
     const auto fields=spu_rotm(spu_il(-1),mask);
-    for(unsigned raw=0;raw<65536;++raw)for(unsigned offset:offsets){const auto v=numeric_geometry_builtin12_input(spu_il(raw),fields,spu_il(offset),left,right);for(unsigned lane=0;lane<3;++lane){assert(v._u32[lane]==scalar_position(raw,offset));++components;}}
+    for(unsigned raw=0;raw<65536;++raw)for(unsigned offset:offsets){const auto v=numeric_geometry_builtin_fixed_input(spu_il(raw),fields,spu_il(offset),left,right);for(unsigned lane=0;lane<3;++lane){assert(v._u32[lane]==scalar_position(raw,offset));++components;}}
     for(unsigned groups:{1u,2u,3u,4u,5u,127u,128u,129u,512u,514u,2048u}){seed(*native,*entry,20000+groups,groups,0);compare(*native,*reference,strict_cases);}
     for(unsigned count=0;count<=65;++count)for(unsigned bias=0;bias<16;++bias)for(unsigned depth=0;depth<3;++depth){copy(*native,*base);native->ls[0x3d008]=count>>8;native->ls[0x3d009]=count;native->gpr[1]._u32[0]+=bias;native->host_depth=depth;native->gpr[4]._u32[0]+=bias;native->gpr[7]._u32[0]=0x32000+bias;native->gpr[8]._u32[0]=0x12345678+bias;
         geometry_job_put32(native->ls+0x3d010,0x24000+bias);geometry_job_put32(native->ls+0x3d014,0x28000+bias);geometry_job_put32(native->ls+0x3d018,0x2c000+bias);

@@ -5899,3 +5899,28 @@ claim. Frozen pins and JOB0/geometry827/newflags0 stay unchanged. Required
 input5, production wrappers/native93F0 and cold/final gates remain open.
 The continuing objective stays active through shared phase4 and final strict
 StageF7, with optional5/6 decisions recorded before StageF cleanup.
+
+## Built-in 15-byte input: complete standalone format5
+
+`native_geometry_builtin15_input.h` now replaces full `97F8/9BB0`: fixed12 XYZ
+and three packed-unit vectors, all four metadata publications, delayed-output/
+table/source ordering, final flush and exact full9498 ABI. The [input audit](native-geometry-input-audit.md#built-in-input-format5-complete-standalone-decoder)
+records parameter-base differences, actual read/store timing and provenance.
+Shared gathers, position arithmetic and table composition are factored into
+`native_geometry_builtin_fixed_input.h`; format4's full regression passes.
+
+Format5 passes5,838 strict complete-state cases,288 ordered byte models,
+3,145,728 independent integer position components,3,216 original93F0 cases
+with3,168 strict native data children and20 unchanged rejects. Unit numeric
+operations in byte models use SPU primitives; no independent unit numeric
+oracle is claimed. The first compiled suite passes without runtime/checker
+corrections. Shared93F0 setup and9498 restoration remain original on both arms,
+and the calibration is synthetic rather than a real cold builtin capture.
+
+All17 builtin input data blocks now have implementations: existing raw0 and
+standalone formats1..5. Production wrappers/native93F0 remain open, followed
+by cold real/live/render/interpreter/reversed A/B/normalized CPU/default gates.
+The frozen app, ABI47,55-stage ledger, original pins and JOB0/geometry827/
+newflags0 defaults remain unchanged. No FPS/CPU gain is claimed. The goal stays
+active through phase3, shared phase4, optional-phase decisions and strict
+StageF7 last.

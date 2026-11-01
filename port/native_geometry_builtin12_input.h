@@ -1,6 +1,6 @@
 /* Complete 9E70/A170 format4: fixed12 XYZ and two packed unit vectors. */
 #pragma once
-#include "native_geometry_builtin_input.h"
+#include "native_geometry_builtin_fixed_input.h"
 namespace buzz {
 struct GeometryBuiltin12Input {unsigned groups=0;};
 inline bool read_geometry_builtin12_input(const spu_context& c,GeometryBuiltin12Input& out,const char** reason=nullptr)
@@ -21,26 +21,6 @@ inline bool read_geometry_builtin12_input(const spu_context& c,GeometryBuiltin12
     const u128 delayed[]={b.pointer,d.pointer};for(auto pointer:delayed)for(unsigned row=0;row<2;++row)
         if(((pointer._u32[0]+c.gpr[36]._u32[0]+c.gpr[49]._u32[0]+row*16)&0x3fff0)<0xe680)return reject("builtin12 input protected padding write");
     out={groups};return true;
-}
-struct GeometryBuiltinInputPosition {u128 block,a,b,c,d,ab,cd,bits;};
-inline GeometryBuiltinInputPosition gather_geometry_builtin_input_position(u128 first,u128 second,u128 control,u128 halves,u128 pair)
-{
-    GeometryBuiltinInputPosition p;p.block=spu_shufb(first,second,control);
-    p.a=spu_rotqmbyi(p.block,-2);p.b=spu_rotqmbyi(p.block,-4);p.c=spu_rotqmbyi(p.block,-6);p.d=spu_rotqmbyi(p.block,-10);
-    p.ab=spu_selb(p.a,p.b,halves);p.cd=spu_selb(p.c,p.d,halves);p.bits=spu_selb(p.ab,p.cd,pair);return p;
-}
-struct GeometryBuiltinInputUnitRow {u128 base,source,control,value;};
-inline GeometryBuiltinInputUnitRow compose_geometry_builtin_input_unit(u128 z,u128 xy,u128 table,u128 word,u128 absolute,u128 sign,u128 add)
-{
-    GeometryBuiltinInputUnitRow p;p.base=spu_selb(word,table,absolute);p.source=spu_selb(z,table,sign);
-    p.control=spu_a(p.base,add);p.value=spu_shufb(p.source,xy,p.control);return p;
-}
-inline u128 fields_geometry_builtin_input_unit(u128 packed,u128 shifts,u128 base,u128 mask)
-{return spu_selb(base,spu_rotm(packed,shifts),mask);}
-inline u128 numeric_geometry_builtin12_input(u128 packed,u128 mask,u128 offsets,u128 left,u128 right)
-{
-    const auto sum=spu_a(spu_and(packed,mask),offsets);
-    return spu_fa(spu_csflt(spu_rotma(sum,right),155),spu_cuflt(spu_shl(sum,left),123));
 }
 inline void open_geometry_builtin12_input(spu_context& c,u128* r)
 {
@@ -79,7 +59,7 @@ inline void open_geometry_builtin12_input(spu_context& c,u128* r)
 }
 inline void step_geometry_builtin12_input(spu_context& c,u128* r)
 {
-    const auto position0=numeric_geometry_builtin12_input(r[16],r[75],r[59],r[68],r[69]),position1=numeric_geometry_builtin12_input(r[9],r[75],r[59],r[68],r[69]);
+    const auto position0=numeric_geometry_builtin_fixed_input(r[16],r[75],r[59],r[68],r[69]),position1=numeric_geometry_builtin_fixed_input(r[9],r[75],r[59],r[68],r[69]);
     const auto next0=gather_geometry_builtin_input_position(r[10],r[7],r[81],r[63],r[87]),next1=gather_geometry_builtin_input_position(r[10],r[7],r[76],r[63],r[87]);
     const auto packed_n0=spu_shufb(r[10],r[7],r[86]),packed_n1=spu_shufb(r[7],r[7],r[78]),packed_t0=spu_shufb(r[10],r[7],r[77]),packed_t1=spu_shufb(r[7],r[7],r[85]);
     const auto n0=fields_geometry_builtin_input_unit(packed_n0,r[51],r[52],r[50]),n1=fields_geometry_builtin_input_unit(packed_n1,r[51],r[52],r[50]);
