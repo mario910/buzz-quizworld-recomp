@@ -1084,8 +1084,12 @@ its full-strength pose arithmetic now matches all 184,387 results. Scalar
 blend/add arithmetic also matches all 85,296 / 62,328 aligned output words,
 including published curve padding. Replacing these operations preserves every
 job output; guarded numeric proofs and eight publication-fault probes pass.
-Clip/stream discovery, curve key sampling, control-tree traversal and full
-native I/O lifecycle integration remain, followed by live/performance gates.
+FLOAT1 key sampling now also matches all 52,640 final channel values; repeated
+stored IDs are projected onto their final published owner, including aligned
+curve tails. Native replacement retains every job/transfer/exit; guarded
+numeric/mapping checks and a ninth publication-fault probe pass. Clip/stream
+discovery, static/default-pose setup, control-tree traversal and full native
+I/O lifecycle integration remain, followed by live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

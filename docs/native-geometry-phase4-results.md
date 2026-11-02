@@ -28,11 +28,13 @@
 | Operation-1 pose producer | Covered full-strength flags-0/full-weight recipe; host quaternion composition plus shared interpolation; all 184,387 poses across 2,597 calls match |
 | Scalar curve producers | Operation 0: 3,684 calls / 85,296 aligned words; operation 1: 2,597 calls / 62,328 aligned words; all match, including published tail words and flag-1 clamping |
 | Additional numeric proofs | Each arm: 2,048 original-producer batches / 9,216 logical samples per operation; scalar checks include 12,288 aligned words per operation; read-only guarded source tails, host canaries, same/opposite quaternions and extended FP pass |
-| Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; also 2,597 additive-pose, 3,684 scalar-blend and 2,597 scalar-add calls; no volatile GPR or ABI reconstruction |
+| Host FLOAT1 key sampler | Shared temporal selection and exact eight-lane interpolation; 38,025 calls (3,863 nonempty), 52,640 final channel owners match, including published alignment channels; repeated IDs publish only their final owner |
+| FLOAT1 numeric/bounds proof | Each arm: 2,048 original-producer batches / 10,752 projected results; stored four-slot groups, guarded inputs/tails, duplicate IDs, offsets and masks through 128 bits, extended FP, output canaries; 12 invalid recipes/mappings rejected; compressed alternative has zero real calls and remains unimplemented |
+| Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; also 2,597 additive-pose, 3,684 scalar-blend, 2,597 scalar-add and 38,025 FLOAT1 sampler calls; no volatile GPR or ABI reconstruction |
 | Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
 | Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
-| Publication fault probes | Eight independent sign faults (including additive pose and scalar curve) are each rejected at a recorded PUT byte comparison |
+| Publication fault probes | Nine independent sign faults (including additive pose, scalar curve and FLOAT1 keys) are each rejected at a recorded PUT byte comparison |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -55,9 +57,9 @@ captured matrix inputs. Nonuniform joint-weight streams and the small hierarchy
 alternative have no real corpus coverage and remain unsupported. Production
 job integration, live checks and candidate FPS/CPU gates remain. The new
 metadata parser is not the complete native driver: original code still
-handles clip/stream discovery, curve key sampling, control-tree traversal and
-the DMA/channel lifecycle. Operation-1 pose/curve arithmetic is now native in
-the replacement oracle.
+handles clip/stream discovery, static/default-pose setup, control-tree
+traversal and the DMA/channel lifecycle. FLOAT1 key sampling and operation-1
+pose/curve arithmetic now use native producers in the replacement oracle.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
 

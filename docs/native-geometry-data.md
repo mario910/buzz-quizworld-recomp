@@ -176,8 +176,8 @@ Let `n = align4(joints)` and `world = context.output`. Reference output starts
 at `world + n*64`; curve output at `reference + n*48 + 48`. Publication order
 is reference `joints*48`, world `joints*64`, then optional curves
 `align16(curve_floats*4)`, using the context DMA tag. All recorded publications
-match this recipe. Runtime clip GET staging, curve key sampling and control
-traversal still belong to the original oracle until the frontend is connected.
+match this recipe. Runtime clip GET staging, static/default-pose setup and
+control traversal still belong to the original oracle until integration.
 
 `native_animation_host_additive.h` implements the observed operation-1 pose
 recipe: flags 0, strength 1, explicit full weights on the base and implicit
@@ -194,6 +194,21 @@ leaves it unbounded. Other curve flags remain unsupported. Every word up to
 `align4(curve_floats)` is part of the published contract: compute and compare
 those tail values and weights explicitly. They are observable output, not
 scratch or dead lookahead state.
+
+`native_animation_host_curve_keys.h` samples raw FLOAT1 keys with four-byte
+BE endpoints/interior values and the shared MSB-first temporal selection.
+Its two fused interpolation roundings match the FLOAT3 sampler. Channel IDs
+are BE16 in four-slot storage groups. Tail entries can repeat an aligned
+published channel; only the final owner of each channel is decoded/evaluated
+and written. Integer key-prefix counts still account for preceding stored
+entries, because they locate the selected key bytes. Unowned values, SPU
+registers, lookahead state and call frames are not reproduced.
+
+The bounded recipe must include the stored bytes that determine published
+alignment channels. Treating only the logical track count as observable loses
+those output values. Compressed scalar keys have no corpus calls and remain
+unsupported; static/default setup and clip-to-recipe discovery are separate
+frontend work.
 
 ## Historical groundwork and strict diagnostics
 
