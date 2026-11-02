@@ -264,13 +264,15 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
 void validate_runtime_defaults(const Json& manifest,const Profile& profile) {
     const auto defaults=manifest.value("runtime_defaults",Json::object());
     require(defaults.is_object(),"Invalid build runtime defaults");
+    const bool host_profile=profile.family=="quizworld-eu100"&&manifest.value("family",std::string())==profile.family&&
+        manifest.value("elf_sha256",std::string())==elf100&&manifest.value("renderer",std::string())=="vulkan"&&
+        manifest.value("geometry_job_profile",std::string())=="host-groups-v1";
     for(auto& [key,value]:defaults.items()) {
         const bool completion=key=="BUZZ_NATIVE_COMPLETION"&&value.is_string()&&value.get<std::string>()=="2";
-        const bool geometry=key=="BUZZ_GEOMETRY_JOB"&&value.is_string()&&value.get<std::string>()=="1"&&
-            profile.family=="quizworld-eu100"&&manifest.value("family",std::string())==profile.family&&
-            manifest.value("elf_sha256",std::string())==elf100&&manifest.value("renderer",std::string())=="vulkan"&&
-            manifest.value("geometry_job_profile",std::string())=="host-groups-v1";
-        require(completion||geometry,"Unknown or unqualified build-bound runtime option");
+        const bool geometry=key=="BUZZ_GEOMETRY_JOB"&&value.is_string()&&value.get<std::string>()=="1"&&host_profile;
+        const bool animation=key=="BUZZ_ANIMATION_JOB"&&value.is_string()&&value.get<std::string>()=="1"&&host_profile&&
+            manifest.value("animation_job_profile",std::string())=="host-soa-v1";
+        require(completion||geometry||animation,"Unknown or unqualified build-bound runtime option");
     }
 }
 Environment runtime_environment(const Settings& s,const Build& b,const fs::path& session,Environment env) {

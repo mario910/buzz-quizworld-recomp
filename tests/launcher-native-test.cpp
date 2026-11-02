@@ -76,6 +76,21 @@ int main(int argc,char** argv) {
         rejects([&]{runtime_environment(s,wrong_family,temp/"invalid",{});});
         auto unknown_default=geometry;unknown_default.manifest["runtime_defaults"]["unexpected"]="1";
         rejects([&]{runtime_environment(s,unknown_default,temp/"invalid",{});});
+        auto animation=geometry;
+        animation.manifest["animation_job_profile"]="host-soa-v1";
+        animation.manifest["runtime_defaults"]["BUZZ_ANIMATION_JOB"]="1";
+        check(runtime_environment(s,animation,temp/"animation",{}).at("BUZZ_ANIMATION_JOB")=="1","Qualified animation default");
+        for(const auto& value:{"0","1","2"})
+            check(runtime_environment(s,animation,temp/"animation",{{"BUZZ_ANIMATION_JOB",value}}).at("BUZZ_ANIMATION_JOB")==value,"Explicit animation override preserved");
+        check(!runtime_environment(s,b,temp/"legacy",{}).count("BUZZ_ANIMATION_JOB"),"Legacy build keeps animation opt-in");
+        for(const auto& field:{"animation_job_profile","geometry_job_profile","family","elf_sha256","renderer"}) {
+            auto bad=animation;bad.manifest[field]="unqualified";
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
+        for(const auto& value:Json::array({"0","2",1,true,nullptr})) {
+            auto bad=animation;bad.manifest["runtime_defaults"]["BUZZ_ANIMATION_JOB"]=value;
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
         auto one=plan_launch(s,b,{}),two=plan_launch(s,b,{});
         check(one.session!=two.session&&fs::is_regular_file(one.session/"input.ini"),"Immutable unique snapshots");
         // Spawn this native test executable, not a shell or a game. Literal

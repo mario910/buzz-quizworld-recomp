@@ -16,6 +16,7 @@ Default freeze: `build-vulkan-animation-default-v1`, same measured EXE.
 | Runtime | Separate whole-job switch, bare EXE off; fixed TLS host workspace; unsupported job falls back before channel/output mutation; qualified Stage F fallback preserved |
 | Renderer | Mailbox and two-context asynchronous batches verified in every completed run |
 | Launch/default qualification | Normal launcher: 20 exact mixed image-40/41 jobs with the new default, repeated with explicit native OFF; parent environment restored. Nineteen invalid manifests rejected, twenty build selections checked; unavailable native owner compiles for baseline ISA and retains the reference |
+| Native graphical launcher follow-up | Its manifest whitelist now accepts the qualified image-40 option; native tests and actual default/explicit-OFF launch plans pass. Game EXE and measured runtime are unchanged |
 
 Four fresh same-EXE runs per series, `0/1/1/0`. Image-41 host jobs remain
 enabled in both arms. FPS and CPU use separate series; all CPU values are
