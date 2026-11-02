@@ -1076,7 +1076,12 @@ weights remain uncovered/unsupported. Native hierarchy now matches all
 461,853 world poses; dependency-safe batches remove repeated schedule entries.
 Replacing its 17,714 calls together with the previous host producers preserves
 all jobs/transfers/exit controls; guarded numerics and six publication-fault
-probes pass. Production frontend and live/performance gates remain open.
+probes pass. A native read-only metadata frontend now accepts all 17,714
+entries and predicts all 39,112 publications (LSA/EA/size/tag). Thirty-one
+malformed recipes are rejected without output mutation. The corpus includes
+2,597 operation-1 control nodes in addition to 17,714 operation-0 nodes;
+clip/stream discovery, that control operation, auxiliary curves and full
+native I/O lifecycle integration remain, followed by live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

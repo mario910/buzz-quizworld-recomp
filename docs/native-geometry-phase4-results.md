@@ -22,6 +22,9 @@
 | Pose numeric/tail proof | Each arm: 2,048 pinned original-producer batches / 9,216 matrices, random and extended-range FP; read-only source at guard page, tails 1-8, host/output canaries, exact BE row-major emission |
 | Host pose blend | Shared quaternion interpolation plus eight-lane translation/scale FMA/FNMS; all 461,853 poses match; 541 strengths, 17,714 calls; all inputs have implicit full joint weights |
 | Blend numeric/bounds proof | Each arm: 2,048 original-producer batches / 9,216 poses; endpoints, near/opposite quaternions, random/extended-range translation and scale, guarded read-only tails 1-8, output canaries; fixed RTZ weight normalization checked against original arithmetic |
+| Native job metadata frontend | Read-only job256 parser: four input spans, two caches, ES01 skeleton/hierarchy, root pose, clip records and control handles; all 17,714 entries accepted; 17,714 operation-0 and 2,597 operation-1 nodes, 38,025 clip references |
+| Publication recipe proof | All 39,112 ordered PUTs predicted from entry metadata: LSA, EA, byte count and DMA tag match the original in both arms, including 3,684 optional curve buffers |
+| Metadata rejection proof | Each arm: 31 malformed family/span/control/clip/skeleton/publication cases rejected; admission output remains unchanged |
 | Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; no volatile GPR or ABI reconstruction |
 | Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
 | Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
@@ -47,7 +50,10 @@ whole-job I/O with their original producers replaced in the test oracle.
 Hierarchy and the matrix chain now use native host pose arrays, without
 captured matrix inputs. Explicit joint-weight streams and the small hierarchy
 alternative have no real corpus coverage and remain unsupported. Production
-job integration, live checks and candidate FPS/CPU gates remain.
+job integration, live checks and candidate FPS/CPU gates remain. The new
+metadata parser is not the complete native driver: original code still
+handles clip/stream discovery, control operation 1, auxiliary curves and the
+DMA/channel lifecycle.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
 

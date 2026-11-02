@@ -154,6 +154,30 @@ Local/world data stays in little-endian host SoA; masked gathers give inactive
 lanes neutral quaternions without reading their data. Inputs and outputs have
 no SPU registers, scratch frames or dummy schedule iterations.
 
+## Animation job metadata frontend
+
+`native_animation_job_input.h` reads the observed job256 family without
+modifying LS or materializing SPU registers. It currently admits one/two
+control nodes and two/three clip references, matching every existing capture.
+It validates metadata, not complete native job eligibility or execution.
+
+| Source | Observed layout |
+| --- | --- |
+| Input 0 | 16 bytes/node: BE16 operation, left/right handles, reserved16, factor FP32 bits, reserved32; operation 0 or 1 |
+| Handles | `0x8000` + clip index or `0x4000` + forward node index; node 0 is the root |
+| Input 1 | 16 bytes/clip: EA32, header bytes16, flags16, sample-time FP32 bits, binding EA32 |
+| Input 2 / 3 | Reference 3x4 matrices (48 bytes/joint) / empty |
+| Cache 1 | ES01 skeleton; BE16 at +12 joints, +14 curve floats, +16 hierarchy quad count; schedule starts +48 |
+| User +16 / +64 | Root Q/T/S (48 bytes) / BE16 node and clip counts |
+| User +4 / +68 / +76 | World, reference and optional curve destination EAs |
+
+Let `n = align4(joints)` and `world = context.output`. Reference output starts
+at `world + n*64`; curve output at `reference + n*48 + 48`. Publication order
+is reference `joints*48`, world `joints*64`, then optional curves
+`align16(curve_floats*4)`, using the context DMA tag. All recorded publications
+match this recipe. Runtime clip GET staging and operation-1/curve evaluation
+still belong to the original oracle until the native frontend is connected.
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

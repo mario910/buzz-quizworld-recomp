@@ -2,6 +2,7 @@
 #include "../port/native_animation_host_vectors.h"
 #include "../port/native_animation_host_blend.h"
 #include "../port/native_animation_host_hierarchy.h"
+#include "../port/native_animation_job_input.h"
 #include "../port/native_animation_host_matrices.h"
 #include "zlib.h"
 #include <algorithm>
@@ -23,6 +24,9 @@ static std::vector<Transfer> transfers;
 static size_t transfer_index=0;
 static std::string current_case;
 static uint64_t jobs=0,total_transfers=0,quaternion_calls=0,nonempty_calls=0;
+static buzz::AnimationJobInput pending_job_input;
+static unsigned planned_publication=0;
+static uint64_t frontend_jobs=0,frontend_nodes[2]{},frontend_clips=0,frontend_publications=0;
 static std::map<unsigned,uint64_t> quaternion_counts;
 static std::filesystem::path output_directory;
 static bool dump_started=false,dump_finished=false;
@@ -102,6 +106,14 @@ void spu_wrch(spu_context* c,uint32_t channel,u128 value)
             fprintf(stderr,"transfer mismatch %s index=%zu actual=%u,%X,%X,%u expected=%u,%X,%X,%u\n",current_case.c_str(),transfer_index-1,kind,lsa,c->mfc_eal,c->mfc_size,expected.kind,expected.lsa,expected.ea,expected.size);abort();
         }
         assert(uint64_t(lsa)+expected.size<=SPU_LS_SIZE);
+        if(kind==2) {
+            assert(planned_publication<pending_job_input.publications);
+            const auto& planned=pending_job_input.output[planned_publication++];
+            if(lsa!=planned.lsa||c->mfc_eal!=planned.ea||c->mfc_size!=planned.bytes||c->mfc_tag!=pending_job_input.dma_tag) {
+                fprintf(stderr,"frontend publication mismatch %s publication=%u actual=%X,%X,%u,tag%u planned=%X,%X,%u,tag%u\n",current_case.c_str(),planned_publication-1,lsa,c->mfc_eal,c->mfc_size,c->mfc_tag,planned.lsa,planned.ea,planned.bytes,pending_job_input.dma_tag);abort();
+            }
+            ++frontend_publications;
+        }
         if(kind==1)memcpy(c->ls+lsa,expected.data.data(),expected.size);
         else if(memcmp(c->ls+lsa,expected.data.data(),expected.size)) {
             fprintf(stderr,"published bytes mismatch %s transfer=%zu\n",current_case.c_str(),transfer_index-1);abort();
@@ -150,6 +162,7 @@ static void animation_original_probe(unsigned pc,spu_context* c)
     if(!probe_enabled)return;
     if(pc==0x4fb8) {
         const unsigned at=c->gpr[6]._u32[0],entries=c->gpr[7]._u32[0];assert(at<=SPU_LS_SIZE);
+        assert(at==pending_job_input.hierarchy.lsa&&entries==pending_job_input.hierarchy_entries&&c->gpr[5]._u32[0]==pending_job_input.root_pose_lsa);
         if(!buzz::plan_animation_host_hierarchy({c->ls+at,SPU_LS_SIZE-at},entries,pending_blend_count,pending_hierarchy_plan)) {
             fprintf(stderr,"hierarchy plan rejected %s entries=%u joints=%u\n",current_case.c_str(),entries,pending_blend_count);abort();
         }
@@ -218,6 +231,7 @@ static void animation_original_probe(unsigned pc,spu_context* c)
     if(pc==0x20) {
         pending_affine_base=c->gpr[3]._u32[0];pending_affine_count=c->gpr[6]._u32[0];
         const unsigned source=c->gpr[5]._u32[0];
+        assert(source==pending_job_input.input[2].lsa&&pending_affine_base==pending_job_input.output[0].lsa);
         assert(c->gpr[4]._u32[0]==pending_matrix_base&&pending_affine_count==pending_matrix_count&&pending_affine_count<=256);
         assert(uint64_t(source)+pending_affine_count*48<=SPU_LS_SIZE);
         for(unsigned first=0;first<pending_affine_count;first+=8) {
@@ -241,6 +255,7 @@ static void animation_original_probe(unsigned pc,spu_context* c)
     }
     if(pc==0x4d60) {
         pending_matrix_base=c->gpr[3]._u32[0];pending_matrix_count=c->gpr[5]._u32[0];
+        assert(pending_matrix_base==pending_job_input.output[1].lsa&&pending_matrix_count==pending_job_input.joints);
         const unsigned source=c->gpr[4]._u32[0];assert(pending_matrix_count<=256&&uint64_t(source)+pending_matrix_count*48<=SPU_LS_SIZE);
         for(unsigned first=0;first<pending_matrix_count;first+=8)pending_matrices[first/8]=buzz::make_animation_host_world_matrices8(
             buzz::decode_animation_host_pose8(c->ls+source+first*48,std::min(8u,pending_matrix_count-first)));
@@ -820,6 +835,44 @@ static void check_numeric_hierarchy(const spu_context* original)
     assert(buzz::plan_animation_host_hierarchy({},0,0,plan)&&plan.batches==0);
     current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
 }
+static void check_invalid_job_inputs(const spu_context* c)
+{
+    const auto valid=pending_job_input;
+    std::vector<uint8_t> damaged(SPU_LS_SIZE);
+    auto put32=[&](unsigned at,uint32_t word){auto* p=damaged.data()+at;p[0]=word>>24;p[1]=word>>16;p[2]=word>>8;p[3]=word;};
+    auto put16=[&](unsigned at,unsigned value){damaged[at]=value>>8;damaged[at+1]=value;};
+    for(unsigned test=0;test<28;++test) {
+        memcpy(damaged.data(),c->ls,SPU_LS_SIZE);
+        const unsigned context=valid.context,descriptor=valid.descriptor,skeleton=valid.cache[1].lsa,
+            controls=valid.input[0].lsa,clips=valid.input[1].lsa;
+        switch(test) {
+        case 0:put32(context+20,0);break;case 1:put16(context+24,3);break;
+        case 2:put16(descriptor+10,24);break;case 3:put32(descriptor+36,8);break;
+        case 4:put32(descriptor+248,1);break;case 5:put32(descriptor+48,1);break;
+        case 6:put32(descriptor+56,16);break;case 7:put32(descriptor+72,16);break;
+        case 8:put32(skeleton,0);break;case 9:put16(skeleton+12,0);break;
+        case 10:put16(skeleton+14,65535);break;case 11:put16(skeleton+16,0);break;
+        case 12:put16(skeleton+16,257);break;case 13:put32(context+28,valid.output[1].lsa+1);break;
+        case 14:put32(descriptor+100,0);break;case 15:put32(descriptor+164,valid.output[0].ea+1);break;
+        case 16:put16(controls,2);break;case 17:put16(controls+2,0x8003);break;
+        case 18:put16(controls+2,0x4000);break;case 19:put16(controls+4,0x8000);break;
+        case 20:put32(controls+8,0x3f800001);break;case 21:put32(clips,0);break;
+        case 22:put16(clips+4,1);break;case 23:put16(clips+6,1);break;
+        case 24:put32(descriptor+52,valid.input[0].ea+1);break;case 25:put32(context+36,32);break;
+        case 26:put32(context+4,SPU_LS_SIZE-16);break;case 27:put32(context,SPU_LS_SIZE-16);break;
+        }
+        buzz::AnimationJobInput untouched=valid;const char* reason=nullptr;
+        if(buzz::read_animation_job_input(damaged.data(),SPU_LS_SIZE,valid.context,valid.descriptor,untouched,&reason)) {
+            fprintf(stderr,"invalid native frontend case accepted: %u\n",test);abort();
+        }
+        assert(reason&&*reason&&!memcmp(&untouched,&valid,sizeof(valid)));
+    }
+    buzz::AnimationJobInput result=valid;const char* reason=nullptr;
+    assert(!buzz::read_animation_job_input(c->ls,SPU_LS_SIZE-1,valid.context,valid.descriptor,result,&reason));
+    assert(!buzz::read_animation_job_input(c->ls,SPU_LS_SIZE,SPU_LS_SIZE-16,valid.descriptor,result,&reason));
+    assert(!buzz::read_animation_job_input(c->ls,SPU_LS_SIZE,valid.context,SPU_LS_SIZE-16,result,&reason));
+    assert(!memcmp(&result,&valid,sizeof(valid)));
+}
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
@@ -844,7 +897,16 @@ int main(int argc,char** argv)
         uint32_t n;read(&n,4);transfers.clear();transfer_index=0;
         for(unsigned i=0;i<n;++i){uint32_t h[4];read(h,16);Transfer t{h[0],h[1],h[2],h[3],{}};assert((t.kind==1||t.kind==2)&&uint64_t(t.lsa)+t.size<=SPU_LS_SIZE);t.data.resize(t.size);read(t.data.data(),t.size);transfers.push_back(std::move(t));}
         read(skipped.data(),unsigned(skipped.size()));uint32_t expected[7];read(expected,sizeof(expected));assert(gzread(file,skipped.data(),1)==0);assert(gzclose(file)==Z_OK);
+        const char* rejection=nullptr;
+        if(!buzz::read_animation_job_input(c->ls,SPU_LS_SIZE,c->gpr[3]._u32[0],c->gpr[4]._u32[0],pending_job_input,&rejection)) {
+            fprintf(stderr,"native animation frontend rejected %s: %s\n",current_case.c_str(),rejection);abort();
+        }
+        if(!frontend_jobs)check_invalid_job_inputs(c.get());
+        ++frontend_jobs;frontend_clips+=pending_job_input.clips;
+        for(unsigned i=0;i<pending_job_input.nodes;++i)++frontend_nodes[pending_job_input.node[i].operation];
+        planned_publication=0;
         g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00000010(c.get());drain(c.get(),expected[0]);
+        assert(planned_publication==pending_job_input.publications);
         assert(transfer_index==transfers.size()&&c->host_depth==1&&c->image_id==40&&c->ls==c->ls_store&&!g_spu_trampoline_fn);
         const uint32_t exit[]={c->pc,c->status,c->stop_code,unsigned(spu_channel_has_data(&c->ch_out_mbox)),c->ch_out_mbox.value,unsigned(spu_channel_has_data(&c->ch_out_intr_mbox)),c->ch_out_intr_mbox.value};
         assert(!memcmp(exit,expected,sizeof(exit)));++jobs;total_transfers+=n;
@@ -860,6 +922,7 @@ int main(int argc,char** argv)
     assert(replace_quaternions?(replaced_blends==17714):(compared_blends==461853));
     assert(numeric_hierarchy==9216&&hierarchy_plans==17714&&hierarchy_lanes==461853);
     assert(replace_quaternions?(replaced_hierarchy==17714):(compared_hierarchy==461853));
+    assert(frontend_jobs==17714&&frontend_nodes[0]==17714&&frontend_nodes[1]==2597&&frontend_clips==38025&&frontend_publications==39112);
     printf("PASS animation whole-job oracle mode=%s: %llu exact jobs / %llu ordered transfers; quaternion calls=%llu nonempty=%llu\n",argv[3],(unsigned long long)jobs,(unsigned long long)total_transfers,(unsigned long long)quaternion_calls,(unsigned long long)nonempty_calls);
     printf("PASS native host quaternion samples=%llu\n",(unsigned long long)compared_quaternions);
     printf("PASS native quaternion producer replacements=%llu\n",(unsigned long long)replaced_quaternion_calls);
@@ -877,6 +940,8 @@ int main(int argc,char** argv)
     printf("PASS pose blend recipes=%zu compared=%llu replacements=%llu numeric=%llu\n",blend_recipes.size(),(unsigned long long)compared_blends,(unsigned long long)replaced_blends,(unsigned long long)numeric_blends);
     printf("PASS host hierarchy plans=%llu entries=%llu joints=%llu batches=%llu full8=%llu noScaleInheritance=%llu\n",(unsigned long long)hierarchy_plans,(unsigned long long)hierarchy_entries,(unsigned long long)hierarchy_lanes,(unsigned long long)hierarchy_batches,(unsigned long long)hierarchy_full_batches,(unsigned long long)hierarchy_flags);
     printf("PASS hierarchy compared=%llu replacements=%llu numeric=%llu\n",(unsigned long long)compared_hierarchy,(unsigned long long)replaced_hierarchy,(unsigned long long)numeric_hierarchy);
+    printf("PASS native frontend jobs=%llu nodes0=%llu nodes1=%llu clips=%llu ordered-publications=%llu\n",(unsigned long long)frontend_jobs,(unsigned long long)frontend_nodes[0],(unsigned long long)frontend_nodes[1],(unsigned long long)frontend_clips,(unsigned long long)frontend_publications);
+    puts("PASS native job frontend: 31 malformed metadata/span cases rejected without changing admission output");
     puts("PASS invalid recipes rejected: quaternion=6 FLOAT3=8; empty tracks touch no data");
     for(auto [count,n]:quaternion_counts)printf("quaternion count=%u calls=%llu\n",count,(unsigned long long)n);
 }
