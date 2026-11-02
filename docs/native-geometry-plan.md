@@ -1054,6 +1054,10 @@ original quaternion producer in the whole-job oracle preserves all 17,714
 jobs / 115,162 transfers and exit controls, with numeric, guarded-stream and
 publication-fault checks. Production integration and live/performance gates
 remain open; the native kernel does not recreate volatile registers or frames.
+Static quaternion decoding now reuses that kernel and matches all 388,032
+captured values. Replacing both quaternion producers in the original whole-job
+oracle preserves every captured transfer and exit control; production
+pose/world integration and live/performance acceptance still remain.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

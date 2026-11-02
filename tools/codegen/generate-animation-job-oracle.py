@@ -22,21 +22,23 @@ def main():
     prefix = 'buzz_job_abe1_spu_func_'
     output = '\n'.join(f'static void {prefix}{pc:08X}(spu_context*);' for pc in functions)
     for pc, body in functions.items():
-        probe = f'animation_original_probe(0x{pc:x},ctx);' if pc in (0x6950,0x7408) else ''
+        probe = f'animation_original_probe(0x{pc:x},ctx);' if pc in (0x6950,0x7408,0x7490,0x7788) else ''
         if pc == 0x6950:
             probe = 'if(animation_native_quaternion_override(ctx))return;' + probe
+        if pc == 0x7490:
+            probe = 'if(animation_native_static_quaternion_override(ctx))return;' + probe
         output += f'\nstatic void {prefix}{pc:08X}(spu_context* ctx) {{{probe}{body}}}'
     output += '\nstatic void (*animation_original_lookup(unsigned pc))(spu_context*) { switch(pc) {\n'
     output += '\n'.join(f'case 0x{pc:x}:return {prefix}{pc:08X};' for pc in functions)
     output += '\ndefault:return nullptr;} }\n'
-    out = ROOT / 'analysis/native-geometry/phase4/job-oracle-v2/reference.inc'
+    out = ROOT / 'analysis/native-geometry/phase4/job-oracle-v3/reference.inc'
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         if out.read_text(encoding='utf-8') != output:
             raise SystemExit('Existing animation job oracle differs; preserve it and use a new version')
     else:
         out.write_text(output, encoding='utf-8')
-    print('Pinned original animation job: 279 complete blocks; observation hooks at 6950/7408')
+    print('Pinned original animation job: 279 complete blocks; quaternion observation and replacement hooks')
 
 
 if __name__ == '__main__':

@@ -14,7 +14,8 @@
 | Captured-output proof | All 17,714 jobs: 461,853 matrices / 22,168,944 bytes match the first PUT exactly, using captured world matrices and staged reference matrices as inputs |
 | Independent arithmetic/tails | 4,096 numeric batches / 18,432 matrices match the pinned original seven-block producer, including SPU extended-range values; guarded input/output tails 1–8 pass; inputs unchanged |
 | Host quaternion producer | Bitset predecessor/successor selection with host popcount/bit scans, packed 6-byte keys, exact eight-lane decode and shortest-path interpolation; all 596,095 real quaternion results match the original |
-| Whole-job producer replacement | Same oracle EXE, original-comparison and native-replacement arms each pass 17,714 exact jobs / 115,162 ordered transfers and captured exit controls; native arm replaces all 38,025 quaternion calls without restoring volatile registers or SPU frames |
+| Static quaternion producer | Same eight-lane 6-byte decoder; all 388,032 static results match the original; 2,048 original-producer numeric batches / 9,216 static samples and guarded tails pass; truncated/empty stream checks pass |
+| Whole-job producer replacement | Same oracle EXE, original-comparison and native-replacement arms each pass 17,714 exact jobs / 115,162 ordered transfers and captured exit controls; native arm replaces 38,025 animated and 38,025 static quaternion calls without restoring volatile registers or SPU frames |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
 | Publication fault probe | Injected native quaternion sign change fails the first job's PUT byte comparison, as expected |
 

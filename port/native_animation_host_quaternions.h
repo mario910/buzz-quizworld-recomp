@@ -64,6 +64,20 @@ inline AnimationHostQuaternion8 decode_animation_host_quaternions8(const uint64_
     }
     return result;
 }
+inline bool decode_animation_host_static_quaternions(AnimationByteView stream,unsigned count,
+    AnimationHostQuaternion8* output)
+{
+    if(uint64_t(count)*6>stream.bytes)return false;
+    for(unsigned first=0;first<count;first+=8) {
+        uint64_t packed[8];
+        for(unsigned lane=0;lane<8;++lane) {
+            packed[lane]=0x400080010003ull;
+            if(first+lane<count&&!animation_read_key(stream,first+lane,packed[lane]))return false;
+        }
+        output[first/8]=decode_animation_host_quaternions8(packed);
+    }
+    return true;
+}
 inline v8 animation_sine8(v8 angle)
 {
     const v8 square=v8_fm(angle,angle);

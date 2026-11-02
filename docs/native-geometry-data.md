@@ -86,6 +86,8 @@ MSB-first key-presence bits. Bit `k` represents frame `k+1`; first/last keys
 are separate, at frames zero and `interior_frames+1`. Interior keys follow
 track order and then time order. Popcount and bit scans select neighboring
 keys and their packed-stream offsets without an SPU register representation.
+Static quaternion arrays reuse the same six-byte decoder directly, without
+the temporal key masks or interpolation.
 
 | Packed quaternion bits | Field |
 | --- | --- |

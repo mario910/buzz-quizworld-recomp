@@ -32,9 +32,14 @@ static uint64_t replaced_quaternion_calls=0;
 static bool replace_quaternions=false;
 static bool corrupt_quaternions=false,corruption_injected=false;
 static uint64_t numeric_cases=0,numeric_samples=0;
+static std::array<buzz::AnimationHostQuaternion8,32> pending_static_quaternions;
+static std::vector<uint16_t> pending_static_indices;
+static unsigned pending_static_base=0;
+static uint64_t static_calls=0,static_nonempty=0,compared_static=0,replaced_static=0,numeric_static=0;
 static void check_numeric_quaternions(const spu_context*);
 static void animation_original_probe(unsigned,spu_context*);
 static bool animation_native_quaternion_override(spu_context*);
+static bool animation_native_static_quaternion_override(spu_context*);
 static void drain(spu_context*,unsigned);
 extern "C" {
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
@@ -85,7 +90,7 @@ u128 spu_rdch(spu_context* c,uint32_t channel)
 }
 uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
 }
-#include "../analysis/native-geometry/phase4/job-oracle-v2/reference.inc"
+#include "../analysis/native-geometry/phase4/job-oracle-v3/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next=animation_original_lookup(c->pc&SPU_LS_MASK);
@@ -109,6 +114,25 @@ static void dump(const char* name,const void* data,size_t bytes)
 static void animation_original_probe(unsigned pc,spu_context* c)
 {
     if(!probe_enabled)return;
+    if(pc==0x7490) {
+        ++static_calls;const unsigned count=c->gpr[5]._u32[0];assert(count<=256);
+        if(static_nonempty==0&&count)printf("first static quaternion producer count=%u destination=%X keys=%X indices=%X permutation=%X\n",count,c->gpr[3]._u32[0],c->gpr[4]._u32[0],c->gpr[6]._u32[0],c->gpr[7]._u32[0]);
+        static_nonempty+=count!=0;pending_static_base=c->gpr[3]._u32[0];pending_static_indices.clear();
+        const unsigned at=c->gpr[4]._u32[0];assert(at<=SPU_LS_SIZE);
+        assert(buzz::decode_animation_host_static_quaternions({c->ls+at,SPU_LS_SIZE-at},count,pending_static_quaternions.data()));
+        for(unsigned i=0;i<count;++i){const unsigned id=c->gpr[6]._u32[0]+2*i;assert(id+2<=SPU_LS_SIZE);pending_static_indices.push_back(uint16_t(c->ls[id])<<8|c->ls[id+1]);}
+        return;
+    }
+    if(pc==0x7788) {
+        for(unsigned i=0;!replace_quaternions&&i<pending_static_indices.size();++i) {
+            alignas(32) uint32_t values[4][8];
+            for(unsigned component=0;component<4;++component)_mm256_store_si256(reinterpret_cast<v8*>(values[component]),pending_static_quaternions[i/8].component[component]);
+            const unsigned at=pending_static_base+pending_static_indices[i]*48;assert(at+16<=SPU_LS_SIZE);
+            for(unsigned component=0;component<4;++component){const auto* p=c->ls+at+component*4;const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];if(values[component][i%8]!=expected){fprintf(stderr,"static quaternion mismatch %s track=%u joint=%u component=%u expected=%08X actual=%08X\n",current_case.c_str(),i,pending_static_indices[i],component,expected,values[component][i%8]);abort();}}
+            ++compared_static;
+        }
+        return;
+    }
     if(pc==0x6950) {
         ++quaternion_calls;const unsigned count=c->gpr[17]._u32[0];++quaternion_counts[count];
         if(count)++nonempty_calls;
@@ -166,6 +190,21 @@ static bool animation_native_quaternion_override(spu_context* c)
     // GPRs, prefetch state, scratch or saved SPU frames are reconstructed.
     c->pc=c->gpr[0]._u32[0];return true;
 }
+static bool animation_native_static_quaternion_override(spu_context* c)
+{
+    if(!replace_quaternions||!probe_enabled)return false;
+    animation_original_probe(0x7490,c);
+    for(unsigned first=0;first<pending_static_indices.size();first+=8) {
+        alignas(32) uint32_t values[4][8];
+        for(unsigned component=0;component<4;++component)_mm256_store_si256(reinterpret_cast<v8*>(values[component]),pending_static_quaternions[first/8].component[component]);
+        const unsigned count=std::min(8u,unsigned(pending_static_indices.size())-first);
+        for(unsigned lane=0;lane<count;++lane) {
+            const unsigned at=pending_static_base+pending_static_indices[first+lane]*48;assert(at+16<=SPU_LS_SIZE);
+            for(unsigned component=0;component<4;++component){auto* p=c->ls+at+component*4;const unsigned word=values[component][lane];p[0]=word>>24;p[1]=word>>16;p[2]=word>>8;p[3]=word;}
+        }
+    }
+    ++replaced_static;c->pc=c->gpr[0]._u32[0];return true;
+}
 static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,unsigned slot)
 {
 #ifdef _WIN32
@@ -207,7 +246,7 @@ static void check_numeric_quaternions(const spu_context* original)
             }
         }
         // Original lookahead stores target spare joints, outside logical data.
-        for(unsigned i=count;i<count+4;++i)c->ls[ids_at+i*2+1]=uint8_t(i);
+        for(unsigned i=count;i<count+8;++i)c->ls[ids_at+i*2+1]=uint8_t(i);
         buzz::AnimationQuaternionTracks recipe{
             guarded_view(c->ls+bits_at,key_bytes,0),guarded_view(c->ls+first_at,count*6,1),
             guarded_view(c->ls+last_at,count*6,2),guarded_view(c->ls+keys_at,keys*6,3),
@@ -234,6 +273,16 @@ static void check_numeric_quaternions(const spu_context* original)
             const unsigned expected=uint32_t(at[0])<<24|uint32_t(at[1])<<16|uint32_t(at[2])<<8|at[3];
             if(values[component][track]!=expected){fprintf(stderr,"numeric quaternion mismatch test=%u width=%u frame=%u count=%u track=%u component=%u expected=%08X actual=%08X\n",test,width,frame,count,track,component,expected,values[component][track]);abort();}
         }
+        assert(buzz::decode_animation_host_static_quaternions(recipe.first,count,&actual));
+        c->gpr[0]=spu_link(0x1238);c->gpr[3]=spu_il(dst);c->gpr[4]=spu_il(first_at);c->gpr[5]=spu_il(count);c->gpr[6]=spu_il(ids_at);c->gpr[7]=spu_il(0xa810);
+        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00007490(c.get());drain(c.get(),0x1238);
+        for(unsigned component=0;component<4;++component)_mm256_store_si256(reinterpret_cast<v8*>(values[component]),actual.component[component]);
+        for(unsigned track=0;track<count;++track)for(unsigned component=0;component<4;++component) {
+            const auto* at=c->ls+dst+(count-1-track)*48+component*4;
+            const unsigned expected=uint32_t(at[0])<<24|uint32_t(at[1])<<16|uint32_t(at[2])<<8|at[3];
+            if(values[component][track]!=expected){fprintf(stderr,"numeric static quaternion mismatch test=%u track=%u component=%u expected=%08X actual=%08X key=%02X%02X%02X%02X%02X%02X\n",test,track,component,expected,values[component][track],c->ls[first_at+track*6],c->ls[first_at+track*6+1],c->ls[first_at+track*6+2],c->ls[first_at+track*6+3],c->ls[first_at+track*6+4],c->ls[first_at+track*6+5]);abort();}
+        }
+        numeric_static+=count;
         ++numeric_cases;numeric_samples+=count;
     }
     const uint8_t bit=0x80,key[]={0x40,0,0x80,1,0,3};
@@ -245,6 +294,8 @@ static void check_numeric_quaternions(const spu_context* original)
         assert(!buzz::sample_animation_host_quaternions(bad,&result));
     }
     assert(buzz::sample_animation_host_quaternions({},nullptr));
+    assert(!buzz::decode_animation_host_static_quaternions({key,5},1,&result));
+    assert(buzz::decode_animation_host_static_quaternions({},0,nullptr));
     current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
 }
 int main(int argc,char** argv)
@@ -276,6 +327,7 @@ int main(int argc,char** argv)
     printf("PASS native host quaternion samples=%llu\n",(unsigned long long)compared_quaternions);
     printf("PASS native quaternion producer replacements=%llu\n",(unsigned long long)replaced_quaternion_calls);
     printf("PASS guarded quaternion numeric batches=%llu samples=%llu\n",(unsigned long long)numeric_cases,(unsigned long long)numeric_samples);
+    printf("PASS static quaternion calls=%llu nonempty=%llu compared=%llu replaced=%llu numeric=%llu\n",(unsigned long long)static_calls,(unsigned long long)static_nonempty,(unsigned long long)compared_static,(unsigned long long)replaced_static,(unsigned long long)numeric_static);
     puts("PASS six invalid stream recipes rejected; empty track set reads/writes no data");
     for(auto [count,n]:quaternion_counts)printf("quaternion count=%u calls=%llu\n",count,(unsigned long long)n);
 }
