@@ -24,6 +24,9 @@ extern int buzz_geometry_debug;
 #ifndef BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE
 #define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 0
 #endif
+#ifndef BUZZ_NATIVE_JOB_DEFAULT
+#define BUZZ_NATIVE_JOB_DEFAULT 0
+#endif
 
 namespace {
 using namespace buzz;
@@ -226,12 +229,12 @@ struct Init {
                 std::fprintf(stderr, "[geometry-job] native setup adapter unavailable, or AUDIT conflicts with JOB mode\n");
                 std::abort();
             }
-            std::fprintf(stderr, "[geometry-job] mode=%d: native job driver, experimental/default off\n",
-                         buzz_geometry_job_mode());
-            std::fprintf(stderr,"[geometry-job] profile=%s publication=%d commands=%d (JOB default off)\n",
+            std::fprintf(stderr, "[geometry-job] mode=%d: native job driver, build default=%d\n",
+                         buzz_geometry_job_mode(), BUZZ_NATIVE_JOB_DEFAULT);
+            std::fprintf(stderr,"[geometry-job] profile=%s publication=%d commands=%d\n",
                 buzz_geometry_job_legacy_enabled()?"legacy-debug":"host-groups",
                 buzz_geometry_job_publication_enabled(),buzz_geometry_job_commands_enabled());
-            std::fprintf(stderr,"[geometry-job] host pipeline=%d (persistent host SoA;whole-job admission;JOB default off)\n",buzz_geometry_job_host_pipeline_enabled());
+            std::fprintf(stderr,"[geometry-job] host pipeline=%d (persistent host SoA;whole-job admission)\n",buzz_geometry_job_host_pipeline_enabled());
             if (buzz_geometry_job_legacy_enabled()) {
                 std::fprintf(stderr, "[geometry-job] native index publication=%d (default off)\n",
                              buzz_geometry_job_publish_enabled());
@@ -947,7 +950,7 @@ extern "C" int buzz_geometry_job_mode()
     static OptionCache mode;
     return mode.get([] {
         const char* value = std::getenv("BUZZ_GEOMETRY_JOB");
-        if (!value) return 0;
+        if (!value) return BUZZ_NATIVE_JOB_DEFAULT;
         if (value[0] < '0' || value[0] > '2' || value[1]) std::abort();
         return value[0] - '0';
     });

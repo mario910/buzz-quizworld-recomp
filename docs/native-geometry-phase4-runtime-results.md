@@ -1,5 +1,9 @@
 # Phase 4: image-40 runtime results
 
+Default handling follow-up: [EXE-owned defaults](native-runtime-defaults-results.md)
+now replace launcher injection for the qualified profile. The frozen
+measurement build below is preserved unchanged.
+
 2026-11-02. Vulkan candidate `build-vulkan-animation-runtime-v3`, EXE
 `e264d5123c3eedda999da9e4901fb53c16f9ffc4bf8a18ec52a2d1add56c8674`.
 `BUZZ_ANIMATION_JOB=0/1/2`: retained lift / native / native retained with

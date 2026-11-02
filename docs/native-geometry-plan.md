@@ -7,6 +7,11 @@ within reach of weaker CPUs (Steam Deck, laptops, Switch 2-class ARM).
 
 This is a living document. Update the tracker tables after every session.
 
+Current default handling (2026-11-02): the qualified EU100/Vulkan/AVX2 EXE
+owns all approved native, scheduling and renderer defaults. Missing environment
+variables enable the approved profile without launcher injection; explicit
+overrides remain supported. [Validation](native-runtime-defaults-results.md).
+
 ## Course correction (2026-11-01, supersedes conflicting text below)
 
 **Status: the phase-3 whole-job path is slower than the lift it replaces.**

@@ -32,6 +32,16 @@ if(Test-Path -LiteralPath $boundBuild) {
         throw 'The EXE no longer matches its build manifest. Rebuild or verify the prepared session before launching.'
     }
 }
+. (Join-Path $PSScriptRoot 'buzz-runtime-defaults.ps1')
+$embeddedRuntimeProfile=Test-BuzzEmbeddedRuntimeProfile -Binding $binding
+$embeddedOriginal=@{}
+if($embeddedRuntimeProfile) {
+    foreach($line in (Get-Content -LiteralPath (Join-Path $experimentRoot 'port/runtime_defaults.inc'))) {
+        if($line -match '^X\((\w+),') {
+            $embeddedOriginal[$Matches[1]]=[Environment]::GetEnvironmentVariable($Matches[1],'Process')
+        }
+    }
+}
 $runtime = Join-Path $experimentRoot 'runtime'
 $logDirectory = Join-Path $experimentRoot 'logs'
 $spuDump = Join-Path $experimentRoot 'analysis\raw-jobs\runtime'
@@ -175,6 +185,13 @@ if ($isVulkan) {
         }
     }
 }
+# New EXEs own these defaults before constructor initialization. Keep the
+# historical bootstrap above for old frozen EXEs, but pass only the user's
+# original optimization overrides to an embedded-profile EXE.
+foreach($key in $embeddedOriginal.Keys) {
+    if($null -eq $embeddedOriginal[$key]){Remove-Item "Env:$key" -ErrorAction SilentlyContinue}
+    else{[Environment]::SetEnvironmentVariable($key,$embeddedOriginal[$key],'Process')}
+}
 $env:PS3_VFS_ROOT = $gamePaths.game_root
 $env:PS3_DISC_ROOT = $env:PS3_VFS_ROOT
 $env:PS3_HDD0_ROOT = Join-Path $runtime 'dev_hdd0'
@@ -189,7 +206,11 @@ $muteBefore = [Environment]::GetEnvironmentVariable('PS3_MUTE', 'Process')
 try {
     if ($resolvedInput) { $env:BUZZ_INPUT_CONFIG = $resolvedInput }
     if ($MenuBootstrap) {
-        Write-Output "Native config: workers=$env:SPURS_JOB_LIST_WORKERS image=$env:SPURS_JOB_LIST_IMAGE+$env:SPURS_JOB_LIST_EXTRA_IMAGES job-cache=$env:SPURS_JOB_CACHE_ENV rsx-cache=$env:RSX_CACHE_ENV merge=$env:SPURS_MERGE_READY_LISTS extra-fp=$env:SPURS_NATIVE_EXTRA_FP samplers=$env:RSX_GUEST_SAMPLERS pixel-window=$env:RSX_PIXEL_WINDOW jts-dma-wake=$env:SPURS_JTS_DMA_WAKE ls-exchange=$env:SPURS_JOB_LS_EXCHANGE ls-publish=$env:SPURS_JOB_LS_PUBLISH color-grid=$env:RSX_PACK_AA_COLOR no-fmv=$env:BUZZ_NO_FMV second-v=$env:GCM_SECOND_V"
+        if($embeddedRuntimeProfile) {
+            Write-Output "Native config: EXE-owned $($binding.embedded_runtime_profile); inherited overrides preserved"
+        } else {
+            Write-Output "Native config: workers=$env:SPURS_JOB_LIST_WORKERS image=$env:SPURS_JOB_LIST_IMAGE+$env:SPURS_JOB_LIST_EXTRA_IMAGES job-cache=$env:SPURS_JOB_CACHE_ENV rsx-cache=$env:RSX_CACHE_ENV merge=$env:SPURS_MERGE_READY_LISTS extra-fp=$env:SPURS_NATIVE_EXTRA_FP samplers=$env:RSX_GUEST_SAMPLERS pixel-window=$env:RSX_PIXEL_WINDOW jts-dma-wake=$env:SPURS_JTS_DMA_WAKE ls-exchange=$env:SPURS_JOB_LS_EXCHANGE ls-publish=$env:SPURS_JOB_LS_PUBLISH color-grid=$env:RSX_PACK_AA_COLOR no-fmv=$env:BUZZ_NO_FMV second-v=$env:GCM_SECOND_V"
+        }
     }
     # -Background: the game window opens without focus, beneath other windows.
     # -Mute: silence at the audio device only. The game, its mixer and the

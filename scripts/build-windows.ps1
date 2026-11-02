@@ -188,6 +188,7 @@ $configureOptions=@(
     "-DBUZZ_EXPERIMENTAL_VULKAN=$($VulkanExperimental.IsPresent)",
     "-DPORT_HOST_PROFILE_DIR=$hostProfile", "-DPORT_SPU_ISA=$SpuIsa",
     "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)", "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)",
+    "-DPORT_NATIVE_JOB_DEFAULTS=$animationJobProfile",
     "-DPORT_SPU_LS_DEBUG_HOOKS=$($SpuLsDebugHooks.IsPresent)", "-DPORT_SPU_OPT=$SpuOpt",
     "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)", "-DPORT_GEOMETRY_SOURCE=$geometryOverride",
     "-DPORT_COMPLETION_SOURCE=$completionOverride", "-DPORT_IMAGE40_SOURCE=$image40Override",
@@ -209,12 +210,12 @@ if($generation) {
     $boundRuntimeDefaults=$runtimePlan | ConvertFrom-Json
     $buildManifest=@{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);renderer=$renderer;runtime_defaults=$boundRuntimeDefaults}
     if($geometryJobProfile) {
-        $boundRuntimeDefaults | Add-Member -NotePropertyName BUZZ_GEOMETRY_JOB -NotePropertyValue '1' -Force
         $buildManifest.geometry_job_profile='host-groups-v1'
     }
     if($animationJobProfile) {
-        $boundRuntimeDefaults | Add-Member -NotePropertyName BUZZ_ANIMATION_JOB -NotePropertyValue '1' -Force
         $buildManifest.animation_job_profile='host-soa-v1'
+        $buildManifest.runtime_defaults=@{}
+        $buildManifest.embedded_runtime_profile='eu100-vulkan-native-v1'
     }
     $buildManifest |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'game-build.json') -Encoding UTF8

@@ -610,8 +610,13 @@ static int report_replay_interpreter_counts()
                 rows[i].image, rows[i].page, (unsigned long long)rows[i].steps);
     return 0;
 }
+extern "C" void buzz_print_runtime_defaults();
 int main(int argc, char** argv)
 {
+    if (argc == 2 && strcmp(argv[1], "--runtime-defaults") == 0) {
+        buzz_print_runtime_defaults();
+        return 0;
+    }
     /* Configure streams before their first use. Buffers must outlive all
      * guest/worker threads, including normal exit's final flush. A forced
      * kill may lose the tail; live crash debugging can opt out explicitly. */

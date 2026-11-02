@@ -9,6 +9,9 @@
 #ifndef BUZZ_ANIMATION_JOB_AVAILABLE
 #define BUZZ_ANIMATION_JOB_AVAILABLE 0
 #endif
+#ifndef BUZZ_NATIVE_JOB_DEFAULT
+#define BUZZ_NATIVE_JOB_DEFAULT 0
+#endif
 
 namespace {
 std::atomic<int> option{-1};
@@ -21,7 +24,7 @@ extern "C" int buzz_animation_job_mode()
     if(mode<0) {
         const char* text=std::getenv("BUZZ_ANIMATION_JOB");
         if(text && (text[0]<'0'||text[0]>'2'||text[1]))std::abort();
-        mode=text?text[0]-'0':0;
+        mode=text?text[0]-'0':BUZZ_NATIVE_JOB_DEFAULT;
         option.store(mode,std::memory_order_relaxed);
     }
     return mode;
@@ -29,7 +32,7 @@ extern "C" int buzz_animation_job_mode()
 extern "C" void buzz_animation_job_report()
 {
     if(buzz_animation_job_mode())std::fprintf(stderr,
-        "[animation-job] attempted=%llu native=%llu compared=%llu fallback=%llu audit-skipped=%llu (job-boundary; default off)\n",
+        "[animation-job] attempted=%llu native=%llu compared=%llu fallback=%llu audit-skipped=%llu (job-boundary)\n",
         attempted.load(),executed.load(),compared.load(),fallback.load(),audit_skipped.load());
 }
 
@@ -145,7 +148,7 @@ struct Init {
             std::abort();
         }
         if(mode) {
-            std::fprintf(stderr,"[animation-job] mode=%d (0 retained lift,1 native,2 native-retained whole-job I/O compare; default off)\n",mode);
+            std::fprintf(stderr,"[animation-job] mode=%d (0 retained lift,1 native,2 native-retained whole-job I/O compare; build default=%d)\n",mode,BUZZ_NATIVE_JOB_DEFAULT);
             std::atexit(buzz_animation_job_report);
         }
     }

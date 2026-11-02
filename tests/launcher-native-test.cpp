@@ -91,6 +91,17 @@ int main(int argc,char** argv) {
             auto bad=animation;bad.manifest["runtime_defaults"]["BUZZ_ANIMATION_JOB"]=value;
             rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
         }
+        auto embedded=animation;
+        embedded.manifest["runtime_defaults"]=Json::object();
+        embedded.manifest["embedded_runtime_profile"]="eu100-vulkan-native-v1";
+        const auto bare=runtime_environment(s,embedded,temp/"embedded",{});
+#define X(name, value) check(!bare.count(#name),"EXE owns " #name); check(runtime_environment(s,embedded,temp/"embedded",{{#name,"0"}}).at(#name)=="0","Explicit override " #name);
+#include "../port/runtime_defaults.inc"
+#undef X
+        for(const auto& field:{"embedded_runtime_profile","animation_job_profile","geometry_job_profile","family","elf_sha256","renderer"}) {
+            auto bad=embedded;bad.manifest[field]="unqualified";
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
         auto one=plan_launch(s,b,{}),two=plan_launch(s,b,{});
         check(one.session!=two.session&&fs::is_regular_file(one.session/"input.ini"),"Immutable unique snapshots");
         // Spawn this native test executable, not a shell or a game. Literal

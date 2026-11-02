@@ -130,6 +130,10 @@ int main(int argc, char** argv)
 {
     if (argc > 1) scenario = argv[1];
     std::signal(SIGABRT, expected_abort);
+    if(selected("build-default")){
+        assert(argc==3 && buzz_geometry_job_mode()==atoi(argv[2]));
+        puts("Embedded geometry default / explicit override PASS");return 0;
+    }
     if(selected("fallback_flush")){
         buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RIGID_SKIN,0,0);
         std::_Exit(0); // Deliberately bypass final summaries and CRT flushing.

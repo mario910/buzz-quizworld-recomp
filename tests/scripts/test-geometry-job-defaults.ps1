@@ -9,6 +9,22 @@ function GoodManifest {
     '{"family":"quizworld-eu100","elf_sha256":"6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8","renderer":"vulkan","geometry_job_profile":"host-groups-v1","animation_job_profile":"host-soa-v1","runtime_defaults":{"BUZZ_NATIVE_COMPLETION":"2","BUZZ_GEOMETRY_JOB":"1","BUZZ_ANIMATION_JOB":"1"}}' | ConvertFrom-Json
 }
 try {
+    $embedded=GoodManifest
+    $embedded.runtime_defaults=[pscustomobject]@{}
+    $embedded | Add-Member embedded_runtime_profile 'eu100-vulkan-native-v1'
+    foreach($original in @($null,'0','2')) {
+        Restore @{BUZZ_ANIMATION_JOB=$original}
+        $snapshot=@{}
+        Set-BuzzBuildRuntimeDefaults -Binding $embedded -Previous $snapshot
+        Check ($snapshot.Count -eq 0 -and [Environment]::GetEnvironmentVariable('BUZZ_ANIMATION_JOB','Process') -ceq $original) 'Embedded EXE still depends on injected defaults'
+    }
+    foreach($field in @('embedded_runtime_profile','family','elf_sha256','renderer','geometry_job_profile','animation_job_profile')) {
+        $bad=$embedded | ConvertTo-Json | ConvertFrom-Json
+        $bad.$field='unqualified'
+        $rejected=$false
+        try {Set-BuzzBuildRuntimeDefaults -Binding $bad -Previous @{}}catch{$rejected=$true}
+        Check $rejected 'Unqualified embedded profile accepted'
+    }
     Remove-Item Env:BUZZ_ANIMATION_JOB -ErrorAction SilentlyContinue
     foreach($original in @($null,'','0','1','2')) {
         if($null -eq $original){Remove-Item Env:BUZZ_GEOMETRY_JOB -ErrorAction SilentlyContinue}else{[Environment]::SetEnvironmentVariable('BUZZ_GEOMETRY_JOB',$original,'Process')}

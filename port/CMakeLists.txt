@@ -479,7 +479,22 @@ set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(ZLIB_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/zlib"
                  "${CMAKE_BINARY_DIR}/zlib" EXCLUDE_FROM_ALL)
-target_sources(${PROJECT_NAME} PRIVATE ${host_edge_decompress} job_corpus.cpp native_stagef.cpp native_geometry.cpp native_geometry_job.cpp native_geometry_job_flow.cpp native_animation_runtime.cpp)
+target_sources(${PROJECT_NAME} PRIVATE ${host_edge_decompress} job_corpus.cpp native_stagef.cpp native_geometry.cpp native_geometry_job.cpp native_geometry_job_flow.cpp native_animation_runtime.cpp runtime_defaults.cpp)
+set(native_job_default_candidate OFF)
+option(PORT_OPTIMIZE_PPU_HOT_PATHS "Optimize PPU bridge and profiled job-poll TU" ON)
+if(geometry_job_native_setup_available AND animation_job_available AND
+   BUZZ_EXPERIMENTAL_VULKAN AND PORT_NATIVE_SPU_FLOAT AND PORT_RTZ_RESULT_GUARD AND PORT_SPU_ISA STREQUAL "avx2" AND
+   PORT_COMPLETION_SOURCE AND PORT_IMAGE7_SOURCE AND PORT_IMAGE36_SOURCE AND PORT_IMAGE39_SOURCE AND PORT_MSTREAM_DIR AND
+   PORT_OPTIMIZE_PPU_HOT_PATHS AND PORT_SPU_OPT STREQUAL "-O2" AND NOT PORT_SPU_LS_DEBUG_HOOKS AND
+   NOT PORT_VIDEO_SOURCE AND NOT PORT_PRODUCER_PROBE_DIR)
+    set(native_job_default_candidate ON)
+endif()
+option(PORT_NATIVE_JOB_DEFAULTS "Embed the approved native/Vulkan runtime profile in the qualified EXE" ${native_job_default_candidate})
+if(PORT_NATIVE_JOB_DEFAULTS AND NOT native_job_default_candidate)
+    message(FATAL_ERROR "Embedded native job defaults require both reviewed adapters and the qualified Vulkan/AVX2/RTZ build")
+endif()
+set_property(SOURCE native_geometry_job.cpp native_animation_runtime.cpp APPEND PROPERTY COMPILE_DEFINITIONS "BUZZ_NATIVE_JOB_DEFAULT=$<BOOL:${PORT_NATIVE_JOB_DEFAULTS}>")
+set_property(SOURCE runtime_defaults.cpp APPEND PROPERTY COMPILE_DEFINITIONS "BUZZ_RUNTIME_DEFAULTS=$<BOOL:${PORT_NATIVE_JOB_DEFAULTS}>")
 if(animation_job_available)
     if(NOT PORT_NATIVE_SPU_FLOAT OR NOT PORT_RTZ_RESULT_GUARD OR NOT PORT_SPU_ISA MATCHES "^(avx2|avx512)$")
         message(FATAL_ERROR "Native animation job requires checked AVX2/FMA, native SPU RTZ and result guard")
@@ -612,7 +627,6 @@ endif()
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
-option(PORT_OPTIMIZE_PPU_HOT_PATHS "Optimize PPU bridge and profiled job-poll TU" ON)
 if(PORT_OPTIMIZE_PPU_HOT_PATHS)
     # /O1 was selected for compilation cost of the enormous generated TUs,
     # not for the small dispatch/VM bridge used by every guest memory store.

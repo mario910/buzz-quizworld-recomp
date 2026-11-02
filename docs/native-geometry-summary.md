@@ -1,9 +1,11 @@
 # Native geometry: current measured result
 
 2026-11-02. Qualified EU100/Vulkan/AVX2 profile: geometry image 41,
-animation image 40 and native completion are enabled through the build
-manifest. Both launchers preserve explicit OFF. Stage F is also enabled
-in the normal runtime profile. Experimental switches are not enabled as a
+animation image 40, native completion, Stage F, scheduling and approved
+Vulkan optimizations default on inside the EXE, before constructors cache
+options. No launcher injection is required. Both launchers preserve explicit
+OFF. See [default validation](native-runtime-defaults-results.md).
+Experimental switches are not enabled as a
 blanket policy; the host pipeline replaces several earlier stage routines.
 
 Latest measured full-profile FPS, uncapped, 1280×720:

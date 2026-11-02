@@ -1,7 +1,20 @@
 # Build-bound defaults. Validate the whole map before mutating the caller's
 # environment; the launcher's finally block restores the supplied snapshot.
+function Test-BuzzEmbeddedRuntimeProfile {
+    param($Binding)
+    if(-not $Binding -or -not $Binding.PSObject.Properties['embedded_runtime_profile']){return $false}
+    if($Binding.embedded_runtime_profile -cne 'eu100-vulkan-native-v1' -or
+       $Binding.family -cne 'quizworld-eu100' -or $Binding.renderer -cne 'vulkan' -or
+       $Binding.elf_sha256 -cne '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8' -or
+       $Binding.geometry_job_profile -cne 'host-groups-v1' -or $Binding.animation_job_profile -cne 'host-soa-v1' -or
+       $Binding.runtime_defaults -isnot [pscustomobject] -or @($Binding.runtime_defaults.PSObject.Properties).Count -ne 0) {
+        throw 'Unknown or unqualified embedded runtime profile'
+    }
+    return $true
+}
 function Set-BuzzBuildRuntimeDefaults {
     param($Binding, [hashtable]$Previous)
+    if(Test-BuzzEmbeddedRuntimeProfile -Binding $Binding){return}
     if (-not $Binding -or -not $Binding.PSObject.Properties['runtime_defaults']) { return }
     if ($Binding.runtime_defaults -isnot [pscustomobject]) { throw 'Invalid build runtime defaults' }
     $options=@($Binding.runtime_defaults.PSObject.Properties)
