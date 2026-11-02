@@ -21,7 +21,7 @@ inline bool read_geometry_host_vertex_recipe(const spu_context& c, const Geometr
     result.ready = false;
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
     GeometryHostVertexRecipe recipe;
-    if (!read_geometry_host_output_recipe(c,e,recipe.output,reason)) return false;
+    if (!read_geometry_host_output_recipe(c,e,recipe.output,reason,true)) return false;
     const auto& output = recipe.output;
     if (input.vertices != e.vertices || !input.fields || input.fields > 16 ||
         input.blocks_per_field != (input.vertices+7)/8 ||
@@ -30,11 +30,13 @@ inline bool read_geometry_host_vertex_recipe(const spu_context& c, const Geometr
     // Dense records need no old destination bytes. Current observed final
     // alignment reaches at most XYZ of one extra float3 position.
     const auto& position = output.field[0];
-    if ((output.stride & 3) || position.offset || position.slot ||
-        position.storage != 2 || position.components != 3 || input.field[0].semantic != 1 ||
-        input.field[0].storage != 2 || input.field[0].components != 3 ||
-        output.bytes - output.vertices*output.stride > 12)
-        return reject("host vertex publication layout");
+    // Any byte stride: every field writer stores at byte offsets and each
+    // 8-vertex chunk is copied once at first*stride.
+    if (position.offset || position.slot || position.storage != 2 || position.components != 3 ||
+        input.field[0].semantic != 1 || input.field[0].storage != 2 || input.field[0].components != 3)
+        return reject("host vertex publication layout: position");
+    if (output.bytes - output.vertices*output.stride > 12)
+        return reject("host vertex publication layout: padding");
     uint64_t occupied = 0;
     for (unsigned field = 0; field < output.fields; ++field) {
         const auto& f = output.field[field];
@@ -75,6 +77,8 @@ inline bool prepare_geometry_host_vertex_tail(const spu_context& c, const Geomet
         const uint64_t weights = uint64_t(skin.weights)+uint64_t(e.vertices)*8;
         if (!skin.matrices || skin.matrices > 256 || weights < e.io_lsa || weights+8 > io_end)
             return reject("host vertex weight tail span");
+        // An out-of-palette padding index stays a fallback: reading that LS
+        // quad at entry was tried and differs from the lift on 192 corpus jobs.
         unsigned index[4]; v8 factor[4];
         for (unsigned influence=0;influence<4;++influence) {
             index[influence] = c.ls[weights+influence*2+1];
@@ -111,6 +115,7 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
             const auto& f = output.field[field]; const auto& value = data.at(input,f.slot,first/8);
             if (f.storage == 2) geometry_host_float_field8(value,f.components,chunk+f.offset,output.stride,active);
             else if (f.storage == 3) geometry_host_half_field8(value,f.components,chunk+f.offset,output.stride,active);
+            else if (f.storage == 1) geometry_host_snorm_field8(value,f.components,chunk+f.offset,output.stride,active);
             else geometry_host_cmp_field8(value,chunk+f.offset,output.stride,active);
         }
         unsigned bytes = active*output.stride;

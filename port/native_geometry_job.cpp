@@ -8,6 +8,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
+#include <mutex>
+#include <string>
 
 extern "C" {
 void spu_wrch(spu_context*, uint32_t, u128);
@@ -381,6 +384,23 @@ extern "C" int buzz_geometry_job_host_pipeline_enabled()
 {
     static OptionCache enabled;
     return enabled.get([] { return output_option("BUZZ_GEOMETRY_JOB_HOST_PIPELINE"); });
+}
+namespace {
+std::mutex fallback_reason_lock;
+std::map<std::string, unsigned long long>* fallback_reason_counts = nullptr;
+}
+// Off by default and outside the BUZZ_GEOMETRY_JOB_* option family, so
+// measurement runners that set every job option never enable it.
+extern "C" int buzz_geometry_fallback_reasons_enabled()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return raw_output_option("BUZZ_GEOMETRY_FALLBACK_REASONS"); });
+}
+extern "C" void buzz_geometry_job_fallback_reason(const char* reason)
+{
+    std::lock_guard<std::mutex> guard(fallback_reason_lock);
+    if (!fallback_reason_counts) fallback_reason_counts = new std::map<std::string, unsigned long long>;
+    ++(*fallback_reason_counts)[reason ? reason : "(no reason recorded)"];
 }
 extern "C" void buzz_geometry_job_host_pipeline_result()
 {
@@ -1244,7 +1264,16 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
     AdmissionOwnerScope admission(mode==1?ctx:nullptr);
     // Always test the original entry. Cloning an external LS or letting the
     // preamble mutate before this decision cannot turn a fallback into native.
-    if (!eligible(ctx) || !supports(ctx)) { admission_owner=nullptr; ++native_fallback; reference(ctx); return; }
+    const bool entry_ok = eligible(ctx);
+    if (!entry_ok && buzz_geometry_fallback_reasons_enabled()) {
+        const char* why = recording || shadow ? "entry: recording/shadow active" :
+            ctx->ls != ctx->ls_store ? "entry: foreign LS" : ctx->host_depth ? "entry: nested host call" :
+            ctx->policy_mode || ctx->resident_ovl ? "entry: policy/overlay mode" :
+            ctx->irq_saved || ctx->irq_frame || ctx->event_mask ? "entry: interrupt/event state" :
+            ctx->list_stall_mask ? "entry: list stall" : g_spu_trampoline_fn ? "entry: pending trampoline" : "entry: image/pc/debug";
+        buzz_geometry_job_fallback_reason(why);
+    }
+    if (!entry_ok || !supports(ctx)) { admission_owner=nullptr; ++native_fallback; reference(ctx); return; }
     if (mode == 2) {
         if (audit_pair(ctx, reference, native, true)) { ++native_compared; ++native_executed; }
         else ++native_fallback;
@@ -1258,6 +1287,11 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
 
 extern "C" void buzz_geometry_job_audit_report()
 {
+    {
+        std::lock_guard<std::mutex> guard(fallback_reason_lock);
+        if (fallback_reason_counts) for (const auto& [reason, count] : *fallback_reason_counts)
+            std::fprintf(stderr, "[geometry-job/fallback-reason] count=%llu %s\n", count, reason.c_str());
+    }
     if(buzz_geometry_job_mode() && buzz_geometry_job_descriptors_enabled()){
         std::fprintf(stderr,"[geometry-job/descriptor-control] strict-checked=%llu\n",descriptor_checked.load());
         for(unsigned storage=1;storage<=9;++storage)

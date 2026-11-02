@@ -73,7 +73,27 @@ inline bool read_geometry_host_input_recipe(const spu_context& c, const Geometry
             if (!a[3]) return reject("host unsupported input semantic");
             if (storage == 3 && components && components <= 4 && width == components * 2) half = true;
             else if (storage == 9 && (components == 3 || components == 4) && width == 3) unit = true;
-            else return reject("host unsupported input storage");
+            else {
+                static constexpr const char* storage_reason[] = {
+                "host unsupported input storage 0",
+                "host unsupported input storage 1",
+                "host unsupported input storage 2",
+                "host unsupported input storage 3",
+                "host unsupported input storage 4",
+                "host unsupported input storage 5",
+                "host unsupported input storage 6",
+                "host unsupported input storage 7",
+                "host unsupported input storage 8",
+                "host unsupported input storage 9",
+                "host unsupported input storage 10",
+                "host unsupported input storage 11",
+                "host unsupported input storage 12",
+                "host unsupported input storage 13",
+                "host unsupported input storage 14",
+                "host unsupported input storage 15",
+                };
+                return reject(storage < 16 ? storage_reason[storage] : "host unsupported input storage");
+            }
             if (!append(11, a[0], stride, storage, components, width, a[3])) return reject("host secondary staged span");
         }
     }

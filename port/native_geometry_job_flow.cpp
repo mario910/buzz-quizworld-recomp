@@ -2157,11 +2157,13 @@ extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)
     // group declines the entire job before preparation or entry mutation.
     if (!buzz_geometry_job_legacy_enabled() && (!host_pipeline ||
         !buzz_geometry_job_publication_enabled() || !buzz_geometry_job_commands_enabled())) return 0;
-    bool supported=buzz::read_geometry_job_setup(*ctx,prepared_job,nullptr,!host_pipeline);
+    const char* reason=nullptr;
+    bool supported=buzz::read_geometry_job_setup(*ctx,prepared_job,&reason,!host_pipeline);
     if(supported && host_pipeline)
-        supported=buzz::prepare_geometry_host_job(*ctx,prepared_job.entry,worker_host_job());
+        supported=buzz::prepare_geometry_host_job(*ctx,prepared_job.entry,worker_host_job(),&reason);
     else if(supported && buzz_geometry_host_output_enabled())
-        supported=buzz::read_geometry_host_output_recipe(*ctx,prepared_job.entry,prepared_host_output);
+        supported=buzz::read_geometry_host_output_recipe(*ctx,prepared_job.entry,prepared_host_output,&reason);
+    if(!supported && buzz_geometry_fallback_reasons_enabled())buzz_geometry_job_fallback_reason(reason);
     if(supported && buzz_geometry_job_owns_admission(ctx))prepared_job_owner=ctx;
     return supported;
 }

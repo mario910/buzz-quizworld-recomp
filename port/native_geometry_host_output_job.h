@@ -15,8 +15,11 @@ struct GeometryHostOutputRecipe {
     std::array<GeometryHostOutputField, 16> field{};
     unsigned fields = 0, stride = 0, vertices = 0, bytes = 0;
 };
+// persistent: the caller writes vertices from host SoA directly after the
+// culled indices and bounds that span itself; the transitional adapter's
+// conversion-cursor capacity then does not describe any write.
 inline bool read_geometry_host_output_recipe(const spu_context& c, const GeometryJobEntry& e,
-    GeometryHostOutputRecipe& output, const char** reason = nullptr)
+    GeometryHostOutputRecipe& output, const char** reason = nullptr, bool persistent = false)
 {
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
     if (c.ls != c.ls_store || !e.vertices || e.vertices > 4096 || (e.config[0] & 16) ||
@@ -55,10 +58,30 @@ inline bool read_geometry_host_output_recipe(const spu_context& c, const Geometr
     for (unsigned row = 0; row < recipe.fields; ++row) {
         const auto* bytes = c.ls + descriptor.lsa + 8 + row * 8;
         auto& field = recipe.field[row]; field.offset = bytes[0]; field.storage = bytes[1];
-        const unsigned width = bytes[4], scalar = field.storage == 2 ? 4 : field.storage == 3 ? 2 : 0;
+        const unsigned width = bytes[4], scalar = field.storage == 2 ? 4 : field.storage == 3 || field.storage == 1 ? 2 : 0;
         if (field.storage == 6) { if (width != 4) return reject("host CMP field width"); field.components = 3; }
         else if (scalar && width && width % scalar == 0 && width / scalar <= 4) field.components = width / scalar;
-        else return reject("host unsupported output storage");
+        else {
+            static constexpr const char* storage_reason[] = {
+        "host unsupported output storage 0",
+        "host unsupported output storage 1",
+        "host unsupported output storage 2",
+        "host unsupported output storage 3",
+        "host unsupported output storage 4",
+        "host unsupported output storage 5",
+        "host unsupported output storage 6",
+        "host unsupported output storage 7",
+        "host unsupported output storage 8",
+        "host unsupported output storage 9",
+        "host unsupported output storage 10",
+        "host unsupported output storage 11",
+        "host unsupported output storage 12",
+        "host unsupported output storage 13",
+        "host unsupported output storage 14",
+        "host unsupported output storage 15",
+            };
+            return reject(field.storage < 16 ? storage_reason[field.storage] : "host unsupported output storage");
+        }
         if (!width || field.offset + width > recipe.stride) return reject("host output field extent");
         const uint64_t mask = ((uint64_t(1) << width) - 1) << field.offset;
         if (occupied & mask) return reject("host overlapping output fields");
@@ -72,7 +95,7 @@ inline bool read_geometry_host_output_recipe(const spu_context& c, const Geometr
     const unsigned stream = e.input[11].size_flags && e.input[11].lsa < e.input[8].lsa ? 11 : 8;
     const uint64_t index_end = uint64_t(e.input[2].lsa) + ((e.index_count * 2 + 15) & ~15u);
     const uint64_t cursor_limit = index_end > e.input[stream].lsa ? index_end : e.input[stream].lsa;
-    if (cursor_limit + recipe.bytes > uint64_t(e.io_lsa) + e.io_bytes ||
+    if ((!persistent && cursor_limit + recipe.bytes > uint64_t(e.io_lsa) + e.io_bytes) ||
         e.scratch_lsa < uint64_t(e.io_lsa) + e.io_bytes ||
         uint64_t(e.scratch_lsa) + next * uint64_t((e.vertices + 7) & ~7u) * 16 > uint64_t(e.scratch_lsa) + e.scratch_bytes)
         return reject("host output workspace/scratch capacity");
@@ -119,6 +142,7 @@ inline void emit_geometry_host_output(spu_context& c, const GeometryJobEntry& e,
                     reinterpret_cast<const int*>(c.ls + sources[field] + first * 16 + component * 4), offsets, 1));
             if (f.storage == 2) geometry_host_float_field8(input, f.components, chunk + f.offset, recipe.stride, count);
             else if (f.storage == 3) geometry_host_half_field8(input, f.components, chunk + f.offset, recipe.stride, count);
+            else if (f.storage == 1) geometry_host_snorm_field8(input, f.components, chunk + f.offset, recipe.stride, count);
             else geometry_host_cmp_field8(input, chunk + f.offset, recipe.stride, count);
         }
         memcpy(c.ls + destination + offset, chunk, bytes);

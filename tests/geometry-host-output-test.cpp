@@ -36,9 +36,15 @@ static uint32_t scalar_cmp(const uint32_t* xyz)
     return ((c[0] >> 21) & 2047) | (((c[1] >> 21) & 2047) << 11) | (c[2] & 0xffc00000);
 }
 
+// SPU FMA x*32767.5-0.5, cflts scale 2^16, high halfword.
+static uint16_t scalar_snorm(uint32_t bits)
+{
+    return uint16_t(spu__cfl_lane(spu__fma_lane(bits, 0x46ffff00, 0xbf000000, 0, 0), 16, 0) >> 16);
+}
+
 static void arithmetic()
 {
-    uint32_t state = 0x1231abcd, bits[8], half[8], integers[8];
+    uint32_t state = 0x1231abcd, bits[8], half[8], integers[8], snorm[8];
     unsigned checked = 0;
     for (unsigned group = 0; group < 393216; ++group) {
         for (unsigned lane = 0; lane < 8; ++lane) {
@@ -53,8 +59,10 @@ static void arithmetic()
         const v8 input = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bits));
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(half), geometry_host_half8(input));
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(integers), geometry_host_signed31_8(input));
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(snorm), geometry_host_snorm16_8(input));
         for (unsigned lane = 0; lane < 8; ++lane) {
             assert(half[lane] == scalar_half(bits[lane]));
+            assert(snorm[lane] == scalar_snorm(bits[lane]));
             assert(integers[lane] == spu__cfl_lane(bits[lane], 31, 0)); ++checked;
         }
     }

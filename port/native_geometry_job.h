@@ -52,6 +52,10 @@ int buzz_geometry_job_legacy_enabled(void);
 int buzz_geometry_job_publication_enabled(void);
 int buzz_geometry_job_host_pipeline_enabled(void);
 void buzz_geometry_job_host_pipeline_result(void);
+/* Diagnostic: BUZZ_GEOMETRY_FALLBACK_REASONS=1 tallies why recognized
+ * image-41 jobs take the whole lifted job; printed with the exit report. */
+int buzz_geometry_fallback_reasons_enabled(void);
+void buzz_geometry_job_fallback_reason(const char* reason);
 // Optional full register/LS checks at stage boundaries under JOB2. The job
 // acceptance contract always checks published I/O and job exit controls.
 int buzz_geometry_job_debug_stages(void);
