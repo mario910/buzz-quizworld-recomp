@@ -51,8 +51,14 @@ eight host vertices into flat host SoA records: X/Y bits, clip flags and packed
 coordinates/W sign. It matches the complete original producer for the same
 real families and admits observed clip formats 0/3; see
 [clip results](native-geometry-phase3b-clip-results.md).
-The producers remain outside the runtime pending index decoding/culling,
-publication padding and output integration.
+`native_geometry_host_index_job.h` decodes the compressed stream directly
+into host u16 triangle SoA, consuming explicit deltas and flag-selected
+references on demand. Eight independent u16 carries preserve delta semantics;
+four triangle edge rules replace the old scratch/relocation pipeline. All
+captured index streams match the complete original decoder; see
+[index results](native-geometry-phase3b-index-results.md).
+The producers remain outside the runtime pending culling, publication padding
+and output integration.
 
 ## Historical groundwork and strict diagnostics
 

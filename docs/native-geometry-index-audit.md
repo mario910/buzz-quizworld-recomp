@@ -3,8 +3,10 @@
 Status: complete native control and five data-region implementations are opt-in;
 **final acceptance/performance/default gates OPEN**,
 2026-11-01. This refines the phase-1 [physical format](native-geometry-data.md#compressed-indices)
-for the next phase-3 implementation. The continuing objective remains active
-through subsequent native phases and final strict Stage F reconstruction.
+for the phase-3 implementation. Current acceptance follows the plan's
+**Course correction (2026-11-01)**: strict Stage F reconstruction is cancelled.
+The full-state requirements below describe the historical implementation and
+its debugging tools; they do not govern the new host data layout.
 
 The pinned original source is SHA-256
 `5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812`.

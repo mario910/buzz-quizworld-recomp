@@ -157,8 +157,10 @@ object transforms and direction normalization now match the full original
 producer for those same 19,399 captures ([skin results](native-geometry-phase3b-skin-results.md)).
 Host projection now produces exact logical clip records for the same family
 ([clip results](native-geometry-phase3b-clip-results.md)). These producers are
-not connected to the runtime. Next is host index decoding/culling,
-publication-tail provenance and output integration. Full phase 3b remains open.
+not connected to the runtime. Direct host index decoding now matches all
+19,508 captured index streams ([index results](native-geometry-phase3b-index-results.md)).
+Next is host culling, publication-tail provenance and output integration.
+Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 
