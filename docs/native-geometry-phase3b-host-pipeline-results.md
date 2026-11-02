@@ -13,13 +13,17 @@ publication/command flow. Each worker allocates reusable storage once.
 | Live JOB2 | At least 1,275,000 completed whole-job I/O comparisons; concurrent-input skips excluded |
 | Actual native menu | GPU frame inspected; normal studio/menu geometry |
 | Actual native round | GPU frame inspected; normal solo arena and character geometry |
-| Reversed menu/round FPS and CPU | Pending same-EXE series; worker/process cycles and CPU time per completed frame |
+| Reversed menu FPS | JOB0 28.369 → JOB1 29.422 FPS: +3.712%; pairs +3.709% / +3.715% |
+| Reversed menu worker CPU / completed frame | 424.638M → 387.830M cycles (−8.668%); 115.533 → 105.169 CPU ms (−8.971%) |
+| Reversed menu process CPU / completed frame | 778.511M → 741.651M cycles (−4.735%); 210.286 → 202.232 CPU ms (−3.830%) |
+| Reversed round FPS/CPU | Pending same-EXE series |
 
 The first two candidates skipped additional blend-stream DMA. Those jobs
 now reject from their entry metadata before mutation; their complete lifted
 flow is retained. All failed candidates and logs remain private evidence.
 
-**Decision:** keep experimental/default off. Performance and switch
-consolidation remain open; this does not complete phase 3b.
+**Decision:** menu FPS and CPU improve in both reversed pairs. Keep
+experimental/default off pending round FPS/CPU and switch consolidation;
+this does not complete phase 3b.
 
 Private evidence: `analysis/native-geometry/phase3/host-pipeline-v1/`.

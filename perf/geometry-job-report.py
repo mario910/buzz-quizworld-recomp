@@ -70,24 +70,31 @@ def report(progress,csv_directory,scene_qa=None):
         if any(token in text for token in ('] DIFF','SPU HALT','MISMATCH')):raise ValueError('Game reported a validation failure')
         if '[stagef] mode=1' not in text or '[geometry-native] mode=1 kernels=0x33B' not in text:raise ValueError('Runtime common settings differ')
         native_roots=max(map(int,re.findall(r'\[geometry-job/input-control/raw0\] native=(\d+) PASS',text)),default=0)
-        if run['job'] and ('[geometry-job] mode=1:' not in text or native_roots<256):raise ValueError('Missing actual native whole-job/input coverage')
-        if not run['job'] and ('[geometry-job] mode=1:' in text or native_roots):raise ValueError('Reference arm used native jobs')
+        host_pipeline=run['job_options'].get('BUZZ_GEOMETRY_JOB_HOST_PIPELINE',0)
+        host_roots=max(map(int,re.findall(r'^\[geometry-job/host-pipeline\] native (\d+) \(owner count;direct host data\)$',text,re.M)),default=0)
+        if run['job'] and 'BUZZ_GEOMETRY_JOB_HOST_PIPELINE' in run['job_options'] and f'host pipeline={host_pipeline} ' not in text:raise ValueError('Runtime host pipeline option differs')
+        if run['job'] and ('[geometry-job] mode=1:' not in text or (host_roots if host_pipeline else native_roots)<256):raise ValueError('Missing actual native whole-job/input coverage')
+        if not run['job'] and ('[geometry-job] mode=1:' in text or native_roots or host_roots):raise ValueError('Reference arm used native jobs')
+        if not host_pipeline and host_roots:raise ValueError('Disabled host pipeline reported native coverage')
+        if host_pipeline and native_roots:raise ValueError('Host pipeline executed legacy input producers')
         if knob=='BUZZ_GEOMETRY_JOB_FORMATTER_SPANS' and f"formatter column spans={run['job_options'][knob]} " not in text:raise ValueError('Runtime span option differs')
         registers=run['job_options'].get('BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS')
         host_output=run['job_options'].get('BUZZ_GEOMETRY_HOST_OUTPUT',0)
         output_roots=max(map(int,re.findall(r'^\[geometry-job/host-output\] native (\d+) \(owner count\)$',text,re.M)),default=0)
         if run['job'] and 'BUZZ_GEOMETRY_HOST_OUTPUT' in run['job_options'] and f'host output={host_output} ' not in text:raise ValueError('Runtime host output option differs')
-        if host_output and output_roots<256:raise ValueError('Missing actual host output coverage')
+        if host_output and not host_pipeline and output_roots<256:raise ValueError('Missing actual host output coverage')
         if not host_output and output_roots:raise ValueError('Disabled host output reported native coverage')
+        if host_pipeline and output_roots:raise ValueError('Host pipeline executed legacy output producers')
         register_coverage=0
         if registers is not None:
             if run['job'] and f'formatter registers={registers} ' not in text:raise ValueError('Runtime register-bank option differs')
             host=[tuple(map(int,m)) for m in re.findall(r'^\[geometry-job/formatter-registers\] native=(\d+) strict-parent=(\d+) children=(\d+) strict-children=(\d+)(?: PASS)?$',text,re.M)]
             if registers:
-                if not host_output and not any(roots>=256 and children>=256 for roots,_,children,_ in host):raise ValueError('Missing actual shared-bank formatter coverage')
+                if not (host_output or host_pipeline) and not any(roots>=256 and children>=256 for roots,_,children,_ in host):raise ValueError('Missing actual shared-bank formatter coverage')
                 if any(parent or child for _,parent,_,child in host):raise ValueError('Shared-bank performance run contains strict comparisons')
                 register_coverage=max((roots for roots,_,_,_ in host),default=0)
             elif any(roots or children for roots,_,children,_ in host):raise ValueError('Disabled register-bank path reported native coverage')
+            if host_pipeline and any(roots or children for roots,_,children,_ in host):raise ValueError('Host pipeline executed legacy formatter producers')
         phases=[json.loads(line) for line in (progress.parent/f'{tag}.phases.jsonl').read_text(encoding='utf-8-sig').splitlines()]
         if not phases or phases[-1]['phase']!='end':raise ValueError('Scene did not finish')
         if scene=='Round':
@@ -109,6 +116,7 @@ def report(progress,csv_directory,scene_qa=None):
             elif run.get('content_method') not in (None,'printwindow'):raise ValueError('Unknown round content method')
         frame=ab.summarize(csv_path,*window)
         item=dict(tag=tag,job=run['job'],arm=run.get('arm',run['job']),native_raw0_lower_bound=native_roots,frame_times=frame)
+        item['native_host_pipeline_lower_bound']=host_roots
         if registers is not None:item['native_formatter_registers_lower_bound']=register_coverage
         if metric=='Cpu':
             cpu_path=progress.parent/f'{tag}.cpu.json'
@@ -121,7 +129,7 @@ def report(progress,csv_directory,scene_qa=None):
     result=dict(scene=scene,metric=metric,knob=knob,window_seconds=window,exe_sha256=runs[0]['exe_sha256'],map_sha256=runs[0]['map_sha256'],save_sha256=runs[0]['save_sha256'],
         progress_sha256=sha(progress),settings=runs[0],runs=summaries,
         fps=comparison([r['frame_times']['fps'] for r in summaries]),
-        limitation='One reversed series;round questions/cameras may vary. FPS and CPU series are separate;this does not close cold correctness/interpreter/default gates.')
+        limitation='One reversed series;round camera/idle poses may vary. FPS and CPU series are separate;job-boundary correctness/live/frame evidence and default decisions require separate acceptance.')
     if metric=='Cpu':
         if len(methods)!=1:raise ValueError('CPU methods differ')
         result['cpu_method']=methods.pop()
