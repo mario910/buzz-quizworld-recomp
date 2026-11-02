@@ -16,14 +16,16 @@
  * Replay (no game boot): BUZZ_REPLAY_CORPUS=<dir or file>. Guest memory is
  * seeded from the recorded GET/GETLLAR bytes (first observation of each
  * byte wins; bytes the job PUT itself are left to the job), the job is run
- * through the same entry path as in the game, and every transfer, atomic and
- * the full exit state are compared. This is the reference any native
- * reimplementation of a job must reproduce byte for byte.
+ * through the same entry path as in the game. Every transfer/atomic and the
+ * captured exit controls are compared. BUZZ_REPLAY_CONTRACT=1 selects this
+ * job-boundary contract; 0/unset also compares internal registers and LS for
+ * optional full-state debugging. Published bytes always compare exactly.
  */
 #include "spu_workload.h"
 #include "zlib.h"
 #include "job_replay_policy.h"
 #include "native_geometry_job.h"
+#include "native_animation_runtime.h"
 #ifdef BUZZ_NATIVE_IMAGE36
 #include "native_image36.h"
 #endif
@@ -48,6 +50,7 @@
 extern "C" uint8_t* vm_base;
 extern "C" __attribute__((weak)) void buzz_geometry_trace_job(const char*) {}
 extern "C" __attribute__((weak)) void buzz_geometry_trace_report(void) {}
+extern "C" __attribute__((weak)) void buzz_geometry_job_replay_case(const char*) {}
 
 namespace {
 
@@ -226,7 +229,7 @@ void capture_end(spu_context* ctx, int, uint32_t)
 struct CorpusInit {
     CorpusInit()
     {
-        if (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2) {
+        if (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2 || buzz_animation_job_mode() == 2) {
             g_spu_dma_observer = observe;
             g_spu_step_observer = buzz_geometry_job_step;
         }
@@ -425,7 +428,7 @@ int replay_job(const std::string& path, const Job& job, const std::vector<Seed>&
     g_replay_ctx = ctx;
     g_steps.clear();
     g_spu_step_observer = g_trace_steps ? replay_step :
-        (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2) ? buzz_geometry_job_step : nullptr;
+        (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2 || buzz_animation_job_mode() == 2) ? buzz_geometry_job_step : nullptr;
     double start = seconds_now();
     spurs_job_run_prepared(entry, job.image, ctx);
     const int drawn = job.transfers.size() > 1;
@@ -474,7 +477,15 @@ int replay_job(const std::string& path, const Job& job, const std::vector<Seed>&
     /* BUZZ_REPLAY_CONTRACT=1: a native stage may leave dead scratch (LS the
      * job never sends, registers it never reads) different; compare only what
      * leaves the job: transfers (above) and pc/status/stop/mailboxes (below). */
-    static const bool contract = getenv("BUZZ_REPLAY_CONTRACT") != nullptr;
+    static const bool contract = [] {
+        const char* value = getenv("BUZZ_REPLAY_CONTRACT");
+        if (!value) return false;
+        if ((value[0] != '0' && value[0] != '1') || value[1]) {
+            fprintf(stderr, "[replay] BUZZ_REPLAY_CONTRACT must be 0 or 1\n");
+            exit(2);
+        }
+        return value[0] == '1';
+    }();
     if (!contract && memcmp(ctx->gpr, job.exit_state.data(), sizeof(ctx->gpr))) {
         fprintf(stderr, "[replay] %s: exit registers differ\n", path.c_str());
         verdict = 1;
@@ -571,6 +582,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
         transfers += job.transfers.size();
         g_trace_steps = getenv("BUZZ_REPLAY_STEPS") != nullptr;
         buzz_geometry_trace_job(path.c_str());
+        buzz_geometry_job_replay_case(path.c_str());
         const std::vector<Seed> seeds = seeds_of(job);
         const int drawn = job.transfers.size() > 1;
         const double seconds_before = g_run_seconds[drawn];
@@ -588,6 +600,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     buzz_stagef_report();
     buzz_geometry_trace_report();
     if (buzz_stagef_check_failures()) ++failed;
+    buzz_geometry_job_replay_case(nullptr);
     buzz_geometry_report();
     if (buzz_geometry_check_failures()) ++failed;
     buzz_geometry_job_audit_report();

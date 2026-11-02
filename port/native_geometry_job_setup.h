@@ -4,6 +4,7 @@
  * boundaries. This helper alone is not a whole-job implementation. */
 #pragma once
 #include "native_geometry_context.h"
+#include "native_geometry_input_layout.h"
 #include "spu_helpers.h"
 
 namespace buzz {
@@ -13,7 +14,7 @@ struct GeometryJobSetup {
 };
 
 inline bool read_geometry_job_setup(const spu_context& ctx, GeometryJobSetup& output,
-                                    const char** reason = nullptr)
+                                    const char** reason = nullptr,bool input_parents=false)
 {
     auto reject = [&](const char* value) { if (reason) *reason = value; return false; };
     GeometryJobSetup setup;
@@ -30,6 +31,7 @@ inline bool read_geometry_job_setup(const spu_context& ctx, GeometryJobSetup& ou
         return reject("object/viewport source family");
     if (entry.position_only() && (descriptor.size < 3 || (descriptor.lsa & 15)))
         return reject("position-only output descriptor");
+    if(input_parents && !read_geometry_input_layout(ctx,entry,reason))return false;
 
     setup.initialization = {entry.geometry_context_lsa, entry.input[16].lsa,
         entry.scratch_lsa, entry.scratch_bytes, entry.workspace_lsa, entry.workspace_bytes,
@@ -39,11 +41,8 @@ inline bool read_geometry_job_setup(const spu_context& ctx, GeometryJobSetup& ou
     return true;
 }
 
-inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
-                                 const char** reason = nullptr)
+inline void commit_geometry_job_setup(spu_context& ctx,const GeometryJobSetup& setup)
 {
-    GeometryJobSetup setup;
-    if (!read_geometry_job_setup(ctx, setup, reason)) return false;
     const auto& entry = setup.entry;
     const auto& object = entry.input[GeometryJobEntry::object];
     const auto& descriptor = entry.input[GeometryJobEntry::output_descriptor];
@@ -90,8 +89,13 @@ inline bool prepare_geometry_job(spu_context& ctx, GeometryJobSetup& output,
         ctx.ls[descriptor.lsa + 1] = 12;
         ctx.ls[descriptor.lsa + 2] = 1;
     }
-    output = setup;
-    if (reason) *reason = nullptr;
-    return true;
+}
+inline bool prepare_geometry_job(spu_context& ctx,GeometryJobSetup& output,
+                                 const char** reason=nullptr,bool input_parents=false)
+{
+    GeometryJobSetup setup;
+    if(!read_geometry_job_setup(ctx,setup,reason,input_parents))return false;
+    commit_geometry_job_setup(ctx,setup);output=setup;
+    if(reason)*reason=nullptr;return true;
 }
 } // namespace buzz

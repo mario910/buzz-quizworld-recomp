@@ -6,7 +6,7 @@
 param([string]$Action, [string]$Arg, [int]$HoldMs = 120)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
-Add-Type @'
+if (-not ('GameWin' -as [type])) { Add-Type @'
 using System; using System.Runtime.InteropServices;
 public static class GameWin {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
@@ -16,7 +16,9 @@ public static class GameWin {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
 }
 '@
+}
 [void][GameWin]::SetProcessDPIAware()
+if ($Action -eq 'init') { return } # Compile the capture helper before a game/measurement starts.
 $p = Get-Process -Name BuzzQuizWorldRecomp -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 if (-not $p) { throw 'no game window' }
 $h = $p.MainWindowHandle

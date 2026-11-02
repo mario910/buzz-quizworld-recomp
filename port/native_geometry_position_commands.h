@@ -1,6 +1,7 @@
 /* Native position-only command emission (image 41, 2E8). */
 #pragma once
 #include "native_geometry_command_bindings.h"
+#include "native_geometry_command_publish.h"
 
 namespace buzz {
 struct GeometryPositionCommands {
@@ -38,27 +39,17 @@ inline bool read_geometry_position_commands(const spu_context& ctx, GeometryPosi
     // A zero destination still assembles commands, potentially past the
     // logical reservation, without running the final publication stage.
     if (((uint64_t(remaining) + 255) / 256) * 4 > SPU_LS_SIZE - p.reservation.start) return false;
-    std::vector<unsigned> packets;
-    if (p.reservation.first_ready < p.reservation.count) for (unsigned i = 0; i < 4; ++i) packets.push_back(1);
-    for (unsigned i = 0; i < p.enabled * 2; ++i) packets.push_back(1);
-    if (p.metadata && p.kind != 8) { packets.push_back(1); if (p.raster) packets.push_back(1); }
-    packets.push_back(1); packets.push_back(2); packets.push_back(1); // cache, indices, begin
-    if (p.leading) packets.push_back(1);
-    while (remaining > 0x7ff00) { packets.push_back(2047); remaining -= 0x7ff00; }
-    packets.push_back((remaining + 255) / 256); packets.push_back(1); // batches, end
-    for (unsigned i = 0; i < p.enabled; ++i) packets.push_back(1);
-    if (args[5]._u32[0] && geometry_job_be32(ctx.ls + p.reservation.records + 16)) { packets.push_back(1); packets.push_back(1); }
-    uint32_t raw = p.reservation.start, relocated = raw;
-    for (unsigned words : packets) {
-        raw += 4 * (words + 1);
-        if (!args[5]._u32[0]) { relocated = raw; continue; }
-        unsigned bytes = words * 4;
-        while (bytes > 124 - (relocated & 127)) {
-            const unsigned available = 124 - (relocated & 127);
-            bytes -= available; relocated += available + 4;
-        }
-        relocated += bytes + 4;
-    }
+    GeometryCommandFootprint packets(p.reservation.start,args[5]._u32[0]!=0);
+    if (p.reservation.first_ready < p.reservation.count) for (unsigned i = 0; i < 4; ++i) packets.add(1);
+    for (unsigned i = 0; i < p.enabled * 2; ++i) packets.add(1);
+    if (p.metadata && p.kind != 8) { packets.add(1); if (p.raster) packets.add(1); }
+    packets.add(1); packets.add(2); packets.add(1); // cache, indices, begin
+    if (p.leading) packets.add(1);
+    while (remaining > 0x7ff00) { packets.add(2047); remaining -= 0x7ff00; }
+    packets.add((remaining + 255) / 256); packets.add(1); // batches, end
+    for (unsigned i = 0; i < p.enabled; ++i) packets.add(1);
+    if (args[5]._u32[0] && geometry_job_be32(ctx.ls + p.reservation.records + 16)) { packets.add(1); packets.add(1); }
+    const uint32_t raw=packets.raw,relocated=packets.relocated;
     // PUTF finalization can only pad forward. Its split loop also touches
     // physical padding through the end of the final 128-byte block.
     if (args[5]._u32[0] && relocated > p.reservation.limit) return false;
@@ -78,6 +69,7 @@ inline bool read_geometry_position_commands(const spu_context& ctx, GeometryPosi
 inline void emit_geometry_position_commands(spu_context& ctx, const GeometryPositionCommands& p,
                                            const buzz_geometry_command_functions& functions)
 {
+    GeometryCommandAdmissionScope admission(ctx, p.reservation, p.raw_end, p.relocated_end, 0x368, 0x760);
     auto& r = ctx.gpr; const u128 old_stack = r[1];
     for (unsigned reg = 80; reg <= 88; ++reg) spu_ls_write128(&ctx, p.stack - (reg - 79) * 16, r[reg]);
     spu_ls_write128(&ctx, p.stack + 16, r[0]); spu_ls_write128(&ctx, p.stack - 0xa0, r[126]);

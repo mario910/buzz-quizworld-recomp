@@ -32,6 +32,16 @@ if(Test-Path -LiteralPath $boundBuild) {
         throw 'The EXE no longer matches its build manifest. Rebuild or verify the prepared session before launching.'
     }
 }
+. (Join-Path $PSScriptRoot 'buzz-runtime-defaults.ps1')
+$embeddedRuntimeProfile=Test-BuzzEmbeddedRuntimeProfile -Binding $binding
+$embeddedOriginal=@{}
+if($embeddedRuntimeProfile) {
+    foreach($line in (Get-Content -LiteralPath (Join-Path $experimentRoot 'port/runtime_defaults.inc'))) {
+        if($line -match '^X\((\w+),') {
+            $embeddedOriginal[$Matches[1]]=[Environment]::GetEnvironmentVariable($Matches[1],'Process')
+        }
+    }
+}
 $runtime = Join-Path $experimentRoot 'runtime'
 $logDirectory = Join-Path $experimentRoot 'logs'
 $spuDump = Join-Path $experimentRoot 'analysis\raw-jobs\runtime'
@@ -57,14 +67,8 @@ if ($NativeSpurs) {
 if ($MenuBootstrap) {
     $bootstrapEnvironment = @{}
     $bootstrapEnvironment['BUZZ_NATIVE_COMPLETION'] = [Environment]::GetEnvironmentVariable('BUZZ_NATIVE_COMPLETION','Process')
-    if($binding -and $binding.runtime_defaults) {
-        foreach($option in $binding.runtime_defaults.PSObject.Properties) {
-            if($option.Name -notin @('BUZZ_NATIVE_COMPLETION')) {throw 'Unknown build-bound runtime option'}
-            if([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($option.Name,'Process'))) {
-                [Environment]::SetEnvironmentVariable($option.Name,[string]$option.Value,'Process')
-            }
-        }
-    }
+    . (Join-Path $PSScriptRoot 'buzz-runtime-defaults.ps1')
+    Set-BuzzBuildRuntimeDefaults -Binding $binding -Previous $bootstrapEnvironment
     foreach ($key in @('BUZZ_NO_FMV','GCM_SECOND_V','SPURS_JOB_ABI_MIN_IMAGE','SPURS_JOB_ABI_STAGE_IMAGE','SPURS_JOB_KERNEL_MIRROR','GCM_STRICT_PARK','RSX_VERTEX_CAPACITY','RSX_DRAW_CAPACITY','RSX_TEXTURE_CAPACITY','BUZZ_PULSE_MS','SPURS_JOB_LIST_WORKERS','SPURS_JOB_LIST_IMAGE','SPURS_JOB_LIST_EXTRA_IMAGES','SPURS_JOB_LS_EXCHANGE','SPURS_JOB_LS_PUBLISH','BUZZ_COMPLETION_QUEUE','BUZZ_STAGEF','SPURS_POOL_SEQUENCE','SPU_INTERP_UNLIFTED','PS3_USLEEP_TIMER_TAIL_US','RSX_TRACK_ZETA','RSX_SHADER_CACHE_DIR','RSX_PIPELINE_CAPACITY','SPURS_JOB_CACHE_ENV','RSX_CACHE_ENV','SPURS_GUARD_POLL_ONLY','SPURS_JTS_WAKE','SPURS_JTS_DMA_WAKE','GCM_FIFO_STOP_AT_FLIP','RSX_FLIP_BOUNDARY','SPURS_MERGE_READY_LISTS','SPURS_NATIVE_EXTRA_FP','RSX_GUEST_SAMPLERS','RSX_PIXEL_WINDOW')) {
         $bootstrapEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
     }
@@ -161,7 +165,16 @@ if ($MenuBootstrap) {
 }
 # The Vulkan build's speedups are all opt-in (analysis/vulkan-performance-handoff.md);
 # without them it runs a few FPS. Codex's measured-best set, unless already set.
-if ($BuildDirectory -like '*vulkan*') {
+# The build manifest names the renderer. A renamed/frozen copy keeps it; older
+# manifests without the field fall back to the directory-name rule, with a warning.
+if ($binding -and $binding.PSObject.Properties['renderer']) {
+    if ($binding.renderer -notin @('vulkan','d3d12')) { throw "Unknown renderer '$($binding.renderer)' in game-build.json" }
+    $isVulkan = $binding.renderer -eq 'vulkan'
+} else {
+    $isVulkan = $BuildDirectory -like '*vulkan*'
+    Write-Warning "game-build.json in $BuildDirectory names no renderer; assuming $(if ($isVulkan) { 'vulkan' } else { 'd3d12' }) from the directory name. Rebuild to record it."
+}
+if ($isVulkan) {
     $vulkanDefaults = [ordered]@{ PS3RECOMP_VK_DRAW_BATCH = '512'; PS3RECOMP_VK_DRAW_RING = '1';
         PS3RECOMP_VK_DRAW_PASSES = '1'; PS3RECOMP_VK_DRAW_CLEARS = '1'; PS3RECOMP_VK_DRAW_ASYNC = '1';
         PS3RECOMP_VK_PRESENT_MODE = 'mailbox'; PS3RECOMP_VK_PRESENT_READBACK = '0';
@@ -171,6 +184,13 @@ if ($BuildDirectory -like '*vulkan*') {
             [Environment]::SetEnvironmentVariable($key, $vulkanDefaults[$key], 'Process')
         }
     }
+}
+# New EXEs own these defaults before constructor initialization. Keep the
+# historical bootstrap above for old frozen EXEs, but pass only the user's
+# original optimization overrides to an embedded-profile EXE.
+foreach($key in $embeddedOriginal.Keys) {
+    if($null -eq $embeddedOriginal[$key]){Remove-Item "Env:$key" -ErrorAction SilentlyContinue}
+    else{[Environment]::SetEnvironmentVariable($key,$embeddedOriginal[$key],'Process')}
 }
 $env:PS3_VFS_ROOT = $gamePaths.game_root
 $env:PS3_DISC_ROOT = $env:PS3_VFS_ROOT
@@ -186,7 +206,11 @@ $muteBefore = [Environment]::GetEnvironmentVariable('PS3_MUTE', 'Process')
 try {
     if ($resolvedInput) { $env:BUZZ_INPUT_CONFIG = $resolvedInput }
     if ($MenuBootstrap) {
-        Write-Output "Native config: workers=$env:SPURS_JOB_LIST_WORKERS image=$env:SPURS_JOB_LIST_IMAGE+$env:SPURS_JOB_LIST_EXTRA_IMAGES job-cache=$env:SPURS_JOB_CACHE_ENV rsx-cache=$env:RSX_CACHE_ENV merge=$env:SPURS_MERGE_READY_LISTS extra-fp=$env:SPURS_NATIVE_EXTRA_FP samplers=$env:RSX_GUEST_SAMPLERS pixel-window=$env:RSX_PIXEL_WINDOW jts-dma-wake=$env:SPURS_JTS_DMA_WAKE ls-exchange=$env:SPURS_JOB_LS_EXCHANGE ls-publish=$env:SPURS_JOB_LS_PUBLISH color-grid=$env:RSX_PACK_AA_COLOR no-fmv=$env:BUZZ_NO_FMV second-v=$env:GCM_SECOND_V"
+        if($embeddedRuntimeProfile) {
+            Write-Output "Native config: EXE-owned $($binding.embedded_runtime_profile); inherited overrides preserved"
+        } else {
+            Write-Output "Native config: workers=$env:SPURS_JOB_LIST_WORKERS image=$env:SPURS_JOB_LIST_IMAGE+$env:SPURS_JOB_LIST_EXTRA_IMAGES job-cache=$env:SPURS_JOB_CACHE_ENV rsx-cache=$env:RSX_CACHE_ENV merge=$env:SPURS_MERGE_READY_LISTS extra-fp=$env:SPURS_NATIVE_EXTRA_FP samplers=$env:RSX_GUEST_SAMPLERS pixel-window=$env:RSX_PIXEL_WINDOW jts-dma-wake=$env:SPURS_JTS_DMA_WAKE ls-exchange=$env:SPURS_JOB_LS_EXCHANGE ls-publish=$env:SPURS_JOB_LS_PUBLISH color-grid=$env:RSX_PACK_AA_COLOR no-fmv=$env:BUZZ_NO_FMV second-v=$env:GCM_SECOND_V"
+        }
     }
     # -Background: the game window opens without focus, beneath other windows.
     # -Mute: silence at the audio device only. The game, its mixer and the

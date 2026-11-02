@@ -10,7 +10,342 @@ The audited EU 1.00 lift has SHA-256
 Derived code, memory dumps, corpus bytes and detailed traces remain under
 ignored `analysis/native-geometry/` and must not be committed.
 
-## Groundwork and strictness
+Current acceptance follows the job-boundary rule in the plan. JOB2 checks
+ordered I/O and job exit controls; `BUZZ_GEOMETRY_DEBUG_STAGES=1` adds the
+historical full-state diagnostics. Corpus job-boundary gates explicitly use
+`BUZZ_REPLAY_CONTRACT=1`; 0/unset retain the full exit-state debug comparison.
+
+The current output metadata reader uses `GeometryFormatLayout`: descriptor
+bytes, stride, semantic slots and source/destination walks are host values.
+Conversion forecasts pass three scalar addresses, without a copied GPR bank.
+Its stack/dummy bounds describe the retained legacy writer only; they are not
+requirements for the new SoA data representation on the retained path.
+
+The experimental `BUZZ_GEOMETRY_HOST_OUTPUT=1` path captures a separate
+descriptor recipe before job mutation. It serializes eight vertices from
+host SoA using storage 2 (raw float), 3 (Edge half) and 6 (CMP11/11/10),
+writing each published LS chunk once. It preserves publication padding and
+holes without reconstructing internal registers or call frames. Unsupported
+recipes use the entire lifted job. Upstream float4 tables remain in LS;
+persistent host input/skin/transform/cull are still required. The switch
+defaults off; see [phase 3b results](native-geometry-phase3b-results.md).
+
+Host input helpers share `GeometryHostSoA8` with output and decode raw BE
+float words, Edge half and packed unit vectors into eight-vertex SoA.
+Half decoding retains the source quad's prefix byte; it is not IEEE half.
+`native_geometry_host_input_job.h` captures those logical fields once into
+bounded job-owned blocks, joining primary DMA entries 8–10. Payload admission
+can fail without LS/GPR/I/O mutation and invalidates partially captured data.
+The input model has original-attribute corpus and guarded-source proofs;
+see
+[input results](native-geometry-phase3b-input-results.md).
+
+`native_geometry_host_skin_job.h` consumes those arrays directly, with one
+vertex per AVX2 lane. Weighted palette data comes from entries 4–5 and weights
+from entry 6. Object transforms read the original object record before job
+setup reuses it. Cyclic per-coordinate FM/FMA order and reciprocal-root/FI
+normalization preserve SPU semantics. Full original producer comparisons
+cover all recognized real input families; see [skin results](native-geometry-phase3b-skin-results.md).
+`native_geometry_host_clip_job.h` derives job clip parameters once and projects
+eight host vertices into flat host SoA records: X/Y bits, clip flags and packed
+coordinates/W sign. It matches the complete original producer for the same
+real families and admits observed clip formats 0/3; see
+[clip results](native-geometry-phase3b-clip-results.md).
+`native_geometry_host_index_job.h` decodes the compressed stream directly
+into host u16 triangle SoA, consuming explicit deltas and flag-selected
+references on demand. Eight independent u16 carries preserve delta semantics;
+four triangle edge rules replace the old scratch/relocation pipeline. All
+captured index streams match the complete original decoder; see
+[index results](native-geometry-phase3b-index-results.md).
+`native_geometry_host_cull_job.h` evaluates eight triangles from those host
+arrays and compacts retained indices in place. SPU area/comparison semantics,
+quantized degeneracy, clipping and winding match the composed original flow;
+see [cull results](native-geometry-phase3b-cull-results.md). The orientation
+selector comes from configuration byte 6. `native_geometry_host_index_output.h`
+now serializes the full aligned index allocation, including nonzero padding
+from repeated bytes of the last retained group. All 5,280,336 observed final
+index bytes match; see [index output results](native-geometry-phase3b-index-output-results.md).
+`native_geometry_host_vertex_job.h` writes dense final vertex buffers directly
+from persistent SoA. Observable padding comes from one extra input position
+transformed with cached matrix/palette data. All admitted visible buffers match
+the original conversion; unsupported output storage and unresolved padded skin
+indices reject before mutation. See [vertex output results](native-geometry-phase3b-vertex-output-results.md).
+`native_geometry_host_job.h` joins these producers into the whole-job runtime
+path. Qualified EU 1.00 Vulkan/AVX2 launch manifests select `BUZZ_GEOMETRY_JOB=1`;
+host/publication/commands groups inherit it. Bare executables retain JOB0.
+It prepares data before mutation and writes final streams directly, with
+semantic publication bindings and no intermediate LS float tables. Additional
+blend streams and unsupported recipes retain the whole lifted job. All three
+JOB modes pass the complete corpus; see [default results](native-geometry-phase3b-default-results.md).
+
+## Host animation keys (phase 4)
+
+`native_animation_host_quaternions.h` consumes bounded byte streams and emits
+host SoA, eight joints per batch. Each track has `interior_frames` packed
+MSB-first key-presence bits. Bit `k` represents frame `k+1`; first/last keys
+are separate, at frames zero and `interior_frames+1`. Interior keys follow
+track order and then time order. Popcount and bit scans select neighboring
+keys and their packed-stream offsets without an SPU register representation.
+Static quaternion arrays reuse the same six-byte decoder directly, without
+the temporal key masks or interpolation.
+
+| Packed quaternion bits | Field |
+| --- | --- |
+| 47..32 | First unsigned component field |
+| 31..17 | Second unsigned component field |
+| 16..2 | Third unsigned component field |
+| 1..0 | Omitted component index |
+
+All three fields are scaled by `2^-15`, then decoded with the original
+fused scale/bias. The omitted positive component uses the original SPU
+reciprocal-root estimate, FI and refinement. Interpolation preserves the
+original hemisphere choice, reciprocal refinement and acos/sine polynomial
+order; cosine greater than `0x3F7FBE77` selects linear weights. Discarded
+near-parallel polynomial intermediates are not evaluated. Stream, numeric
+and whole-job replacement proofs are in [phase 4 results](native-geometry-phase4-results.md).
+
+`native_animation_host_vectors.h` reuses that temporal selection for raw
+FLOAT3 translation/scale tracks (`9A18` in image 40). Endpoint and interior
+keys are 12-byte BE float triples; output is host XYZ plus W = `1.0`.
+For each component, preserve `sum = FMA(t, next, previous)`, then
+`result = FNMS(previous, t, sum)`. Combining these into a single lerp changes
+rounding. The supported clip domain has 0-128 interior mask bits and integer
+frame 0-`interior_frames`; the final endpoint is at frame
+`interior_frames+1`. Bounded views reject truncated selected keys before
+publication; host output is disposable if the recipe is rejected.
+
+`native_animation_host_pose.h` decodes 48-byte Q/T/S records: quaternion
+XYZW, translation XYZW and scale XYZW, each four BE words. Only translation
+XYZ and scale XYZ enter matrix production. It builds eight row-major host
+4x4 matrices; the final row is `(0,0,0,1)`. Preserve the original fused
+half-minus-square diagonals followed by multiplication with twice the scale,
+and the separately rounded quaternion cross products. Translation XYZ is
+copied bitwise, including denormals, without FP arithmetic.
+
+The original test caller consumes temporary column-major world matrices.
+Its reference-composition producer also transposes them for the second,
+64-byte-per-joint published stream while producing the first, 48-byte affine
+stream. The native chain keeps row-major world SoA through composition and
+emits both final streams directly; the LS layout bridge exists only in the
+original-job test adapter.
+
+`native_animation_host_blend.h` handles the observed implicit-full-weight
+recipe: 541 clip strengths in [0,1], no explicit input joint-weight streams.
+It reuses shortest-path quaternion interpolation; translation and scale each
+retain `FMA(last, t, first)` followed by `FNMS(first, t, sum)`, including W.
+The effective `t` includes the fixed SPU RTZ full-weight reciprocal refinement
+(`factor * 0x3F7FFFFF`); exact division by one changes bits. Output joint
+weights are 255. Explicit weights for this linear recipe need whole-job
+fallback until covered.
+
+`native_animation_host_hierarchy.h` admits the observed four-record schedule
+groups (at least eight entries). Each BE32 entry contains the local joint in
+high16 and the parent in low15; parent greater than `0x3FFF` selects the root.
+Bit15 disables inheritance of the resulting joint scale. Local translation
+still multiplies by the parent's scale before quaternion-vector rotation and
+addition of the parent's translation. World rotation is the normalized
+parent/local quaternion product. Preserve the original fused order and
+reciprocal-root refinement; translation W is `1 + parent.W`.
+
+Identical repeated definitions are canonicalized. The planner rejects
+conflicts, missing joints, invalid spans/indices, cycles and uncovered small
+or partial groups before pose mutation. Ready joints form batches of at most
+eight, and children enter the queue after their parent batch completes.
+Local/world data stays in little-endian host SoA; masked gathers give inactive
+lanes neutral quaternions without reading their data. Inputs and outputs have
+no SPU registers, scratch frames or dummy schedule iterations.
+
+## Animation job metadata frontend
+
+`native_animation_job_input.h` reads the observed job256 family without
+modifying LS or materializing SPU registers. It currently admits one/two
+control nodes and two/three clip references, matching every existing capture.
+It validates metadata, not complete native job eligibility or execution.
+
+| Source | Observed layout |
+| --- | --- |
+| Input 0 | 16 bytes/node: BE16 operation, left/right handles, reserved16, factor FP32 bits, reserved32; operation 0 or 1 |
+| Handles | `0x8000` + clip index or `0x4000` + forward node index; node 0 is the root |
+| Input 1 | 16 bytes/clip: EA32, header bytes16, flags16, sample-time FP32 bits, binding EA32 |
+| Input 2 / 3 | Reference 3x4 matrices (48 bytes/joint) / empty |
+| Cache 1 | ES01 skeleton; BE16 at +12 joints, +14 curve floats, +16 hierarchy quad count; schedule starts +48 |
+| User +16 / +64 | Root Q/T/S (48 bytes) / BE16 node and clip counts |
+| User +4 / +68 / +76 | World, reference and optional curve destination EAs |
+
+Let `n = align4(joints)` and `world = context.output`. Reference output starts
+at `world + n*64`; curve output at `reference + n*48 + 48`. Publication order
+is reference `joints*48`, world `joints*64`, then optional curves
+`align16(curve_floats*4)`, using the context DMA tag. All recorded publications
+match this recipe. Runtime clip GET staging, static/default-pose setup and
+control traversal still belong to the original oracle until integration.
+
+`native_animation_host_additive.h` implements the observed operation-1 pose
+recipe: flags 0, strength 1, explicit full weights on the base and implicit
+full weights on the added pose. Compose base/additive quaternions in the
+original fused order, then reuse shortest-path interpolation to that product.
+Translation first adds the XYZ delta (delta W is zero); scale first multiplies
+by the delta scale. Both then retain the original two fused lerp roundings,
+even at strength 1. Other strength/weight/flag recipes remain uncovered.
+
+Scalar operation 0 uses the same fixed RTZ strength normalization and two
+fused interpolation roundings as pose blending. Scalar operation 1 uses one
+`FMA(delta, 1, base)`. Curve flag 1 clamps the final value to [0,1]; flag 0
+leaves it unbounded. Other curve flags remain unsupported. Every word up to
+`align4(curve_floats)` is part of the published contract: compute and compare
+those tail values and weights explicitly. They are observable output, not
+scratch or dead lookahead state.
+
+`native_animation_host_curve_keys.h` samples raw FLOAT1 keys with four-byte
+BE endpoints/interior values and the shared MSB-first temporal selection.
+Its two fused interpolation roundings match the FLOAT3 sampler. Channel IDs
+are BE16 in four-slot storage groups. Tail entries can repeat an aligned
+published channel; only the final owner of each channel is decoded/evaluated
+and written. Integer key-prefix counts still account for preceding stored
+entries, because they locate the selected key bytes. Unowned values, SPU
+registers, lookahead state and call frames are not reproduced.
+
+The bounded recipe must include the stored bytes that determine published
+alignment channels. Treating only the logical track count as observable loses
+those output values. Compressed scalar keys have no corpus calls and remain
+unsupported; static/default setup remains separate frontend work.
+
+`native_animation_clip_input.h` reads the raw EA03 header and fetched block
+into bounded static/animated stream and ID views. Header BE16 counts at
+22-28 / 30-36 describe static / animated Q, T, S and curve tracks; flags at
+38 select compressed alternatives (unsupported). IDs start at 96: static
+quaternions occupy groups of eight, other lists groups of four. Static
+payload offsets at 60-72 are relative to their own fields.
+
+The block's first 16 bytes contain four endpoint sizes and four interior
+sizes. First endpoints precede MSB-first temporal bits; interior payloads
+follow, with curves aligned to four bytes. The next endpoint header starts
+at the following 16-byte boundary. The stream parser accepts selected
+frame, fraction and interior-frame count as semantic inputs.
+
+`native_animation_clip_time.h` supplies those inputs from header/time data.
+The BE32 offsets at 52 and 56 are relative to their own fields: the first
+table contains `(byte_count, clip_relative_offset)` BE32 pairs; the second
+contains `(first_frame, interior_frames)` BE16 pairs. The last interval is
+an endpoint sentinel, not a body GET candidate. Select the latest preceding
+nonterminal interval from `floor(max(SPU_FM(time, rate), 0))`, with rate at
+header offset 8. Subtract the interval start using SPU FS, truncate the local
+frame and subtract it to form the fraction. If the local integer exceeds
+the interior count, use that count and fraction 1. The eight-lane host
+implementation retains each FP rounding and denormal rule.
+
+Body EA is clip EA plus its selected record offset. With `table_lsa =
+header_lsa + data_table_offset`, body LSA is `table_lsa + ((body_ea -
+table_lsa) & 127)`. All 38,025 real body GET recipes match. Header/table
+selection must happen before body DMA can overwrite those table bytes.
+Uncovered clock ranges above 65,535 samples, compressed flags, malformed
+tables and invalid GET spans are rejected. DMA/channel emission and control
+traversal still belong to the original oracle until whole-job integration.
+
+Some published curve padding also depends on bytes beyond the fetched
+block. The parser takes a separate bounded tail view and determines its
+required extent from final-owner key selection. All 648 affected corpus
+clips use 4-156 trailing bytes; these equal entry-LS bytes and are zero in
+this corpus. Preserve them as explicit observable input, without assuming
+zero or reproducing scratch writes. The maximum accepted view is 1,548
+bytes (three extra slots * 128 interior keys * 4 bytes + 12 endpoint bytes).
+
+`native_animation_host_clip.h` assembles one complete raw clip in host
+Q/T/S SoA arrays and aligned curve words. ES01 field 20 is an own-field-relative
+offset to 48 bytes of default Q/T/S per joint; decode this template once per
+job. Each leaf copies the host template, zeros logical curves, applies static
+and sampled streams, and retains explicit alignment words. Static T uses
+packed BE float3 with W=1; static curve words copy their BE32 payloads by ID.
+Static scale streams have no real calls; no separate scale-format coverage
+is claimed.
+
+Curve alignment belongs to its host buffer: first use starts with entry
+input words, while the 2,597 third-leaf buffer reuses inherit the second
+leaf's produced tail words. This state transfers between host arrays; it
+requires no SPU register bank or scratch writes. The test-only `ClipReplace`
+bridge emits the complete logical pose and aligned curves once for the
+remaining original control driver. Native runtime integration must keep
+these arrays through blending/hierarchy rather than round-trip them via LS.
+
+`native_animation_host_pipeline.h` evaluates admitted control nodes in reverse
+index order (node handles only point forward). Leaves and node results remain
+host Q/T/S SoA plus aligned curve words. Operation 0 uses the shared full-weight
+blend; covered operation 1 requires strength 1. ES01 own-relative field 40
+points to per-curve clamp flags, including alignment slots; only 0/1 flags
+are admitted. The resulting host root pose feeds the dependency-aware
+hierarchy, world matrices and reference composition directly. Reference
+matrices are decoded once and final BE reference/world/curve streams are
+each emitted once. No intermediate pose is serialized through LS in this
+host chain.
+
+The additional test-only `PipelinePublish` arm supplies every published byte
+from that chain while retaining the original scheduling/channel scaffold.
+The oracle now also runs a separate, unmodified original job for every
+capture and compares each channel write/read/count tuple (direction, channel,
+raw 32-bit value) in order. Per-job counts/digests are retained in
+`channel-checks.tsv`; comparison checks every event, not just its digest.
+Changing a DMA command flag while keeping its transfer data unchanged must
+fail this gate.
+
+`native_animation_job.h` now prepares and executes the recognized job as a
+whole. Preparation resolves bounded immutable guest header/body inputs,
+admits all clips and computes host outputs before any LS/channel mutation.
+The executor issues the required fenced GETs (command 65, tags 30/28), pose
+buffer waits, final PUTs (command 32, context tag), and returns to the caller.
+It calls no lifted blocks and restores no SPU register bank or stack frame.
+
+Header arenas use an 8,448-byte pitch from scratch: clips 0/2 share slot 2,
+clip 1 uses slot 0. Pose-buffer entry padding uses the following allocation
+area, with capacity for at least three slots; required raw key tails retain
+only input bytes from entry/previous
+GETs, not a reconstructed scratch image. Worker index at LS 0x1C8 selects
+one of six cache-0 allocation records; the covered records have no override.
+Only the observed two/three-clip schedules are admitted. Enabled interrupt
+entries, allocation overrides and unsupported metadata/streams fall back
+before I/O. Production dispatch/guest-memory wiring and live/performance
+qualification remain.
+
+## Historical groundwork and strict diagnostics
+
+The `0x7118/7298` in-place run-list format is now independently checked for
+all 65,536 control encodings. Inputs are r3=aligned LS base, r4=encoded byte
+count and r5=expanded halfword count. Each BE16 control `c` emits
+`(c & 31) + 1` BE16 offsets, starting at `(c >> 5) * 16` and increasing by 16.
+Runs are stored in their encoded order; expansion proceeds backward so it
+can overwrite the encoded prefix safely. The native preflight checks that
+the sum of run lengths equals r5 and that source/output spans and constant
+tables are valid before any mutation. Encoded count zero returns without
+reading base/count-dependent LS. The original clears padding in the final
+output quad and performs five-quad masked writes plus speculative look-ahead;
+the native root preserves those bytes, wrapped reads and full final ABI.
+`BUZZ_GEOMETRY_JOB_RUN_LISTS=0/1/2` defaults off. Empty roots have separate
+counters and do not establish nonempty data-path coverage.
+
+The opt-in native `0xBF8` list/blend flow preserves two scratch-buffer command
+quads at new SP+32/+48, with selector/size/start/capacity words. Weights are
+GET into `0xDF00`, eight-byte list descriptors into `0xE100`; count<=128 keeps
+these spans within their separate scratch regions. Reverse selection uses
+SPU multiplication/comparison with threshold `0x3CCCCCCC`, and skips an entry
+when its first two descriptor words are both zero. Selected payloads use
+GETL command 68 and tag from manager+0x154. Initial buffer bounds come from
+manager+0x58 and manager+0x17C. When the next payload does not fit, its fetch
+is deferred until after processing the current payload and resetting buffers;
+the optional BE counter passed in r8 is incremented for that reset.
+The stream header's first four words define payload sections following its
+32-byte header; word at +16 controls attribute processing. Manager+0x78 is
+updated to payload+32 before calling `0x7118` then, when nonempty, `0x7DF8`.
+The native enclosing loop preserves complete child-call ABI/spills and final
+root state. Its `0x7118/7298` run-list decoder has a separate native switch
+and the independently checked format described above.
+
+For new synchronous roots that issue I/O, phase 3 additionally provides
+`buzz_geometry_job_io_root_begin/end`. Under the JOB=2 native shadow, this
+checks the original root from the same full input against a bounded fragment
+of already-recorded channel/DMA operations. No guest transfer executes twice;
+the parent transcript cursor remains unchanged by the reference recheck.
+All GPRs/LS/architectural controls and root return/image/depth/dispatch state
+must match before the caller continues. Outside a replay shadow, no ticket
+or strict pass is produced. This supplements the final whole-job check and
+does not replace a root's corpus, live, render or performance gates.
 
 `port/native_function_check.h` runs a synchronous, DMA-free reference and
 native function from identical registers, active LS and channel state. The
@@ -163,7 +498,8 @@ be preserved. A zero cached cursor forces the 4-byte refresh. The low seven
 bits of the cursor-word EA select its position in an aligned stack temporary.
 
 Allocator `0x37C0` takes r3=geometry context, r4=ring EA plus low-bit flags,
-r5=requested bytes, r6=result LS pointer, r7=lane. It rounds bytes to 128.
+r5=requested bytes, r6=result LS pointer, r7=lane. The lane/shared paths round
+bytes to 128; the direct-address branch skips rounding and uses raw r5.
 Result words are CPU EA, GPU offset, synchronization word, end EA, followed by
 auxiliary synchronization state. GPU offset is `gpuBase + (chosenEA-begin)`.
 With r4 bit 1 set, r4 masked by `~3` is already a direct output address;
@@ -172,6 +508,14 @@ that path does not issue atomics. Otherwise it reserves its per-lane line.
 on wrap, and polls `0x3E04` when necessary. It publishes with PUTLLUC, not a
 compare-and-swap retry: the reservation and interrupt-disable sequence is part
 of the original contract. Interrupt state is restored before returning.
+The cold interrupt-enable helper computes unregistered target `3CF4`, whose
+captured instruction branches to `3B28`; resolver/interpreter acceptance is
+still open. Its lexical C tail is not executable. The source boundary and validation
+requirements are recorded in the [allocator audit](native-geometry-ring-audit.md).
+The native allocator is now opt-in via `BUZZ_GEOMETRY_JOB_RING=0/1`, default 0;
+JOB=2 verifies all root state and I/O. Original reporting-entry handoffs retain
+the exact current state after DMA and are counted separately from full native
+returns. No allocation is restarted after effects.
 
 When begin=end, `0x3B88` selects the shared fallback line at ringBase. When
 twice the rounded request exceeds lane capacity, `0x3D00` selects fallback.
@@ -263,6 +607,8 @@ components; the fourth sign survives unit-vector decode. CMP output is a BE
 word: signed x in bits 0..10, y in 11..21, z in 22..31, normalized by
 1023/1023/511 (SDK `rsx_live_draw.c`). Built-in output IDs 0..3 have strides
 12/20/24/24; all captured jobs use custom output instead.
+The complete bounded `54E8`/`4178` output graph and callback frontiers are
+recorded in the [conversion audit](native-geometry-conversion-audit.md).
 
 All captured input positions are raw BE float3. The native phase-3 raw-stream
 reader owns the complete `0x93F0` format-0 path, including small streams,
@@ -288,11 +634,28 @@ without inspecting unused format/source values.
 context+`0x58` value is the lower non-null input pointer. Config byte 0 bit
 16 instead requires no secondary stream and uses the output stride selected
 by config byte 4, times vertex count, aligned to 16. The stride getter stays
-an explicit original callee in this increment. Custom descriptor decoders
-(`0x7DF8`) and built-in formats 1..5 also retain their original complete
-bodies; native leaves inside them do not establish native whole-decoder
-coverage. The `raw-stream` counter reports these retained paths as fallback,
-separately from native `attributes` control coverage.
+an explicit original callee in that increment. Initially, custom descriptor
+decoding (`0x7DF8`) and built-in formats 1..5 retained their original complete
+bodies; subsequent descriptor/data sections record their native increments.
+Native leaves alone do not establish native whole-decoder coverage.
+The `raw-stream` counter reports its retained paths as fallback, separately
+from native `attributes` control coverage.
+
+The subsequent native custom dispatcher covers the other input format seen
+in the corpus: 255. Audited configuration-byte pairs are `(0,255)` in 18,936
+jobs and `(0,0)` in 572; built-in formats 1..5 have no real corpus occurrences.
+The former 11,414 `raw-stream` fallbacks are custom-dispatch calls, not evidence
+for built-in formats 1..5. `BUZZ_GEOMETRY_JOB_CUSTOM_STREAM=0/1/2` independently
+replaces the nonempty custom path when argument r8's callback is zero and r7
+supplies a descriptor. It saves/restores the complete original 448-byte frame
+and all ABI vectors, then queues `0x7DF8` with r6=original descriptor argument,
+r7=vertex count and r8/r9=zero. All state and the exact pending callee are
+checked at that tail handoff, before the descriptor frame can overwrite the
+old spills. Descriptor iteration/data keep their own switches and checks.
+Custom callbacks/error paths and unimplemented built-in formats retain their
+original whole-stage fallback before mutation. With custom dispatch enabled,
+the combined corpus has 19,508 native raw paths and 11,414 native custom
+handoffs, both without fallback. Built-in 1..5 gates remain separate work.
 
 In the static fixed-point
 path, attribute byte 6 selects an extra 8-byte width record relative to
@@ -303,7 +666,7 @@ offsets, added to each extracted unsigned component with word wrap before
 separating integer/fractional parts. `0xC910` uses CSFLT
 155 for the signed integer and CUFLT 123 for the shifted fraction, then FA.
 Those instructions, including shifts and padding accesses, remain the
-authoritative contract for this unexercised path; it has no corpus-exact claim.
+authoritative contract; the native region and its validation are described below.
 
 ### Descriptor iteration, routing and blend inputs
 
@@ -374,6 +737,106 @@ loaded. Preflight and native host batching must account for those reads and
 the order of overlapping scratch writes, including columns with no ordinary
 output destination. Per-column final ABI materialization is needed because
 the two loop variants leave different volatile registers behind.
+
+### Remapped weighted attribute scatter
+
+The complete `0xC750/C7A8` root now has an opt-in native implementation in
+`native_geometry_blend_scatter.h`. Arguments are remap base r3, destination
+base r4, source end r5, component mask r6, negative source byte cursor r7 and
+weight vector r8. A supported cursor is a negative multiple of 32, up to
+4,096 pairs. The loop processes two source vectors per iteration until the
+preferred cursor reaches zero; non-preferred cursor words still advance.
+
+Each BE remap word contains two halfword byte offsets. The low halfword
+selects source B's destination; the high halfword selects A's. The original
+adds the full packed preferred word before LQD/STQD masks the physical LS
+address. The native plan retains that behavior, pointer bias and wrapping.
+Quad loads align down before the map's offset-dependent rotation. Source
+reads extend two pairs (64 bytes) beyond the nominal source end; remap reads
+include two trailing pairs, and the next destinations are also prefetched.
+That final read-only destination prefetch may address any physical LS quad,
+including the lower code/table area; it is not a store destination.
+
+Destination B for the next pair is read before either current store. Current
+B is stored first, then next A is read, then current A is stored. Therefore
+repeated destinations and source/output overlaps retain their original
+pipeline behavior. They cannot be replaced by independent sequential adds.
+The native host loop carries the prefetched values and pending FMA results;
+only its final iteration materializes the complete register ABI. It supports
+in-place source/output aliasing, while writes overlapping any prefetched
+remap quad reject before mutation so the predecoded map remains immutable.
+
+`BUZZ_GEOMETRY_JOB_BLEND_SCATTER=0/1/2` selects original/native/strict root
+comparison, independently and default-off. Mode 2 works with JOB=1 or JOB=2,
+comparing all GPRs, LS and architectural controls plus host depth, image and
+the exact r0 return/trampoline. This is a callable root, unlike the typed
+regions' 0x83C8 continuation. The checker drains by original tail identity,
+including when r0 itself equals 0xC7A8, and never repeats guest DMA or atomics.
+
+### Remaining typed descriptor data: SNORM16, I16, CMP, U8 integer
+
+The full storage-1/5/6/7 regions now have native payload implementations in
+`native_geometry_{snorm,i16,cmp,u8_integer}_stream.h`. They share checked
+layout and bounds in `native_geometry_typed_stream.h`; each keeps its own
+register ABI, counter and default-off `BUZZ_GEOMETRY_JOB_*_STREAM=0/1/2`
+switch (SNORM, I16, CMP, U8_INTEGER). Mode 2 compares all registers, LS,
+architectural controls and exact 0x83C8 continuation, including with JOB=1.
+They return immediately for preferred r121=0 without touching unused pointers.
+
+SNORM16 uses D910 to generate a gather selector, then a second shuffle.
+D910's 0xFF bytes become selector 0x80, so the final low halfword is **zero**.
+The signed high halfword is converted with CSFLT 139, then FMA with r93/r92.
+I16 uses that same high-halfword expansion and CSFLT 139, without FMA.
+U8 integer uses D8C0 to place each source byte in bits 16..23 and CUFLT 139.
+This is separate from the normalized U8-color handler.
+
+The crossing predicate is `(columnOffset&15)+r25>16`. For I16 and U8 integer,
+the within-quad path wraps every group's unused components in the source
+quad. SNORM16's setup instead gathers the **first group across two quads in
+both paths**; later groups of its within-quad path wrap. Setup-only and
+path-specific volatile state from earlier columns must survive exactly.
+All three implementations materialize each column's final ABI; there is no
+original setup/loop/final-column callback. Source/lookahead, output, per-lane
+sentinels, immutable stack metadata and nonaliasing are checked before writes.
+
+CMP always gathers four consecutive packed bytes through DA80, including
+across a quad boundary. The gathered overlapping halfwords are shifted by
+r90, masked by r100, converted with CSFLT 124 and transformed with r99/r98 FMA.
+The fourth gathered word is zero; its result still follows those parameters.
+The initial r25 is unused and is not validated as a branch width. Its native
+host data loop preserves arbitrary shift/mask/scale/bias vectors, current
+and prefetched values, and each final register. Every family writes one
+additional group after the preferred limit, with row store order 0,1,2,3
+and the corresponding r82 sentinel lane for clipped rows.
+
+### Variable-bit fixed-point descriptor attribute stream
+
+Storage 8 uses the complete `0x9058/C810/C830/C910` region. The native
+`port/native_geometry_fixed_stream.h` extracts four sequential MSB-first
+components with per-component widths 0..32, adds the BE word offset with
+32-bit wrap, then separates the signed integer and unsigned fraction.
+CSFLT 155, CUFLT 123 and FA retain the exact SPU truncation behavior.
+The first width byte is the integer part, the second the fraction.
+
+The width record is selected through r84, the SP+0xE0 shuffle and the
+SP+0x110 base. Its eight bytes rotate inside the loaded quad, including
+records crossing its end. SP+0xD0 points at a separate sixteen-byte offset
+record and advances by sixteen on entry; this LS update remains observable.
+Metadata aliasing that update is rejected before mutation.
+
+The original loop processes **r107 + 1 columns**, including r107=0. Each
+column writes one group after the preferred output limit and prefetches the
+following input. Stores occur in row order **2,3,1,0**, using the corresponding
+r82 sentinel lane for clipped rows. There is no r121=0 shortcut. The return
+link stays 0x9110 and the enclosing descriptor continuation is 0x83C8.
+
+Host loops own all payload groups. Only the final column/group materializes
+the complete register ABI; no original setup/loop/final-column callback is
+used. `BUZZ_GEOMETRY_JOB_FIXED_STREAM=0/1/2` selects lift, native or strict
+region comparison, independently and default-off. Mode 2 checks every GPR,
+LS byte, architectural control and continuation with either JOB=1 or JOB=2.
+Preflight bounds source/lookahead/output/sentinel ranges and protects stack,
+width and offset metadata before mutation. Unsupported inputs retain the lift.
 
 ### Float32 descriptor attribute stream
 
@@ -511,6 +974,33 @@ indices, and `0x79C8/7A90` uses two-bit triangle codes plus tables at
 base. Scratch capacity is checked against geometry context `+0x17C` before
 expansion. The final aligned spill is significant. This is why slot 2's
 small compressed entry payload can later hold much larger index intermediates.
+
+The phase-3 [index implementation audit](native-geometry-index-audit.md) adds
+the exact frame/continuation contract, the four error frontiers, observed
+width cohorts and the eight independent u16 delta chains with warmup and
+lookahead. Its scalar reconstruction matches all registers/LS of one captured
+7770 call. This is format evidence; full native-decoder acceptance remains open.
+The subsequent complete native `7730/7770` region uses eight u16 chains,
+preserves warmup, cached lookahead, aliases and all final GPR/LS state, and
+queues 77F8 without original setup/step/final execution. Its own
+`BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2` defaults to 0; full-state synthetic,
+real-corpus and live evidence is in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
+The other index regions now have separate implementations; complete control
+and current acceptance gates are documented below.
+The full `74F0/7640/7C20/7CD0/77E8` bit-unpack region is also native opt-in
+through `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0. Its two warmup
+iterations, repeated final-block writes, backward output sequence, wrapped
+lookahead and full final register state are preserved. The preflight simulates
+every write using the actual increment table and cached shuffle selector.
+The [width-16 source-contract finding](native-geometry-index-audit.md#width-16-source-compatibility)
+distinguishes ordinary packed-value checks from that unobserved synthetic path.
+`7838/78A8` is now a complete native region under the independent
+`BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0. It preserves the first
+destination overwrite, all explicit/flag lookahead and the complete final ABI.
+The [post-write capacity contract](native-geometry-index-audit.md#flag-expansion-and-post-write-capacity)
+includes output/manager aliases and both signed-capacity handoffs. The original
+phase-2 bit6 prefix remains independent. Whole-index control, command relocation
+and triangle final state still require native replacement.
 
 ## Vertex and index streams
 
@@ -753,6 +1243,109 @@ of those paths. Any replacement reaching an unverified selector must retain the
 lift until dedicated capture, strict comparison and the live/render/A/B gates
 pass. No native kernel or default switch changed during phases 0/1.
 
+## Skin/rigid controller boundary (phase 3)
+
+`0x9F8` uses a 160-byte stack frame and saves r0 at old SP+16 and r80..87
+at old SP-16..128. A zero preferred low byte in input r9 selects weighted
+skinning, swaps r5/r6, restores the frame and queues `0xAF18`. Full-word
+nonzero tests are incorrect for values such as `0x10000`.
+
+The rigid path calls `0x2750/2778/2780` for position/normal/tangent pointers,
+then uses the manager header's BE16 vertex count at +8. C518 transforms
+positions using input r7 and secondary vectors using input r8. Input r10's
+bit zero disables normal/tangent work when set. Non-null normal data gets a
+synchronous 2C00 normalization; tangent normalization is the final queued
+2C00 tail after frame restoration. A missing/disabled tangent returns through
+r0. All argument lanes and original call-entry PCs remain observable.
+
+The independent native controller/checker stops before AF18 or the final
+normalization tail and compares all GPR/LS/control/continuation state. Its
+weighted handoff count is **not** native palette/skin data coverage. AF18's
+672-byte frame, palette transpose and batch/directional orchestration remain
+explicit native implementation/validation tasks. The complete B880 data
+replacement is recorded in the phase-3 results below the controller milestone. Stage F's
+strict reconstruction remains the final roadmap phase.
+
+### AF18 audit and complete weighted data kernel
+
+Reproduce the pinned 38-block dependency map and six-way directional table:
+
+```powershell
+.\toolenv\Scripts\python.exe tools/inspect/inspect-geometry-skin.py
+```
+
+Private output: `analysis/native-geometry/phase3/skin-audit.json`. The tool
+pins the original source and the real LS-table snapshot; excludes unreachable
+C500/getter tails, includes the 19 indirect table entries, and verifies the
+ordinary library functions have no channel sites or further calls.
+
+The follow-up audit corrects the earlier palette/DMA placeholder: the valid
+`0xAF18..0xC500` skin path performs **no channel/DMA operations**. Input
+palettes and weights have already been staged by the job loader. Its only
+ordinary direct calls are the four stream-pointer getters and `0x2738`
+palette publication. CC70 is the rejected error/report path. The lexical
+C518 tail after C500's unconditional B24C branch is unreachable.
+
+AF18 saves a 672-byte frame, transposes each 48-byte palette matrix in place,
+chooses output streams and a scratch capacity, then batches vertices through
+position/matrix kernels and directional kernels. B4C0's 19-entry relative
+LS table at B554 maps selectors 0/1/2 to BD4C/BE20/BF7C, selectors 3..15 to
+B868 (batch continuation), and selectors 16/17/18 to C14C/C280/B5A0.
+The six directional roots remain separate data regions. Basic BD4C/BE20/
+BF7C now have native implementations (coverage below); normalized C14C/C280/
+B5A0 and BB58/BB68 cofactor/normal data remain original. Replacing the outer
+controller or B880 alone does not replace these dependencies.
+
+The complete opt-in B880/B934/B940 native kernel uses a host AVX2 prefix
+and a native final-pair calculation with explicit full GPR reconstruction.
+It calls no original setup/iteration/final block. Each vertex consumes four
+unsigned byte weights and four unsigned byte indices. All indices are read,
+including those whose weights are zero. Accumulation is FM then three FMAs
+in influence order with RTZ scale `0x3B808080`. Three palette row bases can
+be distinct; original quadword-floor addressing is preserved for all pointer
+biases. Positions are updated in place and three 16-byte matrix rows are
+written per vertex. Row zero's W becomes 1; the other row W values become 0.
+
+The pipeline reads a final pair of positions and 16 bytes of weights beyond
+the active vertices; their raw bits, gathered coefficients, offsets and all
+unused pointer/count lanes survive in the boundary ABI. A positive even
+count includes a single pair. The region stops at B4C0 or BB58 according to
+the exact XSBH result of r102. Both data tails are separate and never run
+twice by the strict checker. Preflight rejects foreign LS, unsupported
+constants/counts, out-of-bounds reads/writes and aliases of writable streams
+with position/weight inputs before mutation. Palette/output aliases are
+supported: all six rows for a pair are gathered before any write, and the
+following pair sees the previous stores. Correctness/render and remaining gates
+are tracked in the separate phase-3 results.
+
+### Basic skin direction data
+
+The checked phase-1 trace has BD4C=1,158 entries, BE20=3,860 entries, and zero
+entries to BF7C, BB58, C14C, C280 or B5A0. The skin audit now records these
+counts, their trace-entry CSV hash and the validated 19,508-job/58,195-transfer
+trace denominator. The single/two/three-stream native family keeps distinct
+counters; zero real BF7C calls do not satisfy its real/live gates.
+
+BD4C/BE20/BF7C transform four vertices per group through three matrix rows,
+using FM then two FMAs, without normalization. The first primary stream's
+raw and shuffled vectors and first matrix group are **already in GPRs**.
+r40 points to the next matrix group, not the first. Reloading these initial
+values from LS would change the function contract. Secondary/tertiary streams
+are read from r71/r93. Each iteration loads four following primary vectors
+and twelve following matrix quads before any stores. These lookahead values
+survive in registers even after the final group.
+
+The native host loop caches these values explicitly, gathers secondary
+streams before writes, uses AVX2 pairs for the arithmetic, and writes streams
+in the original stream order. It supports aliases between streams/matrix
+scratch and a following group's inputs, quadword-floor pointer biases,
+arbitrary selector bytes and different first-write/nominal-primary pointers.
+Each variant materializes its distinct FM/FMA intermediates, raw secondary
+vectors, final pointers/count lanes, and the exact queued B868 continuation.
+No original setup, data iteration, step or final group is called. The B868
+batch continuation and AF18 caller were separate control work at this
+milestone; the following section implements that control.
+
 ## Reproduction
 
 Run from the repository root with private, locally generated inputs:
@@ -784,3 +1377,280 @@ Script milestones require native renderer frame verification: a profile
 selection screen must never count as multiplayer-round coverage. Capture
 uses absolute paths, creates parent directories, refuses to overwrite an
 existing corpus directory, and writes elapsed-time sidecars per job.
+
+
+### Native AF18 palette and batch orchestration
+
+`native_geometry_skin_flow.h` replaces AF18's frame/early-exit handling,
+B078/B100 palette loop, stream compaction, scratch selection, batch clamps,
+B4C0 indirect direction dispatch, B868 continuation and palette publication
+sequence. Retained position/direction/getter functions are explicit library
+callbacks. Native weighted and basic direction data run under their own
+switches; rigid, cofactor and normalized data remain separately tracked
+original implementations. Controller counts never imply native data coverage.
+
+Each palette record has twelve words. With input words numbered 0..11, the
+three output quads are `[0,5,10,3]`, `[1,6,8,7]`, `[2,4,9,11]`. The host loop
+writes only the active records. The original pipeline additionally reads two
+following matrices and computes the next unstored record; those values and
+all unused vector lanes are reconstructed in the return/callee ABI. Pointer
+biases retain the original quadword-floor addressing.
+
+The 672-byte frame holds a backchain, stream table and saved registers.
+Scratch defaults to frame+80 with four matrices; for rounded vertex counts
+above eleven, the manager's selected pool pointer is used, with capacity
+`(rounded_vertices/3)&~3`. Scratch writes cannot touch protected spills;
+the lookahead may read those spills, as the original does. Preflight validates
+actual read/write spans, manager/frame protection and the fixed B554 table
+before mutation. CC70 error/report inputs remain original. Early exits do
+not inspect unused palette, stream, weight or table fields.
+
+Data trampolines stop by exact B4C0/B868 callee identity, with original entry
+PC, register lanes, link and host depth. Rigid data begins after B348's clamp
+and weighted branch, avoiding a second execution of original control.
+The five ordinary pure-LS calls preserve their original calling convention.
+`BUZZ_GEOMETRY_JOB_SKIN_FLOW=0/1/2` defaults to zero; JOB=2 also forces a
+strict full-function clone comparison through the restored-stack/r0 return.
+Full LS, all GPRs and architectural/control/continuation state are checked
+without exclusions. Protocol 22 has 28 independent stage counters.
+
+The independent tests compare all 128 GPRs at every library call as well as
+full exit state, covering arbitrary palette shuffles/biases, all six direction
+targets, rigid/weighted batching, inline/external scratch, early exits, return
+PC collisions, three host depths and interrupt states. Separate numeric
+checks validate the packed matrix word mapping and untouched padded records.
+Real replay/live/render evidence is recorded in the phase-3 results.
+
+
+### Native rigid skin position/matrix data
+
+`native_geometry_rigid_skin.h` replaces the data suffix of B348 and the
+B3C0/B3C8 pair loop, stopping at the exact B4C0 or BB58 data boundary.
+B348's three clamp/weighted-branch operations remain caller control: native
+AF18 owns them when SKIN_FLOW is enabled; the original caller can also use
+the same independently switched data hook. No original setup, step, data
+iteration or final pair executes on the native data path.
+
+Each vertex uses one unsigned byte palette index. The original packs two
+indices into 16-bit halves, multiplies by 48 and rotates the packed offsets
+for its two gathers. Loads retain quadword-floor/LS-wrap semantics, including
+odd pointer biases where ROTQBY wraps inside the loaded index quad. Three
+row bases can differ. Packed palette rows are reconstructed with the incoming
+masks/shuffle tables; position arithmetic is three ordered FMAs, starting
+from the translation. Matrix row zero receives W=1 and the other rows W=0
+under the standard masks. Arbitrary incoming masks/shuffles remain supported.
+
+The host prefix keeps two positions/Y/Z shuffles and the packed next indices
+cached. Every pair gathers all six palette rows and reads the next position
+and index group before any write. This preserves overlapping position,
+index, palette and matrix-output buffers, including feedback into later
+pairs. Stores complete the six matrix quads before the position pair.
+An explicit final-pair calculation materializes all volatile intermediates,
+raw lookahead, pointer/count upper lanes and the exact queued data tail.
+The index stream advances by the vertex count, not twice that count.
+
+Preflight accepts positive even counts up to 4,096, physical LS data bases
+and bounded actual writes/lookahead. Gather reads can wrap LS as the lift
+does. The potential-alias counter conservatively covers the complete index
+quad footprint, possible palette gathers and written spans; it is not an
+exact count of dynamically aliased palette reads. Unsupported inputs return
+to original data before mutation. The caller's control and cold cofactor or
+normalized data do not become native data coverage through this hook.
+
+`BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2` defaults to zero. Mode 2 or JOB=2 compares
+all GPRs, all LS, architectural/control state, PC and exact queued boundary
+against the original data closure. Runtime job execution establishes RTZ/
+DAZ/FTZ in `spurs_job.c`; isolated numeric/integration tests use that same
+host FP environment. New stage 28 / protocol 23 has 29 stage counters. Every
+stage's first owned fallback is now explicitly logged and flushed immediately,
+so abrupt scene shutdown cannot silently omit the first unsupported call;
+this behavior is tested with `_Exit` before normal final summaries.
+
+Synthetic and real-coverage distinctions, frozen artifacts and current
+validation gates are recorded in the phase-3 results document.
+
+
+### Native cofactor normal data (BB58/BB68)
+
+`native_geometry_skin_cofactor.h` replaces the cofactor transform and normal
+normalization through its exact queued B4C0 boundary. A group has four normals
+and twelve matrix quads. All current-group inputs are loaded before stores;
+there is no following-group lookahead. Normal/matrix overlaps and feedback
+into later groups retain original ordering. Sequential matrix reads can wrap
+LS; normal writes remain bounded physical data writes. Pointer biases and
+all unused vector lanes are preserved.
+
+With three packed matrix rows A/B/C and the incoming cyclic shuffles Y/Z,
+the three packed cofactor rows are:
+
+- `Y(A)*Z(A) - Z(C)*Y(B)`;
+- `Z(B)*Y(B) - Y(C)*Z(A)`;
+- `Y(C)*Z(C) - Z(B)*Y(A)`.
+
+Each subtraction is an ordered FMS with a separately rounded FM subtrahend.
+Normal transformation uses FM followed by two FMAs. Host AVX2 pairs use the
+existing exact RTZ arithmetic/repair helpers, with sign-flipped C for FMS.
+The four transformed normals are packed into the original length lanes,
+squared with FM+two FMAs and normalized using the exact SPU FRSQEST/FI steps
+and incoming broadcast tables. Arbitrary masks/shuffles remain supported.
+Prefix groups keep intermediates in host locals; a fixed final-group
+calculation materializes every original GPR, intermediate and pointer/count
+lane. No original setup/body/final group executes on the native data path.
+
+`BUZZ_GEOMETRY_JOB_SKIN_COFACTOR=0/1/2` defaults to zero. Mode 2 or JOB=2 runs
+a complete original data closure on a clone and compares all GPR/LS bytes,
+architectural/control state, PC, function continuation, image/depth/policy/
+overlay. Stage 29 / protocol 24 has 30 stage counters, with separate one-group,
+bulk and matrix/normal-alias native/strict counts. Unsupported inputs are
+rejected before mutation and never credited as native success.
+
+The tests retain strict byte-exact comparisons for arbitrary FP bits,
+SPU extended values, zeros/denormals, aliases, wrapping and arbitrary tables.
+Additional geometric checks compare an inverse-transpose of diag(2,3,4)
+against independent double arithmetic, using 5e-4 numeric tolerance solely
+for that additional semantic check because SPU reciprocal root is approximate.
+This tolerance is not used by any strict state/corpus/live checker.
+Synthetic AF18 composition also compares actual original/native cofactor
+data after either original or native rigid data, including scratch/normal
+feedback. Directional data remains explicitly modeled in that integration
+harness; its own implementation/coverage is tracked separately.
+
+The real BB58 trace is empty. A compatible corpus replay or normal scene
+with no new data calls cannot satisfy this kernel's nonzero real-corpus or
+>=256 strict live gate. Frozen evidence and open gates are recorded in the
+separate phase-3 results.
+
+
+### Native normalized skin direction streams
+
+`native_geometry_skin_normalized.h` replaces C14C/C154/C158 (one stream),
+C280/C288/C290 (two) and B5A0/B5A8/B5B0 (three), through exact queued B868.
+The first primary raw/Y/Z values and twelve matrix quads are already in GPRs;
+these caches are consumed as supplied, even when different from LS. r40 points
+to the next matrix group. The initial primary write base r33 can also differ
+from nominal r67. Following steps reset r33 to the advanced r67; native host
+loops preserve both addresses and all unused pointer/count lanes.
+
+Each group reads secondary/tertiary inputs and the next four primary values
+and twelve matrix quads before any store. Primary, secondary and tertiary
+streams are written in that order, preserving stream/matrix aliases and
+feedback. Next primary/matrix reads can wrap LS; actual stream writes remain
+bounded physical data writes. Arbitrary incoming masks/shuffles are supported.
+The host prefix uses AVX2 FM+two FMAs per transformed vector, then packs four
+lengths with the original tables and applies exact SPU FRSQEST/FI and scale
+broadcasts. The final group explicitly materializes each variant's distinct
+full ABI, including raw lookahead and result-valued scratch registers.
+No original setup, step, body or final group runs on the native data path.
+
+`BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2` defaults to zero; mode 2 or JOB=2
+compares all GPR/LS bytes, architectural/control state, PC, queued function,
+image/depth/policy/overlay against the complete original region. No Stage F
+exception or tolerance is added. Stage 30 / protocol 25 has 31 stage counters,
+plus per-stream native/strict/alias categories. Unsupported inputs fall back
+before mutation without native credit.
+
+Strict tests cover arbitrary cached values, FP bits/tables, stream/matrix
+aliases, wrapped lookahead and maximum 4,096 vertices in each variant. Separate
+geometric checks verify normalized diag(2,3,4) transforms and deliberately
+different first-group caches, with unchanged padded values. Their 5e-4 tolerance
+is only an additional geometric sanity check; every strict checker remains
+byte-exact. AF18 integration uses actual normalized data and three combinations
+of original/native rigid and cofactor kernels, including scratch feedback.
+The original real trace has zero calls to all three normalized roots; real
+native-corpus and >=256 live gates remain OPEN until actual coverage exists.
+
+
+### Native compressed-index command relocation
+
+`native_geometry_index_relocate.h` replaces all of 79A8/79C8 through queued
+7A90. Its zero warmup/repeated destination and store-before-next-read order
+preserve overlapping input/output feedback. Full vectors and one prepared
+alignment shuffle replace repeated GPR traffic; the complete triangle-entry
+ABI remains exact. `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2` defaults to zero.
+Mode 2 or JOB=2 compares all GPR/LS/architectural/control state and continuation
+against both original blocks. Eligibility bounds every write before mutation;
+unsupported input falls back without native credit. See the
+[source contract](native-geometry-index-audit.md#command-relocation-and-overlapping-windows)
+and [phase-3 results](native-geometry-phase3-results.md) for coverage and gates.
+
+
+### Complete native index triangle stitching
+
+`native_geometry_index_triangles.h` replaces the complete 7A90 body and final
+432-byte-frame restoration through queued 2738. It preserves initial cached
+quads, arbitrary control masks, ordered stores, post-store LUT reads and
+input/code/table/frame aliases. Only protected low-LS LUT quads are cached;
+mutable high tables are always reread. Every write is bounded before mutation.
+`BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2` defaults to zero. Mode 2 or JOB=2
+compares all GPR/LS/architectural/control state and exact continuation against
+the complete original body; the phase-2 bit3 wrapper remains the separate
+fallback. Native 2738 publication and enclosing control are documented in
+the following section.
+See the [source contract](native-geometry-index-audit.md#triangle-stitching-mutable-tables-and-final-frame)
+and [phase-3 results](native-geometry-phase3-results.md) for coverage and gates.
+
+
+### Native complete compressed-index control
+
+`native_geometry_index_control.h` joins the five data regions with native
+AEA0/7390 frames, metadata/zero-width setup, end/original-pointer publications
+and exact root return. `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2` defaults to zero;
+all five data switches remain independent. Read-only eligibility checks every
+write and the four error frontiers before mutation, protecting metadata and
+frames needed by later stages. Unsupported inputs select the retained control
+before writes, with no native-control credit. Strict comparison uses a pinned
+22-block original normal closure, full architectural state and continuation;
+reporting handlers are never executed twice. See the
+[control contract](native-geometry-index-audit.md#complete-control-and-pre-mutation-eligibility)
+and [phase-3 results](native-geometry-phase3-results.md) for evidence and gates.
+
+
+### Transform/cull boundaries and native finalization
+
+The [6608 source/real-input audit](native-geometry-transform-audit.md) binds
+18 transform/cull blocks, the separate five-block vertex preparation and
+four independent full-register/LS scalar boundary proofs. It distinguishes
+existing Stage F from new native work and explicitly tracks cold variants.
+`native_geometry_transform_finish.h` replaces 6958/66C8 result publications
+and the full 480-byte-frame return. Its `TRANSFORM_FINISH=0/1/2` job option
+(default 0) has strict full-state checks, with no Stage F waiver. Count/end
+stores preserve CHD/CWD-selected fields and late frame aliases; wrapped reads
+and all GPR lanes remain exact. Complete enclosing 6608 control is separately native below; alternate data
+and final gates remain open. The separate phase-3 results record actual acceptance gates.
+
+
+### Native vertex matrix preparation
+
+The separate `native_geometry_vertex_prepare.h` replaces complete
+6188/65EC/65FC setup through queued Stage F `63E0`. Host matrix chains retain
+Y/Z/X coefficient order, RTZ operations and every final ABI vector. Manager
+flags select the input/scratch pointers and all 256 format bytes select the
+four setup paths; preparation never writes LS. Own `VERTEX_PREPARE=0/1/2`
+defaults to zero and compares full state before the existing Stage F loop.
+See the [transform contract](native-geometry-transform-audit.md) and
+[phase-3 results](native-geometry-phase3-results.md) for cold-path and final gates.
+
+
+### Complete enclosing transform control
+
+`native_geometry_transform_control.h` owns 6608 frames/PIC, reporting preflight,
+6790 full cull ABI, bypass and normal/alternate mode selection. Preparation,
+normal/alternate data and footer callbacks remain independently controlled.
+Own `TRANSFORM_CONTROL=0/1/2` defaults to zero. Strict comparison binds identical
+retained data callbacks to an independent original controller graph and checks
+all state, with no Stage F waiver or repaired registers. Normal composition is
+native control/setup/finish plus existing Stage F loops; alternate 69E8/6B18
+data now has a cold native implementation below. See the [transform contract](native-geometry-transform-audit.md)
+and [phase-3 results](native-geometry-phase3-results.md) for precise coverage/gates.
+
+
+### Complete alternate cull data implementation
+
+`native_geometry_alternate_cull.h` replaces all 69E8/6B18/6B10 setup/iterations
+and queues 6958. Host pipeline caches retain lookahead, ordered stores and
+post-store vertex feedback, including arbitrary LS wrapping/aliasing. Full
+state is strict, with no Stage F exception. Own `ALTERNATE_CULL=0/1/2` defaults
+to zero. Independent geometry and composed-original checks pass, but real/
+live calls remain zero and those gates are open. See the
+[transform contract](native-geometry-transform-audit.md) and
+[phase-3 results](native-geometry-phase3-results.md) for exact proof scope.

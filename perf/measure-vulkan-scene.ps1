@@ -15,6 +15,12 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
       [string]$PhaseLog = '',
       [string]$CpuBinding = '', [string]$CpuOutput = '',
+      [double[]]$CpuWindow = @(),
+      [ValidateRange(26,120)][int]$RoundIntroSeconds = 26,
+      [ValidateRange(0,900)][int]$ContentShotAt = 0,
+      [ValidateRange(0,900000)][int]$ContentReadbackAtMs = 0,
+      [string]$InterpreterBinding = '', [string]$InterpreterOutput = '',
+      [int[]]$InterpreterAt = @(15,60),
       [ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory = 'build-vulkan-windows')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -23,6 +29,7 @@ $prefix = Join-Path $root "analysis/vk-scene-$Tag"
 foreach ($suffix in @('.csv','.stderr.log')) { if (Test-Path -LiteralPath ($prefix + $suffix)) { throw "Measurement already exists: $prefix$suffix" } }
 [IO.Directory]::CreateDirectory((Join-Path $root 'analysis')) | Out-Null
 $keys = @('BUZZ_PC_SETTINGS','BUZZ_RENDER_PERF','BUZZ_SCRIPT','BUZZ_TEST_INPUT_FILE')
+if ($ContentReadbackAtMs) { $keys += @('PS3RECOMP_VK_DUMP','PS3RECOMP_VK_DUMP_ONCE_AT_MS','PS3RECOMP_VK_PRESENT_READBACK') }
 $extra = @()
 if ($Env) { foreach ($kv in $Env -split ';') { $extra += ($kv -split '=', 2)[0] } }
 $previous = @{}
@@ -30,16 +37,35 @@ foreach ($key in $keys + $extra) { $previous[$key] = [Environment]::GetEnvironme
 $procId = 0
 $sceneProcess = $null
 $cpuObserver = $null
+$interpreterObserver = $null
 $exe = Join-Path $root "$BuildDirectory\BuzzQuizWorldRecomp.exe"
 if ($CpuBinding -and -not $CpuOutput) { throw 'CpuBinding requires a fresh CpuOutput path' }
 if ($CpuOutput -and -not $CpuBinding) { throw 'CpuOutput requires CpuBinding' }
+if ($CpuWindow.Count -and ($CpuWindow.Count -ne 2 -or $CpuWindow[0] -le 0 -or $CpuWindow[1] -le $CpuWindow[0] -or $CpuWindow[1] -gt 900 -or -not $CpuBinding)) { throw 'CpuWindow requires a CPU binding and two ascending seconds in (0,900]' }
+if ($ContentShotAt -and -not ($Shots -or $ContentReadbackAtMs)) { throw 'ContentShotAt requires Shots or timed readback' }
+if ($ContentReadbackAtMs -and ($Shots -or -not $ContentShotAt -or $ContentReadbackAtMs -ge $ContentShotAt*1000)) { throw 'Timed readback requires later ContentShotAt, without Shots' }
+if ($InterpreterBinding -and $CpuBinding) { throw 'Interpreter diagnostics require a separate run from CPU measurements' }
+if ([bool]$InterpreterBinding -ne [bool]$InterpreterOutput) { throw 'InterpreterBinding and InterpreterOutput must be supplied together' }
+if ($InterpreterBinding) {
+    $InterpreterBinding = (Resolve-Path -LiteralPath $InterpreterBinding).Path
+    $InterpreterOutput = [IO.Path]::GetFullPath($InterpreterOutput)
+    if (Test-Path -LiteralPath $InterpreterOutput) { throw 'Interpreter diagnostic already exists' }
+}
 if ($CpuBinding) {
     $CpuBinding = (Resolve-Path -LiteralPath $CpuBinding).Path
     $CpuOutput = [IO.Path]::GetFullPath($CpuOutput)
     if (Test-Path -LiteralPath $CpuOutput) { throw 'CPU measurement already exists' }
 }
 try {
+    # Avoid building the small C# capture helper during a running experiment.
+    if ($Shots) { & (Join-Path $PSScriptRoot 'claude-gamectl.ps1') init }
     if ($Env) { foreach ($kv in $Env -split ';') { $k, $v = $kv -split '=', 2; [Environment]::SetEnvironmentVariable($k, $v, 'Process') } }
+    if ($ContentReadbackAtMs) {
+        if (Test-Path -LiteralPath ($prefix+'-content.ppm')) { throw 'Content readback already exists' }
+        $env:PS3RECOMP_VK_DUMP=$prefix+'-content.ppm'
+        $env:PS3RECOMP_VK_DUMP_ONCE_AT_MS="$ContentReadbackAtMs"
+        $env:PS3RECOMP_VK_PRESENT_READBACK='0'
+    }
     [IO.File]::WriteAllText(($prefix + '.ini'), "version=1`nvolume=0`nfps_limit=$Limit`nfullscreen=0`noffline=1`nrenderer=auto`n")
     $env:BUZZ_PC_SETTINGS = $prefix + '.ini'
     $env:BUZZ_RENDER_PERF = $prefix + '.csv'
@@ -53,9 +79,16 @@ try {
     $null = $sceneProcess.Handle # Keep a handle so an early exit code remains readable.
     $log = [regex]::Match($r, 'stderr=(\S.*?\.stderr\.log)').Groups[1].Value
     $t0 = Get-Date
+    if ($InterpreterBinding) {
+        $interpreterArgs = @(('"' + (Join-Path $PSScriptRoot 'observe-spu-interpreter.py') + '"'),
+            'measure', '--pid', "$procId", '--exe', ('"' + $exe + '"'),
+            '--binding', ('"' + $InterpreterBinding + '"'), '--output', ('"' + $InterpreterOutput + '"'), '--at') + @($InterpreterAt | ForEach-Object { "$_" })
+        $interpreterObserver = Start-Process -FilePath (Join-Path $root 'toolenv/Scripts/python.exe') -ArgumentList $interpreterArgs -WindowStyle Hidden -PassThru -RedirectStandardError ($InterpreterOutput + '.stderr.log') -RedirectStandardOutput ($InterpreterOutput + '.stdout.log')
+    }
     if ($CpuBinding) {
         $cpuStart = if ($Scene -eq 'Menu') { 40 } else { 150 }
         $cpuEnd = if ($Scene -eq 'Menu') { 98 } else { 220 }
+        if ($CpuWindow.Count) { $cpuStart,$cpuEnd = $CpuWindow }
         $cpuArgs = @(('"' + (Join-Path $PSScriptRoot 'measure-process-work.py') + '"'),
             'measure', '--pid', "$procId", '--exe', ('"' + $exe + '"'),
             '--binding', ('"' + $CpuBinding + '"'), '--output', ('"' + $CpuOutput + '"'),
@@ -89,18 +122,32 @@ try {
         1..9 | ForEach-Object { Key $orange; Start-Sleep 1 }; Start-Sleep 2
         Key $red; Start-Sleep 6                  # single-player challenges
         Phase 'scene-load'
-        Key $red; Start-Sleep 26                 # first challenge
+        Key $red; Start-Sleep $RoundIntroSeconds # first challenge host intro
         Phase 'player-setup'
         Key $red; Start-Sleep 6                  # join
         Key $red; Start-Sleep 5                  # load profile
         Key $red; Start-Sleep 5                  # first profile
         Key $red; Start-Sleep 5                  # ready
-        for ($i = 0; $i -lt 4 -and (Draws) -lt 600; $i++) { Key $red; Start-Sleep 5 }
+        Key $red; Start-Sleep 5 # Fixed single ready confirmation;no draw-count-driven extra input.
+        Write-Output 'round_ready_input=fixed-single-v2'
         $roundStart = ((Get-Date) - $t0).TotalSeconds
         Write-Output ("round_start_s={0:N1}" -f $roundStart)
         Phase 'solo-round'
         Shot 'round'
         $end = $roundStart + $RoundSeconds
+    }
+    if ($ContentShotAt) {
+        if ($ContentShotAt -ge $end) { throw 'Content screenshot must precede scene shutdown' }
+        while (((Get-Date)-$t0).TotalSeconds -lt $ContentShotAt) {
+            $sceneProcess.Refresh()
+            if ($sceneProcess.HasExited) { throw 'Game exited before content screenshot' }
+            Start-Sleep -Milliseconds 250
+        }
+        if ($ContentReadbackAtMs) {
+            & (Join-Path $root 'toolenv/Scripts/python.exe') (Join-Path $PSScriptRoot 'frame-readback.py') ($prefix+'-content.ppm') ($prefix+'-content.png')
+            if ($LASTEXITCODE) { throw 'Content GPU readback conversion failed' }
+        } else { Shot 'content' }
+        Phase 'content-shot'
     }
     while (((Get-Date) - $t0).TotalSeconds -lt $end) {
         $sceneProcess.Refresh()
@@ -109,6 +156,12 @@ try {
     }
     if ($Scene -eq 'Round') { Shot 'end' }
     Phase 'end'
+    if ($interpreterObserver) {
+        if (-not $interpreterObserver.WaitForExit(3000)) { throw 'Interpreter diagnostic did not finish before scene shutdown' }
+        if ($interpreterObserver.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $InterpreterOutput)) {
+            throw "Interpreter diagnostic failed; inspect $InterpreterOutput.stderr.log"
+        }
+    }
     if ($cpuObserver) {
         if (-not $cpuObserver.WaitForExit(3000)) { throw 'CPU observer did not finish before scene shutdown' }
         if ($cpuObserver.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $CpuOutput)) {
@@ -116,6 +169,7 @@ try {
         }
     }
 } finally {
+    if ($interpreterObserver -and -not $interpreterObserver.HasExited) { Stop-Process -Id $interpreterObserver.Id -Force }
     if ($cpuObserver -and -not $cpuObserver.HasExited) { Stop-Process -Id $cpuObserver.Id -Force }
     if ($procId) {
         $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
