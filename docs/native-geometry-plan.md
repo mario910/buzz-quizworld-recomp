@@ -170,8 +170,9 @@ all JOB0/JOB1/JOB2 corpus arms match 19,508 jobs /58,195 transfers, and live
 whole-job comparisons exceed 1,275,000. See [integrated pipeline results](native-geometry-phase3b-host-pipeline-results.md).
 Native frames are normal. Reversed aggregate menu FPS improves +3.712%, with
 worker cycles/frame −8.668%; round FPS improves +1.460% (both pairs positive).
-The separate round CPU series was rejected for mismatched scene states and
-must be repeated after stabilizing scene entry. Round CPU and switch
+The initial separate round CPU series remains rejected. A GPU navigation
+audit confirms correct entry and natural question/camera transitions; repeat
+the full CPU series with that temporal context. Round CPU and switch
 consolidation still precede default-on. Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)

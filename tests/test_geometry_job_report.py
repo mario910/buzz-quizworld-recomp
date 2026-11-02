@@ -222,6 +222,15 @@ class JobReportTests(unittest.TestCase):
             root=Path(temp);path,_,qa=self.gpu_round_fixture(root)
             self.assertEqual(reporter.report(path,root,qa)['scene'],'Round')
 
+    def test_inspected_rejected_scene_invalidates_the_whole_complete_series(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_,qa_path=self.gpu_round_fixture(root)
+            self.assertEqual(reporter.report(path,root,qa_path)['scene'],'Round')
+            qa=json.loads(qa_path.read_text());qa['job-2']['accepted']=False
+            qa_path.write_text(json.dumps(qa))
+            with self.assertRaisesRegex(ValueError,'reject the entire series'):
+                reporter.report(path,root,qa_path)
+
     def test_round_rejects_late_repeated_or_continuous_readbacks(self):
         for change in ('late','repeated','continuous','wrong-frame'):
             with self.subTest(change=change),tempfile.TemporaryDirectory() as temp:

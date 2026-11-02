@@ -17,7 +17,8 @@ publication/command flow. Each worker allocates reusable storage once.
 | Reversed menu worker CPU / completed frame | 424.638M → 387.830M cycles (−8.668%); 115.533 → 105.169 CPU ms (−8.971%) |
 | Reversed menu process CPU / completed frame | 778.511M → 741.651M cycles (−4.735%); 210.286 → 202.232 CPU ms (−3.830%) |
 | Reversed round FPS | JOB0 33.120 → JOB1 33.604 FPS: +1.460%; pairs +1.851% / +1.073%; all four frames inspected |
-| Reversed round CPU | Series rejected: the first two runs reached different question/camera states; repeat the full series after scene-entry stabilization |
+| Reversed round CPU | Initial incomplete series rejected; fresh full series pending. GPU navigation audit confirms correct entry and natural question/camera transitions |
+| Measurement validation | 19 report tests pass; inspected-but-rejected frames invalidate the whole series; accepted reports reproduce unchanged |
 
 The first two candidates skipped additional blend-stream DMA. Those jobs
 now reject from their entry metadata before mutation; their complete lifted

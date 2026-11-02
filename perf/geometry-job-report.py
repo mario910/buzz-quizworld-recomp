@@ -60,6 +60,8 @@ def report(progress,csv_directory,scene_qa=None):
         if not scene_qa:raise ValueError('Round requires inspected content screenshots before acceptance')
         qa=json.loads(scene_qa.read_text())
         if set(qa)!=set(r['tag'] for r in runs):raise ValueError('Incomplete round scene QA')
+        if any(entry.get('accepted',True) is not True for entry in qa.values()):
+            raise ValueError('Round scene rejected by inspection; reject the entire series')
     summaries=[];methods=set()
     for event,run in zip(done,runs):
         tag=run['tag'];csv_path=csv_directory/f'vk-scene-{tag}.csv';log=csv_directory/f'vk-scene-{tag}.stderr.log'
