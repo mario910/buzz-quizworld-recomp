@@ -181,7 +181,9 @@ exceeds 1,275,000 completed comparisons and both native frames look normal.
 The compact profile's reversed menu series improves FPS +3.510%, worker
 cycles/frame −8.957% and process cycles/frame −4.920%, in both pairs.
 Its separate round FPS series improves +2.849%, with both pairs positive.
-Round CPU and normal-build integration still precede default-on.
+Round worker cycles/frame improve −5.303% and process cycles/frame −3.287%,
+with both pairs positive for CPU savings. All compact-profile gates pass;
+normal-build/launch integration remains before default-on.
 Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
