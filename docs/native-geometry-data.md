@@ -249,6 +249,23 @@ this corpus. Preserve them as explicit observable input, without assuming
 zero or reproducing scratch writes. The maximum accepted view is 1,548
 bytes (three extra slots * 128 interior keys * 4 bytes + 12 endpoint bytes).
 
+`native_animation_host_clip.h` assembles one complete raw clip in host
+Q/T/S SoA arrays and aligned curve words. ES01 field 20 is an own-field-relative
+offset to 48 bytes of default Q/T/S per joint; decode this template once per
+job. Each leaf copies the host template, zeros logical curves, applies static
+and sampled streams, and retains explicit alignment words. Static T uses
+packed BE float3 with W=1; static curve words copy their BE32 payloads by ID.
+Static scale streams have no real calls; no separate scale-format coverage
+is claimed.
+
+Curve alignment belongs to its host buffer: first use starts with entry
+input words, while the 2,597 third-leaf buffer reuses inherit the second
+leaf's produced tail words. This state transfers between host arrays; it
+requires no SPU register bank or scratch writes. The test-only `ClipReplace`
+bridge emits the complete logical pose and aligned curves once for the
+remaining original control driver. Native runtime integration must keep
+these arrays through blending/hierarchy rather than round-trip them via LS.
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

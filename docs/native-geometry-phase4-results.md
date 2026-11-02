@@ -35,11 +35,15 @@
 | Observable trailing input | 648 clips require 4-156 bytes beyond the fetched block for published curve padding; all match entry LS (zero in this corpus); explicit bounded input, no scratch-state reconstruction or zero assumption |
 | Native time/block frontend | All 38,025 clips: selected block, local frame/fraction and body GET EA/LSA/size match; native time outputs feed stream sampling; real selected blocks 0-23 |
 | Time numeric/bounds proof | Each arm: 4,096 pinned-original batches / 18,432 samples, eight-lane tails, block boundaries, signed zero, denormals, negative and past-end clocks; read-only guarded headers and output canaries pass; 36 invalid clocks/tables/GET spans rejected unchanged |
+| Complete host clip | ES01 default pose decoded once/job; native static and sampled streams produce all 38,025 clips / 1,108,093 poses / 232,920 aligned curve words exactly; static T: 195,198 vectors, static curves: 153,941 words; static scale count is zero |
+| Full-clip replacement | Third same-EXE `ClipReplace` arm skips the entire original sampling flow: 38,025 replacements, zero original key-producer calls; all 17,714 jobs / 115,162 transfers / exit controls match, with native blend/hierarchy/matrix producers retained |
+| Default/clip bounds proof | Seven malformed ES01 headers rejected unchanged; default tails 1-8 at read-only guard pages preserve unused host slots; full clip uses guarded header/block/static T/static curve inputs and host canaries; invalid curve capacity/padding rejected |
+| Host curve padding ownership | 2,597 third-leaf buffer reuses inherit produced second-leaf tail words in host arrays; first use reads explicit entry input, without a zero assumption or scratch reconstruction |
 | Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; also 2,597 additive-pose, 3,684 scalar-blend, 2,597 scalar-add and 38,025 FLOAT1 sampler calls; no volatile GPR or ABI reconstruction |
 | Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
 | Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
-| Publication fault probes | Ten independent sign faults (including clip time, additive pose, scalar curve and FLOAT1 keys) are each rejected at a recorded PUT byte comparison |
+| Publication fault probes | Eleven independent corruption probes (including the complete clip, clip time, additive pose, scalar curve and FLOAT1 keys) are each rejected at a recorded PUT byte comparison |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -62,9 +66,12 @@ captured matrix inputs. Nonuniform joint-weight streams and the small hierarchy
 alternative have no real corpus coverage and remain unsupported. Production
 job integration, live checks and candidate FPS/CPU gates remain. The new
 metadata parser is not the complete native driver: original code still
-handles static/default-pose setup, control-tree traversal and DMA/channel
-emission. Native time/block selection now predicts the body GET recipe and
-feeds the bounded stream parser before native sampling. FLOAT1 key sampling and operation-1
+handles control-tree traversal, legacy staging setup and DMA/channel emission.
+Native time/block
+selection and default/static/sampled stream assembly now form a complete
+host clip producer; the additional `ClipReplace` oracle arm replaces the
+whole sampling flow. Its BE bridge remains test-only until host control
+and the full native job lifecycle are connected. FLOAT1 key sampling and operation-1
 pose/curve arithmetic now use native producers in the replacement oracle.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
