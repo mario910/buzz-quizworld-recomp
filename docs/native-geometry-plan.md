@@ -1029,11 +1029,12 @@ phase 7 is cancelled. The Course correction governs the historical rows below.
 
 | Revised work | Status | Latest evidence |
 | --- | --- | --- |
-| 3a: remove overhead | implementation checkpointed; FPS target open | Host layout V1: FPS -2.207%, worker cycles/frame +4.035%, process cycles/frame +2.567%; corpus/live/menu render pass; round gates not attempted; defaults off |
+| 3a: remove overhead | structural implementation checkpointed; isolated result rejected | Host layout V1: menu FPS -2.207%; aggregate menu parity is first demonstrated with the 3b output candidate (+0.964%), not by structural 3a alone; native menu-and-round acceptance stays open |
 | Job-boundary checker | exact; optional full-state debug retained | Four full-corpus arms, 12 real-job fault fixtures, >=1,415,000 completed live comparisons; concurrent-input skips excluded; normal native menu |
-| 3b: host SoA / AVX2 pipeline | next required work after measured 3a | Prioritize float/half/CMP output, unit vectors, weighted skin, index triangles; no new cold coverage; 3a's FPS target and native acceptance remain open |
+| 3b: host SoA / AVX2 pipeline | output increment exact, experimental/off; full pipeline wip | Eight-vertex float/half/CMP output: four full-corpus arms, >=1,395,000 live checks, normal native menu/round; menu FPS +0.964%, round -0.077%; round worker cycles/frame +1.734% mixed pairs. Continue persistent host input, skin/transform/cull and indices; no cold coverage |
 
 Measurements and decisions: [native-geometry-phase3a-results.md](native-geometry-phase3a-results.md).
+Host-pipeline increments: [native-geometry-phase3b-results.md](native-geometry-phase3b-results.md).
 Checker validation: [native-geometry-job-boundary-results.md](native-geometry-job-boundary-results.md).
 
 ### Phase 0
@@ -1180,6 +1181,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-02 | Eight-vertex host SoA float/half/CMP output; whole-job descriptor fallback | Same-EXE menu and round JOB0/1/1/0, separate FPS/CPU | Menu 28.181 -> 28.453 (+0.964%); round 33.142 -> 33.116 (-0.077%) | see 3b results | Worker cycles/frame -1.879% menu / +1.734% round (mixed); four exact corpus arms; >=1,395,000 live checks; native frames normal; original CPU round rejected for scene mismatch, full fixed-ready repeat retained; experimental/defaults off; full 3b remains open |
 | 2026-11-02 | Host metadata layout, bank-free formatter/conversion/float admission | Same-EXE menu JOB0/1/1/0, separate FPS/CPU | 28.535 -> 27.905 (-2.207%) | see 3a results | Worker cycles/frame +4.035%, process +2.567%; four exact full-corpus arms; >=1,455,000 live checks; menu normal; rejected/defaults off; next 3b with performance target open |
 | 2026-11-02 | Phase 3a V3, parent command admission reuse | Same-EXE menu JOB0/1/1/0, separate FPS/CPU series | 28.456 -> 27.664 (-2.784%) | see results document | Worker cycles/frame +4.418%, process +2.454%; four exact full-corpus arms; >=50,000 live checks; native menu normal; rejected/defaults off; round gates not attempted |
 | 2026-11-01 | Shared-bank formatter full isolated matrix | Samebc0;16runs actualJOB1,REG0/1/1/0;FPS andCPU separate | Menu25.616->25.845;round31.725->31.778 | mixed p90/p99;all raw retained | FPS+0.894%(bothpairs)/+0.169%(mixed);workerCPF-0.341%/-0.010%;workerCPUms menu flat/round-1.148%(bothpairs);process cycles/time mixed;8normal roundimages;77pins/305sources unchanged;REGISTERS0 retained;host/interpreter/cold/aggregate/final OPEN |

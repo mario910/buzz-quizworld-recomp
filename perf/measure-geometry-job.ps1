@@ -7,7 +7,7 @@ param([Parameter(Mandatory)][ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$
       [Parameter(Mandatory)][string]$SaveTemplate,
       [ValidateSet('Menu','Round')][string]$Scene='Menu',
       [ValidateSet('Fps','Cpu')][string]$Metric='Fps',
-      [ValidatePattern('^$|^BUZZ_GEOMETRY_JOB_[A-Z0-9_]+$')][string]$Option='',
+      [ValidatePattern('^$|^BUZZ_GEOMETRY_(JOB_[A-Z0-9_]+|HOST_OUTPUT)$')][string]$Option='',
       [string]$CpuBinding='')
 $ErrorActionPreference='Stop'
 $geometryRoot=Split-Path -Parent $PSScriptRoot
@@ -49,7 +49,7 @@ try {
         $geometryBindingData=Get-Content -LiteralPath $CpuBinding -Raw | ConvertFrom-Json
         if ($geometryBindingData.exe_sha256 -ne $geometryPins[$geometryExe] -or $geometryBindingData.map_sha256 -ne $geometryPins[$geometryMap]) { throw 'CPU binding differs from frozen EXE/map' }
     }
-    $geometryOptions=@([regex]::Matches((Get-Content -LiteralPath $geometryRuntime -Raw),'"(BUZZ_GEOMETRY_JOB_[A-Z0-9_]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+    $geometryOptions=@([regex]::Matches((Get-Content -LiteralPath $geometryRuntime -Raw),'"(BUZZ_GEOMETRY_(?:JOB_[A-Z0-9_]+|HOST_OUTPUT))"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
     if (-not ($geometryOptions -contains 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL')) { throw 'Missing production input options' }
     if ($Option -and ($Option -notin $geometryOptions -or $Option -like 'BUZZ_GEOMETRY_JOB_AUDIT*')) { throw 'Option must be a production job switch' }
     $geometryKnob=if ($Option) { $Option } else { 'JOB' }

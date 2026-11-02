@@ -48,7 +48,7 @@ def report(progress,csv_directory,scene_qa=None):
     if runs[0]['window_seconds']!=window or runs[0]['dump_every'] or runs[0]['geometry_mask']!=827 or runs[0]['stage_f']!=1:raise ValueError('Wrong window/common settings')
     option_keys=set(runs[0]['job_options'])
     if 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL' not in option_keys:raise ValueError('Missing production input option')
-    if knob!='JOB' and (knob not in option_keys or not re.fullmatch(r'BUZZ_GEOMETRY_JOB_[A-Z0-9_]+',knob) or knob.startswith('BUZZ_GEOMETRY_JOB_AUDIT')):raise ValueError('Unknown production option')
+    if knob!='JOB' and (knob not in option_keys or not re.fullmatch(r'BUZZ_GEOMETRY_(?:JOB_[A-Z0-9_]+|HOST_OUTPUT)',knob) or knob.startswith('BUZZ_GEOMETRY_JOB_AUDIT')):raise ValueError('Unknown production option')
     for run,arm in zip(runs,arms):
         if set(run['job_options'])!=option_keys:raise ValueError('Option inventory differs')
         for key,value in run['job_options'].items():
@@ -74,14 +74,19 @@ def report(progress,csv_directory,scene_qa=None):
         if not run['job'] and ('[geometry-job] mode=1:' in text or native_roots):raise ValueError('Reference arm used native jobs')
         if knob=='BUZZ_GEOMETRY_JOB_FORMATTER_SPANS' and f"formatter column spans={run['job_options'][knob]} " not in text:raise ValueError('Runtime span option differs')
         registers=run['job_options'].get('BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS')
+        host_output=run['job_options'].get('BUZZ_GEOMETRY_HOST_OUTPUT',0)
+        output_roots=max(map(int,re.findall(r'^\[geometry-job/host-output\] native (\d+) \(owner count\)$',text,re.M)),default=0)
+        if run['job'] and 'BUZZ_GEOMETRY_HOST_OUTPUT' in run['job_options'] and f'host output={host_output} ' not in text:raise ValueError('Runtime host output option differs')
+        if host_output and output_roots<256:raise ValueError('Missing actual host output coverage')
+        if not host_output and output_roots:raise ValueError('Disabled host output reported native coverage')
         register_coverage=0
         if registers is not None:
             if run['job'] and f'formatter registers={registers} ' not in text:raise ValueError('Runtime register-bank option differs')
             host=[tuple(map(int,m)) for m in re.findall(r'^\[geometry-job/formatter-registers\] native=(\d+) strict-parent=(\d+) children=(\d+) strict-children=(\d+)(?: PASS)?$',text,re.M)]
             if registers:
-                if not any(roots>=256 and children>=256 for roots,_,children,_ in host):raise ValueError('Missing actual shared-bank formatter coverage')
+                if not host_output and not any(roots>=256 and children>=256 for roots,_,children,_ in host):raise ValueError('Missing actual shared-bank formatter coverage')
                 if any(parent or child for _,parent,_,child in host):raise ValueError('Shared-bank performance run contains strict comparisons')
-                register_coverage=max(roots for roots,_,_,_ in host)
+                register_coverage=max((roots for roots,_,_,_ in host),default=0)
             elif any(roots or children for roots,_,children,_ in host):raise ValueError('Disabled register-bank path reported native coverage')
         phases=[json.loads(line) for line in (progress.parent/f'{tag}.phases.jsonl').read_text(encoding='utf-8-sig').splitlines()]
         if not phases or phases[-1]['phase']!='end':raise ValueError('Scene did not finish')

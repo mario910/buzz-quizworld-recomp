@@ -19,7 +19,16 @@ The current output metadata reader uses `GeometryFormatLayout`: descriptor
 bytes, stride, semantic slots and source/destination walks are host values.
 Conversion forecasts pass three scalar addresses, without a copied GPR bank.
 Its stack/dummy bounds describe the retained legacy writer only; they are not
-requirements for the new SoA data representation. Payload conversion is unchanged.
+requirements for the new SoA data representation on the retained path.
+
+The experimental `BUZZ_GEOMETRY_HOST_OUTPUT=1` path captures a separate
+descriptor recipe before job mutation. It serializes eight vertices from
+host SoA using storage 2 (raw float), 3 (Edge half) and 6 (CMP11/11/10),
+writing each published LS chunk once. It preserves publication padding and
+holes without reconstructing internal registers or call frames. Unsupported
+recipes use the entire lifted job. Upstream float4 tables remain in LS;
+persistent host input/skin/transform/cull are still required. The switch
+defaults off; see [phase 3b results](native-geometry-phase3b-results.md).
 
 ## Historical groundwork and strict diagnostics
 

@@ -192,6 +192,8 @@ int buzz_geometry_job_i16_output_enabled(){return i16_output_mode;}
 int buzz_geometry_job_formatter_enabled(){return formatter_mode;}
 int buzz_geometry_job_formatter_spans_enabled(){return 1;}
 int buzz_geometry_job_formatter_registers_enabled(){return formatter_registers_mode;}
+int buzz_geometry_host_output_enabled(){return 0;}
+void buzz_geometry_host_output_result(){}
 void buzz_geometry_job_formatter_registers_result(unsigned children,unsigned strict_children,int checked){
     assert(strict_children<=children);++formatter_registers_roots;
     formatter_registers_parents+=!!checked;formatter_registers_children+=children;formatter_registers_strict_children+=strict_children;

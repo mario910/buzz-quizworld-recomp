@@ -90,6 +90,21 @@ try {
             else { Set-Item "Env:$geometryOptionKey" $geometryOptionPrevious }
         }
     }
+    $geometryHostPrevious = $env:BUZZ_GEOMETRY_HOST_OUTPUT
+    try {
+        foreach ($geometryValue in @('unset','0','1','2','3','00','1x','x')) {
+            if ($geometryValue -eq 'unset') { Remove-Item Env:BUZZ_GEOMETRY_HOST_OUTPUT -ErrorAction SilentlyContinue }
+            else { $env:BUZZ_GEOMETRY_HOST_OUTPUT = $geometryValue }
+            $geometryWant = if ($geometryValue -eq 'unset') { '0' } elseif ($geometryValue -in @('0','1')) { $geometryValue } else { 'reject' }
+            $geometryConfigLog = "analysis/native-geometry/phase3/runtime-option-HOST_OUTPUT-$geometryValue.log"
+            & ./analysis/native-geometry/phase3/job-runtime-test.exe option HOST_OUTPUT $geometryWant *> $geometryConfigLog
+            $geometryCode = if ($geometryWant -eq 'reject') { 75 } else { 0 }
+            if ($LASTEXITCODE -ne $geometryCode) { throw "Host output option $geometryValue returned $LASTEXITCODE expected $geometryCode" }
+            $geometryDiagnostic = if ($geometryWant -eq 'reject') { '[config] rejected' } else { '[config] accepted PASS' }
+            if (-not (Select-String -LiteralPath $geometryConfigLog -SimpleMatch $geometryDiagnostic)) { throw 'Missing host output configuration diagnostic' }
+            $geometryOptionCases++
+        }
+    } finally { $env:BUZZ_GEOMETRY_HOST_OUTPUT = $geometryHostPrevious }
     "Configuration options: $geometryOptionCases production-getter cases PASS"
     $global:LASTEXITCODE = 0
 

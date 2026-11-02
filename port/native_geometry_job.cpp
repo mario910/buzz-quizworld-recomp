@@ -247,6 +247,7 @@ struct Init {
             std::fprintf(stderr,"[geometry-job] native formatter=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_formatter_enabled());
             std::fprintf(stderr,"[geometry-job] formatter column spans=%d (0 exhaustive,1 proven spans;default off)\n",buzz_geometry_job_formatter_spans_enabled());
             std::fprintf(stderr,"[geometry-job] formatter registers=%d (0 ABI callbacks,1 shared host bank;default off)\n",buzz_geometry_job_formatter_registers_enabled());
+            std::fprintf(stderr,"[geometry-job] host output=%d (8-lane SoA float/half/CMP;whole-job fallback;default off)\n",buzz_geometry_host_output_enabled());
             std::fprintf(stderr,"[geometry-job] native I16 output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_i16_output_enabled());
             std::fprintf(stderr,"[geometry-job] native U8 integer output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_u8_integer_output_enabled());
             std::fprintf(stderr,"[geometry-job] native UNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_unorm_output_enabled());
@@ -323,6 +324,18 @@ extern "C" int buzz_geometry_job_debug_stages()
 {
     static OptionCache enabled;
     return enabled.get([] { return output_option("BUZZ_GEOMETRY_DEBUG_STAGES"); });
+}
+extern "C" int buzz_geometry_host_output_enabled()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return output_option("BUZZ_GEOMETRY_HOST_OUTPUT"); });
+}
+extern "C" void buzz_geometry_host_output_result()
+{
+    static Counter completed;
+    const auto count = ++completed;
+    if (count <= 4 || count % 25000 == 0)
+        std::fprintf(stderr, "[geometry-job/host-output] native %llu (owner count)\n", count);
 }
 extern "C" int buzz_geometry_job_layout_enabled()
 {

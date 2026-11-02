@@ -137,6 +137,35 @@ class JobReportTests(unittest.TestCase):
             self.assertEqual([r['native_formatter_registers_lower_bound'] for r in result['runs']],[0,256,256,0])
             self.assertAlmostEqual(result['fps']['change_percent'],25)
 
+    def host_output_fixture(self,root):
+        path,events=self.fixture(root)
+        for start,done in zip(events[::2],events[1::2]):
+            run=start['run'];job=run['job'];run['job_options'].update(BUZZ_GEOMETRY_HOST_OUTPUT=job,BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS=job)
+            log=root/f"vk-scene-{run['tag']}.stderr.log"
+            text=log.read_text()+f'[geometry-job] formatter registers={job} (shared bank)\n[geometry-job] host output={job} (SoA)\n'
+            if job:text+='[geometry-job/host-output] native 25000 (owner count)\n'
+            log.write_text(text);done['log_sha256']=reporter.sha(log)
+        self.save(path,events);return path,events
+
+    def test_host_output_replaces_formatter_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_=self.host_output_fixture(root)
+            result=reporter.report(path,root)
+            self.assertEqual([r['native_formatter_registers_lower_bound'] for r in result['runs']],[0,0,0,0])
+
+    def test_host_output_requires_actual_coverage_and_correct_flag(self):
+        for fault in ('missing','getter','disabled','strict'):
+            with self.subTest(fault=fault),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);path,events=self.host_output_fixture(root)
+                index=0 if fault=='disabled' else 1
+                done=events[index*2+1];log=root/f"vk-scene-{done['run']['tag']}.stderr.log";text=log.read_text()
+                if fault=='missing':text=text.replace('native 25000 (owner count)','native 255 (owner count)')
+                elif fault=='getter':text=text.replace('host output=1','host output=0')
+                elif fault=='disabled':text+='[geometry-job/host-output] native 256 (owner count)\n'
+                else:text+='[geometry-job/formatter-registers] native=256 strict-parent=1 children=512 strict-children=0 PASS\n'
+                log.write_text(text);done['log_sha256']=reporter.sha(log);self.save(path,events)
+                with self.assertRaises(ValueError):reporter.report(path,root)
+
     def test_shared_register_option_rejects_missing_false_or_checked_coverage(self):
         for fault in ('getter','missing','roots','children','parent-strict','child-strict','off-active'):
             with self.subTest(fault=fault),tempfile.TemporaryDirectory() as temp:
