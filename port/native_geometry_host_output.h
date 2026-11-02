@@ -3,16 +3,11 @@
  * here. The job owns admission, source decoding and the final stream write.
  * Published FP arithmetic requires the image-41 RTZ/FTZ/DAZ environment. */
 #pragma once
-#include "spu_helpers.h"
-#include "native_stagef_avx2.h"
+#include "native_geometry_host_data.h"
 #include <cstdint>
 #include <cstring>
 
 namespace buzz {
-struct GeometryHostSoA8 {
-    v8 component[4]; // Raw host-order float bits; lane i is vertex i.
-};
-
 // Edge's storage-3 representation flushes small magnitudes and saturates
 // large magnitudes. It is deliberately not the IEEE F16C conversion.
 inline v8 geometry_host_half8(v8 bits)

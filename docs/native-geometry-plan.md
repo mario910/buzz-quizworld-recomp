@@ -144,6 +144,16 @@ coverage work without real inputs, and round interpreter-count work.
 Stage F follows the same job-boundary contract. Do not resume these cancelled
 or stopped tracks from older goals, checkpoints or results documents.
 
+### Current implementation checkpoint (2026-11-02)
+
+The experimental host output path passes correctness gates, but remains off:
+menu FPS +0.964%, round FPS -0.077%, round worker cycles/frame +1.734%.
+See the [measurement table and decision](native-geometry-phase3b-results.md).
+Standalone eight-vertex input helpers now pass original-decoder and guarded
+source tests ([results](native-geometry-phase3b-input-results.md)); they are
+not connected to the runtime. Next is persistent input SoA and eight-vertex
+skin/transform/cull, feeding output directly. Full phase 3b remains open.
+
 ### Historical implementation notes (superseded where conflicting)
 
 The notes below retain prior evidence; their former next steps and gates do

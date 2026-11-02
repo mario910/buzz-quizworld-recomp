@@ -30,6 +30,13 @@ recipes use the entire lifted job. Upstream float4 tables remain in LS;
 persistent host input/skin/transform/cull are still required. The switch
 defaults off; see [phase 3b results](native-geometry-phase3b-results.md).
 
+Host input helpers share `GeometryHostSoA8` with output and decode raw BE
+float words, Edge half and packed unit vectors into eight-vertex SoA.
+Half decoding retains the source quad's prefix byte; it is not IEEE half.
+They have independent original-decoder and guarded-source proofs but remain
+outside the runtime pending the persistent host pipeline; see
+[input results](native-geometry-phase3b-input-results.md).
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for
