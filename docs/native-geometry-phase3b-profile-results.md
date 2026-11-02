@@ -17,10 +17,14 @@ The master `BUZZ_GEOMETRY_JOB` still defaults to zero.
 | Live JOB2 | At least 1,275,000 completed whole-job I/O comparisons; concurrent-input skips excluded |
 | Native menu and round | Both JOB1 GPU frames inspected; normal geometry |
 | Measurement profile | Six recorded settings: JOB, three groups, LEGACY=0 and AUDIT=0; debug checkers off; 21 report tests pass; four prior reports reproduce unchanged |
-| Reversed menu/round FPS and CPU | Pending for this profile |
+| Reversed menu FPS | JOB0 28.342 → JOB1 29.336 FPS: +3.510%; pairs +2.139% / +4.906% |
+| Reversed menu workers / completed frame | 423.600M → 385.658M cycles (−8.957%); 115.026 → 105.173 CPU ms (−8.566%); both pairs improve |
+| Reversed menu process / completed frame | 776.125M → 737.942M cycles (−4.920%); 211.081 → 200.740 CPU ms (−4.899%); both pairs improve |
+| Reversed round FPS and CPU | Pending separate series for this profile |
 
 **Decision:** controller/configuration, corpus, live I/O and native-frame
-gates pass. Keep the master default off pending reversed FPS/CPU. The
+and menu FPS/CPU gates pass, with gains in both reversed pairs. Keep the
+master default off pending round FPS/CPU and normal-build integration. The
 [previous profile's gains](native-geometry-phase3b-host-pipeline-results.md)
 remain separate evidence; validate this profile before default-on.
 
