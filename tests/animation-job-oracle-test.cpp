@@ -6,6 +6,7 @@
 #include "../port/native_animation_clip_time.h"
 #include "../port/native_animation_host_clip.h"
 #include "../port/native_animation_host_pipeline.h"
+#include "../port/native_animation_job.h"
 #include "../port/native_animation_host_hierarchy.h"
 #include "../port/native_animation_job_input.h"
 #include "../port/native_animation_host_matrices.h"
@@ -30,12 +31,16 @@ struct ChannelEvent {uint32_t direction,channel,value;};
 static std::vector<ChannelEvent> reference_channels;
 static size_t channel_index=0;
 static uint64_t compared_channel_events=0,compared_channel_jobs=0;
+static std::map<std::pair<unsigned,unsigned>,bool> channel_examples;
 static bool oracle_reference_pass=false,corrupt_channel=false;
 static size_t transfer_index=0;
 static std::string current_case;
 static uint64_t jobs=0,total_transfers=0,quaternion_calls=0,nonempty_calls=0;
 static buzz::AnimationJobInput pending_job_input;
 static unsigned planned_publication=0;
+static bool native_whole_job=false,corrupt_native_output=false;
+static buzz::AnimationNativeJobPlan native_job_plan;
+static buzz::AnimationNativeJobWorkspace native_job_workspace;
 static buzz::AnimationHostControlPlan host_control;
 static buzz::AnimationHostHierarchyPlan host_hierarchy;
 static buzz::AnimationHostPose8 host_root;
@@ -156,6 +161,8 @@ static void record_channel(unsigned direction,unsigned channel,uint32_t value)
     }
     const auto& expected=reference_channels[channel_index++];
     if(event.direction!=expected.direction||event.channel!=expected.channel||event.value!=expected.value) {
+        auto* diagnostic=fopen((output_directory/"channel-mismatch-reference.tsv").string().c_str(),"wb");assert(diagnostic);
+        for(unsigned i=0;i<reference_channels.size();++i){const auto& e=reference_channels[i];fprintf(diagnostic,"%u\t%u\t%u\t%08X\n",i,e.direction,e.channel,e.value);}assert(!fclose(diagnostic));
         fprintf(stderr,"channel transcript mismatch %s event=%zu actual=%u,%u,%08X expected=%u,%u,%08X\n",current_case.c_str(),channel_index-1,event.direction,event.channel,event.value,expected.direction,expected.channel,expected.value);abort();
     }
 }
@@ -1661,13 +1668,87 @@ static void check_numeric_curve_keys(const spu_context* original)
     assert(buzz::sample_animation_host_curve_keys({},plan,nullptr));
     current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
 }
+template<class Resolve>
+static void check_native_job_preflight(const spu_context* c,Resolve&& original,buzz::AnimationNativeJobOutputs output)
+{
+    constexpr unsigned cases=26;
+    for(unsigned test=0;test<cases;++test) {
+        auto job=pending_job_input;std::vector<uint8_t> input(c->ls,c->ls+SPU_LS_SIZE);
+        auto destination=output;size_t bytes=SPU_LS_SIZE;bool interrupts_enabled=false,null_ls=false,missing_header=false,missing_body=false,bad_header=false,bad_body=false;
+        auto put=[&](unsigned at,uint32_t n){for(unsigned i=0;i<4;++i)input[at+i]=n>>(24-i*8);};
+        switch(test) {
+        case 0:null_ls=true;break;
+        case 1:--bytes;break;
+        case 2:job.joints=0;break;
+        case 3:job.curve_floats=257;break;
+        case 4:job.publications=4;break;
+        case 5:job.dma_tag=32;break;
+        case 6:job.node[0].left=0x8001;break;
+        case 7:job.nodes=2;job.clips=3;break;
+        case 8:put(0x1c8,6);break;
+        case 9:job.cache[0].bytes=0;break;
+        case 10:put(job.cache[0].lsa,1);break;
+        case 11:input[job.descriptor+30]=input[job.descriptor+31]=0;break;
+        case 12:destination.reference=nullptr;break;
+        case 13:job.output[0].bytes-=16;break;
+        case 14:job.output[0].ea|=1;break;
+        case 15:job.output[0].lsa=job.scratch_lsa;break;
+        case 16:job.cache[1].lsa=0x40000;break;
+        case 17:missing_header=true;break;
+        case 18:missing_body=true;break;
+        case 19:bad_header=true;break;
+        case 20:bad_body=true;break;
+        case 21:job.clip[0].time=0x7f7fffff;break;
+        case 22:job.root_pose_lsa=0x40000;break;
+        case 23:job.input[2].lsa=0x40000;break;
+        case 24:interrupts_enabled=true;break;
+        case 25: {
+            const unsigned stride=((job.joints+4)&~3u)*48+((job.curve_floats+4)&~3u)*4+
+                ((((job.joints+3)&~3u)+((job.curve_floats+3)&~3u)+15)&~15u)+16;
+            const unsigned allocation=3*(8192+256)+2*stride;
+            input[job.descriptor+30]=uint8_t((allocation/16)>>8);input[job.descriptor+31]=uint8_t(allocation/16);break;
+        }
+        }
+        std::vector<uint8_t> modified;
+        auto resolve=[&](uint32_t ea,unsigned n)->buzz::AnimationByteView {
+            const bool header=ea==job.clip[0].ea;
+            if((missing_header&&header)||(missing_body&&!header))return {};
+            const auto view=original(ea,n);
+            if((bad_header&&header)||(bad_body&&!header)) {
+                modified.assign(view.data,view.data+view.bytes);
+                if(bad_header)modified[38]=1;else modified[0]=modified[1]=0xff;
+                return {modified.data(),modified.size()};
+            }
+            return view;
+        };
+        const auto before=input;const auto events=channel_index;
+        buzz::AnimationNativeJobPlan rejected;memset(&rejected,0x5a,sizeof(rejected));const auto unchanged=rejected;const char* reason=nullptr;
+        if(buzz::prepare_native_animation_job(job,null_ls?nullptr:input.data(),bytes,interrupts_enabled,resolve,rejected,native_job_workspace,destination,&reason)) {
+            fprintf(stderr,"invalid whole animation job admitted case=%u\n",test);abort();
+        }
+        assert(reason&&channel_index==events&&input==before&&!memcmp(&rejected,&unchanged,sizeof(rejected)));
+    }
+    // Rebuild the admitted private workspace after rejected preparations.
+    const char* reason=nullptr;assert(buzz::prepare_native_animation_job(pending_job_input,c->ls,SPU_LS_SIZE,c->int_enable!=0,original,native_job_plan,native_job_workspace,output,&reason));
+    puts("PASS native whole-job preflight: 26 unsupported/malformed/missing-input cases rejected before LS/channel mutation; output plan unchanged");
+}
+struct NativeAnimationIo {
+    spu_context* c;uint32_t return_pc;
+    uint32_t read(unsigned channel){return spu_rdch(c,channel)._u32[0];}
+    void write(unsigned channel,uint32_t value){spu_wrch(c,channel,spu_il(value));}
+    void set_interrupts(bool enabled){c->int_enable=enabled;}
+    uint8_t* ls(){return c->ls;}
+    void finish(){c->pc=return_pc;}
+};
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys"||std::string(argv[3])=="CorruptClipTime"||std::string(argv[3])=="ClipReplace"||std::string(argv[3])=="CorruptFullClip"||std::string(argv[3])=="PipelinePublish"||std::string(argv[3])=="CorruptPipeline"||std::string(argv[3])=="CorruptChannel");
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys"||std::string(argv[3])=="CorruptClipTime"||std::string(argv[3])=="ClipReplace"||std::string(argv[3])=="CorruptFullClip"||std::string(argv[3])=="PipelinePublish"||std::string(argv[3])=="CorruptPipeline"||std::string(argv[3])=="CorruptChannel"||std::string(argv[3])=="NativeJob"||std::string(argv[3])=="CorruptNativeJobOutput"||std::string(argv[3])=="CorruptNativeJobChannel");
     publication_fault=std::string(argv[3]).rfind("Corrupt",0)==0;
+    corrupt_native_output=std::string(argv[3])=="CorruptNativeJobOutput";
+    native_whole_job=std::string(argv[3])=="NativeJob"||corrupt_native_output||std::string(argv[3])=="CorruptNativeJobChannel";
     corrupt_full_clip=std::string(argv[3])=="CorruptFullClip";
-    corrupt_channel=std::string(argv[3])=="CorruptChannel";
+    corrupt_channel=std::string(argv[3])=="CorruptChannel"||std::string(argv[3])=="CorruptNativeJobChannel";
     corrupt_host_pipeline=std::string(argv[3])=="CorruptPipeline";
     publish_host_pipeline=std::string(argv[3])=="PipelinePublish"||corrupt_host_pipeline;
     replace_full_clip=std::string(argv[3])=="ClipReplace"||corrupt_full_clip||publish_host_pipeline;
@@ -1717,22 +1798,52 @@ int main(int argc,char** argv)
         ++frontend_jobs;frontend_clips+=pending_job_input.clips;
         for(unsigned i=0;i<pending_job_input.nodes;++i)++frontend_nodes[pending_job_input.node[i].operation];
         planned_publication=0;planned_clip_headers=0;planned_clip_bodies=0;clip_curve_padding_slots=0;
-        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00000010(c.get());drain(c.get(),expected[0]);
+        g_spu_trampoline_fn=nullptr;
+        if(native_whole_job) {
+            auto resolve=[](uint32_t ea,unsigned bytes)->buzz::AnimationByteView {
+                for(const auto& t:transfers)if(t.kind==1&&ea>=t.ea&&uint64_t(ea)+bytes<=uint64_t(t.ea)+t.size)
+                    return {t.data.data()+(ea-t.ea),bytes};
+                return {};
+            };
+            const buzz::AnimationNativeJobOutputs output{host_reference_output.data(),host_world_output.data(),host_curve_output.data()};
+            const char* reason=nullptr;
+            if(!buzz::prepare_native_animation_job(pending_job_input,c->ls,SPU_LS_SIZE,c->int_enable!=0,resolve,native_job_plan,native_job_workspace,output,&reason)) {
+                fprintf(stderr,"native whole job rejected %s: %s\n",current_case.c_str(),reason);abort();
+            }
+            if(!jobs)check_native_job_preflight(c.get(),resolve,output);
+            assert(!memcmp(c->ls,entry_ls.data(),SPU_LS_SIZE));
+            if(corrupt_native_output&&!corruption_injected){host_reference_output[0]^=0x80;corruption_injected=true;}
+            host_pipeline_ready=true;++host_pipeline_jobs;
+            NativeAnimationIo io{c.get(),c->gpr[0]._u32[0]};buzz::execute_native_animation_job(native_job_plan,output,io);
+        } else {buzz_job_abe1_spu_func_00000010(c.get());drain(c.get(),expected[0]);}
         assert(planned_publication==pending_job_input.publications);
         assert(planned_clip_headers==pending_job_input.clips&&planned_clip_bodies==pending_job_input.clips);
         assert(transfer_index==transfers.size()&&c->host_depth==1&&c->image_id==40&&c->ls==c->ls_store&&!g_spu_trampoline_fn);
         const uint32_t exit[]={c->pc,c->status,c->stop_code,unsigned(spu_channel_has_data(&c->ch_out_mbox)),c->ch_out_mbox.value,unsigned(spu_channel_has_data(&c->ch_out_intr_mbox)),c->ch_out_intr_mbox.value};
-        assert(!memcmp(exit,expected,sizeof(exit)));++jobs;total_transfers+=n;
+        assert(!memcmp(exit,expected,sizeof(exit))&&c->int_enable==reference->int_enable);++jobs;total_transfers+=n;
         assert(channel_index==reference_channels.size());compared_channel_events+=channel_index;++compared_channel_jobs;
         uint64_t digest=14695981039346656037ull;
         for(const auto& event:reference_channels)for(uint32_t word:{event.direction,event.channel,event.value})for(unsigned byte=0;byte<4;++byte){digest^=uint8_t(word>>(byte*8));digest*=1099511628211ull;}
         fprintf(channel_report,"%s\t%zu\t%016llX\n",current_case.c_str(),channel_index,(unsigned long long)digest);
+        const auto channel_shape=std::make_pair(pending_job_input.nodes,pending_job_input.publications);
+        if(!channel_examples[channel_shape]) {
+            channel_examples[channel_shape]=true;
+            const auto name="channels-n"+std::to_string(channel_shape.first)+"-p"+std::to_string(channel_shape.second)+".tsv";
+            auto* example=fopen((output_directory/name).string().c_str(),"wb");assert(example);
+            fprintf(example,"# %s scratch=%X tag=%u\nindex\tdirection\tchannel\tvalue\n",current_case.c_str(),pending_job_input.scratch_lsa,pending_job_input.dma_tag);
+            for(unsigned i=0;i<reference_channels.size();++i){const auto& e=reference_channels[i];fprintf(example,"%u\t%u\t%u\t%08X\n",i,e.direction,e.channel,e.value);}
+            assert(!fclose(example));
+        }
     }
     assert(!fclose(channel_report));assert(compared_channel_jobs==17714&&compared_channel_events);
     printf("PASS paired full channel transcripts: jobs=%llu events=%llu\n",(unsigned long long)compared_channel_jobs,(unsigned long long)compared_channel_events);
     assert(host_pipeline_jobs==17714&&host_pipeline_publications==39112);
     printf("PASS host control-to-publication pipeline: jobs=%llu publications=%llu bytes=%llu direct-publish=%u\n",(unsigned long long)host_pipeline_jobs,(unsigned long long)host_pipeline_publications,(unsigned long long)host_pipeline_bytes,publish_host_pipeline);
-    assert(jobs==17714&&total_transfers==115162&&(replace_full_clip||dump_finished));
+    assert(jobs==17714&&total_transfers==115162&&(native_whole_job||replace_full_clip||dump_finished));
+    if(native_whole_job) {
+        assert(!full_clip_calls&&!quaternion_calls&&!static_calls&&!hierarchy_plans&&!pose_observation[2].calls);
+        puts("PASS native whole animation job: 17714 jobs / 115162 ordered transfers; no lifted candidate blocks or register reconstruction; interrupt-enabled entries fall back");return 0;
+    }
     assert(replaced_full_clips==(replace_full_clip?38025:0));
     printf("PASS complete clip replacements=%llu\n",(unsigned long long)replaced_full_clips);
     assert(full_clip_calls==38025&&full_clip_checks==38025);

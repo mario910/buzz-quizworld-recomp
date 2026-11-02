@@ -43,11 +43,13 @@
 | Direct host publication | Fourth same-EXE `PipelinePublish` arm supplies every published byte from the host chain; original scheduling/channel scaffold retained; all corpus outputs and exit controls match |
 | Control/output bounds | Eighteen malformed graphs/strengths/clamp spans rejected unchanged; guarded skeleton/reference inputs, unused control/world slots and final output canaries pass |
 | Full channel boundary proof | Each arm: separate unmodified original replay per capture; all 1,766,060 channel write/read/count events match by direction/channel/raw 32-bit value/order; per-job counts/digests archived |
+| Native whole-job driver | Fifth same-EXE `NativeJob` arm executes preparation, all GET/wait/PUT channels and return without lifted candidate blocks; all 17,714 jobs / 115,162 transfers / 52,068,720 bytes / 1,766,060 channel events and exit controls match |
+| Pre-mutation fallback | Twenty-six unsupported/malformed/missing-input cases reject with unchanged input LS, channel position and output plan; enabled interrupt entries remain unsupported; all real corpus jobs admitted without exclusions |
 | Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; also 2,597 additive-pose, 3,684 scalar-blend, 2,597 scalar-add and 38,025 FLOAT1 sampler calls; no volatile GPR or ABI reconstruction |
 | Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
 | Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
-| Publication fault probes | Twelve output-corruption probes are rejected at recorded PUT comparisons; a thirteenth probe changes a DMA command flag without changing transfer data and is rejected by the full channel transcript |
+| Publication fault probes | Thirteen output-corruption probes and two DMA-command-flag probes are rejected at the job boundary, including direct native whole-job output/command corruption |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -70,11 +72,11 @@ captured matrix inputs. Nonuniform joint-weight streams and the small hierarchy
 alternative have no real corpus coverage and remain unsupported. Production
 job integration, live checks and candidate FPS/CPU gates remain. The new
 metadata parser is not the complete native driver: original code still
-retains legacy scheduling/staging and DMA/channel emission. Native time,
-complete clip assembly, control, hierarchy and matrix production now form
-one host output chain. `PipelinePublish` validates its final bytes and
-complete channel transcript; the original scheduling scaffold remains
-until the full native DMA/channel/exit lifecycle is connected. FLOAT1 key sampling and operation-1
+is used only by the earlier observation/replacement arms. `NativeJob` now
+executes the complete recognized job with native scheduling, host data and
+final outputs; paired original replays validate all bytes, channel events
+and exit controls. Runtime dispatch/guest-memory integration and its
+live/frame/FPS/CPU gates remain; enabled interrupt entries fall back. FLOAT1 key sampling and operation-1
 pose/curve arithmetic now use native producers in the replacement oracle.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.

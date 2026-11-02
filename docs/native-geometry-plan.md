@@ -1103,8 +1103,12 @@ LE SoA chain; a fourth `PipelinePublish` arm supplies all 39,112 final
 publications (52,068,720 bytes). Paired unmodified original replays verify
 all 1,766,060 channel events; eighteen invalid control cases, guarded final
 outputs, a twelfth publication probe and a command-flag transcript probe
-pass. Native DMA/channel/exit scheduling and production integration remain,
-followed by live/performance gates.
+pass. A fifth `NativeJob` arm now executes the complete recognized job with
+native DMA/channel/exit scheduling and no lifted candidate blocks; all
+17,714 jobs, outputs and channel events match. Twenty-six preflight
+rejection checks preserve LS/channels; enabled interrupt entries fall back.
+Two direct whole-job corruption probes also pass. Production integration
+and live/frame/performance gates remain.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

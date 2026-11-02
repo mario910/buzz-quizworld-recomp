@@ -284,7 +284,25 @@ capture and compares each channel write/read/count tuple (direction, channel,
 raw 32-bit value) in order. Per-job counts/digests are retained in
 `channel-checks.tsv`; comparison checks every event, not just its digest.
 Changing a DMA command flag while keeping its transfer data unchanged must
-fail this gate. Production DMA/channel/exit scheduling remains separate work.
+fail this gate.
+
+`native_animation_job.h` now prepares and executes the recognized job as a
+whole. Preparation resolves bounded immutable guest header/body inputs,
+admits all clips and computes host outputs before any LS/channel mutation.
+The executor issues the required fenced GETs (command 65, tags 30/28), pose
+buffer waits, final PUTs (command 32, context tag), and returns to the caller.
+It calls no lifted blocks and restores no SPU register bank or stack frame.
+
+Header arenas use an 8,448-byte pitch from scratch: clips 0/2 share slot 2,
+clip 1 uses slot 0. Pose-buffer entry padding uses the following allocation
+area, with capacity for at least three slots; required raw key tails retain
+only input bytes from entry/previous
+GETs, not a reconstructed scratch image. Worker index at LS 0x1C8 selects
+one of six cache-0 allocation records; the covered records have no override.
+Only the observed two/three-clip schedules are admitted. Enabled interrupt
+entries, allocation overrides and unsupported metadata/streams fall back
+before I/O. Production dispatch/guest-memory wiring and live/performance
+qualification remain.
 
 ## Historical groundwork and strict diagnostics
 
