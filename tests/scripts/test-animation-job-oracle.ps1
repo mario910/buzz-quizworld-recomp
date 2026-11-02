@@ -1,5 +1,5 @@
 param([Parameter(Mandatory=$true)][string]$Corpus,[string]$EvidenceDirectory='',
-    [ValidateSet('Compare','Replace','ClipReplace','Both')][string]$Mode='Both')
+    [ValidateSet('Compare','Replace','ClipReplace','PipelinePublish','Both')][string]$Mode='Both')
 $ErrorActionPreference='Stop'
 $animationRoot=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location -LiteralPath $animationRoot
@@ -17,7 +17,7 @@ try {
     $animationCompiler=& ./toolenv/Scripts/python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
     & (Join-Path $animationCompiler 'clang-cl.exe') /nologo /std:c++17 /MD /O2 /UNDEBUG /W0 /arch:AVX2 /DSPU_NATIVE_RTZ=1 /DSPU_RTZ_RESULT_GUARD=1 /clang:-mfma /clang:-frounding-math /clang:-ffp-contract=off /Ips3recomp/include /Ips3recomp/runtime/spu /Ithird_party/zlib /Ibuild-vulkan-windows/zlib tests/animation-job-oracle-test.cpp "/Fo$animationRun/test.obj" "/Fe$animationRun/test.exe" /link build-vulkan-windows/zlib/libzs.lib
     if($LASTEXITCODE){throw 'Animation job oracle build failed'}
-    $animationModes=if($Mode -eq 'Both'){@('Compare','Replace','ClipReplace')}else{@($Mode)}
+    $animationModes=if($Mode -eq 'Both'){@('Compare','Replace','ClipReplace','PipelinePublish')}else{@($Mode)}
     foreach($animationMode in $animationModes) {
         $animationCase=Join-Path $animationRun $animationMode
         New-Item -ItemType Directory -Path $animationCase | Out-Null
@@ -25,7 +25,7 @@ try {
         if($LASTEXITCODE){throw "Animation job oracle $animationMode failed"}
     }
     if($Mode -eq 'Both') {
-        foreach($animationFaultMode in @('Corrupt','CorruptVector','CorruptMatrix','CorruptAffine','CorruptBlend','CorruptHierarchy','CorruptExtraPose','CorruptExtraCurve','CorruptScalarKeys','CorruptClipTime','CorruptFullClip')) {
+        foreach($animationFaultMode in @('Corrupt','CorruptVector','CorruptMatrix','CorruptAffine','CorruptBlend','CorruptHierarchy','CorruptExtraPose','CorruptExtraCurve','CorruptScalarKeys','CorruptClipTime','CorruptFullClip','CorruptPipeline','CorruptChannel')) {
         $animationCase=Join-Path $animationRun $animationFaultMode
         New-Item -ItemType Directory -Path $animationCase | Out-Null
         # Isolate the expected failing process so its exit status does not
@@ -34,9 +34,10 @@ try {
         $animationFault=Start-Process -FilePath (Join-Path $animationRun 'test.exe') -ArgumentList $animationArguments -WorkingDirectory $animationRoot -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput (Join-Path $animationCase 'stdout.log') -RedirectStandardError (Join-Path $animationCase 'stderr.log')
         Get-Content -LiteralPath (Join-Path $animationCase 'stdout.log'),(Join-Path $animationCase 'stderr.log') | Set-Content -LiteralPath (Join-Path $animationCase 'test.log') -Encoding utf8
         $animationFailure=$animationFault.ExitCode
-        if(-not $animationFailure -or -not (Select-String -LiteralPath (Join-Path $animationCase 'test.log') -SimpleMatch 'published bytes mismatch')){throw "Injected $animationFaultMode corruption was not rejected at published job output"}
-        @{exit_code=$animationFailure;expected_failure=$true;reason="Injected $animationFaultMode corruption rejected by full published-byte comparison"} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $animationCase 'expected-failure.json') -Encoding utf8
-        Write-Output "PASS injected native $animationFaultMode corruption rejected at job publication"
+        $animationExpectedDiagnostic=if($animationFaultMode -eq 'CorruptChannel'){'channel transcript mismatch'}else{'published bytes mismatch'}
+        if(-not $animationFailure -or -not (Select-String -LiteralPath (Join-Path $animationCase 'test.log') -SimpleMatch $animationExpectedDiagnostic)){throw "Injected $animationFaultMode corruption was not rejected at its job-boundary check"}
+        @{exit_code=$animationFailure;expected_failure=$true;reason="Injected $animationFaultMode corruption rejected: $animationExpectedDiagnostic"} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $animationCase 'expected-failure.json') -Encoding utf8
+        Write-Output "PASS injected native $animationFaultMode corruption rejected at job boundary"
         }
     }
     Write-Output "Animation job oracle evidence: $animationRun"

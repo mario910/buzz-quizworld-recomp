@@ -1098,8 +1098,13 @@ from an ES01 template decoded once/job, applies static/sampled streams and
 retains curve-buffer tail ownership. All 38,025 clips match; a third
 `ClipReplace` arm skips the original sampling flow and retains all job I/O.
 Guarded default/clip inputs and an eleventh publication-corruption probe
-pass. Native control-tree traversal and full I/O lifecycle integration
-remain, followed by live/performance gates.
+pass. Native host control, hierarchy and matrix production now form one
+LE SoA chain; a fourth `PipelinePublish` arm supplies all 39,112 final
+publications (52,068,720 bytes). Paired unmodified original replays verify
+all 1,766,060 channel events; eighteen invalid control cases, guarded final
+outputs, a twelfth publication probe and a command-flag transcript probe
+pass. Native DMA/channel/exit scheduling and production integration remain,
+followed by live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

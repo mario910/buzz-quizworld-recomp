@@ -266,6 +266,26 @@ bridge emits the complete logical pose and aligned curves once for the
 remaining original control driver. Native runtime integration must keep
 these arrays through blending/hierarchy rather than round-trip them via LS.
 
+`native_animation_host_pipeline.h` evaluates admitted control nodes in reverse
+index order (node handles only point forward). Leaves and node results remain
+host Q/T/S SoA plus aligned curve words. Operation 0 uses the shared full-weight
+blend; covered operation 1 requires strength 1. ES01 own-relative field 40
+points to per-curve clamp flags, including alignment slots; only 0/1 flags
+are admitted. The resulting host root pose feeds the dependency-aware
+hierarchy, world matrices and reference composition directly. Reference
+matrices are decoded once and final BE reference/world/curve streams are
+each emitted once. No intermediate pose is serialized through LS in this
+host chain.
+
+The additional test-only `PipelinePublish` arm supplies every published byte
+from that chain while retaining the original scheduling/channel scaffold.
+The oracle now also runs a separate, unmodified original job for every
+capture and compares each channel write/read/count tuple (direction, channel,
+raw 32-bit value) in order. Per-job counts/digests are retained in
+`channel-checks.tsv`; comparison checks every event, not just its digest.
+Changing a DMA command flag while keeping its transfer data unchanged must
+fail this gate. Production DMA/channel/exit scheduling remains separate work.
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

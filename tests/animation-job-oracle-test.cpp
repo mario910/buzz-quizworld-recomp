@@ -5,6 +5,7 @@
 #include "../port/native_animation_clip_input.h"
 #include "../port/native_animation_clip_time.h"
 #include "../port/native_animation_host_clip.h"
+#include "../port/native_animation_host_pipeline.h"
 #include "../port/native_animation_host_hierarchy.h"
 #include "../port/native_animation_job_input.h"
 #include "../port/native_animation_host_matrices.h"
@@ -25,11 +26,27 @@
 
 struct Transfer { uint32_t kind,lsa,ea,size;std::vector<uint8_t> data; };
 static std::vector<Transfer> transfers;
+struct ChannelEvent {uint32_t direction,channel,value;};
+static std::vector<ChannelEvent> reference_channels;
+static size_t channel_index=0;
+static uint64_t compared_channel_events=0,compared_channel_jobs=0;
+static bool oracle_reference_pass=false,corrupt_channel=false;
 static size_t transfer_index=0;
 static std::string current_case;
 static uint64_t jobs=0,total_transfers=0,quaternion_calls=0,nonempty_calls=0;
 static buzz::AnimationJobInput pending_job_input;
 static unsigned planned_publication=0;
+static buzz::AnimationHostControlPlan host_control;
+static buzz::AnimationHostHierarchyPlan host_hierarchy;
+static buzz::AnimationHostPose8 host_root;
+static buzz::AnimationHostPipelineWorkspace host_pipeline;
+static std::array<uint8_t,256*48> host_reference_output;
+static std::array<uint8_t,256*64> host_world_output;
+static std::array<uint8_t,256*4> host_curve_output;
+static bool host_pipeline_ready=false,publish_host_pipeline=false,corrupt_host_pipeline=false;
+static uint64_t host_pipeline_jobs=0,host_pipeline_publications=0,host_pipeline_bytes=0;
+static void check_host_control_inputs(const spu_context*);
+static void check_host_pipeline_guards(const spu_context*);
 static buzz::AnimationHostClipPose pending_full_clip;
 static buzz::AnimationHostPoseArrays job_default_pose;
 static bool replace_full_clip=false,corrupt_full_clip=false;
@@ -130,6 +147,18 @@ static void animation_original_probe(unsigned,spu_context*);
 static bool animation_native_quaternion_override(spu_context*);
 static bool animation_native_static_quaternion_override(spu_context*);
 static void drain(spu_context*,unsigned);
+static void record_channel(unsigned direction,unsigned channel,uint32_t value)
+{
+    const ChannelEvent event{direction,channel,value};
+    if(oracle_reference_pass){reference_channels.push_back(event);return;}
+    if(channel_index>=reference_channels.size()) {
+        fprintf(stderr,"extra channel event %s index=%zu\n",current_case.c_str(),channel_index);abort();
+    }
+    const auto& expected=reference_channels[channel_index++];
+    if(event.direction!=expected.direction||event.channel!=expected.channel||event.value!=expected.value) {
+        fprintf(stderr,"channel transcript mismatch %s event=%zu actual=%u,%u,%08X expected=%u,%u,%08X\n",current_case.c_str(),channel_index-1,event.direction,event.channel,event.value,expected.direction,expected.channel,expected.value);abort();
+    }
+}
 extern "C" {
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
 void spu_indirect_branch(spu_context*);
@@ -139,7 +168,9 @@ void spu_stop(spu_context* c){fprintf(stderr,"unexpected stop %s pc=%X\n",curren
 void spu_halt(spu_context* c){fprintf(stderr,"unexpected halt %s pc=%X\n",current_case.c_str(),c->pc);abort();}
 void spu_wrch(spu_context* c,uint32_t channel,u128 value)
 {
-    const auto v=value._u32[0];
+    auto v=value._u32[0];
+    if(!oracle_reference_pass&&corrupt_channel&&channel==MFC_Cmd&&!corruption_injected){v^=1;corruption_injected=true;}
+    record_channel(0,channel,v);
     switch(channel) {
     case MFC_LSA:c->mfc_lsa=v;return;
     case MFC_EAH:c->mfc_eah=v;return;
@@ -157,7 +188,15 @@ void spu_wrch(spu_context* c,uint32_t channel,u128 value)
             fprintf(stderr,"transfer mismatch %s index=%zu actual=%u,%X,%X,%u expected=%u,%X,%X,%u\n",current_case.c_str(),transfer_index-1,kind,lsa,c->mfc_eal,c->mfc_size,expected.kind,expected.lsa,expected.ea,expected.size);abort();
         }
         assert(uint64_t(lsa)+expected.size<=SPU_LS_SIZE);
-        if(kind==2) {
+        if(kind==2&&!oracle_reference_pass) {
+            assert(host_pipeline_ready);
+            const unsigned index=planned_publication;
+            const uint8_t* bytes=index==0?host_reference_output.data():index==1?host_world_output.data():host_curve_output.data();
+            if(!publication_fault&&memcmp(bytes,expected.data.data(),expected.size)) {
+                fprintf(stderr,"host pipeline output mismatch %s publication=%u\n",current_case.c_str(),index);abort();
+            }
+            if(publish_host_pipeline)memcpy(c->ls+lsa,bytes,expected.size);
+            ++host_pipeline_publications;host_pipeline_bytes+=expected.size;
             assert(planned_publication<pending_job_input.publications);
             const auto& planned=pending_job_input.output[planned_publication++];
             if(lsa!=planned.lsa||c->mfc_eal!=planned.ea||c->mfc_size!=planned.bytes||c->mfc_tag!=pending_job_input.dma_tag) {
@@ -165,7 +204,7 @@ void spu_wrch(spu_context* c,uint32_t channel,u128 value)
             }
             ++frontend_publications;
         }
-        if(kind==1){memcpy(c->ls+lsa,expected.data.data(),expected.size);observe_clip_get(c,expected);}
+        if(kind==1){memcpy(c->ls+lsa,expected.data.data(),expected.size);if(!oracle_reference_pass)observe_clip_get(c,expected);}
         else if(memcmp(c->ls+lsa,expected.data.data(),expected.size)) {
             fprintf(stderr,"published bytes mismatch %s transfer=%zu\n",current_case.c_str(),transfer_index-1);abort();
         }
@@ -178,14 +217,16 @@ void spu_wrch(spu_context* c,uint32_t channel,u128 value)
 }
 u128 spu_rdch(spu_context* c,uint32_t channel)
 {
+    uint32_t value=0;
     switch(channel) {
-    case MFC_RdTagStat:return spu_il(c->mfc_tag_status&c->mfc_tag_mask);
-    case SPU_RdMachStat:return spu_il(c->int_enable&1);
-    case SPU_RdInMbox:assert(spu_channel_has_data(&c->ch_in_mbox));return spu_il(spu_channel_read(&c->ch_in_mbox));
+    case MFC_RdTagStat:value=c->mfc_tag_status&c->mfc_tag_mask;break;
+    case SPU_RdMachStat:value=c->int_enable&1;break;
+    case SPU_RdInMbox:assert(spu_channel_has_data(&c->ch_in_mbox));value=spu_channel_read(&c->ch_in_mbox);break;
     default:fprintf(stderr,"unexpected read channel=%u %s\n",channel,current_case.c_str());abort();
     }
+    record_channel(1,channel,value);return spu_il(value);
 }
-uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
+uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);const auto value=c->ch_in_mbox.count;record_channel(2,channel,value);return value;}
 }
 #include "../analysis/native-geometry/phase4/job-oracle-v18/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
@@ -295,6 +336,8 @@ static void animation_original_probe(unsigned pc,spu_context* c)
         }
         if(!full_clip_calls)check_full_clip_bounds(header_view,block_view,tail,clip_curve_padding[owner].word,padded-curves);
         for(unsigned i=0;i<padded-curves;++i)clip_curve_padding[owner].word[i]=pending_full_clip.curve[curves+i];
+        for(unsigned component=0;component<12;++component)memcpy(host_pipeline.leaf[slot-1].pose.component[component],pending_full_clip.pose.component[component],pending_job_input.joints*4);
+        memcpy(host_pipeline.leaf[slot-1].curve,pending_full_clip.curve,padded*4);
         ++full_clip_calls;
         for(unsigned kind=0;kind<4;++kind)full_clip_static[kind]+=pending_clip_input.static_count[kind];
         pending_clip_vector_kind=1;++clip_inputs;
@@ -409,6 +452,12 @@ static void animation_original_probe(unsigned pc,spu_context* c)
         return;
     }
     if(pc==0x4fb8) {
+        assert(!host_pipeline_ready);
+        buzz::produce_animation_host_outputs(host_control,host_hierarchy,host_root,c->ls+pending_job_input.input[2].lsa,
+            host_pipeline,host_reference_output.data(),host_world_output.data(),host_curve_output.data());
+        if(!host_pipeline_jobs)check_host_pipeline_guards(c);
+        if(corrupt_host_pipeline&&!corruption_injected){host_reference_output[0]^=0x80;corruption_injected=true;}
+        host_pipeline_ready=true;++host_pipeline_jobs;
         const unsigned at=c->gpr[6]._u32[0],entries=c->gpr[7]._u32[0];assert(at<=SPU_LS_SIZE);
         assert(at==pending_job_input.hierarchy.lsa&&entries==pending_job_input.hierarchy_entries&&c->gpr[5]._u32[0]==pending_job_input.root_pose_lsa);
         if(!buzz::plan_animation_host_hierarchy({c->ls+at,SPU_LS_SIZE-at},entries,pending_blend_count,pending_hierarchy_plan)) {
@@ -809,6 +858,65 @@ static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,u
 #else
     return {data,bytes};
 #endif
+}
+static void check_host_control_inputs(const spu_context* c)
+{
+    const auto& sk=pending_job_input.cache[1];
+    const auto guarded=guarded_view(c->ls+sk.lsa,sk.bytes,0);
+    buzz::AnimationHostControlPlan plan;assert(buzz::plan_animation_host_control(pending_job_input,guarded,plan));
+    for(unsigned test=0;test<18;++test) {
+        auto job=pending_job_input;std::vector<uint8_t> bytes(c->ls+sk.lsa,c->ls+sk.lsa+sk.bytes);
+        buzz::AnimationByteView skeleton{bytes.data(),bytes.size()};
+        auto put=[&](unsigned at,uint32_t n){for(unsigned i=0;i<4;++i)bytes[at+i]=n>>(24-i*8);};
+        const unsigned flags=40+buzz::animation_job_be32(bytes.data()+40),count=(job.curve_floats+3)&~3u;
+        switch(test) {
+        case 0:job.joints=0;break;
+        case 1:job.joints=257;break;
+        case 2:job.curve_floats=257;break;
+        case 3:job.nodes=0;break;
+        case 4:job.nodes=3;break;
+        case 5:job.clips=1;break;
+        case 6:job.node[0].operation=2;break;
+        case 7:job.node[0].factor=0x80000000;break;
+        case 8:job.node[0].operation=1;job.node[0].factor=0x3f000000;break;
+        case 9:job.node[0].left=0;break;
+        case 10:job.node[0].left=uint16_t(0x8000|job.clips);break;
+        case 11:job.node[0].left=0x4000;break;
+        case 12:job.node[0].left=uint16_t(0x4000|job.nodes);break;
+        case 13:skeleton.bytes=47;break;
+        case 14:put(40,0);break;
+        case 15:put(40,0xfffffff0);break;
+        case 16:bytes[flags+count-1]=2;break;
+        case 17:skeleton.bytes=flags+count-1;break;
+        }
+        memset(&plan,0x5a,sizeof(plan));const auto unchanged=plan;
+        assert(!buzz::plan_animation_host_control(job,skeleton,plan));assert(!memcmp(&plan,&unchanged,sizeof(plan)));
+    }
+    puts("PASS host control admission: 18 invalid graphs/strengths/clamp spans rejected unchanged; read-only skeleton input pass");
+}
+static void check_host_pipeline_guards(const spu_context* c)
+{
+    auto workspace=std::make_unique<buzz::AnimationHostPipelineWorkspace>();memset(workspace.get(),0xa7,sizeof(*workspace));
+    const unsigned joints=pending_job_input.joints,curves=(pending_job_input.curve_floats+3)&~3u;
+    for(unsigned leaf=0;leaf<pending_job_input.clips;++leaf) {
+        for(unsigned component=0;component<12;++component)memcpy(workspace->leaf[leaf].pose.component[component],host_pipeline.leaf[leaf].pose.component[component],joints*4);
+        memcpy(workspace->leaf[leaf].curve,host_pipeline.leaf[leaf].curve,curves*4);
+    }
+    std::array<uint8_t,256*48> reference;reference.fill(0xa7);
+    std::array<uint8_t,256*64> world;world.fill(0xa7);
+    std::array<uint8_t,256*4> curve;curve.fill(0xa7);
+    const auto input=guarded_view(c->ls+pending_job_input.input[2].lsa,joints*48,0);
+    buzz::produce_animation_host_outputs(host_control,host_hierarchy,host_root,input.data,*workspace,reference.data(),world.data(),curve.data());
+    assert(!memcmp(reference.data(),host_reference_output.data(),joints*48)&&!memcmp(world.data(),host_world_output.data(),joints*64)&&!memcmp(curve.data(),host_curve_output.data(),curves*4));
+    for(unsigned i=joints*48;i<reference.size();++i)assert(reference[i]==0xa7);
+    for(unsigned i=joints*64;i<world.size();++i)assert(world[i]==0xa7);
+    for(unsigned i=curves*4;i<curve.size();++i)assert(curve[i]==0xa7);
+    for(unsigned component=0;component<12;++component)for(unsigned i=joints;i<256;++i) {
+        assert(workspace->world.component[component][i]==0xa7a7a7a7);
+        for(unsigned node=0;node<host_control.nodes;++node)assert(workspace->node[node].pose.component[component][i]==0xa7a7a7a7);
+    }
+    for(unsigned node=0;node<host_control.nodes;++node)for(unsigned i=curves;i<256;++i)assert(workspace->node[node].curve[i]==0xa7a7a7a7);
+    puts("PASS host pipeline guarded reference input, control/world unused slots and final output canaries");
 }
 static void check_default_pose_inputs(const spu_context* c)
 {
@@ -1556,10 +1664,13 @@ static void check_numeric_curve_keys(const spu_context* original)
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys"||std::string(argv[3])=="CorruptClipTime"||std::string(argv[3])=="ClipReplace"||std::string(argv[3])=="CorruptFullClip");
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys"||std::string(argv[3])=="CorruptClipTime"||std::string(argv[3])=="ClipReplace"||std::string(argv[3])=="CorruptFullClip"||std::string(argv[3])=="PipelinePublish"||std::string(argv[3])=="CorruptPipeline"||std::string(argv[3])=="CorruptChannel");
     publication_fault=std::string(argv[3]).rfind("Corrupt",0)==0;
     corrupt_full_clip=std::string(argv[3])=="CorruptFullClip";
-    replace_full_clip=std::string(argv[3])=="ClipReplace"||corrupt_full_clip;
+    corrupt_channel=std::string(argv[3])=="CorruptChannel";
+    corrupt_host_pipeline=std::string(argv[3])=="CorruptPipeline";
+    publish_host_pipeline=std::string(argv[3])=="PipelinePublish"||corrupt_host_pipeline;
+    replace_full_clip=std::string(argv[3])=="ClipReplace"||corrupt_full_clip||publish_host_pipeline;
     corrupt_scalar_keys=std::string(argv[3])=="CorruptScalarKeys";corrupt_clip_time=std::string(argv[3])=="CorruptClipTime";
     corrupt_extra_pose=std::string(argv[3])=="CorruptExtraPose";corrupt_extra_curve=std::string(argv[3])=="CorruptExtraCurve";
     corrupt_hierarchy=std::string(argv[3])=="CorruptHierarchy";
@@ -1573,6 +1684,8 @@ int main(int argc,char** argv)
     for(auto& file:std::filesystem::directory_iterator(argv[1]))if(file.path().extension()==".gz")files.push_back(file.path());
     std::sort(files.begin(),files.end());
     std::array<uint8_t,2048+SPU_LS_SIZE> skipped;
+    auto* channel_report=fopen((output_directory/"channel-checks.tsv").string().c_str(),"wb");assert(channel_report);
+    fputs("job\tevents\tfnv64\n",channel_report);
     for(auto& path:files) {
         current_case=path.filename().string();auto* file=gzopen(path.string().c_str(),"rb");assert(file);
         auto read=[&](void* data,unsigned n){assert(gzread(file,data,n)==int(n));};
@@ -1586,10 +1699,21 @@ int main(int argc,char** argv)
         if(!buzz::read_animation_job_input(c->ls,SPU_LS_SIZE,c->gpr[3]._u32[0],c->gpr[4]._u32[0],pending_job_input,&rejection)) {
             fprintf(stderr,"native animation frontend rejected %s: %s\n",current_case.c_str(),rejection);abort();
         }
-        if(!frontend_jobs){check_invalid_job_inputs(c.get());check_default_pose_inputs(c.get());}
+        if(!frontend_jobs){check_invalid_job_inputs(c.get());check_default_pose_inputs(c.get());check_host_control_inputs(c.get());}
         const auto& skeleton=pending_job_input.cache[1];buzz::AnimationByteView defaults;
         assert(buzz::read_animation_pose_defaults({c->ls+skeleton.lsa,skeleton.bytes},pending_job_input.joints,defaults));
         assert(buzz::decode_animation_pose_defaults(defaults,pending_job_input.joints,job_default_pose));
+        assert(buzz::plan_animation_host_control(pending_job_input,{c->ls+skeleton.lsa,skeleton.bytes},host_control));
+        assert(buzz::plan_animation_host_hierarchy({c->ls+pending_job_input.hierarchy.lsa,pending_job_input.hierarchy.bytes},
+            pending_job_input.hierarchy_entries,pending_job_input.joints,host_hierarchy));
+        host_root=buzz::decode_animation_host_pose8(c->ls+pending_job_input.root_pose_lsa,1);host_pipeline_ready=false;
+        auto reference=std::make_unique<spu_context>();memcpy(reference.get(),c.get(),sizeof(*c));reference->ls=reference->ls_store;
+        reference_channels.clear();channel_index=0;oracle_reference_pass=true;probe_enabled=false;transfer_index=0;
+        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00000010(reference.get());drain(reference.get(),expected[0]);
+        assert(transfer_index==transfers.size()&&reference->host_depth==1&&reference->image_id==40&&reference->ls==reference->ls_store&&!g_spu_trampoline_fn);
+        const uint32_t reference_exit[]={reference->pc,reference->status,reference->stop_code,unsigned(spu_channel_has_data(&reference->ch_out_mbox)),reference->ch_out_mbox.value,unsigned(spu_channel_has_data(&reference->ch_out_intr_mbox)),reference->ch_out_intr_mbox.value};
+        assert(!memcmp(reference_exit,expected,sizeof(reference_exit)));
+        oracle_reference_pass=false;probe_enabled=true;transfer_index=0;channel_index=0;
         ++frontend_jobs;frontend_clips+=pending_job_input.clips;
         for(unsigned i=0;i<pending_job_input.nodes;++i)++frontend_nodes[pending_job_input.node[i].operation];
         planned_publication=0;planned_clip_headers=0;planned_clip_bodies=0;clip_curve_padding_slots=0;
@@ -1599,7 +1723,15 @@ int main(int argc,char** argv)
         assert(transfer_index==transfers.size()&&c->host_depth==1&&c->image_id==40&&c->ls==c->ls_store&&!g_spu_trampoline_fn);
         const uint32_t exit[]={c->pc,c->status,c->stop_code,unsigned(spu_channel_has_data(&c->ch_out_mbox)),c->ch_out_mbox.value,unsigned(spu_channel_has_data(&c->ch_out_intr_mbox)),c->ch_out_intr_mbox.value};
         assert(!memcmp(exit,expected,sizeof(exit)));++jobs;total_transfers+=n;
+        assert(channel_index==reference_channels.size());compared_channel_events+=channel_index;++compared_channel_jobs;
+        uint64_t digest=14695981039346656037ull;
+        for(const auto& event:reference_channels)for(uint32_t word:{event.direction,event.channel,event.value})for(unsigned byte=0;byte<4;++byte){digest^=uint8_t(word>>(byte*8));digest*=1099511628211ull;}
+        fprintf(channel_report,"%s\t%zu\t%016llX\n",current_case.c_str(),channel_index,(unsigned long long)digest);
     }
+    assert(!fclose(channel_report));assert(compared_channel_jobs==17714&&compared_channel_events);
+    printf("PASS paired full channel transcripts: jobs=%llu events=%llu\n",(unsigned long long)compared_channel_jobs,(unsigned long long)compared_channel_events);
+    assert(host_pipeline_jobs==17714&&host_pipeline_publications==39112);
+    printf("PASS host control-to-publication pipeline: jobs=%llu publications=%llu bytes=%llu direct-publish=%u\n",(unsigned long long)host_pipeline_jobs,(unsigned long long)host_pipeline_publications,(unsigned long long)host_pipeline_bytes,publish_host_pipeline);
     assert(jobs==17714&&total_transfers==115162&&(replace_full_clip||dump_finished));
     assert(replaced_full_clips==(replace_full_clip?38025:0));
     printf("PASS complete clip replacements=%llu\n",(unsigned long long)replaced_full_clips);
