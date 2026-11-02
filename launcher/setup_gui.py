@@ -32,6 +32,7 @@ class Wizard:
         self.jobs = tk.StringVar(value="6")
         self.import_only = tk.BooleanVar(value=False)
         self.no_update = tk.BooleanVar(value=False)
+        self.upscaler = tk.BooleanVar(value=False)
         self.status = tk.StringVar(value="Your source files stay unchanged. Imports and builds are stored in runtime/setup.")
         root.title("Buzz! Quiz World • Prepare for PC")
         root.geometry("980x740")
@@ -59,7 +60,9 @@ class Wizard:
         options = ttk.Frame(frame)
         options.pack(fill="x", pady=12)
         for text, variable in (("Use the disc EBOOT (ignore the selected update)", self.no_update),
-                               ("Import only, without building", self.import_only)):
+                               ("Import only, without building", self.import_only),
+                               ("Download the Real-ESRGAN texture upscaler (45 MB from GitHub) for automatic texture upscaling",
+                                self.upscaler)):
             check = ttk.Checkbutton(options, text=text, variable=variable)
             check.pack(anchor="w")
             self.entries.append(check)
@@ -122,7 +125,8 @@ class Wizard:
         if self.busy:
             return
         try:
-            inputs = Inputs(**{key: variable.get().strip() for key, variable in self.fields.items()}, jobs=int(self.jobs.get()))
+            inputs = Inputs(**{key: variable.get().strip() for key, variable in self.fields.items()}, jobs=int(self.jobs.get()),
+                            upscaler=self.upscaler.get())
             if self.no_update.get():
                 inputs.update = ""
             inputs.validate()
@@ -158,6 +162,7 @@ class Wizard:
                 variable.set(getattr(values, key))
             self.jobs.set(str(values.jobs))
             self.no_update.set(not bool(values.update))
+            self.upscaler.set(values.upscaler)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             messagebox.showerror("Invalid session", str(exc), parent=self.root)
             return

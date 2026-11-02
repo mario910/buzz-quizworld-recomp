@@ -250,9 +250,17 @@ both UIs:
   `textures/replace/auto/`. The renderer rescans `replace/` as files arrive,
   so an upscale applies the next time the game loads that texture (usually
   the next screen or round); upscales are kept, so later runs start with
-  them. Unpack the `realesrgan-ncnn-vulkan` release (the executable with its
-  `models/` folder) into `runtime/textures/upscaler/`; the launcher shows
-  whether it is found. It runs at below-normal priority on the GPU, in
+  them. Install the upscaler (Real-ESRGAN's `realesrgan-ncnn-vulkan`) one
+  of three ways: tick **Download the Real-ESRGAN texture upscaler** in
+  `Prepare-Buzz` (an extra, resumable preparation stage for that build), run
+  `scripts\Install-Upscaler.ps1` for a developer checkout (`-Runtime` picks
+  another game folder, `-Archive` installs offline from a local copy), or
+  unpack the release yourself into `runtime/textures/upscaler/`. The first
+  two download one pinned release (v0.2.5.0, 45 MB from GitHub) only when
+  asked, check its size and SHA-256 before extracting, keep it in
+  `runtime/setup/downloads/` for later preparations, and install only the
+  executable, its OpenMP DLLs and the models, replacing an older install
+  whole. The launcher shows whether it is found. It runs at below-normal priority on the GPU, in
   batches of up to 32 textures (smallest first, at most 4 megapixels of
   input), so the model loads once per batch rather than once per texture
   (one 128x128 texture 2.1 s, ten 3.5 s). It skips textures whose upscale would exceed 2048

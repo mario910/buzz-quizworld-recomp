@@ -292,7 +292,7 @@ void display_settings(App& app) {
         const auto upscaler=textures/"upscaler"/"realesrgan-ncnn-vulkan.exe";
         std::error_code ec;
         if(std::filesystem::is_regular_file(upscaler,ec))ImGui::TextDisabled("Upscaler found: %s",utf8(upscaler).c_str());
-        else ImGui::TextColored(ImVec4(1.0f,0.75f,0.3f,1.0f),"Upscaler missing: unpack realesrgan-ncnn-vulkan (with its models folder) into %s",utf8(upscaler.parent_path()).c_str());
+        else ImGui::TextColored(ImVec4(1.0f,0.75f,0.3f,1.0f),"Upscaler missing. Install it with Prepare-Buzz (tick the upscaler download) or scripts\\Install-Upscaler.ps1, or unpack realesrgan-ncnn-vulkan with its models folder into %s",utf8(upscaler.parent_path()).c_str());
     }
     ImGui::TextDisabled("PNGs in replace/ (any size, e.g. 4x upscales of the dump) are used in place of the game's textures with the same name. Dumping writes each new texture to dump/. Automatic upscaling dumps, upscales each new texture in the background into replace/auto and uses it the next time the game loads that texture; upscales are kept for later runs. All require restarting the game.");
 }

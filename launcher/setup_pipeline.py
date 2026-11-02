@@ -1,4 +1,5 @@
-"""Private, resumable in-process import/build pipeline. No game/key downloads."""
+"""Private, resumable in-process import/build pipeline. No game/key downloads;
+the only download is the opt-in texture upscaler (upscaler_install)."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -39,10 +40,13 @@ class Inputs:
     keys: str = ""
     update: str = ""
     jobs: int = 6
+    upscaler: bool = False
 
     def validate(self):
         if type(self.jobs) is not int or not 1 <= self.jobs <= 64:
             raise ValueError("Compiler jobs must be 1–64.")
+        if type(self.upscaler) is not bool:
+            raise ValueError("The upscaler choice must be yes or no.")
         for value in (self.game, self.firmware):
             if not value or not Path(value).is_absolute() or not Path(value).exists():
                 raise ValueError("Choose full paths to an ISO/dump and PS3UPDAT.PUP/dev_flash.")
@@ -450,6 +454,11 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
             log("Verified explicitly rebuilt EXE against its version-bound build manifest.")
         state["built_exe"] = result
         save()
+        if inputs.upscaler:
+            from . import upscaler_install
+            # Shared download cache: later sessions reuse the verified archive.
+            stage("install texture upscaler", lambda: upscaler_install.install(
+                workspace / "runtime", log, cancel, cache=project / "runtime/setup/downloads"))
         model.atomic_text(project / "runtime/setup/last-ready.json", json.dumps({"session": str(session), "workspace": str(workspace)}, indent=2))
         log("Ready. Use Play to open this build's controller/game launcher.")
         return session, state
