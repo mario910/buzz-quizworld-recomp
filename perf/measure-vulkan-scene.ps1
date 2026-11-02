@@ -128,7 +128,8 @@ try {
         Key $red; Start-Sleep 5                  # load profile
         Key $red; Start-Sleep 5                  # first profile
         Key $red; Start-Sleep 5                  # ready
-        for ($i = 0; $i -lt 4 -and (Draws) -lt 600; $i++) { Key $red; Start-Sleep 5 }
+        Key $red; Start-Sleep 5 # Fixed single ready confirmation;no draw-count-driven extra input.
+        Write-Output 'round_ready_input=fixed-single-v2'
         $roundStart = ((Get-Date) - $t0).TotalSeconds
         Write-Output ("round_start_s={0:N1}" -f $roundStart)
         Phase 'solo-round'
