@@ -4,7 +4,8 @@ a second pack. Questions, speech and media are unchanged copies.
 
   python -I make_test_pack.py <POLPACK0100.PAK> <out dir> [--pack 101] [--rounds q_people]
 
-Writes <out>/PACK0101/POLPACK0101.PAK. Nothing is written into game folders.
+Writes <out>/PACK0101/POLPACK0101.edat (the HDD DLC archive name). Nothing is
+written into game folders.
 """
 import argparse
 import struct
@@ -127,7 +128,7 @@ def main(argv):
 
     out = Path(a.out) / dst_dir
     out.mkdir(parents=True, exist_ok=True)
-    pak = out / f"{lang}{dst_dir}.PAK"
+    pak = out / f"{lang}{dst_dir}.edat"   # HDD DLC archive name
     write_stored_zip(pak, entries)
     for t in tmp.iterdir():
         t.unlink()

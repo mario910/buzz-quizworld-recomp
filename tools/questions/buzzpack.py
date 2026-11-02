@@ -193,7 +193,9 @@ def build(src, template, out_dir, pack_no):
 
     out = Path(out_dir) / dir_name
     out.mkdir(parents=True, exist_ok=True)
-    pak = out / f"{lang}{dir_name}.PAK"
+    # DLC packs on the HDD are found as <LANG>PACKnnnn.edat (a plain ZIP is
+    # fine: the runtime serves non-NPD .edat files as plaintext).
+    pak = out / f"{lang}{dir_name}.edat"
     write_stored_zip(pak, list(entries.items()))
     _validate(pak, lang)
     return pak, dict(questions=len(qs), rounds=len(used_roots), pictures=len(images),

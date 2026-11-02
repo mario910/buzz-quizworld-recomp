@@ -151,8 +151,9 @@ Packs and plays one round from a custom pack.
 
 ## Pack builder prototype (`tools/questions/buzzpack.py`)
 
-Builds `<LANG>PACKnnnn.PAK` from a JSON source, or from a KiP export. Not yet
-tested in game. Everything is checked by re-parsing the output.
+Builds `<LANG>PACKnnnn.edat` (a plain ZIP; see the in-game results below) from a JSON
+source, or from a KiP export. Packs register and list in game; rounds not yet played.
+Everything is checked by re-parsing the output.
 
 ```
 python -I tools/questions/buzzpack.py from-kip kip_questions.json kip_pl.json --lang pl --images <KiP JPEG dir>
@@ -204,7 +205,41 @@ This is our own implementation, so no third-party encoder is needed. It produces
 - In-game decoding goes through the firmware ATRAC decoder lifted in the port. That is the
   remaining check.
 
-## Milestone 1: second pack discovery (static work done; run pending)
+## In-game test results (2026-11-02, eu100 Vulkan build of main 499b6d4)
+
+Run from this worktree's own frozen build and `runtime/`, in the background and muted, with
+`BUZZ_SCRIPT` input. Trace switches used: `PS3_FSLOG=1` (fs opendir/stat/open),
+`BUZZ_BOOT_TRACE=1` (Lua `IncludeScript`), `PS3RECOMP_VK_DUMP=<file.ppm>` +
+`PS3RECOMP_VK_DUMP_EVERY` (frame capture).
+
+**How to install a custom pack:**
+`runtime/dev_hdd0/game/BCES00647/USRDIR/PACKnnnn/<LANG>PACKnnnn.edat`.
+- **Name:** the archive must be `<LANG>PACKnnnn.edat` (no `.PAK`). The game ignores
+  `<LANG>PACKnnnn.PAK` on the HDD; it only accepts DRM names there. The `.PAK.edat`, `.sdat`
+  and `.PAK.sdat` variants are probed but not mounted.
+- **Content:** a plain stored ZIP. The runtime passes non-NPD `.edat` files through as
+  plaintext, and its `sceNpDrmIsAvailable` reports the content as available.
+- **Discovery:** the boot scan lists `/dev_hdd0/game/BCES00647/USRDIR` (and `BCES00195`)
+  and adds every `PACK*` directory to the search paths. The pack archive is opened after the
+  language choice, together with `POL.PAK` and the disc's `POLPACK0100.PAK`.
+- **Registration:** `RunPackageRegistrationScripts` (frontend1, after network init) runs
+  `SCRIPTS/register` for every mounted pack.
+  - **Verified:** with PACK0101 and PACK0102 installed, three registrations run (disc + both packs).
+  - For PACK0102, `Generated/RoundPackages` is included, so `AddPackInfo` returned true.
+
+**What the menus show:**
+- Play > "Gra z pakietami quizów" (Pack Game) is enabled.
+- It opens "Który Pakiet chcesz?" with **both custom packs** listed plus "Rozegraj wszystkie
+  pakiety" (play all packs). The disc pack is not listed, like real DLC.
+- Both packs are titled "STANDARD MIX" because they reuse pack 100's `PackTitlePk100Pack` key.
+- Selecting a pack continues to "Ile osób gra?" (2–4 players), then the player-join screen.
+
+**Not yet verified:**
+- Questions inside a round: the profile step ("Wczytać profil czy stworzyć nowy?") needs an
+  existing or newly created profile for at least two players. That is easiest done by hand with buzzers.
+- Generated ATRAC3 speech and picture sheets playing in game.
+
+## Milestone 1: second pack discovery
 
 ### DLC discovery, from the recompiled EBOOT
 - `func_00265AC0` (ppu_recomp_013.cpp) is the pack scanner. For each entry
