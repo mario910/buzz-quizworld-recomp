@@ -1068,8 +1068,12 @@ The host Q/T/S-to-world/reference matrix chain now matches all 461,853
 matrices in both published streams without captured matrix inputs. Replacing
 both matrix producers together with the key producers preserves every
 captured job/transfer/exit; numeric/tail and four publication-fault probes
-pass. Blend and hierarchy remain original (17,714 nonempty calls each),
-followed by production frontend integration and the live/performance gates.
+pass. Host pose blending now also matches all 461,853 poses, including 541
+strengths, with shared quaternion interpolation and exact translation/scale
+rounding. Replacing its 17,714 calls preserves every captured job output;
+guarded numerics and a fifth publication-fault probe pass. Explicit joint
+weights remain uncovered/unsupported. Hierarchy remains original (17,714
+nonempty calls), followed by production frontend and live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

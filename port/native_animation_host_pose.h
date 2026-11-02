@@ -11,8 +11,8 @@ struct AnimationHostWorldMatrix8 { v8 coefficient[16]; };
 inline AnimationHostPose8 decode_animation_host_pose8(const uint8_t* source,unsigned joints)
 {
     return {decode_geometry_host_floats8(source,48,4,joints),
-        decode_geometry_host_floats8(source+16,48,3,joints),
-        decode_geometry_host_floats8(source+32,48,3,joints)};
+        decode_geometry_host_floats8(source+16,48,4,joints),
+        decode_geometry_host_floats8(source+32,48,4,joints)};
 }
 inline AnimationHostWorldMatrix8 make_animation_host_world_matrices8(const AnimationHostPose8& pose)
 {

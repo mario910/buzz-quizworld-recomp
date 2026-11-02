@@ -1,6 +1,6 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_animation_host_vectors.h"
-#include "../port/native_animation_host_pose.h"
+#include "../port/native_animation_host_blend.h"
 #include "../port/native_animation_host_matrices.h"
 #include "zlib.h"
 #include <algorithm>
@@ -32,7 +32,7 @@ static unsigned pending_base=0;
 static uint64_t compared_quaternions=0;
 static uint64_t replaced_quaternion_calls=0;
 static bool replace_quaternions=false;
-static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corruption_injected=false;
+static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corrupt_blend=false,corruption_injected=false;
 static uint64_t numeric_cases=0,numeric_samples=0;
 static std::array<buzz::AnimationHostQuaternion8,32> pending_static_quaternions;
 static std::vector<uint16_t> pending_static_indices;
@@ -40,6 +40,7 @@ static unsigned pending_static_base=0;
 static uint64_t static_calls=0,static_nonempty=0,compared_static=0,replaced_static=0,numeric_static=0;
 struct VectorObservation { bool started=false,finished=false;uint64_t calls=0,nonempty=0; };
 static VectorObservation vector_observation[4],pose_observation[3];
+static std::map<std::array<uint32_t,4>,std::pair<uint64_t,uint64_t>> blend_recipes;
 static std::array<buzz::AnimationHostVector8,32> pending_vectors;
 static std::vector<uint16_t> pending_vector_indices;
 static unsigned pending_vector_base=0;
@@ -52,6 +53,11 @@ static std::array<uint8_t,256*64> pending_world_bytes;
 static unsigned pending_affine_base=0,pending_affine_count=0;
 static uint64_t composed_affines=0,compared_affines=0,replaced_affines=0;
 static bool animation_native_affine_override(spu_context*);
+static std::array<buzz::AnimationHostPose8,32> pending_blend;
+static unsigned pending_blend_base=0,pending_blend_weights=0,pending_blend_count=0;
+static uint64_t compared_blends=0,replaced_blends=0,numeric_blends=0;
+static void check_numeric_blends(const spu_context*);
+static bool animation_native_blend_override(spu_context*);
 static void check_numeric_matrices(const spu_context*);
 static bool animation_native_matrix_override(spu_context*);
 static void check_numeric_vectors(const spu_context*);
@@ -110,7 +116,7 @@ u128 spu_rdch(spu_context* c,uint32_t channel)
 }
 uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
 }
-#include "../analysis/native-geometry/phase4/job-oracle-v9/reference.inc"
+#include "../analysis/native-geometry/phase4/job-oracle-v10/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next=animation_original_lookup(c->pc&SPU_LS_MASK);
@@ -134,6 +140,47 @@ static void dump(const char* name,const void* data,size_t bytes)
 static void animation_original_probe(unsigned pc,spu_context* c)
 {
     if(!probe_enabled)return;
+    if(pc==0x3188) {
+        const std::array<uint32_t,4> shape{c->gpr[9]._u32[0],c->gpr[6]._u32[0]!=0,c->gpr[8]._u32[0]!=0,c->gpr[4]._u32[0]!=0};
+        auto& record=blend_recipes[shape];
+        static std::map<std::array<uint32_t,4>,bool> dumped_forms;
+        auto form=shape;form[0]=shape[0]==0?0:shape[0]==0x3f800000?1:2;
+        if(!dumped_forms[form]) {
+            dumped_forms[form]=true;
+            const auto name="blend-form-"+std::to_string(dumped_forms.size());
+            dump((name+"-arguments.bin").c_str(),c->gpr+3,8*sizeof(u128));dump((name+"-ls.bin").c_str(),c->ls,SPU_LS_SIZE);
+        }
+        ++record.first;record.second+=c->gpr[10]._u32[0];
+        assert(!shape[1]&&!shape[2]); // Only genuinely covered implicit-weight recipe.
+        pending_blend_base=c->gpr[3]._u32[0];pending_blend_weights=c->gpr[4]._u32[0];pending_blend_count=c->gpr[10]._u32[0];
+        const unsigned a=c->gpr[5]._u32[0],b=c->gpr[7]._u32[0];
+        assert(pending_blend_count<=256&&uint64_t(a)+pending_blend_count*48<=SPU_LS_SIZE&&uint64_t(b)+pending_blend_count*48<=SPU_LS_SIZE);
+        const v8 factor=v8_set(c->gpr[9]._u32[0]);
+        for(unsigned first=0;first<pending_blend_count;first+=8) {
+            const unsigned count=std::min(8u,pending_blend_count-first);
+            pending_blend[first/8]=buzz::blend_animation_host_poses8(
+                buzz::decode_animation_host_pose8(c->ls+a+first*48,count),buzz::decode_animation_host_pose8(c->ls+b+first*48,count),factor);
+        }
+        if(pending_blend_count&&!pose_observation[0].started)check_numeric_blends(c);
+    }
+    if(pc==0x3810&&!replace_quaternions) {
+        for(unsigned first=0;first<pending_blend_count;first+=8) {
+            alignas(32) uint32_t words[12][8];
+            for(unsigned component=0;component<4;++component) {
+                _mm256_store_si256(reinterpret_cast<v8*>(words[component]),pending_blend[first/8].rotation.component[component]);
+                _mm256_store_si256(reinterpret_cast<v8*>(words[4+component]),pending_blend[first/8].translation.component[component]);
+                _mm256_store_si256(reinterpret_cast<v8*>(words[8+component]),pending_blend[first/8].scale.component[component]);
+            }
+            const unsigned count=std::min(8u,pending_blend_count-first);
+            for(unsigned lane=0;lane<count;++lane)for(unsigned component=0;component<12;++component) {
+                const unsigned at=pending_blend_base+(first+lane)*48+component*4;assert(at+4<=SPU_LS_SIZE);const auto* p=c->ls+at;
+                const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+                if(words[component][lane]!=expected){fprintf(stderr,"native blend mismatch %s joint=%u component=%u expected=%08X actual=%08X\n",current_case.c_str(),first+lane,component,expected,words[component][lane]);abort();}
+            }
+            compared_blends+=count;
+        }
+        if(pending_blend_weights){assert(uint64_t(pending_blend_weights)+pending_blend_count<=SPU_LS_SIZE);for(unsigned i=0;i<pending_blend_count;++i)assert(c->ls[pending_blend_weights+i]==255);}
+    }
     if(pc==0x20) {
         pending_affine_base=c->gpr[3]._u32[0];pending_affine_count=c->gpr[6]._u32[0];
         const unsigned source=c->gpr[5]._u32[0];
@@ -375,6 +422,28 @@ static bool animation_native_affine_override(spu_context* c)
     if(corrupt_affines&&!corruption_injected&&pending_affine_count){c->ls[pending_affine_base]^=0x80;corruption_injected=true;}
     c->pc=c->gpr[0]._u32[0];return true;
 }
+static bool animation_native_blend_override(spu_context* c)
+{
+    if(!replace_quaternions||!probe_enabled)return false;
+    animation_original_probe(0x3188,c);
+    for(unsigned first=0;first<pending_blend_count;first+=8) {
+        alignas(32) uint32_t words[12][8];
+        for(unsigned component=0;component<4;++component) {
+            _mm256_store_si256(reinterpret_cast<v8*>(words[component]),pending_blend[first/8].rotation.component[component]);
+            _mm256_store_si256(reinterpret_cast<v8*>(words[4+component]),pending_blend[first/8].translation.component[component]);
+            _mm256_store_si256(reinterpret_cast<v8*>(words[8+component]),pending_blend[first/8].scale.component[component]);
+        }
+        const unsigned count=std::min(8u,pending_blend_count-first);
+        for(unsigned lane=0;lane<count;++lane)for(unsigned component=0;component<12;++component) {
+            const unsigned at=pending_blend_base+(first+lane)*48+component*4;assert(at+4<=SPU_LS_SIZE);
+            const unsigned value=words[component][lane];auto* p=c->ls+at;p[0]=value>>24;p[1]=value>>16;p[2]=value>>8;p[3]=value;
+        }
+    }
+    if(pending_blend_weights){assert(uint64_t(pending_blend_weights)+pending_blend_count<=SPU_LS_SIZE);memset(c->ls+pending_blend_weights,255,pending_blend_count);}
+    ++replaced_blends;animation_original_probe(0x3810,c);
+    if(corrupt_blend&&!corruption_injected&&pending_blend_count){c->ls[pending_blend_base]^=0x80;corruption_injected=true;}
+    c->pc=c->gpr[0]._u32[0];return true;
+}
 static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,unsigned slot)
 {
 #ifdef _WIN32
@@ -587,10 +656,66 @@ static void check_numeric_matrices(const spu_context* original)
     (void)buzz::decode_animation_host_pose8(empty.data,0);
     current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
 }
+static void check_numeric_blends(const spu_context* original)
+{
+    const auto saved=g_spu_trampoline_fn;const auto saved_case=current_case;probe_enabled=false;
+    auto c=std::make_unique<spu_context>();
+    constexpr unsigned a=0x10000,b=0x12000,destination=0x24000,weights=0x26000;
+    constexpr uint32_t fractions[]={0,0x80000000,1,0x3b6842e0,0x3e800000,0x3f000000,0x3f7fffff,0x3f800000};
+    constexpr uint32_t special[]={0,0x80000000,1,0x80000001,0x007fffff,0x807fffff,0x00800000,
+        0x80800000,0x3f800000,0xbf800000,0x7f7fffff,0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff};
+    uint32_t random=0x981c40a6;
+    auto next=[&](){random^=random<<13;random^=random>>17;random^=random<<5;return random;};
+    auto put=[&](unsigned at,uint32_t v){auto* p=c->ls+at;p[0]=v>>24;p[1]=v>>16;p[2]=v>>8;p[3]=v;};
+    for(unsigned test=0;test<2048;++test) {
+        memcpy(c.get(),original,sizeof(*original));c->ls=c->ls_store;
+        const unsigned count=1+test%8,factor=fractions[(test/8)%std::size(fractions)];
+        memset(c->ls+a,0,512);memset(c->ls+b,0,512);memset(c->ls+destination,0,512);memset(c->ls+weights,0,32);
+        uint64_t packed_a[8],packed_b[8];
+        auto pack=[&](){return uint64_t(8000+next()%16000)<<32|uint64_t(8000+next()%16000)<<17|uint64_t(8000+next()%16000)<<2|next()%4;};
+        for(unsigned lane=0;lane<8;++lane){packed_a[lane]=pack();packed_b[lane]=test%3?pack():packed_a[lane];}
+        const auto qa=buzz::decode_animation_host_quaternions8(packed_a),qb=buzz::decode_animation_host_quaternions8(packed_b);
+        alignas(32) uint32_t qa_words[4][8],qb_words[4][8];
+        for(unsigned component=0;component<4;++component){_mm256_store_si256(reinterpret_cast<v8*>(qa_words[component]),qa.component[component]);_mm256_store_si256(reinterpret_cast<v8*>(qb_words[component]),qb.component[component]);}
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component) {
+            put(a+joint*48+component*4,component<4?qa_words[component][joint]:test<512?special[(test+joint*3+component)%std::size(special)]:next());
+            put(b+joint*48+component*4,component<4?qb_words[component][joint]^(test%5?0:0x80000000u):test<512?special[(test*3+joint+component)%std::size(special)]:next());
+        }
+        const auto first=guarded_view(c->ls+a,count*48,0),last=guarded_view(c->ls+b,count*48,1);
+        struct alignas(32) GuardedPose {uint32_t before[8];buzz::AnimationHostPose8 value;uint32_t after[8];} actual;
+        memset(&actual,0xc4,sizeof(actual));
+        actual.value=buzz::blend_animation_host_poses8(buzz::decode_animation_host_pose8(first.data,count),buzz::decode_animation_host_pose8(last.data,count),v8_set(factor));
+        for(unsigned i=0;i<8;++i)assert(actual.before[i]==0xc4c4c4c4&&actual.after[i]==0xc4c4c4c4);
+        assert(!memcmp(first.data,c->ls+a,count*48)&&!memcmp(last.data,c->ls+b,count*48));
+        c->gpr[0]=spu_link(0x1244);c->gpr[3]=spu_il(destination);c->gpr[4]=spu_il(weights);
+        c->gpr[5]=spu_il(a);c->gpr[6]=spu_il(0);c->gpr[7]=spu_il(b);c->gpr[8]=spu_il(0);c->gpr[9]=spu_il(factor);c->gpr[10]=spu_il(count);
+        current_case=saved_case+"/numeric-blend-"+std::to_string(test);
+        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00003188(c.get());
+        assert(c->pc==0x3460);
+        const auto expected_weight=spu_fm(spu_il(factor),spu_il(0x3f7fffff));
+        for(unsigned lane=0;lane<4;++lane)assert(c->gpr[35]._u32[lane]==expected_weight._u32[lane]);
+        drain(c.get(),0x1244);
+        alignas(32) uint32_t words[12][8];
+        for(unsigned component=0;component<4;++component) {
+            _mm256_store_si256(reinterpret_cast<v8*>(words[component]),actual.value.rotation.component[component]);
+            _mm256_store_si256(reinterpret_cast<v8*>(words[4+component]),actual.value.translation.component[component]);
+            _mm256_store_si256(reinterpret_cast<v8*>(words[8+component]),actual.value.scale.component[component]);
+        }
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component) {
+            const auto* p=c->ls+destination+joint*48+component*4;
+            const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+            if(words[component][joint]!=expected){fprintf(stderr,"numeric pose blend mismatch test=%u factor=%08X joint=%u component=%u expected=%08X actual=%08X\n",test,factor,joint,component,expected,words[component][joint]);abort();}
+        }
+        for(unsigned joint=0;joint<count;++joint)assert(c->ls[weights+joint]==255);
+        numeric_blends+=count;
+    }
+    current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
+}
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine");
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend");
+    corrupt_blend=std::string(argv[3])=="CorruptBlend";
     corrupt_affines=std::string(argv[3])=="CorruptAffine";
     corrupt_matrices=std::string(argv[3])=="CorruptMatrix";
     corrupt_vectors=std::string(argv[3])=="CorruptVector";
@@ -621,6 +746,8 @@ int main(int argc,char** argv)
     assert(replace_quaternions?(replaced_matrices==17714):(compared_matrices==461853));
     assert(composed_affines==461853);
     assert(replace_quaternions?(replaced_affines==17714):(compared_affines==461853));
+    assert(numeric_blends==9216&&blend_recipes.size()==541);
+    assert(replace_quaternions?(replaced_blends==17714):(compared_blends==461853));
     printf("PASS animation whole-job oracle mode=%s: %llu exact jobs / %llu ordered transfers; quaternion calls=%llu nonempty=%llu\n",argv[3],(unsigned long long)jobs,(unsigned long long)total_transfers,(unsigned long long)quaternion_calls,(unsigned long long)nonempty_calls);
     printf("PASS native host quaternion samples=%llu\n",(unsigned long long)compared_quaternions);
     printf("PASS native quaternion producer replacements=%llu\n",(unsigned long long)replaced_quaternion_calls);
@@ -631,6 +758,11 @@ int main(int argc,char** argv)
     for(unsigned kind=0;kind<3;++kind)printf("pose observer kind=%u calls=%llu nonempty=%llu\n",kind,(unsigned long long)pose_observation[kind].calls,(unsigned long long)pose_observation[kind].nonempty);
     printf("PASS pose matrices compared=%llu replacements=%llu numeric=%llu\n",(unsigned long long)compared_matrices,(unsigned long long)replaced_matrices,(unsigned long long)numeric_matrices);
     printf("PASS host QTS-to-reference affines composed=%llu compared=%llu replacements=%llu\n",(unsigned long long)composed_affines,(unsigned long long)compared_affines,(unsigned long long)replaced_affines);
+    auto* recipes=fopen((output_directory/"blend-recipes.tsv").string().c_str(),"wb");assert(recipes);
+    fputs("factor\tweightA\tweightB\tweightOut\tcalls\tsamples\n",recipes);
+    for(const auto& [shape,n]:blend_recipes)fprintf(recipes,"%08X\t%u\t%u\t%u\t%llu\t%llu\n",shape[0],shape[1],shape[2],shape[3],(unsigned long long)n.first,(unsigned long long)n.second);
+    assert(!fclose(recipes));
+    printf("PASS pose blend recipes=%zu compared=%llu replacements=%llu numeric=%llu\n",blend_recipes.size(),(unsigned long long)compared_blends,(unsigned long long)replaced_blends,(unsigned long long)numeric_blends);
     puts("PASS invalid recipes rejected: quaternion=6 FLOAT3=8; empty tracks touch no data");
     for(auto [count,n]:quaternion_counts)printf("quaternion count=%u calls=%llu\n",count,(unsigned long long)n);
 }

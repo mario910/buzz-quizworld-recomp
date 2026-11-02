@@ -127,8 +127,15 @@ Its reference-composition producer also transposes them for the second,
 64-byte-per-joint published stream while producing the first, 48-byte affine
 stream. The native chain keeps row-major world SoA through composition and
 emits both final streams directly; the LS layout bridge exists only in the
-original-job test adapter. Pose blending and parent/child hierarchy are still
-original and are the next native data stages.
+original-job test adapter. Parent/child hierarchy remains original.
+
+`native_animation_host_blend.h` handles the observed implicit-full-weight
+recipe: 541 clip strengths in [0,1], no explicit input joint-weight streams.
+It reuses shortest-path quaternion interpolation; translation and scale each
+retain `FMA(last, t, first)` followed by `FNMS(first, t, sum)`, including W.
+The effective `t` includes the fixed SPU RTZ full-weight reciprocal refinement
+(`factor * 0x3F7FFFFF`); exact division by one changes bits. Output joint
+weights are 255. Explicit weight streams need whole-job fallback until covered.
 
 ## Historical groundwork and strict diagnostics
 

@@ -27,6 +27,8 @@ def main():
             body = body.replace('SPU_RET(ctx);','animation_original_probe(0x10020,ctx);SPU_RET(ctx);')
         if pc in (0x9a18,0x9cc8):
             body = body.replace('SPU_RET(ctx);','animation_original_probe(0x19a18,ctx);SPU_RET(ctx);')
+        if pc == 0x3188:
+            probe = 'if(animation_native_blend_override(ctx))return;' + probe
         if pc == 0x6950:
             probe = 'if(animation_native_quaternion_override(ctx))return;' + probe
         if pc == 0x20:
@@ -41,7 +43,7 @@ def main():
     output += '\nstatic void (*animation_original_lookup(unsigned pc))(spu_context*) { switch(pc) {\n'
     output += '\n'.join(f'case 0x{pc:x}:return {prefix}{pc:08X};' for pc in functions)
     output += '\ndefault:return nullptr;} }\n'
-    out = ROOT / 'analysis/native-geometry/phase4/job-oracle-v9/reference.inc'
+    out = ROOT / 'analysis/native-geometry/phase4/job-oracle-v10/reference.inc'
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists():
         if out.read_text(encoding='utf-8') != output:
