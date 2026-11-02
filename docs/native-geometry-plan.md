@@ -180,7 +180,8 @@ profile. Its controller tests and eight-arm whole-job corpus pass
 exceeds 1,275,000 completed comparisons and both native frames look normal.
 The compact profile's reversed menu series improves FPS +3.510%, worker
 cycles/frame −8.957% and process cycles/frame −4.920%, in both pairs.
-Its separate round FPS/CPU gates and normal-build integration still precede default-on.
+Its separate round FPS series improves +2.849%, with both pairs positive.
+Round CPU and normal-build integration still precede default-on.
 Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
