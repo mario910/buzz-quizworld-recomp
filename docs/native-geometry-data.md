@@ -65,8 +65,12 @@ selector comes from configuration byte 6. `native_geometry_host_index_output.h`
 now serializes the full aligned index allocation, including nonzero padding
 from repeated bytes of the last retained group. All 5,280,336 observed final
 index bytes match; see [index output results](native-geometry-phase3b-index-output-results.md).
-The producers remain outside the runtime pending vertex publication tails
-and output integration.
+`native_geometry_host_vertex_job.h` writes dense final vertex buffers directly
+from persistent SoA. Observable padding comes from one extra input position
+transformed with cached matrix/palette data. All admitted visible buffers match
+the original conversion; unsupported output storage and unresolved padded skin
+indices reject before mutation. See [vertex output results](native-geometry-phase3b-vertex-output-results.md).
+The producers remain outside the runtime pending full job integration.
 
 ## Historical groundwork and strict diagnostics
 

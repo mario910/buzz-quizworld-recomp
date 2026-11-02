@@ -61,5 +61,7 @@ static void compare_index_output(const buzz::GeometryHostIndexData& indices,
     }
 }
 #define BUZZ_HOST_INDEX_OUTPUT_CHECK compare_index_output
+#ifndef BUZZ_HOST_CULL_REFERENCE
 #define BUZZ_HOST_CULL_REFERENCE "../analysis/native-geometry/phase3/host-index-output-v1/reference.inc"
+#endif
 #include "geometry-host-cull-job-test.cpp"

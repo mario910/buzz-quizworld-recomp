@@ -11,6 +11,7 @@ struct GeometryHostSkinRecipe {
     bool active = false, object = false;
 };
 struct GeometryHostSkinWorkspace {
+    alignas(16) uint32_t object[12];
     // Original packed palette words, little-endian and ready for AVX2 gather.
     alignas(32) uint32_t coefficient[12][256];
 };
@@ -86,6 +87,44 @@ inline bool read_geometry_host_skin_recipe(const spu_context& c, const GeometryJ
     output = recipe; if (reason) *reason = nullptr; return true;
 }
 
+inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
+    const v8* matrix, bool direction, v8 mask)
+{
+    const v8 x = value.component[0], y = value.component[1], z = value.component[2], w = value.component[3];
+    // Preserve each coordinate's cyclic order, including zero
+    // translation FMAs for directions. They affect SPU rounding.
+    const v8 zero = _mm256_setzero_si256();
+    v8 a = v8_fm(x, matrix[0]); a = v8_fma(y, matrix[1], a); a = v8_fma(z, matrix[2], a);
+    a = v8_fma(w, direction ? zero : matrix[3], a);
+    v8 b = v8_fm(y, matrix[5]); b = v8_fma(z, matrix[6], b);
+    b = v8_fma(w, direction ? zero : matrix[7], b); b = v8_fma(x, matrix[4], b);
+    v8 d = v8_fm(z, matrix[10]); d = v8_fma(w, direction ? zero : matrix[11], d);
+    d = v8_fma(x, matrix[8], d); d = v8_fma(y, matrix[9], d);
+    if (direction) {
+        v8 length = v8_fm(a, a); length = v8_fma(b, b, length); length = v8_fma(d, d, length);
+        const v8 inverse = v8_fi(length, v8_frsqest(length));
+        a = v8_fm(a, inverse); b = v8_fm(b, inverse); d = v8_fm(d, inverse);
+    }
+    value.component[0] = _mm256_and_si256(a, mask);
+    value.component[1] = _mm256_and_si256(b, mask);
+    value.component[2] = _mm256_and_si256(d, mask);
+}
+
+inline void transform_geometry_host_weighted_value(GeometryHostSoA8& value,
+    const v8* blended, bool point, v8 mask)
+{
+    const v8 x = value.component[0], y = value.component[1], z = value.component[2];
+    v8 a = point ? v8_fma(x, blended[0], blended[3]) : v8_fm(x, blended[0]);
+    v8 b = point ? v8_fma(y, blended[5], blended[7]) : v8_fm(y, blended[5]);
+    v8 d = point ? v8_fma(z, blended[10], blended[11]) : v8_fm(z, blended[10]);
+    a = v8_fma(y, blended[1], a); a = v8_fma(z, blended[2], a);
+    b = v8_fma(z, blended[6], b); b = v8_fma(x, blended[4], b);
+    d = v8_fma(x, blended[8], d); d = v8_fma(y, blended[9], d);
+    value.component[0] = _mm256_and_si256(a, mask);
+    value.component[1] = _mm256_and_si256(b, mask);
+    value.component[2] = _mm256_and_si256(d, mask);
+}
+
 inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
     GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
@@ -96,32 +135,17 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
     if (!read_geometry_host_skin_recipe(c, e, input, recipe, reason)) return false;
     if (recipe.object) {
         v8 matrix[12];
-        for (unsigned coefficient = 0; coefficient < 12; ++coefficient)
-            matrix[coefficient] = v8_set(geometry_job_be32(c.ls + recipe.palette + coefficient * 4));
+        for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
+            workspace.object[coefficient] = geometry_job_be32(c.ls + recipe.palette + coefficient * 4);
+            matrix[coefficient] = v8_set(workspace.object[coefficient]);
+        }
         for (unsigned first = 0; first < input.vertices; first += 8) {
             const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
             const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
             for (unsigned semantic = 0; semantic < 3; ++semantic) {
                 if (recipe.field[semantic] == 16 || (semantic && e.position_only())) continue;
                 auto& value = data.at(input, recipe.field[semantic], first / 8);
-                const v8 x = value.component[0], y = value.component[1], z = value.component[2], w = value.component[3];
-                // Preserve each coordinate's cyclic order, including zero
-                // translation FMAs for directions. They affect SPU rounding.
-                const v8 zero = _mm256_setzero_si256();
-                v8 a = v8_fm(x, matrix[0]); a = v8_fma(y, matrix[1], a); a = v8_fma(z, matrix[2], a);
-                a = v8_fma(w, semantic ? zero : matrix[3], a);
-                v8 b = v8_fm(y, matrix[5]); b = v8_fma(z, matrix[6], b);
-                b = v8_fma(w, semantic ? zero : matrix[7], b); b = v8_fma(x, matrix[4], b);
-                v8 d = v8_fm(z, matrix[10]); d = v8_fma(w, semantic ? zero : matrix[11], d);
-                d = v8_fma(x, matrix[8], d); d = v8_fma(y, matrix[9], d);
-                if (semantic) {
-                    v8 length = v8_fm(a, a); length = v8_fma(b, b, length); length = v8_fma(d, d, length);
-                    const v8 inverse = v8_fi(length, v8_frsqest(length));
-                    a = v8_fm(a, inverse); b = v8_fm(b, inverse); d = v8_fm(d, inverse);
-                }
-                value.component[0] = _mm256_and_si256(a, mask);
-                value.component[1] = _mm256_and_si256(b, mask);
-                value.component[2] = _mm256_and_si256(d, mask);
+                transform_geometry_host_object_value(value,matrix,semantic!=0,mask);
             }
         }
         data.ready = true; if (reason) *reason = nullptr; return true;
@@ -154,21 +178,9 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
                 blended[coefficient] = v8_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient]);
         }
         const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
-        auto transform = [&](GeometryHostSoA8& value, bool point) {
-            const v8 x = value.component[0], y = value.component[1], z = value.component[2];
-            v8 a = point ? v8_fma(x, blended[0], blended[3]) : v8_fm(x, blended[0]);
-            v8 b = point ? v8_fma(y, blended[5], blended[7]) : v8_fm(y, blended[5]);
-            v8 d = point ? v8_fma(z, blended[10], blended[11]) : v8_fm(z, blended[10]);
-            a = v8_fma(y, blended[1], a); a = v8_fma(z, blended[2], a);
-            b = v8_fma(z, blended[6], b); b = v8_fma(x, blended[4], b);
-            d = v8_fma(x, blended[8], d); d = v8_fma(y, blended[9], d);
-            value.component[0] = _mm256_and_si256(a, mask);
-            value.component[1] = _mm256_and_si256(b, mask);
-            value.component[2] = _mm256_and_si256(d, mask);
-        };
-        transform(data.at(input, recipe.field[0], first / 8), true);
+        transform_geometry_host_weighted_value(data.at(input, recipe.field[0], first / 8),blended,true,mask);
         for (unsigned semantic = 1; semantic < 4; ++semantic) if (recipe.field[semantic] != 16)
-            transform(data.at(input, recipe.field[semantic], first / 8), false);
+            transform_geometry_host_weighted_value(data.at(input, recipe.field[semantic], first / 8),blended,false,mask);
     }
     data.ready = true; if (reason) *reason = nullptr; return true;
 }

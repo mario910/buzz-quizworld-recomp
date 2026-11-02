@@ -153,6 +153,9 @@ int main(int argc, char** argv)
                     clips->component[component][vertex], expected); abort();
             }
         }
+#ifdef BUZZ_HOST_VERTEX_OUTPUT_CHECK
+        BUZZ_HOST_VERTEX_OUTPUT_CHECK(*entry,*reference,e,input,skin,*data,*workspace,count);
+#endif
         clip_values += e.vertices * 4;
         return values;
     };
@@ -191,6 +194,9 @@ int main(int argc, char** argv)
         compared += compare_original(e, input, skin);
         if (jobs % 5000 == 0) printf("Host skin corpus progress: %u entries\n", jobs);
     }
+#ifdef BUZZ_HOST_VERTEX_OUTPUT_REPORT
+    BUZZ_HOST_VERTEX_OUTPUT_REPORT();
+#endif
     const uint64_t corpus_clip_values = clip_values;
     const uint64_t corpus_kept_indices=kept_indices,corpus_padding_bytes=padding_bytes,corpus_nonzero_padding=nonzero_padding,
         corpus_equal_index=padding_equal_index,corpus_equal_entry=padding_equal_entry;const unsigned corpus_fully_culled=fully_culled;
@@ -249,6 +255,9 @@ int main(int argc, char** argv)
         assert(!memcmp(before.get(),entry.get(),sizeof(*entry)));
         prepare_cull(e);parameter_corner_values += compare_original(e,input,skin);
     }
+#ifdef BUZZ_HOST_VERTEX_CORNER_TEST
+    BUZZ_HOST_VERTEX_CORNER_TEST(compare_original,*entry,*data,*workspace,*clips,*indices);
+#endif
     for (unsigned fault = 0; fault < 14; ++fault) {
         const bool object = fault >= 9;
         memcpy(entry.get(), object ? object_seed.get() : weighted_seed.get(), sizeof(*entry)); entry->ls = entry->ls_store;
@@ -347,6 +356,9 @@ int main(int argc, char** argv)
     printf("PASS composed FP corners:96 modified hot-family cases/%llu logical values;zeros,denormals,extended exponents,sparse/dense/non-normalized weights;14 unchanged-state rejects\n", static_cast<unsigned long long>(corner_values));
     for(const auto& [format,count]:formats)printf("Observed clip format%u: %u jobs\n",format,count);
     printf("PASS clip parameter corners:64 viewport/default-matrix special-value cases;unsigned16 viewport sums/wrap;reversed/denormal depth bounds; %llu preceding logical component values exact\n",static_cast<unsigned long long>(parameter_corner_values));
-    printf("PASS host clip records: %llu corpus component values; %llu FP corner component values across160 cases;9 unchanged-state/ready rejects\n",
-        static_cast<unsigned long long>(corpus_clip_values),static_cast<unsigned long long>(clip_values-corpus_clip_values));
+#ifndef BUZZ_HOST_EXTRA_FP_CASES
+#define BUZZ_HOST_EXTRA_FP_CASES 0
+#endif
+    printf("PASS host clip records: %llu corpus component values; %llu FP corner component values across%u cases;9 unchanged-state/ready rejects\n",
+        static_cast<unsigned long long>(corpus_clip_values),static_cast<unsigned long long>(clip_values-corpus_clip_values),160+BUZZ_HOST_EXTRA_FP_CASES);
 }

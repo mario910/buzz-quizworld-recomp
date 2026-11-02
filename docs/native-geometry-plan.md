@@ -163,8 +163,11 @@ Host culling now matches the composed original flow for 19,399 jobs
 ([cull results](native-geometry-phase3b-cull-results.md)). Final host index
 allocations now match all logical and alignment bytes
 ([index output results](native-geometry-phase3b-index-output-results.md)).
-Next is vertex publication-tail provenance and output/runtime integration.
-Full phase 3b remains open.
+Direct host vertex output now matches 5,801 admitted visible buffers, including
+alignment bytes ([vertex output results](native-geometry-phase3b-vertex-output-results.md)).
+Unsupported output storage and unresolved padded skin indices retain whole-job
+fallback. Next is actual full-job runtime integration and its correctness and
+performance gates. Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 

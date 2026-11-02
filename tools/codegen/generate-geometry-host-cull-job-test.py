@@ -9,7 +9,7 @@ PIN = "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
 PREFIX = "buzz_job_6eba_spu_func_"
 
 
-def main(output_directory="host-cull-job-v1"):
+def main(output_directory="host-cull-job-v1", include_conversion=False):
     raw = (ROOT / "port/spu/buzz_job_6eba/spu_recomp.c").read_bytes()
     if hashlib.sha256(raw).hexdigest() != PIN:
         raise SystemExit("Unreviewed host cull oracle source")
@@ -37,11 +37,21 @@ def main(output_directory="host-cull-job-v1"):
     selected.update(index.NORMAL | transform.NORMAL)
     for pc in index.NORMAL | transform.NORMAL:
         functions[pc]=index.reachable_text(functions[pc])
+    conversion = set()
+    if include_conversion:
+        audit = audit_module('geometry-conversion-audit.py','conversion_audit')
+        conversion = {int(pc,16) for pc in audit.source_graph(raw)['edges']}
+        selected.update(conversion)
+        for pc in conversion:
+            functions[pc] = audit.ring.reachable_text(functions[pc])
     for pc in (0x6e08,0x6ee8):
         functions[pc] = f"observe_original_cull(ctx,0x{pc:x});\n" + functions[pc]
     refs = {int(pc,16) for start in selected for pc in re.findall(PREFIX + r"([0-9A-F]+)", functions[start])}
     stubs = refs - selected
-    if len(selected) != 191 or stubs != {0x7d54,0x7d7c,0x7da4,0x7dcc,0xbf8,0x27e8,0x2b68,0x4178,0xabc8,0xadd4,0xadfc,0xae24,0xae4c,0xae74,0xcc70}:
+    expected_stubs = {0x7d54,0x7d7c,0x7da4,0x7dcc,0xbf8,0x27e8,0x2b68,0x4178,0xabc8,0xadd4,0xadfc,0xae24,0xae4c,0xae74,0xcc70}
+    if include_conversion:
+        expected_stubs.discard(0x4178); expected_stubs.add(0x6158)
+    if len(selected) != (256 if include_conversion else 191) or stubs != expected_stubs:
         raise SystemExit(f"Unreviewed cull graph: {len(selected)} blocks; stubs {sorted(stubs)}")
     output = "\n".join(f"static void {PREFIX}{pc:08X}(spu_context*);" for pc in sorted(selected | stubs))
     output += "\n" + "\n".join(f"static void {PREFIX}{pc:08X}(spu_context*) {{ abort(); }}" for pc in sorted(stubs)) + "\n"
