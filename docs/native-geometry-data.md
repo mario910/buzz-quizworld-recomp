@@ -114,6 +114,22 @@ frame 0-`interior_frames`; the final endpoint is at frame
 `interior_frames+1`. Bounded views reject truncated selected keys before
 publication; host output is disposable if the recipe is rejected.
 
+`native_animation_host_pose.h` decodes 48-byte Q/T/S records: quaternion
+XYZW, translation XYZW and scale XYZW, each four BE words. Only translation
+XYZ and scale XYZ enter matrix production. It builds eight row-major host
+4x4 matrices; the final row is `(0,0,0,1)`. Preserve the original fused
+half-minus-square diagonals followed by multiplication with twice the scale,
+and the separately rounded quaternion cross products. Translation XYZ is
+copied bitwise, including denormals, without FP arithmetic.
+
+The original test caller consumes temporary column-major world matrices.
+Its reference-composition producer also transposes them for the second,
+64-byte-per-joint published stream while producing the first, 48-byte affine
+stream. The native chain keeps row-major world SoA through composition and
+emits both final streams directly; the LS layout bridge exists only in the
+original-job test adapter. Pose blending and parent/child hierarchy are still
+original and are the next native data stages.
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

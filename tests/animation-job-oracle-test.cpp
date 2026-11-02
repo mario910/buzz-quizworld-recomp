@@ -1,5 +1,7 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_animation_host_vectors.h"
+#include "../port/native_animation_host_pose.h"
+#include "../port/native_animation_host_matrices.h"
 #include "zlib.h"
 #include <algorithm>
 #include <array>
@@ -30,18 +32,28 @@ static unsigned pending_base=0;
 static uint64_t compared_quaternions=0;
 static uint64_t replaced_quaternion_calls=0;
 static bool replace_quaternions=false;
-static bool corrupt_quaternions=false,corrupt_vectors=false,corruption_injected=false;
+static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corruption_injected=false;
 static uint64_t numeric_cases=0,numeric_samples=0;
 static std::array<buzz::AnimationHostQuaternion8,32> pending_static_quaternions;
 static std::vector<uint16_t> pending_static_indices;
 static unsigned pending_static_base=0;
 static uint64_t static_calls=0,static_nonempty=0,compared_static=0,replaced_static=0,numeric_static=0;
 struct VectorObservation { bool started=false,finished=false;uint64_t calls=0,nonempty=0; };
-static VectorObservation vector_observation[4];
+static VectorObservation vector_observation[4],pose_observation[3];
 static std::array<buzz::AnimationHostVector8,32> pending_vectors;
 static std::vector<uint16_t> pending_vector_indices;
 static unsigned pending_vector_base=0;
 static uint64_t compared_vectors=0,replaced_vectors=0,numeric_vectors=0;
+static std::array<buzz::AnimationHostWorldMatrix8,32> pending_matrices;
+static unsigned pending_matrix_base=0,pending_matrix_count=0;
+static uint64_t compared_matrices=0,replaced_matrices=0,numeric_matrices=0;
+static std::array<uint8_t,256*48> pending_affines;
+static std::array<uint8_t,256*64> pending_world_bytes;
+static unsigned pending_affine_base=0,pending_affine_count=0;
+static uint64_t composed_affines=0,compared_affines=0,replaced_affines=0;
+static bool animation_native_affine_override(spu_context*);
+static void check_numeric_matrices(const spu_context*);
+static bool animation_native_matrix_override(spu_context*);
 static void check_numeric_vectors(const spu_context*);
 static bool animation_native_vector_override(spu_context*);
 static void check_numeric_quaternions(const spu_context*);
@@ -98,7 +110,7 @@ u128 spu_rdch(spu_context* c,uint32_t channel)
 }
 uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
 }
-#include "../analysis/native-geometry/phase4/job-oracle-v6/reference.inc"
+#include "../analysis/native-geometry/phase4/job-oracle-v9/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next=animation_original_lookup(c->pc&SPU_LS_MASK);
@@ -122,6 +134,68 @@ static void dump(const char* name,const void* data,size_t bytes)
 static void animation_original_probe(unsigned pc,spu_context* c)
 {
     if(!probe_enabled)return;
+    if(pc==0x20) {
+        pending_affine_base=c->gpr[3]._u32[0];pending_affine_count=c->gpr[6]._u32[0];
+        const unsigned source=c->gpr[5]._u32[0];
+        assert(c->gpr[4]._u32[0]==pending_matrix_base&&pending_affine_count==pending_matrix_count&&pending_affine_count<=256);
+        assert(uint64_t(source)+pending_affine_count*48<=SPU_LS_SIZE);
+        for(unsigned first=0;first<pending_affine_count;first+=8) {
+            const unsigned count=std::min(8u,pending_affine_count-first);
+            buzz::emit_animation_host_world_matrices8(pending_matrices[first/8],pending_world_bytes.data()+first*64,count);
+            buzz::AnimationHostAffine8 world;
+            for(unsigned coefficient=0;coefficient<12;++coefficient)world.coefficient[coefficient]=pending_matrices[first/8].coefficient[coefficient];
+            const auto reference=buzz::decode_animation_host_affines8(c->ls+source+first*48,48,count);
+            buzz::emit_animation_host_affines8(buzz::compose_animation_host_affines8(world,reference),pending_affines.data()+first*48,count);
+        }
+        composed_affines+=pending_affine_count;return;
+    }
+    if(pc==0x10020) {
+        assert(uint64_t(pending_affine_base)+pending_affine_count*48<=SPU_LS_SIZE);
+        if(!replace_quaternions) {
+            if(memcmp(c->ls+pending_affine_base,pending_affines.data(),pending_affine_count*48)){fprintf(stderr,"native QTS-to-reference affine mismatch %s\n",current_case.c_str());abort();}
+            if(memcmp(c->ls+pending_matrix_base,pending_world_bytes.data(),pending_matrix_count*64)){fprintf(stderr,"native published world matrix mismatch %s\n",current_case.c_str());abort();}
+            compared_affines+=pending_affine_count;
+        }
+        return;
+    }
+    if(pc==0x4d60) {
+        pending_matrix_base=c->gpr[3]._u32[0];pending_matrix_count=c->gpr[5]._u32[0];
+        const unsigned source=c->gpr[4]._u32[0];assert(pending_matrix_count<=256&&uint64_t(source)+pending_matrix_count*48<=SPU_LS_SIZE);
+        for(unsigned first=0;first<pending_matrix_count;first+=8)pending_matrices[first/8]=buzz::make_animation_host_world_matrices8(
+            buzz::decode_animation_host_pose8(c->ls+source+first*48,std::min(8u,pending_matrix_count-first)));
+        if(pending_matrix_count&&!pose_observation[2].started)check_numeric_matrices(c);
+    }
+    if(pc==0x4fb0&&!replace_quaternions) {
+        for(unsigned first=0;first<pending_matrix_count;first+=8) {
+            alignas(32) uint32_t values[16][8];
+            for(unsigned coefficient=0;coefficient<16;++coefficient)_mm256_store_si256(reinterpret_cast<v8*>(values[coefficient]),pending_matrices[first/8].coefficient[coefficient]);
+            const unsigned count=std::min(8u,pending_matrix_count-first);
+            for(unsigned lane=0;lane<count;++lane)for(unsigned row=0;row<4;++row)for(unsigned column=0;column<4;++column) {
+                const unsigned at=pending_matrix_base+(first+lane)*64+column*16+row*4;assert(at+4<=SPU_LS_SIZE);const auto* p=c->ls+at;
+                const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+                if(expected!=values[row*4+column][lane]){fprintf(stderr,"native pose matrix mismatch %s joint=%u row=%u column=%u expected=%08X actual=%08X\n",current_case.c_str(),first+lane,row,column,expected,values[row*4+column][lane]);abort();}
+            }
+            compared_matrices+=count;
+        }
+    }
+    if(pc==0x3188||pc==0x3810||pc==0x4fb8||pc==0x5730||pc==0x4d60||pc==0x4fb0) {
+        const unsigned kind=(pc==0x3188||pc==0x3810)?0:(pc==0x4fb8||pc==0x5730)?1:2;
+        const char* names[]={"pose-blend","pose-hierarchy","pose-matrix"};
+        auto& observation=pose_observation[kind];const char* name=names[kind];
+        if(pc==0x3188||pc==0x4fb8||pc==0x4d60) {
+            const unsigned count=c->gpr[kind==0?10:kind==1?7:5]._u32[0];
+            ++observation.calls;observation.nonempty+=count!=0;
+            if(count&&!observation.started) {
+                observation.started=true;printf("first %s %s count=%u\n",name,current_case.c_str(),count);
+                for(unsigned r=3;r<=12;++r)printf("%s arg%u %08X %08X %08X %08X\n",name,r,c->gpr[r]._u32[0],c->gpr[r]._u32[1],c->gpr[r]._u32[2],c->gpr[r]._u32[3]);
+                dump((std::string(name)+"-entry-arguments.bin").c_str(),c->gpr+3,10*sizeof(u128));
+                dump((std::string(name)+"-entry-ls.bin").c_str(),c->ls,SPU_LS_SIZE);
+            }
+        } else if(observation.started&&!observation.finished) {
+            observation.finished=true;dump((std::string(name)+"-exit-ls.bin").c_str(),c->ls,SPU_LS_SIZE);
+        }
+        return;
+    }
     if(pc==0x9a18) {
         const unsigned count=c->gpr[17]._u32[0];assert(count<=256);
         pending_vector_indices.clear();pending_vector_base=c->gpr[18]._u32[0];
@@ -266,6 +340,39 @@ static bool animation_native_vector_override(spu_context* c)
     if(corrupt_vectors&&!corruption_injected&&!pending_vector_indices.empty()) {
         c->ls[pending_vector_base+pending_vector_indices[0]*48]^=0x80;corruption_injected=true;
     }
+    c->pc=c->gpr[0]._u32[0];return true;
+}
+static bool animation_native_matrix_override(spu_context* c)
+{
+    if(!replace_quaternions||!probe_enabled)return false;
+    animation_original_probe(0x4d60,c);
+    // Test adapter only: the original caller consumes column-major LS data.
+    // Native computation and future frontend publication use host row-major SoA.
+    for(unsigned first=0;first<pending_matrix_count;first+=8) {
+        alignas(32) uint32_t values[16][8];
+        for(unsigned coefficient=0;coefficient<16;++coefficient)_mm256_store_si256(reinterpret_cast<v8*>(values[coefficient]),pending_matrices[first/8].coefficient[coefficient]);
+        const unsigned count=std::min(8u,pending_matrix_count-first);
+        for(unsigned lane=0;lane<count;++lane)for(unsigned row=0;row<4;++row)for(unsigned column=0;column<4;++column) {
+            const unsigned at=pending_matrix_base+(first+lane)*64+column*16+row*4;assert(at+4<=SPU_LS_SIZE);
+            auto* p=c->ls+at;const unsigned word=values[row*4+column][lane];p[0]=word>>24;p[1]=word>>16;p[2]=word>>8;p[3]=word;
+        }
+    }
+    ++replaced_matrices;animation_original_probe(0x4fb0,c);
+    if(corrupt_matrices&&!corruption_injected&&pending_matrix_count) {
+        pending_matrices[0].coefficient[0]=_mm256_xor_si256(pending_matrices[0].coefficient[0],_mm256_setr_epi32(0x80000000u,0,0,0,0,0,0,0));corruption_injected=true;
+    }
+    c->pc=c->gpr[0]._u32[0];return true;
+}
+static bool animation_native_affine_override(spu_context* c)
+{
+    if(!replace_quaternions||!probe_enabled)return false;
+    animation_original_probe(0x20,c);
+    assert(uint64_t(pending_affine_base)+pending_affine_count*48<=SPU_LS_SIZE);
+    memcpy(c->ls+pending_affine_base,pending_affines.data(),pending_affine_count*48);
+    assert(uint64_t(pending_matrix_base)+pending_matrix_count*64<=SPU_LS_SIZE);
+    memcpy(c->ls+pending_matrix_base,pending_world_bytes.data(),pending_matrix_count*64);
+    ++replaced_affines;
+    if(corrupt_affines&&!corruption_injected&&pending_affine_count){c->ls[pending_affine_base]^=0x80;corruption_injected=true;}
     c->pc=c->gpr[0]._u32[0];return true;
 }
 static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,unsigned slot)
@@ -431,10 +538,61 @@ static void check_numeric_vectors(const spu_context* original)
     assert(buzz::sample_animation_host_vectors({},nullptr));
     current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
 }
+static void check_numeric_matrices(const spu_context* original)
+{
+    const auto saved=g_spu_trampoline_fn;const auto saved_case=current_case;probe_enabled=false;
+    auto c=std::make_unique<spu_context>();
+    constexpr unsigned source=0x10000,destination=0x20000;
+    constexpr uint32_t special[]={0,0x80000000,1,0x80000001,0x007fffff,0x807fffff,
+        0x00800000,0x80800000,0x3f800000,0xbf800000,0x7f7fffff,0xff7fffff,
+        0x7f800000,0xff800000,0x7fffffff,0xffffffff};
+    uint32_t random=0x25d72a38;
+    auto next=[&](){random^=random<<13;random^=random>>17;random^=random<<5;return random;};
+    for(unsigned test=0;test<2048;++test) {
+        memcpy(c.get(),original,sizeof(*original));c->ls=c->ls_store;
+        const unsigned count=1+test%8;memset(c->ls+source,0,512);memset(c->ls+destination,0,512);
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component) {
+            const uint32_t word=test<512?special[(test+joint*3+component)%std::size(special)]:
+                test%2?next():(next()&0x807fffffu)|((120+next()%16)<<23);
+            auto* p=c->ls+source+joint*48+component*4;p[0]=word>>24;p[1]=word>>16;p[2]=word>>8;p[3]=word;
+        }
+        const auto input=guarded_view(c->ls+source,count*48,0);
+        struct alignas(32) GuardedMatrix {uint32_t before[8];buzz::AnimationHostWorldMatrix8 value;uint32_t after[8];} result;
+        memset(&result,0x57,sizeof(result));
+        result.value=buzz::make_animation_host_world_matrices8(buzz::decode_animation_host_pose8(input.data,count));
+        for(unsigned i=0;i<8;++i)assert(result.before[i]==0x57575757&&result.after[i]==0x57575757);
+        assert(!memcmp(input.data,c->ls+source,count*48));
+        std::array<uint8_t,32+512+32> publication;publication.fill(0x39);
+        buzz::emit_animation_host_world_matrices8(result.value,publication.data()+32,count);
+        for(unsigned i=0;i<32;++i)assert(publication[i]==0x39);
+        for(unsigned i=32+count*64;i<publication.size();++i)assert(publication[i]==0x39);
+        c->gpr[0]=spu_link(0x1240);c->gpr[3]=spu_il(destination);c->gpr[4]=spu_il(source);c->gpr[5]=spu_il(count);
+        current_case=saved_case+"/numeric-pose-matrix-"+std::to_string(test);
+        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00004D60(c.get());drain(c.get(),0x1240);
+        alignas(32) uint32_t values[16][8];
+        for(unsigned coefficient=0;coefficient<16;++coefficient)_mm256_store_si256(reinterpret_cast<v8*>(values[coefficient]),result.value.coefficient[coefficient]);
+        for(unsigned joint=0;joint<count;++joint)for(unsigned row=0;row<4;++row)for(unsigned column=0;column<4;++column) {
+            const auto* p=c->ls+destination+joint*64+column*16+row*4;
+            const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+            if(expected!=values[row*4+column][joint]){fprintf(stderr,"numeric pose matrix mismatch test=%u joint=%u row=%u column=%u expected=%08X actual=%08X\n",test,joint,row,column,expected,values[row*4+column][joint]);abort();}
+        }
+        for(unsigned joint=0;joint<count;++joint)for(unsigned row=0;row<4;++row)for(unsigned column=0;column<4;++column) {
+            const auto* expected=c->ls+destination+joint*64+column*16+row*4;
+            assert(!memcmp(publication.data()+32+joint*64+row*16+column*4,expected,4));
+        }
+        numeric_matrices+=count;
+    }
+    // No active joints: masked gathers read no byte at the guard boundary.
+    const auto empty=guarded_view(nullptr,0,0);
+    (void)buzz::decode_animation_host_pose8(empty.data,0);
+    current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
+}
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector");
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine");
+    corrupt_affines=std::string(argv[3])=="CorruptAffine";
+    corrupt_matrices=std::string(argv[3])=="CorruptMatrix";
     corrupt_vectors=std::string(argv[3])=="CorruptVector";
     corrupt_quaternions=std::string(argv[3])=="Corrupt";replace_quaternions=std::string(argv[3])!="Compare";
     _mm_setcsr((_mm_getcsr()&~_MM_ROUND_MASK)|_MM_ROUND_TOWARD_ZERO|0x8040);
@@ -459,6 +617,10 @@ int main(int argc,char** argv)
     assert(jobs==17714&&total_transfers==115162&&dump_finished);
     assert(numeric_vectors==9216&&vector_observation[3].calls==76050&&vector_observation[3].nonempty==21052);
     assert(replace_quaternions?(replaced_vectors==76050):(compared_vectors==24548));
+    assert(numeric_matrices==9216&&pose_observation[2].calls==17714&&pose_observation[2].nonempty==17714);
+    assert(replace_quaternions?(replaced_matrices==17714):(compared_matrices==461853));
+    assert(composed_affines==461853);
+    assert(replace_quaternions?(replaced_affines==17714):(compared_affines==461853));
     printf("PASS animation whole-job oracle mode=%s: %llu exact jobs / %llu ordered transfers; quaternion calls=%llu nonempty=%llu\n",argv[3],(unsigned long long)jobs,(unsigned long long)total_transfers,(unsigned long long)quaternion_calls,(unsigned long long)nonempty_calls);
     printf("PASS native host quaternion samples=%llu\n",(unsigned long long)compared_quaternions);
     printf("PASS native quaternion producer replacements=%llu\n",(unsigned long long)replaced_quaternion_calls);
@@ -466,6 +628,9 @@ int main(int argc,char** argv)
     printf("PASS static quaternion calls=%llu nonempty=%llu compared=%llu replaced=%llu numeric=%llu\n",(unsigned long long)static_calls,(unsigned long long)static_nonempty,(unsigned long long)compared_static,(unsigned long long)replaced_static,(unsigned long long)numeric_static);
     for(unsigned kind=0;kind<4;++kind)printf("vector observer kind=%u calls=%llu nonempty=%llu\n",kind,(unsigned long long)vector_observation[kind].calls,(unsigned long long)vector_observation[kind].nonempty);
     printf("PASS FLOAT3 compared=%llu replacements=%llu numeric=%llu\n",(unsigned long long)compared_vectors,(unsigned long long)replaced_vectors,(unsigned long long)numeric_vectors);
+    for(unsigned kind=0;kind<3;++kind)printf("pose observer kind=%u calls=%llu nonempty=%llu\n",kind,(unsigned long long)pose_observation[kind].calls,(unsigned long long)pose_observation[kind].nonempty);
+    printf("PASS pose matrices compared=%llu replacements=%llu numeric=%llu\n",(unsigned long long)compared_matrices,(unsigned long long)replaced_matrices,(unsigned long long)numeric_matrices);
+    printf("PASS host QTS-to-reference affines composed=%llu compared=%llu replacements=%llu\n",(unsigned long long)composed_affines,(unsigned long long)compared_affines,(unsigned long long)replaced_affines);
     puts("PASS invalid recipes rejected: quaternion=6 FLOAT3=8; empty tracks touch no data");
     for(auto [count,n]:quaternion_counts)printf("quaternion count=%u calls=%llu\n",count,(unsigned long long)n);
 }

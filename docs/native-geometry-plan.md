@@ -1064,6 +1064,12 @@ producers preserves all 17,714 jobs / 115,162 transfers and exit controls;
 independent guarded numeric and publication-fault checks pass. Uncalled key
 formats remain unimplemented. Production integration and live/performance
 gates remain open.
+The host Q/T/S-to-world/reference matrix chain now matches all 461,853
+matrices in both published streams without captured matrix inputs. Replacing
+both matrix producers together with the key producers preserves every
+captured job/transfer/exit; numeric/tail and four publication-fault probes
+pass. Blend and hierarchy remain original (17,714 nonempty calls each),
+followed by production frontend integration and the live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
