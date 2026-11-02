@@ -298,6 +298,7 @@ buzz_geometry_job_fn buzz_geometry_job_indirect_target(spu_context*);
 void buzz_geometry_job_observe(spu_context*, uint32_t, uint32_t, uint32_t, uint32_t, const void*);
 void buzz_geometry_job_audit_report(void);
 int buzz_geometry_job_audit_failures(void);
+int buzz_geometry_job_audit_failures_for(int coverage_expected);
 #ifdef __cplusplus
 }
 #endif
