@@ -5,14 +5,14 @@ from pathlib import Path
 import re
 
 ROOT=Path(__file__).resolve().parents[2]
+import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture import optional_fixture
 PREFIX='buzz_job_6eba_spu_func_'
 ENTRY_PIN='40386ad034b6fc29264cc5c985d75a415dd2e480c36a7f99b9a474f94a390962'
 
 def main():
     spec=importlib.util.spec_from_file_location('conversion_audit',ROOT/'tools/inspect/geometry-conversion-audit.py')
     audit=importlib.util.module_from_spec(spec);spec.loader.exec_module(audit)
-    if hashlib.sha256((ROOT/'analysis/native-geometry/phase3/conversion-audit-v1/pc_54E8.bin').read_bytes()).hexdigest()!=ENTRY_PIN:
-        raise SystemExit('Unreviewed real output-conversion entry')
+    optional_fixture(ROOT/'analysis/native-geometry/phase3/conversion-audit-v1/pc_54E8.bin',ENTRY_PIN,'Unreviewed real output-conversion entry')
     raw=(ROOT/'port/spu/buzz_job_6eba/spu_recomp.c').read_bytes();graph=audit.source_graph(raw)
     functions={int(pc,16):body for pc,body in re.findall(r'(?ms)^void '+PREFIX+r'([0-9A-F]+)\(spu_context\* ctx\) \{(.*?)^\}',raw.decode())}
     pcs={int(pc,16) for pc in graph['edges']};assert len(pcs)==73

@@ -49,7 +49,7 @@ if disc100:
     KERNELS = (("63E0", "buzz_stagef_native_loop", 0),
                ("C518", "buzz_stagef_native_xform", 1),
                ("2C00", "buzz_stagef_native_normalize", 2))
-header = (ROOT / "port/native_stagef_loop.h").as_posix()
+header = "native_stagef_loop.h"  # resolved by the game target's port/ include path
 included = False
 for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
     name = PREFIX + pc

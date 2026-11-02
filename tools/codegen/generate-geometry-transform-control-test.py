@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import re
 ROOT=Path(__file__).resolve().parents[2]
+import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture import optional_fixture
 PIN='5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812'
 ENTRY_PIN='9cf49a9e5643cb359b721a5d7b84d3f0214df3a2f98660107790d2b2fad3ecce'
 PREFIX='buzz_job_6eba_spu_func_'
@@ -12,8 +13,7 @@ PREFIX='buzz_job_6eba_spu_func_'
 def main():
     raw=(ROOT/'port/spu/buzz_job_6eba/spu_recomp.c').read_bytes()
     if hashlib.sha256(raw).hexdigest()!=PIN:raise SystemExit('Unreviewed transform-control lift')
-    if hashlib.sha256((ROOT/'analysis/native-geometry/phase3/transform-audit-v1/pc_6608.bin').read_bytes()).hexdigest()!=ENTRY_PIN:
-        raise SystemExit('Unreviewed real transform-control entry')
+    optional_fixture(ROOT/'analysis/native-geometry/phase3/transform-audit-v1/pc_6608.bin',ENTRY_PIN,'Unreviewed real transform-control entry')
     spec=importlib.util.spec_from_file_location('transform_audit',ROOT/'tools/inspect/geometry-transform-audit.py')
     audit=importlib.util.module_from_spec(spec);spec.loader.exec_module(audit);audit.source_graph(raw)
     functions={int(pc,16):body for pc,body in re.findall(r'(?ms)^void '+PREFIX+r'([0-9A-F]+)\(spu_context\* ctx\) \{(.*?)^\}',raw.decode())}

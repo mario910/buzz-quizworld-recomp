@@ -70,6 +70,22 @@ creation through a fixture and expects a local paths config; it is not the
 same as a full game integration run. `scripts/Launch-Buzz.ps1 -Smoke` opens a short
 withdrawn GUI smoke test; it neither shows the window nor starts the game.
 
+## What a build needs
+
+A clone, the user's own game files and `Prepare-Buzz.cmd` are enough for the
+full native profile, in any checkout or worktree. Every generated adapter is
+derived from the lift that `scripts/generate.ps1` writes from the ELF; nothing
+private needs to be copied from another checkout.
+
+- Captured SPU entry snapshots under `analysis/` (`pc_*.bin`) only pin and
+  seed private test oracles. Without them a generator prints `not present:
+  production output only, test oracle skipped`; the tests that include those
+  `test-*-reference.inc` files then need the snapshots.
+- Generated sources include `port/` headers by name, resolved by the game
+  target's include path, never by a checkout's absolute path.
+- Hash pins on tracked generator sources use `text_sha256` from
+  `tools/codegen/geometry_fixture.py`, so they hold under any `core.autocrlf`.
+
 ## Integration and measurement
 
 Use `-Background` and internal `BUZZ_SCRIPT` for unattended integration. No

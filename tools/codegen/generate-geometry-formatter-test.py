@@ -2,14 +2,14 @@
 import hashlib,importlib.util,re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
+import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture import optional_fixture
 PREFIX='buzz_job_6eba_spu_func_'
 ENTRY_PIN='f78601404ee5a584a69a5ea1a74317b387e630789ed3b6f72d03352335d14a8b'
 def main():
     spec=importlib.util.spec_from_file_location('formatter_audit',ROOT/'tools/inspect/geometry-conversion-audit.py')
     audit=importlib.util.module_from_spec(spec);spec.loader.exec_module(audit)
     raw=(ROOT/'port/spu/buzz_job_6eba/spu_recomp.c').read_bytes();graph=audit.source_graph(raw)
-    if hashlib.sha256((ROOT/'analysis/native-geometry/phase3/conversion-audit-v1/pc_4178.bin').read_bytes()).hexdigest()!=ENTRY_PIN:
-        raise SystemExit('Unreviewed formatter calibration')
+    optional_fixture(ROOT/'analysis/native-geometry/phase3/conversion-audit-v1/pc_4178.bin',ENTRY_PIN,'Unreviewed formatter calibration')
     functions={int(pc,16):body for pc,body in re.findall(r'(?ms)^void '+PREFIX+r'([0-9A-F]+)\(spu_context\* ctx\) \{(.*?)^\}',raw.decode())}
     pcs={int(pc,16) for pc in graph['edges'] if 0x4178<=int(pc,16)<0x54e8};assert len(pcs)==46
     roots=set(audit.FIELDS.values())
