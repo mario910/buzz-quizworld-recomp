@@ -151,6 +151,40 @@ public:
     explicit GeometryJobIoReplay(const std::vector<GeometryJobIoOperation>& operations)
         : operations_(operations), limit_(operations.size()) {}
 
+    // Read-only preparation may inspect future GET inputs by EA, without
+    // consuming channels or reading guest RAM modified by the retained pass.
+    // Repeated overlapping GETs must agree; otherwise a single input snapshot
+    // is insufficient and the caller must retain the lifted job.
+    const uint8_t* input(uint32_t ea, size_t bytes) const
+    {
+        if (error_ || !bytes || bytes > UINT64_C(0x100000000) - ea) return nullptr;
+        const uint8_t* found = nullptr;
+        for (size_t i = start_; i < limit_; ++i) {
+            for (const auto& transfer : operations_[i].transfers) {
+                if (transfer.kind != 1 || ea < transfer.ea ||
+                    transfer.bytes.size() > UINT64_C(0x100000000) - transfer.ea) continue;
+                const size_t offset = size_t(ea - transfer.ea);
+                if (offset > transfer.bytes.size() || bytes > transfer.bytes.size() - offset) continue;
+                const auto* candidate = transfer.bytes.data() + offset;
+                if (found && memcmp(found, candidate, bytes)) return nullptr;
+                found = candidate;
+            }
+        }
+        if (!found) return nullptr;
+        for (size_t i = start_; i < limit_; ++i) {
+            for (const auto& transfer : operations_[i].transfers) {
+                if (transfer.kind != 1) continue;
+                const uint64_t lo = ea > transfer.ea ? ea : transfer.ea;
+                const uint64_t a_end = uint64_t(ea) + bytes;
+                const uint64_t b_end = uint64_t(transfer.ea) + transfer.bytes.size();
+                const uint64_t hi = a_end < b_end ? a_end : b_end;
+                if (lo < hi && memcmp(found + size_t(lo-ea),
+                    transfer.bytes.data() + size_t(lo-transfer.ea), size_t(hi-lo))) return nullptr;
+            }
+        }
+        return found;
+    }
+
     // Recheck an already consumed root without rewinding the parent's cursor.
     // A slice cannot consume any operation belonging to its caller/siblings.
     GeometryJobIoReplay slice(size_t first, size_t last) const

@@ -10,6 +10,15 @@ extern "C" {
 #endif
 typedef void (*buzz_geometry_job_fn)(spu_context*);
 typedef int (*buzz_geometry_job_eligibility_fn)(const spu_context*);
+
+/* Shared whole-job transport. Image 40 has its own option and audit totals;
+ * it never inherits image 41's qualified default or internal-state checks. */
+int buzz_native_job_eligible(const spu_context*, unsigned image, uint32_t entry);
+int buzz_native_job_audit(spu_context*, buzz_geometry_job_fn reference,
+    buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn prepare,
+    unsigned image, uint32_t entry);
+int buzz_native_job_is_shadow(const spu_context*);
+const uint8_t* buzz_native_job_input(const spu_context*, uint32_t ea, size_t bytes);
 typedef struct buzz_geometry_job_functions {
     buzz_geometry_job_fn attributes, blend, skin, indices, transform;
     buzz_geometry_job_fn vertex_bytes, allocate_output, put_indices, emit_vertices, put_vertices;

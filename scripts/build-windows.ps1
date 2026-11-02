@@ -62,6 +62,7 @@ $port = Join-Path $experimentRoot 'port'
 $build = Join-Path $experimentRoot $buildName
 $geometryOverride = ''
 $geometryJobProfile = $false
+$animationJobProfile = $false
 $hostProfile = ''
 $generationPath=Join-Path $experimentRoot 'analysis\game-generation.json'
 if(Test-Path -LiteralPath $generationPath) {
@@ -172,6 +173,15 @@ if ($MergeGeometry) {
     if ($LASTEXITCODE) { throw "Merged geometry generation failed: $LASTEXITCODE" }
     $geometryOverride = Join-Path $experimentRoot 'analysis\merged-geometry\spu_recomp.c'
 }
+if ($geometryJobProfile) {
+    # The same qualified build now includes the whole animation job. Keep
+    # every generated adapter/evidence binding immutable across rebuilds.
+    $animationAdapter = Join-Path $experimentRoot ('analysis/native-geometry/phase4/runtime-adapter-build-' + [guid]::NewGuid().ToString('N'))
+    & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/codegen/generate-animation-job-runtime.py') --fallback $image40Override --output $animationAdapter
+    if ($LASTEXITCODE) { throw 'Native animation job adapter generation failed' }
+    $image40Override = Join-Path $animationAdapter 'spu_recomp.c'
+    $animationJobProfile = $true
+}
 $configureOptions=@(
     "-DPS3RECOMP_DIR=$sdk", "-DCMAKE_C_COMPILER=$compiler", "-DCMAKE_CXX_COMPILER=$compiler",
     "-DPython3_EXECUTABLE=$(Join-Path $toolScripts 'python.exe')",
@@ -201,6 +211,10 @@ if($generation) {
     if($geometryJobProfile) {
         $boundRuntimeDefaults | Add-Member -NotePropertyName BUZZ_GEOMETRY_JOB -NotePropertyValue '1' -Force
         $buildManifest.geometry_job_profile='host-groups-v1'
+    }
+    if($animationJobProfile) {
+        $boundRuntimeDefaults | Add-Member -NotePropertyName BUZZ_ANIMATION_JOB -NotePropertyValue '1' -Force
+        $buildManifest.animation_job_profile='host-soa-v1'
     }
     $buildManifest |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'game-build.json') -Encoding UTF8

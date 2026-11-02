@@ -1031,84 +1031,27 @@ See the [results](native-geometry-phase3-results.md#output-allocator-37c0-produc
 Final interpreter, reversed frozen-EXE A/B, normalized CPU/FPS and default
 gates remain OPEN. Next is complete `54E8`; phase 3 and the goal stay active.
 
-### Phase 4: image 40 (2-4 sessions)
-Reuse host algorithms for the shared library in images 40/43/45/47, starting
-with image 40's existing 17,714 real captures. Audit job inputs/publications
-and shared semantic operations before connecting an image-specific frontend;
-shifted entry addresses alone do not prove equivalent data or job contracts.
-Decode once into host SoA, compute eight lanes and emit final outputs once.
-No new per-function register-bank transliterations or cold coverage work.
-Unsupported/uncovered jobs retain whole-job lift fallback. Each increment
-uses the corrected corpus/live/frame/reversed FPS and CPU gates above.
-Initial [phase-4 audit](native-geometry-phase4-results.md) covers all 17,714
-image-40 captures and their 115,162 exact baseline transfers. Image 40 has
-the animation job layout; its 48/64-byte published record streams need a
-separate frontend. Fresh menu hot blocks and code-only shared candidates
-are recorded; native integration and all candidate acceptance gates remain open.
-The host AVX2 affine producer now matches all 461,853 captured matrices
-(22,168,944 published bytes), with independent original-producer numeric and
-guarded-tail checks. It uses captured world matrices until native clip/pose
-production is connected; this is not whole-job native acceptance.
-Host quaternion sampling now matches 596,095 real results. Replacing the
-original quaternion producer in the whole-job oracle preserves all 17,714
-jobs / 115,162 transfers and exit controls, with numeric, guarded-stream and
-publication-fault checks. Production integration and live/performance gates
-remain open; the native kernel does not recreate volatile registers or frames.
-Static quaternion decoding now reuses that kernel and matches all 388,032
-captured values. Replacing both quaternion producers in the original whole-job
-oracle preserves every captured transfer and exit control; production
-pose/world integration and live/performance acceptance still remain.
-FLOAT3 sampling now shares host temporal key selection and matches all 24,548
-captured vectors. Replacing its 76,050 calls together with both quaternion
-producers preserves all 17,714 jobs / 115,162 transfers and exit controls;
-independent guarded numeric and publication-fault checks pass. Uncalled key
-formats remain unimplemented. Production integration and live/performance
-gates remain open.
-The host Q/T/S-to-world/reference matrix chain now matches all 461,853
-matrices in both published streams without captured matrix inputs. Replacing
-both matrix producers together with the key producers preserves every
-captured job/transfer/exit; numeric/tail and four publication-fault probes
-pass. Host pose blending now also matches all 461,853 poses, including 541
-strengths, with shared quaternion interpolation and exact translation/scale
-rounding. Replacing its 17,714 calls preserves every captured job output;
-guarded numerics and a fifth publication-fault probe pass. Nonuniform joint
-weights remain uncovered/unsupported. Native hierarchy now matches all
-461,853 world poses; dependency-safe batches remove repeated schedule entries.
-Replacing its 17,714 calls together with the previous host producers preserves
-all jobs/transfers/exit controls; guarded numerics and six publication-fault
-probes pass. A native read-only metadata frontend now accepts all 17,714
-entries and predicts all 39,112 publications (LSA/EA/size/tag). Thirty-one
-malformed recipes are rejected without output mutation. The corpus includes
-2,597 operation-1 control nodes in addition to 17,714 operation-0 nodes;
-its full-strength pose arithmetic now matches all 184,387 results. Scalar
-blend/add arithmetic also matches all 85,296 / 62,328 aligned output words,
-including published curve padding. Replacing these operations preserves every
-job output; guarded numeric proofs and eight publication-fault probes pass.
-FLOAT1 key sampling now also matches all 52,640 final channel values; repeated
-stored IDs are projected onto their final published owner, including aligned
-curve tails. Native replacement retains every job/transfer/exit; guarded
-numeric/mapping checks and a ninth publication-fault probe pass. A native
-EA03 header/block parser now supplies bounded stream/ID views for all 38,025
-clips; 30 malformed cases and guarded input checks pass. Observable trailing
-bytes for curve padding are explicit entry-LS input. Native time/block
-selection also matches all 38,025 body GET recipes and feeds sampling;
-18,432 pinned-original numeric samples, 36 invalid cases and a tenth
-publication-fault probe pass. A complete host clip producer now initializes
-from an ES01 template decoded once/job, applies static/sampled streams and
-retains curve-buffer tail ownership. All 38,025 clips match; a third
-`ClipReplace` arm skips the original sampling flow and retains all job I/O.
-Guarded default/clip inputs and an eleventh publication-corruption probe
-pass. Native host control, hierarchy and matrix production now form one
-LE SoA chain; a fourth `PipelinePublish` arm supplies all 39,112 final
-publications (52,068,720 bytes). Paired unmodified original replays verify
-all 1,766,060 channel events; eighteen invalid control cases, guarded final
-outputs, a twelfth publication probe and a command-flag transcript probe
-pass. A fifth `NativeJob` arm now executes the complete recognized job with
-native DMA/channel/exit scheduling and no lifted candidate blocks; all
-17,714 jobs, outputs and channel events match. Twenty-six preflight
-rejection checks preserve LS/channels; enabled interrupt entries fall back.
-Two direct whole-job corruption probes also pass. Production integration
-and live/frame/performance gates remain.
+### Phase 4: image 40 — complete for the supported job family (2026-11-02)
+
+Recognized animation jobs decode clips once into host SoA, compute eight
+AVX2 lanes through pose control, hierarchy and world/reference matrices,
+then publish final streams with the original ordered I/O and job exit.
+No SPU register bank, ABI-frame or unpublished scratch reconstruction.
+
+| Gate | Result |
+| --- | --- |
+| Corpus | 17,714/17,714 native jobs, 115,162 exact transfers; native-retained original comparison passes; image-41 regression 19,508/58,195 exact |
+| Live / native frames | >=100,000 native-retained live checks; menu and actual solo-round frames normal |
+| Reversed FPS | Menu +2.052%; round +1.274%; both pairs positive in each scene |
+| CPU/frame | Worker cycles −5.386% / −6.420%, process cycles −3.006% / −3.471% (menu / round); CPU time also decreases in both pairs |
+| Default | `BUZZ_ANIMATION_JOB=1` in the qualified EU100/Vulkan/AVX2 host profile; explicit `0` preserved; bare EXE remains off |
+
+See [runtime results](native-geometry-phase4-runtime-results.md) for the
+measurement table and decision, and [algorithm checks](native-geometry-phase4-results.md)
+for the oracle proofs and shared code candidates. Uncovered descriptors,
+nonuniform weights and enabled interrupt entries retain whole-job fallback.
+Images 43/45/47 have code-only candidates; no frontend/default is enabled
+without real job inputs. Phases 5/6 remain optional; phase 7 stays cancelled.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
@@ -1292,7 +1235,9 @@ See the separate
 | Function | Lane time share | Status | Notes |
 |---|---|---|---|
 | 0x6DB8 loop | | exact | Historical local-register diagnostic, `BUZZ_IMAGE40_LOCALS=0` in the qualified profile; not the phase-4 host pipeline |
-| (fill in from phase 0 ranking) | | | |
+| Native animation job (`0x10` frontend) | whole-job comparison | on | `BUZZ_ANIMATION_JOB`; all 17,714 corpus jobs admitted, live I/O and native frames pass; menu +2.052% / round +1.274% FPS; [runtime results](native-geometry-phase4-runtime-results.md); host core `fab2037`, runtime acceptance in this change |
+| Shared host clip/pose/hierarchy/matrix library | reused by whole job | exact | Host SoA / AVX2 eight lanes; 52,068,720 published bytes and 1,766,060 channel events match the original oracle |
+| Image 43/45/47 frontends | code-only candidates | dropped for this objective | No real corpus/live inputs; keep lifted execution and do not implement cold paths |
 
 ### Phase 7: cancelled
 
@@ -1304,6 +1249,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-02 | Image-40 native host animation job, qualified default on | Same-EXE menu/round ANIM0/1/1/0, image-41 JOB1 retained; separate FPS/CPU | Menu 28.972 -> 29.567 (+2.052%); round 33.857 -> 34.288 (+1.274%) | see runtime results | Worker cycles/frame −5.386% menu / −6.420% round, process −3.006% / −3.471%; all reversed pairs agree; exact full corpora/live/frame gates; first CPU round invalidated, entire fresh repeat accepted; [results](native-geometry-phase4-runtime-results.md) |
 | 2026-11-02 | Eight-vertex host SoA float/half/CMP output; whole-job descriptor fallback | Same-EXE menu and round JOB0/1/1/0, separate FPS/CPU | Menu 28.181 -> 28.453 (+0.964%); round 33.142 -> 33.116 (-0.077%) | see 3b results | Worker cycles/frame -1.879% menu / +1.734% round (mixed); four exact corpus arms; >=1,395,000 live checks; native frames normal; original CPU round rejected for scene mismatch, full fixed-ready repeat retained; experimental/defaults off; full 3b remains open |
 | 2026-11-02 | Host metadata layout, bank-free formatter/conversion/float admission | Same-EXE menu JOB0/1/1/0, separate FPS/CPU | 28.535 -> 27.905 (-2.207%) | see 3a results | Worker cycles/frame +4.035%, process +2.567%; four exact full-corpus arms; >=1,455,000 live checks; menu normal; rejected/defaults off; next 3b with performance target open |
 | 2026-11-02 | Phase 3a V3, parent command admission reuse | Same-EXE menu JOB0/1/1/0, separate FPS/CPU series | 28.456 -> 27.664 (-2.784%) | see results document | Worker cycles/frame +4.418%, process +2.454%; four exact full-corpus arms; >=50,000 live checks; native menu normal; rejected/defaults off; round gates not attempted |

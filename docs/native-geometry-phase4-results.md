@@ -60,25 +60,11 @@ addresses; only code symbols/PCs are normalized:
 | `3460` | `35E0`, exact | `2E90`, exact | `34C8`, exact |
 | `52A0` | `5420`, exact | No exact candidate | `5308`, exact |
 
-**Decision:** image 40 is the animation frontend, with a different job layout
-from image 41. Establish logical clip/pose/matrix inputs and reuse host
-algorithms; do not transplant the image-41 job descriptor or generate new
-register-bank transliterations. Code matches do not establish job-contract
-compatibility or live coverage for images 43/45/47. Phase 4 remains open;
-host key producers, pose blending and the Q/T/S-to-world/reference matrix chain pass
-whole-job I/O with their original producers replaced in the test oracle.
-Hierarchy and the matrix chain now use native host pose arrays, without
-captured matrix inputs. Nonuniform joint-weight streams and the small hierarchy
-alternative have no real corpus coverage and remain unsupported. Production
-job integration, live checks and candidate FPS/CPU gates remain. The new
-metadata parser is not the complete native driver: original code still
-is used only by the earlier observation/replacement arms. `NativeJob` now
-executes the complete recognized job with native scheduling, host data and
-final outputs; paired original replays validate all bytes, channel events
-and exit controls. Runtime dispatch/guest-memory integration and its
-live/frame/FPS/CPU gates remain; enabled interrupt entries fall back. FLOAT1 key sampling and operation-1
-pose/curve arithmetic now use native producers in the replacement oracle.
-There is no new runtime path, default change or FPS/CPU gain claim yet.
-RIP shares are diagnostic estimates; helper time is outside image symbols.
+**Decision:** the complete recognized image-40 job now uses host clip/pose
+arrays, AVX2 arithmetic and final native publications. Runtime corpus, live,
+frame and performance decisions are recorded in the separate
+[runtime results](native-geometry-phase4-runtime-results.md).
+Uncovered formats and enabled interrupt entries retain whole-job fallback.
+Code matches alone do not qualify images 43/45/47 for runtime use.
 
 Private evidence: `analysis/native-geometry/phase4/`.

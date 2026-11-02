@@ -45,6 +45,7 @@ public:
     }
 };
 std::atomic<unsigned long long> attempted{0}, checked{0}, skipped{0}, failures{0}, drawn{0}, culled{0};
+std::atomic<unsigned long long> animation_attempted{0}, animation_checked{0}, animation_skipped{0};
 Counter native_attempted, native_executed, native_compared, native_fallback;
 Counter publication_native, publication_fallback;
 Counter color_checked,unit_vectors_checked,half_stream_checked,float32_stream_checked,fixed_stream_checked,snorm_stream_checked,i16_stream_checked,cmp_stream_checked,u8_integer_stream_checked,blend_scatter_checked,blend_lists_checked;
@@ -207,10 +208,10 @@ void run_group(spu_context* ctx, buzz_geometry_job_fn reference, uint32_t return
     spu_drain_call(ctx, return_pc);
 }
 
-bool eligible(const spu_context* ctx)
+bool eligible(const spu_context* ctx, unsigned image=41, uint32_t entry=0x1c18)
 {
-    return !recording && !shadow && !buzz_geometry_debug && ctx->image_id == 41 &&
-           ctx->pc == 0x1c18 && ctx->ls == ctx->ls_store && ctx->host_depth == 0 &&
+    return ctx && (image==40 || image==41) && !recording && !shadow && !buzz_geometry_debug && ctx->image_id == image &&
+           ctx->pc == entry && ctx->ls == ctx->ls_store && ctx->host_depth == 0 &&
            !ctx->policy_mode && !ctx->resident_ovl && !ctx->irq_saved && !ctx->irq_frame &&
            !ctx->event_mask && !ctx->list_stall_mask && !g_spu_trampoline_fn;
 }
@@ -1007,13 +1008,13 @@ extern "C" void buzz_geometry_job_indirect(spu_context* ctx)
     const uint32_t pc = ctx->pc & SPU_LS_MASK;
     if (is_shadow(ctx)) {
         if (pc == ctx->drain_ret_pc) { g_spu_trampoline_fn = nullptr; return; }
-        auto fn = ctx->image_id == 41 && !ctx->resident_ovl ? spu_lookup(pc, 41) : nullptr;
+        auto fn = (ctx->image_id == 40 || ctx->image_id == 41) && !ctx->resident_ovl ? spu_lookup(pc, ctx->image_id) : nullptr;
         if (!fn) mismatch("shadow computed branch would leave the audited image", ctx);
         ctx->pc = pc;
         [[clang::musttail]] return fn(ctx);
     }
     if (auto* r = recording_for(ctx))
-        if (pc != ctx->drain_ret_pc && !spu_lookup(pc, 41))
+        if (pc != ctx->drain_ret_pc && !spu_lookup(pc, ctx->image_id))
             unsupported(*r, "reference computed branch outside compiled image");
     [[clang::musttail]] return spu_indirect_branch_mt(ctx);
 }
@@ -1036,7 +1037,7 @@ extern "C" buzz_geometry_job_fn buzz_geometry_job_indirect_target(spu_context* c
 {
     if (is_shadow(ctx)) return buzz_geometry_job_indirect;
     if (auto* r = recording_for(ctx))
-        if ((ctx->pc & SPU_LS_MASK) != ctx->drain_ret_pc && !spu_lookup(ctx->pc & SPU_LS_MASK, 41))
+        if ((ctx->pc & SPU_LS_MASK) != ctx->drain_ret_pc && !spu_lookup(ctx->pc & SPU_LS_MASK, ctx->image_id))
             unsupported(*r, "reference computed branch outside compiled image");
     return spu_indirect_branch;
 }
@@ -1045,29 +1046,34 @@ extern "C" void buzz_geometry_job_step(spu_context* ctx, uint32_t pc)
 {
     pc &= SPU_LS_MASK;
     if (is_shadow(ctx)) {
-        if (ctx->image_id != 41 || ctx->resident_ovl ||
-            (pc != ctx->drain_ret_pc && !spu_lookup(pc, 41)))
+        if ((ctx->image_id != 40 && ctx->image_id != 41) || ctx->resident_ovl ||
+            (pc != ctx->drain_ret_pc && !spu_lookup(pc, ctx->image_id)))
             mismatch("shadow step would enter unwrapped/interpreted code", ctx);
     } else if (auto* r = recording_for(ctx)) {
-        if (ctx->image_id != 41 || ctx->resident_ovl ||
-            (pc != ctx->drain_ret_pc && !spu_lookup(pc, 41)))
+        if ((ctx->image_id != 40 && ctx->image_id != 41) || ctx->resident_ovl ||
+            (pc != ctx->drain_ret_pc && !spu_lookup(pc, ctx->image_id)))
             unsupported(*r, "reference step outside compiled image");
     }
 }
 
 static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
-                        buzz_geometry_job_fn trial, bool native_trial)
+                        buzz_geometry_job_fn trial, bool native_trial,
+                        unsigned image=41, uint32_t entry=0x1c18,
+                        buzz_geometry_job_eligibility_fn prepare=nullptr)
 {
-    const auto attempt = attempted.fetch_add(1);
-    if ((!native_trial && maximum && attempt >= maximum) || !eligible(ctx)) {
-        ++skipped; reference(ctx); return false;
+    auto& audit_attempted = image==40 ? animation_attempted : attempted;
+    auto& audit_checked = image==40 ? animation_checked : checked;
+    auto& audit_skipped = image==40 ? animation_skipped : skipped;
+    const auto attempt = audit_attempted.fetch_add(1);
+    if ((!native_trial && maximum && attempt >= maximum) || !eligible(ctx,image,entry)) {
+        ++audit_skipped; reference(ctx); return false;
     }
     Recording* r = nullptr;
     for (auto& slot : recordings) {
         bool idle = false;
         if (slot.busy.compare_exchange_strong(idle, true)) { r = &slot; break; }
     }
-    if (!r) { ++skipped; reference(ctx); return false; }
+    if (!r) { ++audit_skipped; reference(ctx); return false; }
     auto* copy = buzz::clone_function_state(ctx);
     copy->mfc_private = nullptr;
     copy->ch_out_mbox.lock = copy->ch_in_mbox.lock = copy->ch_out_intr_mbox.lock = 0;
@@ -1098,6 +1104,19 @@ static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
         shadow = copy;
         replay = &io;
         g_spu_trampoline_fn = nullptr;
+        // Prepare on the untouched shadow entry using the recorded GET
+        // payloads. Unsupported inputs keep the already retained reference;
+        // no native channel has executed and no successful check is counted.
+        if (prepare && !prepare(copy)) {
+            shadow = nullptr;
+            replay = nullptr;
+            ++audit_skipped;
+            buzz::release_function_state(expected);
+            buzz::release_function_state(copy);
+            r->busy.store(false);
+            g_spu_trampoline_fn = continuation ? continuation : spu_indirect_branch;
+            return false;
+        }
         run_group(copy, trial, return_pc);
         shadow = nullptr;
         replay = nullptr;
@@ -1108,7 +1127,7 @@ static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
                          exit_difference ? exit_difference : "continuation");
             mismatch("job exit state/continuation", ctx);
         }
-        const bool debug_stages = buzz_geometry_job_debug_stages() != 0;
+        const bool debug_stages = image==41 && buzz_geometry_job_debug_stages() != 0;
         const auto difference = debug_stages ? buzz::compare_function_state(*expected, *copy) : buzz::FunctionDifference{};
         if (debug_stages && !difference.exact()) {
             std::fprintf(stderr, "[geometry-job-audit] r%d byte%d LS=%05X bytes=%u controls=%s\n",
@@ -1116,15 +1135,15 @@ static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
                          difference.ls_bytes, difference.first_state ? difference.first_state : "equal");
             mismatch("debug full driver exit state", ctx);
         }
-        (r->transfers > 1 ? drawn : culled).fetch_add(1);
-        const auto n = checked.fetch_add(1) + 1;
+        if(image==41) (r->transfers > 1 ? drawn : culled).fetch_add(1);
+        const auto n = audit_checked.fetch_add(1) + 1;
         if (n == 256 || n % 5000 == 0)
             std::fprintf(stderr, "[%s] %s + I/O %llu PASS\n",
-                         native_trial ? "geometry-job/native-outer" : "geometry-job-audit",
+                         image==40 ? "animation-job/native-outer" : native_trial ? "geometry-job/native-outer" : "geometry-job-audit",
                          debug_stages ? "debug full-state" : "job-boundary", n);
         matched = true;
     } else {
-        const auto n = skipped.fetch_add(1);
+        const auto n = audit_skipped.fetch_add(1);
         if (n < 8) std::fprintf(stderr, "[geometry-job-audit] unrecordable: %s\n",
                                r->unsupported.load() ? r->unsupported.load() : "no channel operations");
     }
@@ -1134,6 +1153,16 @@ static bool audit_pair(spu_context* ctx, buzz_geometry_job_fn reference,
     g_spu_trampoline_fn = continuation ? continuation : spu_indirect_branch;
     return matched;
 }
+
+extern "C" int buzz_native_job_eligible(const spu_context* ctx,unsigned image,uint32_t entry)
+{ return eligible(ctx,image,entry); }
+extern "C" int buzz_native_job_is_shadow(const spu_context* ctx)
+{ return is_shadow(ctx); }
+extern "C" const uint8_t* buzz_native_job_input(const spu_context* ctx,uint32_t ea,size_t bytes)
+{ return is_shadow(ctx) && replay ? replay->input(ea,bytes) : nullptr; }
+extern "C" int buzz_native_job_audit(spu_context* ctx,buzz_geometry_job_fn reference,
+    buzz_geometry_job_fn native,buzz_geometry_job_eligibility_fn prepare,unsigned image,uint32_t entry)
+{ return audit_pair(ctx,reference,native,true,image,entry,prepare); }
 
 extern "C" void buzz_geometry_job_audit_run(spu_context* ctx, buzz_geometry_job_fn reference)
 {
