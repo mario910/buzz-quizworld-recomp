@@ -17,15 +17,17 @@ publication/command flow. Each worker allocates reusable storage once.
 | Reversed menu worker CPU / completed frame | 424.638M → 387.830M cycles (−8.668%); 115.533 → 105.169 CPU ms (−8.971%) |
 | Reversed menu process CPU / completed frame | 778.511M → 741.651M cycles (−4.735%); 210.286 → 202.232 CPU ms (−3.830%) |
 | Reversed round FPS | JOB0 33.120 → JOB1 33.604 FPS: +1.460%; pairs +1.851% / +1.073%; all four frames inspected |
-| Reversed round CPU | Initial incomplete series rejected; fresh full series pending. GPU navigation audit confirms correct entry and natural question/camera transitions |
+| Reversed round worker CPU / completed frame | 342.705M → 319.583M cycles (−6.747%); 94.451 → 87.006 CPU ms (−7.882%); both pairs improve |
+| Reversed round process CPU / completed frame | 593.728M → 567.990M cycles (−4.335%); 163.872 → 153.469 CPU ms (−6.348%); both pairs improve |
 | Measurement validation | 19 report tests pass; inspected-but-rejected frames invalidate the whole series; accepted reports reproduce unchanged |
 
 The first two candidates skipped additional blend-stream DMA. Those jobs
 now reject from their entry metadata before mutation; their complete lifted
 flow is retained. All failed candidates and logs remain private evidence.
 
-**Decision:** menu FPS/CPU and round FPS improve in both reversed pairs. Keep
-experimental/default off pending round CPU and switch consolidation;
-this does not complete phase 3b.
+**Decision:** corpus, live, native frames and separate reversed menu/round
+FPS/CPU gates pass for this experimental profile. The initial incomplete
+round CPU series remains rejected. Keep default off while consolidating
+the stage switches; validate that production profile before default-on.
 
 Private evidence: `analysis/native-geometry/phase3/host-pipeline-v1/`.
