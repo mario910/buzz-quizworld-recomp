@@ -1040,6 +1040,11 @@ Decode once into host SoA, compute eight lanes and emit final outputs once.
 No new per-function register-bank transliterations or cold coverage work.
 Unsupported/uncovered jobs retain whole-job lift fallback. Each increment
 uses the corrected corpus/live/frame/reversed FPS and CPU gates above.
+Initial [phase-4 audit](native-geometry-phase4-results.md) covers all 17,714
+image-40 captures and their 115,162 exact baseline transfers. Image 40 has
+the animation job layout; its 48/64-byte published record streams need a
+separate frontend. Fresh menu hot blocks and code-only shared candidates
+are recorded; native integration and all candidate acceptance gates remain open.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
