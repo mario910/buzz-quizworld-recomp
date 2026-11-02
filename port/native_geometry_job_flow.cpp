@@ -2153,6 +2153,10 @@ extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)
     // Owner lifetime is granted by the controller, not by an arbitrary prior
     // eligibility query. Before mutation, prove both input control frames.
     const bool host_pipeline=buzz_geometry_job_host_pipeline_enabled()!=0;
+    // Direct host data has no legacy LS tables. Disabling a required publication
+    // group declines the entire job before preparation or entry mutation.
+    if (!buzz_geometry_job_legacy_enabled() && (!host_pipeline ||
+        !buzz_geometry_job_publication_enabled() || !buzz_geometry_job_commands_enabled())) return 0;
     bool supported=buzz::read_geometry_job_setup(*ctx,prepared_job,nullptr,!host_pipeline);
     if(supported && host_pipeline)
         supported=buzz::prepare_geometry_host_job(*ctx,prepared_job.entry,worker_host_job());

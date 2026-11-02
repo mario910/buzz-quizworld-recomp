@@ -39,6 +39,8 @@ typedef struct buzz_geometry_descriptor_functions {
 } buzz_geometry_descriptor_functions;
 int buzz_geometry_job_audit_enabled(void);
 int buzz_geometry_job_mode(void);
+int buzz_geometry_job_legacy_enabled(void);
+int buzz_geometry_job_publication_enabled(void);
 int buzz_geometry_job_host_pipeline_enabled(void);
 void buzz_geometry_job_host_pipeline_result(void);
 // Optional full register/LS checks at stage boundaries under JOB2. The job

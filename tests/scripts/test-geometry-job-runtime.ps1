@@ -5,9 +5,11 @@ $geometryPreviousAudit = $env:BUZZ_GEOMETRY_JOB_AUDIT
 $geometryPreviousMax = $env:BUZZ_GEOMETRY_JOB_AUDIT_MAX
 $geometryPreviousJob = $env:BUZZ_GEOMETRY_JOB
 $geometryPreviousDebug = $env:BUZZ_GEOMETRY_DEBUG_STAGES
+$geometryPreviousLegacy = $env:BUZZ_GEOMETRY_JOB_LEGACY
 try {
     & (Join-Path $PSScriptRoot 'assert-geometry-build-idle.ps1')
     Remove-Item Env:BUZZ_GEOMETRY_DEBUG_STAGES -ErrorAction SilentlyContinue
+    $env:BUZZ_GEOMETRY_JOB_LEGACY = '1'
     New-Item -ItemType Directory -Path analysis/native-geometry/phase3 -Force | Out-Null
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
@@ -106,10 +108,53 @@ try {
         }
     } finally { $env:BUZZ_GEOMETRY_HOST_OUTPUT = $geometryHostPrevious }
     "Configuration options: $geometryOptionCases production-getter cases PASS"
+    # The production profile has group switches; stale leaf settings must
+    # neither activate a transliteration nor override a publication group.
+    $geometryProfileKeys=@('BUZZ_GEOMETRY_JOB_LEGACY','BUZZ_GEOMETRY_JOB_HOST_PIPELINE','BUZZ_GEOMETRY_JOB_PUBLICATION','BUZZ_GEOMETRY_JOB_COMMANDS','BUZZ_GEOMETRY_JOB_LAYOUT','BUZZ_GEOMETRY_JOB_VERTEX','BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH','BUZZ_GEOMETRY_JOB_FULL_COMMANDS','BUZZ_GEOMETRY_JOB_UNIT_VECTORS','BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT','BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS','BUZZ_GEOMETRY_HOST_OUTPUT')
+    $geometryProfilePrevious=@{}
+    foreach($geometryKey in $geometryProfileKeys){$geometryProfilePrevious[$geometryKey]=[Environment]::GetEnvironmentVariable($geometryKey,'Process')}
+    try {
+        $env:BUZZ_GEOMETRY_JOB_LEGACY='0';$env:BUZZ_GEOMETRY_JOB='0'
+        foreach($geometryKey in $geometryProfileKeys | Select-Object -Skip 4){Set-Item ('Env:'+$geometryKey) 'old-leaf-ignored'}
+        $geometryProfileCases=0
+        foreach($geometryHost in @('unset','0','1')){foreach($geometryPub in @('unset','0','1')){foreach($geometryCommands in @('unset','0','1')){
+            foreach($geometryPair in @(@('BUZZ_GEOMETRY_JOB_HOST_PIPELINE',$geometryHost),@('BUZZ_GEOMETRY_JOB_PUBLICATION',$geometryPub),@('BUZZ_GEOMETRY_JOB_COMMANDS',$geometryCommands))){
+                if($geometryPair[1] -eq 'unset'){Remove-Item ('Env:'+$geometryPair[0]) -ErrorAction SilentlyContinue}else{Set-Item ('Env:'+$geometryPair[0]) $geometryPair[1]}
+            }
+            $geometryWantHost=if($geometryHost -eq 'unset'){1}else{[int]$geometryHost}
+            $geometryWantPub=if($geometryPub -eq 'unset'){$geometryWantHost}else{[int]$geometryPub}
+            $geometryWantCommands=if($geometryCommands -eq 'unset'){$geometryWantHost}else{[int]$geometryCommands}
+            $geometryProfileLog="analysis/native-geometry/phase3/runtime-profile-$geometryHost-$geometryPub-$geometryCommands.log"
+            & ./analysis/native-geometry/phase3/job-runtime-test.exe profile $geometryWantHost $geometryWantPub $geometryWantCommands *> $geometryProfileLog
+            if($LASTEXITCODE -or -not (Select-String -LiteralPath $geometryProfileLog -SimpleMatch '[profile] groups/legacy isolation/cache PASS')){throw 'Production group routing/legacy isolation/cache failed'}
+            $geometryProfileCases++
+        }}}
+        foreach($geometryOption in @('LEGACY','HOST_PIPELINE','PUBLICATION','COMMANDS')){
+            foreach($geometryValue in @('','2','00','1x')){
+                $env:BUZZ_GEOMETRY_JOB_LEGACY='0';$env:BUZZ_GEOMETRY_JOB_HOST_PIPELINE='1';$env:BUZZ_GEOMETRY_JOB_PUBLICATION='1';$env:BUZZ_GEOMETRY_JOB_COMMANDS='1'
+                Set-Item ('Env:BUZZ_GEOMETRY_JOB_'+$geometryOption) $geometryValue
+                $geometryRejectLog="analysis/native-geometry/phase3/runtime-group-reject-$geometryOption-$geometryValue.log"
+                & ./analysis/native-geometry/phase3/job-runtime-test.exe option $geometryOption reject *> $geometryRejectLog
+                if($LASTEXITCODE -ne 75 -or -not (Select-String -LiteralPath $geometryRejectLog -SimpleMatch '[config] rejected')){throw 'Invalid production group accepted'}
+                $geometryProfileCases++
+            }
+        }
+        foreach($geometryMode in @('1','2')){foreach($geometryDisabled in @('none','HOST_PIPELINE','PUBLICATION','COMMANDS')){
+            $env:BUZZ_GEOMETRY_JOB=$geometryMode;$env:BUZZ_GEOMETRY_JOB_LEGACY='0';$env:BUZZ_GEOMETRY_JOB_HOST_PIPELINE='1';$env:BUZZ_GEOMETRY_JOB_PUBLICATION='1';$env:BUZZ_GEOMETRY_JOB_COMMANDS='1'
+            if($geometryDisabled -ne 'none'){Set-Item ('Env:BUZZ_GEOMETRY_JOB_'+$geometryDisabled) '0'}
+            $geometryWantFailure=if($geometryDisabled -eq 'none'){1}else{0}
+            $geometryCoverageLog="analysis/native-geometry/phase3/runtime-profile-coverage-$geometryMode-$geometryDisabled.log"
+            & ./analysis/native-geometry/phase3/job-runtime-test.exe profile-coverage $geometryWantFailure *> $geometryCoverageLog
+            if($LASTEXITCODE -or -not (Select-String -LiteralPath $geometryCoverageLog -SimpleMatch '[profile] deliberate fallback/missing coverage distinction PASS')){throw 'Coverage gate confused missing native execution with deliberate group fallback'}
+            $geometryProfileCases++
+        }}
+        "Production groups: $geometryProfileCases routing/isolation/cache/rejection cases PASS"
+    } finally {foreach($geometryKey in $geometryProfileKeys){[Environment]::SetEnvironmentVariable($geometryKey,$geometryProfilePrevious[$geometryKey],'Process')}}
     $global:LASTEXITCODE = 0
 
 } finally {
     $env:BUZZ_GEOMETRY_DEBUG_STAGES = $geometryPreviousDebug
+    $env:BUZZ_GEOMETRY_JOB_LEGACY = $geometryPreviousLegacy
     $env:BUZZ_GEOMETRY_JOB = $geometryPreviousJob
     $env:BUZZ_GEOMETRY_JOB_AUDIT = $geometryPreviousAudit
     $env:BUZZ_GEOMETRY_JOB_AUDIT_MAX = $geometryPreviousMax

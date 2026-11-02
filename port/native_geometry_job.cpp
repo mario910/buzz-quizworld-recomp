@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
 void spu_wrch(spu_context*, uint32_t, u128);
@@ -224,65 +225,70 @@ struct Init {
                 std::fprintf(stderr, "[geometry-job] native setup adapter unavailable, or AUDIT conflicts with JOB mode\n");
                 std::abort();
             }
-            std::fprintf(stderr, "[geometry-job] mode=%d: native outer driver + SPU-ABI library, experimental/default off\n",
+            std::fprintf(stderr, "[geometry-job] mode=%d: native job driver, experimental/default off\n",
                          buzz_geometry_job_mode());
-            std::fprintf(stderr, "[geometry-job] native index publication=%d (default off)\n",
-                         buzz_geometry_job_publish_enabled());
-            std::fprintf(stderr, "[geometry-job] native output sizing=%d, vertex publication=%d (default off)\n",
-                         buzz_geometry_job_layout_enabled(), buzz_geometry_job_vertex_enabled());
-            std::fprintf(stderr, "[geometry-job] native command publication=%d (default off)\n", buzz_geometry_job_command_publish_enabled());
-            std::fprintf(stderr, "[geometry-job] native position commands/bindings=%d (default off)\n", buzz_geometry_job_emit_enabled());
-            std::fprintf(stderr, "[geometry-job] native full commands=%d (default off)\n", buzz_geometry_job_full_commands_enabled());
-            std::fprintf(stderr, "[geometry-job] native attribute control/raw float3=%d (default off; descriptor codecs retained)\n", buzz_geometry_job_attributes_enabled());
-            std::fprintf(stderr, "[geometry-job] native blend scatter=%d (0 lift, 1 native, 2 strict root; default off)\n", buzz_geometry_job_blend_scatter_enabled());
-            std::fprintf(stderr, "[geometry-job] native blend lists=%d (default off; JOB=2 strict I/O root)\n", buzz_geometry_job_blend_lists_enabled());
-            std::fprintf(stderr, "[geometry-job] native run lists=%d (0 lift, 1 native, 2 strict root; default off)\n", buzz_geometry_job_run_lists_enabled());
-            std::fprintf(stderr, "[geometry-job] native normalized skin=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_skin_normalized_enabled());
-            std::fprintf(stderr, "[geometry-job] native index deltas=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_deltas_enabled());
-            std::fprintf(stderr, "[geometry-job] native index unpack=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_unpack_enabled());
-            std::fprintf(stderr, "[geometry-job] native index expansion=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_expand_enabled());
-            std::fprintf(stderr, "[geometry-job] native index relocation=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_relocate_enabled());
-            std::fprintf(stderr, "[geometry-job] native index triangles=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_triangles_enabled());
-            std::fprintf(stderr, "[geometry-job] native index control=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_control_enabled());
-            std::fprintf(stderr,"[geometry-job] native input control=%d (0 lift,1 native,2 strict full state;default off)\n",buzz_geometry_job_input_control_enabled());
-            for(unsigned format=1;format<=5;++format)std::fprintf(stderr,"[geometry-job] native builtin input%u=%d (requires input control;0 lift,1 native,2 strict data;default off)\n",format,buzz_geometry_job_builtin_input_enabled(format));
-            for(unsigned format=0;format<4;++format)std::fprintf(stderr,"[geometry-job] native builtin output%u=%d (0 lift, 1 native, 2 strict full-state; default off)\n",format,buzz_geometry_job_builtin_output_enabled(format));
-            std::fprintf(stderr,"[geometry-job] native conversion control=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_conversion_control_enabled());
-            std::fprintf(stderr,"[geometry-job] native formatter=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_formatter_enabled());
-            std::fprintf(stderr,"[geometry-job] formatter column spans=%d (0 exhaustive,1 proven spans;default off)\n",buzz_geometry_job_formatter_spans_enabled());
-            std::fprintf(stderr,"[geometry-job] formatter registers=%d (0 ABI callbacks,1 shared host bank;default off)\n",buzz_geometry_job_formatter_registers_enabled());
-            std::fprintf(stderr,"[geometry-job] host output=%d (8-lane SoA float/half/CMP;whole-job fallback;default off)\n",buzz_geometry_host_output_enabled());
-            std::fprintf(stderr,"[geometry-job] host pipeline=%d (persistent host SoA;whole-job admission;default off)\n",buzz_geometry_job_host_pipeline_enabled());
-            std::fprintf(stderr,"[geometry-job] native I16 output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_i16_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native U8 integer output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_u8_integer_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native UNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_unorm_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native SNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_snorm_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native CMP output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_cmp_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native half output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_half_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native float output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_float_output_enabled());
-            std::fprintf(stderr,"[geometry-job] native ring=%d (0 lift, 1 native; JOB=2 strict state/I/O; default off)\n",buzz_geometry_job_ring_enabled());
-            std::fprintf(stderr, "[geometry-job] native alternate cull=%d (0 lift, 1 native, 2 strict state/handoff; default off)\n", buzz_geometry_job_alternate_cull_enabled());
-            std::fprintf(stderr, "[geometry-job] native transform control=%d (0 lift, 1 native, 2 strict state/return; default off)\n", buzz_geometry_job_transform_control_enabled());
-            std::fprintf(stderr, "[geometry-job] native vertex prepare=%d (0 lift, 1 native, 2 strict state/handoff; default off)\n", buzz_geometry_job_vertex_prepare_enabled());
-            std::fprintf(stderr, "[geometry-job] native transform finish=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_transform_finish_enabled());
-            std::fprintf(stderr, "[geometry-job] native skin cofactor=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_skin_cofactor_enabled());
-            std::fprintf(stderr, "[geometry-job] native rigid skin=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_rigid_skin_enabled());
-            std::fprintf(stderr, "[geometry-job] native skin flow=%d (0 lift, 1 native, 2 strict state/return; default off)\n", buzz_geometry_job_skin_flow_enabled());
-            std::fprintf(stderr, "[geometry-job] native skin directions=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_skin_directions_enabled());
-            std::fprintf(stderr, "[geometry-job] complete weighted skin=%d (0 previous path, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_weighted_skin_enabled());
-            std::fprintf(stderr, "[geometry-job] native skin dispatch=%d (0 lift, 1 native, 2 strict controller boundaries; default off)\n", buzz_geometry_job_skin_dispatch_enabled());
-            std::fprintf(stderr, "[geometry-job] native custom stream=%d (0 lift, 1 native, 2 strict 7DF8 handoff; default off)\n", buzz_geometry_job_custom_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native I16 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_i16_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native CMP stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_cmp_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native U8_INTEGER stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_u8_integer_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native SNORM16 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_snorm_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native fixed stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_fixed_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native float32 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_float32_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native half stream=%d (default off; complete storage3 region)\n", buzz_geometry_job_half_stream_enabled());
-            std::fprintf(stderr, "[geometry-job] native unit vectors=%d (default off; complete storage9 region)\n", buzz_geometry_job_unit_vectors_enabled());
-            std::fprintf(stderr, "[geometry-job] native stream codecs=%d (default off; U8 color only)\n", buzz_geometry_job_codecs_enabled());
-            std::fprintf(stderr, "[geometry-job] native descriptor control=%d (default off; typed callbacks tracked separately)\n", buzz_geometry_job_descriptors_enabled());
-            std::fprintf(stderr, "[geometry-job] native command buffer=%d (default off)\n", buzz_geometry_job_commands_enabled());
+            std::fprintf(stderr,"[geometry-job] profile=%s publication=%d commands=%d (JOB default off)\n",
+                buzz_geometry_job_legacy_enabled()?"legacy-debug":"host-groups",
+                buzz_geometry_job_publication_enabled(),buzz_geometry_job_commands_enabled());
+            std::fprintf(stderr,"[geometry-job] host pipeline=%d (persistent host SoA;whole-job admission;JOB default off)\n",buzz_geometry_job_host_pipeline_enabled());
+            if (buzz_geometry_job_legacy_enabled()) {
+                std::fprintf(stderr, "[geometry-job] native index publication=%d (default off)\n",
+                             buzz_geometry_job_publish_enabled());
+                std::fprintf(stderr, "[geometry-job] native output sizing=%d, vertex publication=%d (default off)\n",
+                             buzz_geometry_job_layout_enabled(), buzz_geometry_job_vertex_enabled());
+                std::fprintf(stderr, "[geometry-job] native command publication=%d (default off)\n", buzz_geometry_job_command_publish_enabled());
+                std::fprintf(stderr, "[geometry-job] native position commands/bindings=%d (default off)\n", buzz_geometry_job_emit_enabled());
+                std::fprintf(stderr, "[geometry-job] native full commands=%d (default off)\n", buzz_geometry_job_full_commands_enabled());
+                std::fprintf(stderr, "[geometry-job] native attribute control/raw float3=%d (default off; descriptor codecs retained)\n", buzz_geometry_job_attributes_enabled());
+                std::fprintf(stderr, "[geometry-job] native blend scatter=%d (0 lift, 1 native, 2 strict root; default off)\n", buzz_geometry_job_blend_scatter_enabled());
+                std::fprintf(stderr, "[geometry-job] native blend lists=%d (default off; JOB=2 strict I/O root)\n", buzz_geometry_job_blend_lists_enabled());
+                std::fprintf(stderr, "[geometry-job] native run lists=%d (0 lift, 1 native, 2 strict root; default off)\n", buzz_geometry_job_run_lists_enabled());
+                std::fprintf(stderr, "[geometry-job] native normalized skin=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_skin_normalized_enabled());
+                std::fprintf(stderr, "[geometry-job] native index deltas=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_deltas_enabled());
+                std::fprintf(stderr, "[geometry-job] native index unpack=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_unpack_enabled());
+                std::fprintf(stderr, "[geometry-job] native index expansion=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_expand_enabled());
+                std::fprintf(stderr, "[geometry-job] native index relocation=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_relocate_enabled());
+                std::fprintf(stderr, "[geometry-job] native index triangles=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_triangles_enabled());
+                std::fprintf(stderr, "[geometry-job] native index control=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_index_control_enabled());
+                std::fprintf(stderr,"[geometry-job] native input control=%d (0 lift,1 native,2 strict full state;default off)\n",buzz_geometry_job_input_control_enabled());
+                for(unsigned format=1;format<=5;++format)std::fprintf(stderr,"[geometry-job] native builtin input%u=%d (requires input control;0 lift,1 native,2 strict data;default off)\n",format,buzz_geometry_job_builtin_input_enabled(format));
+                for(unsigned format=0;format<4;++format)std::fprintf(stderr,"[geometry-job] native builtin output%u=%d (0 lift, 1 native, 2 strict full-state; default off)\n",format,buzz_geometry_job_builtin_output_enabled(format));
+                std::fprintf(stderr,"[geometry-job] native conversion control=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_conversion_control_enabled());
+                std::fprintf(stderr,"[geometry-job] native formatter=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_formatter_enabled());
+                std::fprintf(stderr,"[geometry-job] formatter column spans=%d (0 exhaustive,1 proven spans;default off)\n",buzz_geometry_job_formatter_spans_enabled());
+                std::fprintf(stderr,"[geometry-job] formatter registers=%d (0 ABI callbacks,1 shared host bank;default off)\n",buzz_geometry_job_formatter_registers_enabled());
+                std::fprintf(stderr,"[geometry-job] host output=%d (8-lane SoA float/half/CMP;whole-job fallback;default off)\n",buzz_geometry_host_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native I16 output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_i16_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native U8 integer output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_u8_integer_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native UNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_unorm_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native SNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_snorm_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native CMP output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_cmp_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native half output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_half_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native float output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_float_output_enabled());
+                std::fprintf(stderr,"[geometry-job] native ring=%d (0 lift, 1 native; JOB=2 strict state/I/O; default off)\n",buzz_geometry_job_ring_enabled());
+                std::fprintf(stderr, "[geometry-job] native alternate cull=%d (0 lift, 1 native, 2 strict state/handoff; default off)\n", buzz_geometry_job_alternate_cull_enabled());
+                std::fprintf(stderr, "[geometry-job] native transform control=%d (0 lift, 1 native, 2 strict state/return; default off)\n", buzz_geometry_job_transform_control_enabled());
+                std::fprintf(stderr, "[geometry-job] native vertex prepare=%d (0 lift, 1 native, 2 strict state/handoff; default off)\n", buzz_geometry_job_vertex_prepare_enabled());
+                std::fprintf(stderr, "[geometry-job] native transform finish=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_transform_finish_enabled());
+                std::fprintf(stderr, "[geometry-job] native skin cofactor=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_skin_cofactor_enabled());
+                std::fprintf(stderr, "[geometry-job] native rigid skin=%d (0 lift, 1 native, 2 strict state/boundary; default off)\n", buzz_geometry_job_rigid_skin_enabled());
+                std::fprintf(stderr, "[geometry-job] native skin flow=%d (0 lift, 1 native, 2 strict state/return; default off)\n", buzz_geometry_job_skin_flow_enabled());
+                std::fprintf(stderr, "[geometry-job] native skin directions=%d (0 lift, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_skin_directions_enabled());
+                std::fprintf(stderr, "[geometry-job] complete weighted skin=%d (0 previous path, 1 native, 2 strict data/state; default off)\n", buzz_geometry_job_weighted_skin_enabled());
+                std::fprintf(stderr, "[geometry-job] native skin dispatch=%d (0 lift, 1 native, 2 strict controller boundaries; default off)\n", buzz_geometry_job_skin_dispatch_enabled());
+                std::fprintf(stderr, "[geometry-job] native custom stream=%d (0 lift, 1 native, 2 strict 7DF8 handoff; default off)\n", buzz_geometry_job_custom_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native I16 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_i16_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native CMP stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_cmp_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native U8_INTEGER stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_u8_integer_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native SNORM16 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_snorm_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native fixed stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_fixed_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native float32 stream=%d (0 lift, 1 native, 2 strict region; default off)\n", buzz_geometry_job_float32_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native half stream=%d (default off; complete storage3 region)\n", buzz_geometry_job_half_stream_enabled());
+                std::fprintf(stderr, "[geometry-job] native unit vectors=%d (default off; complete storage9 region)\n", buzz_geometry_job_unit_vectors_enabled());
+                std::fprintf(stderr, "[geometry-job] native stream codecs=%d (default off; U8 color only)\n", buzz_geometry_job_codecs_enabled());
+                std::fprintf(stderr, "[geometry-job] native descriptor control=%d (default off; typed callbacks tracked separately)\n", buzz_geometry_job_descriptors_enabled());
+                std::fprintf(stderr, "[geometry-job] native command buffer=%d (default off)\n", buzz_geometry_job_commands_enabled());
+            }
         }
         if (!buzz_geometry_job_audit_enabled()) return;
         if (!BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE) {
@@ -299,15 +305,54 @@ struct Init {
 } init;
 } // namespace
 
+static int raw_output_option(const char* name, int maximum_value = 1, int fallback = 0)
+{
+    const char* value = std::getenv(name);
+    if (!value) return fallback;
+    if (value[0] < '0' || value[0] > '0' + maximum_value || value[1]) std::abort();
+    return value[0] - '0';
+}
+extern "C" int buzz_geometry_job_legacy_enabled()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return raw_output_option("BUZZ_GEOMETRY_JOB_LEGACY"); });
+}
+static int host_pipeline_group()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return raw_output_option("BUZZ_GEOMETRY_JOB_HOST_PIPELINE", 1,
+        BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE && !buzz_geometry_job_legacy_enabled()); });
+}
+extern "C" int buzz_geometry_job_publication_enabled()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return buzz_geometry_job_legacy_enabled() ? 0 :
+        raw_output_option("BUZZ_GEOMETRY_JOB_PUBLICATION", 1, host_pipeline_group()); });
+}
+static int commands_group()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return raw_output_option("BUZZ_GEOMETRY_JOB_COMMANDS", 1, host_pipeline_group()); });
+}
+static int output_option(const char* name, int maximum_value = 1)
+{
+    // Each public getter caches this decision. Hot calls still pay one relaxed
+    // load, with no new parent checks. Old stage switches are diagnostic-only.
+    if (!std::strcmp(name, "BUZZ_GEOMETRY_DEBUG_STAGES")) return raw_output_option(name, maximum_value);
+    if (!std::strcmp(name, "BUZZ_GEOMETRY_JOB_HOST_PIPELINE")) return host_pipeline_group();
+    if (buzz_geometry_job_legacy_enabled()) return raw_output_option(name, maximum_value);
+    if (!std::strcmp(name, "BUZZ_GEOMETRY_JOB_PUBLISH") || !std::strcmp(name, "BUZZ_GEOMETRY_JOB_LAYOUT") ||
+        !std::strcmp(name, "BUZZ_GEOMETRY_JOB_VERTEX") || !std::strcmp(name, "BUZZ_GEOMETRY_JOB_RING"))
+        return buzz_geometry_job_publication_enabled();
+    if (!std::strcmp(name, "BUZZ_GEOMETRY_JOB_COMMANDS") || !std::strcmp(name, "BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH") ||
+        !std::strcmp(name, "BUZZ_GEOMETRY_JOB_EMIT") || !std::strcmp(name, "BUZZ_GEOMETRY_JOB_FULL_COMMANDS"))
+        return commands_group();
+    return 0;
+}
 extern "C" int buzz_geometry_job_publish_enabled()
 {
     static OptionCache enabled;
-    return enabled.get([] {
-        const char* value = std::getenv("BUZZ_GEOMETRY_JOB_PUBLISH");
-        if (!value) return 0;
-        if ((value[0] != '0' && value[0] != '1') || value[1]) std::abort();
-        return value[0] - '0';
-    });
+    return enabled.get([] { return output_option("BUZZ_GEOMETRY_JOB_PUBLISH"); });
 }
 
 extern "C" void buzz_geometry_job_publish_result(int native)
@@ -318,13 +363,6 @@ extern "C" void buzz_geometry_job_publish_result(int native)
     } else ++publication_fallback;
 }
 
-static int output_option(const char* name, int maximum_value = 1)
-{
-    const char* value = std::getenv(name);
-    if (!value) return 0;
-    if (value[0] < '0' || value[0] > '0' + maximum_value || value[1]) std::abort();
-    return value[0] - '0';
-}
 extern "C" int buzz_geometry_job_debug_stages()
 {
     static OptionCache enabled;
@@ -1327,7 +1365,12 @@ extern "C" void buzz_geometry_job_audit_report()
 }
 extern "C" int buzz_geometry_job_audit_failures()
 {
-    if (buzz_geometry_job_mode())
-        return failures.load() || (buzz_geometry_job_mode() == 2 ? !native_compared.load() : !native_executed.load());
+    if (buzz_geometry_job_mode()) {
+        const bool disabled = !buzz_geometry_job_legacy_enabled() &&
+            (!buzz_geometry_job_host_pipeline_enabled() || !buzz_geometry_job_publication_enabled() ||
+             !buzz_geometry_job_commands_enabled());
+        return failures.load() || (!disabled &&
+            (buzz_geometry_job_mode() == 2 ? !native_compared.load() : !native_executed.load()));
+    }
     return buzz_geometry_job_audit_enabled() && (!checked.load() || failures.load());
 }

@@ -174,8 +174,11 @@ The fresh reversed round CPU series improves worker cycles/frame −6.747%
 and process cycles/frame −4.335%, with both pairs positive for CPU savings.
 All experimental-profile correctness, native-frame and separate FPS/CPU
 gates now pass. The initial incomplete CPU series remains rejected. Stage
-switch consolidation and validation of that production profile still
-precede default-on. Full phase 3b remains open.
+switch consolidation now provides a compact host/publication/commands
+profile. Its controller tests and eight-arm whole-job corpus pass
+([profile results](native-geometry-phase3b-profile-results.md)); live/frame
+and reversed FPS/CPU gates for that profile still precede default-on.
+Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 

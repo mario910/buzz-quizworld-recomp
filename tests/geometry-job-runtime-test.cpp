@@ -134,10 +134,49 @@ int main(int argc, char** argv)
         buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_RIGID_SKIN,0,0);
         std::_Exit(0); // Deliberately bypass final summaries and CRT flushing.
     }
+    if(selected("profile-coverage")){
+        assert(argc==3 && buzz_geometry_job_mode() && !buzz_geometry_job_legacy_enabled());
+        assert(buzz_geometry_job_audit_failures()==atoi(argv[2]));
+        puts("[profile] deliberate fallback/missing coverage distinction PASS");return 0;
+    }
+    if(selected("profile")){
+        assert(argc==5);
+        const int host=atoi(argv[2]),publication=atoi(argv[3]),commands=atoi(argv[4]);
+        assert(!buzz_geometry_job_mode()); // Explicit JOB opt-in remains required.
+        assert(!buzz_geometry_job_legacy_enabled());
+        assert(buzz_geometry_job_host_pipeline_enabled()==host);
+        assert(buzz_geometry_job_publication_enabled()==publication);
+        assert(buzz_geometry_job_publish_enabled()==publication);
+        assert(buzz_geometry_job_layout_enabled()==publication);
+        assert(buzz_geometry_job_vertex_enabled()==publication);
+        assert(buzz_geometry_job_ring_enabled()==publication);
+        assert(buzz_geometry_job_commands_enabled()==commands);
+        assert(buzz_geometry_job_command_publish_enabled()==commands);
+        assert(buzz_geometry_job_emit_enabled()==commands);
+        assert(buzz_geometry_job_full_commands_enabled()==commands);
+        assert(!buzz_geometry_host_output_enabled());
+        assert(!buzz_geometry_job_attributes_enabled());
+        assert(!buzz_geometry_job_unit_vectors_enabled());
+        assert(!buzz_geometry_job_float_output_enabled());
+        assert(!buzz_geometry_job_formatter_registers_enabled());
+        // Later children must inherit the already-read groups, even if a
+        // diagnostic caller changes its process environment after startup.
+#ifdef _WIN32
+        _putenv_s("BUZZ_GEOMETRY_JOB_PUBLICATION",publication?"0":"1");
+        _putenv_s("BUZZ_GEOMETRY_JOB_COMMANDS",commands?"0":"1");
+        _putenv_s("BUZZ_GEOMETRY_JOB_LEGACY","1");
+#endif
+        assert(buzz_geometry_job_publish_enabled()==publication);
+        assert(buzz_geometry_job_commands_enabled()==commands);
+        assert(!buzz_geometry_job_weighted_skin_enabled());
+        puts("[profile] groups/legacy isolation/cache PASS");return 0;
+    }
     if(selected("option")){
         assert(argc==4);
         struct Option {const char* name;int(*get)();};
         const Option options[]={
+            {"LEGACY",buzz_geometry_job_legacy_enabled},{"PUBLICATION",buzz_geometry_job_publication_enabled},
+            {"HOST_PIPELINE",buzz_geometry_job_host_pipeline_enabled},
             {"DEBUG_STAGES",buzz_geometry_job_debug_stages},{"PUBLISH",buzz_geometry_job_publish_enabled},{"LAYOUT",buzz_geometry_job_layout_enabled},
             {"VERTEX",buzz_geometry_job_vertex_enabled},{"COMMANDS",buzz_geometry_job_commands_enabled},
             {"COMMAND_PUBLISH",buzz_geometry_job_command_publish_enabled},{"EMIT",buzz_geometry_job_emit_enabled},
