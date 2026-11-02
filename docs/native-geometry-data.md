@@ -70,12 +70,13 @@ from persistent SoA. Observable padding comes from one extra input position
 transformed with cached matrix/palette data. All admitted visible buffers match
 the original conversion; unsupported output storage and unresolved padded skin
 indices reject before mutation. See [vertex output results](native-geometry-phase3b-vertex-output-results.md).
-`native_geometry_host_job.h` now joins these producers into an experimental
-whole-job runtime path (`BUZZ_GEOMETRY_JOB_HOST_PIPELINE=1`, default off).
+`native_geometry_host_job.h` joins these producers into the whole-job runtime
+path. Qualified EU 1.00 Vulkan/AVX2 launch manifests select `BUZZ_GEOMETRY_JOB=1`;
+host/publication/commands groups inherit it. Bare executables retain JOB0.
 It prepares data before mutation and writes final streams directly, with
 semantic publication bindings and no intermediate LS float tables. Additional
 blend streams and unsupported recipes retain the whole lifted job. All three
-JOB modes pass the complete corpus; see [host pipeline results](native-geometry-phase3b-host-pipeline-results.md).
+JOB modes pass the complete corpus; see [default results](native-geometry-phase3b-default-results.md).
 
 ## Historical groundwork and strict diagnostics
 

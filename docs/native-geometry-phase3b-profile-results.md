@@ -4,7 +4,9 @@ In a phase-3 build, `BUZZ_GEOMETRY_JOB=1` selects the host pipeline. Its
 `HOST_PIPELINE`, `PUBLICATION` and `COMMANDS` group switches default to one;
 disabling any group selects the complete lifted job before entry mutation.
 `BUZZ_GEOMETRY_JOB_LEGACY=1` exposes the old diagnostic stage switches.
-The master `BUZZ_GEOMETRY_JOB` still defaults to zero.
+The bare executable's master `BUZZ_GEOMETRY_JOB` defaults to zero. Qualified
+EU 1.00 Vulkan/AVX2 builds now supply `JOB=1` through their manifest; both
+launchers preserve explicit `JOB=0`. See [default integration](native-geometry-phase3b-default-results.md).
 
 | Check | Result |
 | --- | --- |
@@ -26,8 +28,8 @@ The master `BUZZ_GEOMETRY_JOB` still defaults to zero.
 
 **Decision:** configuration, corpus, live I/O, native-frame and separate
 reversed menu/round FPS/CPU gates pass, with gains in both pairs. The profile
-qualifies for default-on; normal-build/launch integration remains pending. The
+is enabled through the qualified build manifest. The
 [previous profile's gains](native-geometry-phase3b-host-pipeline-results.md)
-remain separate evidence; validate this profile before default-on.
+remain separate evidence.
 
 Private evidence: `analysis/native-geometry/phase3/compact-profile-v2/`.

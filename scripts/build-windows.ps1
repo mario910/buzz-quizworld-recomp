@@ -61,6 +61,7 @@ $sdk = Join-Path $experimentRoot 'ps3recomp'
 $port = Join-Path $experimentRoot 'port'
 $build = Join-Path $experimentRoot $buildName
 $geometryOverride = ''
+$geometryJobProfile = $false
 $hostProfile = ''
 $generationPath=Join-Path $experimentRoot 'analysis\game-generation.json'
 if(Test-Path -LiteralPath $generationPath) {
@@ -152,10 +153,19 @@ if ($StageF) {
     $geometryLift = Join-Path $experimentRoot 'port/spu/buzz_job_6eba/spu_recomp.c'
     $geometryPhase2 = $NativeSpuFloat.IsPresent -and $SpuIsa -in @('avx2','avx512') -and
         (Get-FileHash -LiteralPath $geometryLift -Algorithm SHA256).Hash -eq '5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812'
-    $geometryGenerator = if ($geometryPhase2) { 'generate-geometry-phase2.py' } else { 'generate-geometry-stagef.py' }
+    # Only this family/renderer/FP/ISA combination has passed the full host-job
+    # corpus, live, native-frame and reversed FPS/CPU gates.
+    $geometryJobProfile = $geometryPhase2 -and $VulkanExperimental -and
+        $generation.family -eq 'quizworld-eu100' -and
+        $generation.elf_sha256 -eq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8' -and
+        $SpuIsa -eq 'avx2' -and -not $VideoTrace -and -not $ProducerTrace -and -not $SpuLsDebugHooks -and
+        $ResultGuardFP -and $HotPpu -and $SpuOpt -eq '-O2' -and -not $MergeGeometry -and
+        $NativeCompletion -and $NativeImage40 -and $NativeImage39 -and
+        $NativeImage36 -and $NativeImage7 -and $MStreamModules
+    $geometryGenerator = if ($geometryJobProfile) { 'generate-geometry-phase3.py' } elseif ($geometryPhase2) { 'generate-geometry-phase2.py' } else { 'generate-geometry-stagef.py' }
     & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot "tools/codegen/$geometryGenerator")
-    if ($LASTEXITCODE) { throw "Stage F/phase 2 geometry generation failed: $LASTEXITCODE" }
-    $geometryOverride = Join-Path $experimentRoot $(if ($geometryPhase2) { 'analysis/native-geometry/phase2/spu_recomp.c' } else { 'analysis/stagef-geometry/spu_recomp.c' })
+    if ($LASTEXITCODE) { throw "Stage F/geometry generation failed: $LASTEXITCODE" }
+    $geometryOverride = Join-Path $experimentRoot $(if ($geometryJobProfile) { 'analysis/native-geometry/phase3/spu_recomp.c' } elseif ($geometryPhase2) { 'analysis/native-geometry/phase2/spu_recomp.c' } else { 'analysis/stagef-geometry/spu_recomp.c' })
 }
 if ($MergeGeometry) {
     & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/codegen/generate-geometry-merged.py')
@@ -186,6 +196,12 @@ if($generation) {
     # The renderer is a property of the EXE. Launchers select its runtime set
     # from here, not from the directory name of a copied/frozen build.
     $renderer=if($VulkanExperimental){'vulkan'}else{'d3d12'}
-    @{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);renderer=$renderer;runtime_defaults=($runtimePlan | ConvertFrom-Json)} |
+    $boundRuntimeDefaults=$runtimePlan | ConvertFrom-Json
+    $buildManifest=@{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);renderer=$renderer;runtime_defaults=$boundRuntimeDefaults}
+    if($geometryJobProfile) {
+        $boundRuntimeDefaults | Add-Member -NotePropertyName BUZZ_GEOMETRY_JOB -NotePropertyValue '1' -Force
+        $buildManifest.geometry_job_profile='host-groups-v1'
+    }
+    $buildManifest |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'game-build.json') -Encoding UTF8
 }

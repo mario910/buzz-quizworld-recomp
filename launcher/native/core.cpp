@@ -253,7 +253,7 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
             require(digest_ok(expected)&&sha256(exe)==expected,"Game EXE does not match its manifest; rebuild it");
             auto defaults=j.value("runtime_defaults",Json::object());
             require(defaults.is_object(),"Invalid build runtime defaults");
-            for(auto& [key,value]:defaults.items())require(key=="BUZZ_NATIVE_COMPLETION"&&value.is_string()&&value.get<std::string>()=="2","Unknown build-bound runtime option");
+            validate_runtime_defaults(j,profile);
             if(profile.family!="quizworld-102-verified")require(defaults.value("BUZZ_NATIVE_COMPLETION",std::string{})=="2","Missing version-bound completion mode");
             validate_prepared_content(profile,root);
             return {root,exe,j,profile};
@@ -261,7 +261,20 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
     }}
     throw std::runtime_error(rejection.empty()?"No matching verified native build. Prepare the game with the developer tools first.":rejection);
 }
+void validate_runtime_defaults(const Json& manifest,const Profile& profile) {
+    const auto defaults=manifest.value("runtime_defaults",Json::object());
+    require(defaults.is_object(),"Invalid build runtime defaults");
+    for(auto& [key,value]:defaults.items()) {
+        const bool completion=key=="BUZZ_NATIVE_COMPLETION"&&value.is_string()&&value.get<std::string>()=="2";
+        const bool geometry=key=="BUZZ_GEOMETRY_JOB"&&value.is_string()&&value.get<std::string>()=="1"&&
+            profile.family=="quizworld-eu100"&&manifest.value("family",std::string())==profile.family&&
+            manifest.value("elf_sha256",std::string())==elf100&&manifest.value("renderer",std::string())=="vulkan"&&
+            manifest.value("geometry_job_profile",std::string())=="host-groups-v1";
+        require(completion||geometry,"Unknown or unqualified build-bound runtime option");
+    }
+}
 Environment runtime_environment(const Settings& s,const Build& b,const fs::path& session,Environment env) {
+    validate_runtime_defaults(b.manifest,b.profile);
     auto def=[&](const char* k,const std::string& v,bool empty=true){auto it=env.find(k);if(it==env.end()||(empty&&it->second.empty()))env[k]=v;};
     // UI-owned input is isolated from shell/script leftovers; performance
     // overrides retain the original run-windows null-vs-empty semantics.
@@ -284,7 +297,7 @@ Environment runtime_environment(const Settings& s,const Build& b,const fs::path&
     // directory name (a renamed copy of such a build loses the Vulkan set).
     const auto renderer=b.manifest.value("renderer",std::string());
     const bool vulkan_build=renderer.empty()
-        ? b.executable.parent_path().filename().string().find("vulkan")!=std::string::npos
+        ? utf8(b.executable.parent_path().filename()).find("vulkan")!=std::string::npos
         : renderer=="vulkan";
     if(vulkan_build) {
         // Measured-best Vulkan set (as scripts/run-windows.ps1): without the

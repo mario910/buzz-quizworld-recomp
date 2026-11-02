@@ -1,6 +1,8 @@
 # Phase 3a measurements
 
-Status: in progress. Default remains JOB0; new options remain off.
+Historical 3a measurements. These candidates remain rejected individually.
+The later combined host pipeline meets menu parity and the remaining gates;
+see [phase 3b default results](native-geometry-phase3b-default-results.md).
 V1–V3 record the source state at each freeze. The implementation is now an
 experimental checkpoint; these rejected measurements do not establish native
 performance acceptance.

@@ -182,9 +182,14 @@ The compact profile's reversed menu series improves FPS +3.510%, worker
 cycles/frame −8.957% and process cycles/frame −4.920%, in both pairs.
 Its separate round FPS series improves +2.849%, with both pairs positive.
 Round worker cycles/frame improve −5.303% and process cycles/frame −3.287%,
-with both pairs positive for CPU savings. All compact-profile gates pass;
-normal-build/launch integration remains before default-on.
-Full phase 3b remains open.
+with both pairs positive for CPU savings. All compact-profile gates pass.
+The qualified EU 1.00 Vulkan/AVX2 normal build now selects phase 3 and both
+launchers apply manifest JOB1 while preserving explicit JOB0. Default/off
+normal-launch replay and actual default native menu/round frames pass;
+the relink differs from the measured executable only in its timestamp.
+See [default integration results](native-geometry-phase3b-default-results.md).
+Phase 3b's supported image-41 pipeline is complete; unsupported jobs retain
+whole-job fallback. Next: required phase 4 under the corrected host-data method.
 
 ### Historical implementation notes (superseded where conflicting)
 
@@ -1027,8 +1032,14 @@ Final interpreter, reversed frozen-EXE A/B, normalized CPU/FPS and default
 gates remain OPEN. Next is complete `54E8`; phase 3 and the goal stay active.
 
 ### Phase 4: image 40 (2-4 sessions)
-Same library routines at shifted offsets (images 40/43/45/47 share them):
-reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
+Reuse host algorithms for the shared library in images 40/43/45/47, starting
+with image 40's existing 17,714 real captures. Audit job inputs/publications
+and shared semantic operations before connecting an image-specific frontend;
+shifted entry addresses alone do not prove equivalent data or job contracts.
+Decode once into host SoA, compute eight lanes and emit final outputs once.
+No new per-function register-bank transliterations or cold coverage work.
+Unsupported/uncovered jobs retain whole-job lift fallback. Each increment
+uses the corrected corpus/live/frame/reversed FPS and CPU gates above.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
@@ -1066,8 +1077,9 @@ default-on after the FPS/CPU decisions; four are exact and opt-in. Final
 default replay, live comparison and native menu/round rendering also pass.
 The finalized separate results document is
 [native-geometry-phase2-results.md](native-geometry-phase2-results.md).
-Phase-2 results were committed in `ef906be`. Phase 3 remains incomplete;
-phase 7 is cancelled. The Course correction governs the historical rows below.
+Phase-2 results were committed in `ef906be`. The supported phase-3b image-41
+profile now passes and defaults on in qualified builds; phase 4 remains.
+Phase 7 is cancelled. The Course correction governs the historical rows below.
 
 | Revised work | Status | Latest evidence |
 | --- | --- | --- |
@@ -1210,7 +1222,7 @@ See the separate
 
 | Function | Lane time share | Status | Notes |
 |---|---|---|---|
-| 0x6DB8 loop | | on | `BUZZ_IMAGE40_LOCALS` |
+| 0x6DB8 loop | | exact | Historical local-register diagnostic, `BUZZ_IMAGE40_LOCALS=0` in the qualified profile; not the phase-4 host pipeline |
 | (fill in from phase 0 ranking) | | | |
 
 ### Phase 7: cancelled

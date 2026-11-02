@@ -70,6 +70,7 @@ void validate_prepared_content(const Profile&,const fs::path& build_root);
 // Scans only this project's managed preparation sessions, or explicit portable
 // game/build directories. A valid manifest is mandatory; no legacy bypass.
 Build validate_build(const Settings&, const fs::path& catalog);
+void validate_runtime_defaults(const Json&, const Profile&);
 Environment runtime_environment(const Settings&, const Build&, const fs::path& session,
                                 Environment inherited);
 LaunchPlan plan_launch(const Settings&, const Build&, Environment inherited);

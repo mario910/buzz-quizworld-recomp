@@ -57,14 +57,8 @@ if ($NativeSpurs) {
 if ($MenuBootstrap) {
     $bootstrapEnvironment = @{}
     $bootstrapEnvironment['BUZZ_NATIVE_COMPLETION'] = [Environment]::GetEnvironmentVariable('BUZZ_NATIVE_COMPLETION','Process')
-    if($binding -and $binding.runtime_defaults) {
-        foreach($option in $binding.runtime_defaults.PSObject.Properties) {
-            if($option.Name -notin @('BUZZ_NATIVE_COMPLETION')) {throw 'Unknown build-bound runtime option'}
-            if([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($option.Name,'Process'))) {
-                [Environment]::SetEnvironmentVariable($option.Name,[string]$option.Value,'Process')
-            }
-        }
-    }
+    . (Join-Path $PSScriptRoot 'buzz-runtime-defaults.ps1')
+    Set-BuzzBuildRuntimeDefaults -Binding $binding -Previous $bootstrapEnvironment
     foreach ($key in @('BUZZ_NO_FMV','GCM_SECOND_V','SPURS_JOB_ABI_MIN_IMAGE','SPURS_JOB_ABI_STAGE_IMAGE','SPURS_JOB_KERNEL_MIRROR','GCM_STRICT_PARK','RSX_VERTEX_CAPACITY','RSX_DRAW_CAPACITY','RSX_TEXTURE_CAPACITY','BUZZ_PULSE_MS','SPURS_JOB_LIST_WORKERS','SPURS_JOB_LIST_IMAGE','SPURS_JOB_LIST_EXTRA_IMAGES','SPURS_JOB_LS_EXCHANGE','SPURS_JOB_LS_PUBLISH','BUZZ_COMPLETION_QUEUE','BUZZ_STAGEF','SPURS_POOL_SEQUENCE','SPU_INTERP_UNLIFTED','PS3_USLEEP_TIMER_TAIL_US','RSX_TRACK_ZETA','RSX_SHADER_CACHE_DIR','RSX_PIPELINE_CAPACITY','SPURS_JOB_CACHE_ENV','RSX_CACHE_ENV','SPURS_GUARD_POLL_ONLY','SPURS_JTS_WAKE','SPURS_JTS_DMA_WAKE','GCM_FIFO_STOP_AT_FLIP','RSX_FLIP_BOUNDARY','SPURS_MERGE_READY_LISTS','SPURS_NATIVE_EXTRA_FP','RSX_GUEST_SAMPLERS','RSX_PIXEL_WINDOW')) {
         $bootstrapEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
     }

@@ -1,4 +1,20 @@
-# Phase3 completion audit and next implementation
+# Native geometry completion audit
+
+Current scope follows **Course correction (2026-11-01)** in the plan.
+
+| Work | Status / next action |
+| --- | --- |
+| Phase 3a overhead cleanup | Implemented; individual intermediate candidates failed menu parity and remain rejected |
+| Phase 3b host data pipeline | Supported image-41 path passes all gates and is default-on in the qualified EU 1.00 Vulkan/AVX2 profile; [final results](native-geometry-phase3b-default-results.md) |
+| Unsupported image-41 jobs | Intentional whole-job fallback; no new cold-format or interpreter-count coverage work |
+| Required phase 4 | Audit image-40 real inputs, publication boundaries and shared semantic operations; reuse host SoA/AVX2 algorithms with a guarded image frontend; validate each increment before default-on |
+| Optional phases 5/6 | Outside the required completion gate |
+| Phase 7 | Cancelled; no strict dead-register/scratch reconstruction |
+
+## Historical checkpoint (superseded by the Course correction)
+
+The following preserves earlier evidence and rejected decisions. Its former
+remaining-work, strict-state and interpreter-count requirements do not apply.
 
 Current native source:a5fbf3d,ABI48/61 stages,bc0d35df EXE/dc3e3a05 MAP.
 Shared-bank formatter corpus/live/render gates now pass on this new freeze;
