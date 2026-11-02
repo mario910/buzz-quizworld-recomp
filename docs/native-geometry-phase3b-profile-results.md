@@ -14,9 +14,13 @@ The master `BUZZ_GEOMETRY_JOB` still defaults to zero.
 | Whole-job corpus | All eight arms: 19,508 exact jobs / 58,195 transfers; zero differences or concurrent-input exclusions |
 | Explicit and implicit JOB1 / JOB2 | 17,437 native jobs; 2,071 whole-job fallbacks; JOB2 checks all 17,437 captured native I/O transcripts |
 | Any required group off | 19,508 whole-job fallbacks; zero native jobs and zero errors |
-| Live whole-job I/O, native frames, reversed menu/round FPS and CPU | Pending for this profile |
+| Live JOB2 | At least 1,275,000 completed whole-job I/O comparisons; concurrent-input skips excluded |
+| Native menu and round | Both JOB1 GPU frames inspected; normal geometry |
+| Measurement profile | Six recorded settings: JOB, three groups, LEGACY=0 and AUDIT=0; debug checkers off; 21 report tests pass; four prior reports reproduce unchanged |
+| Reversed menu/round FPS and CPU | Pending for this profile |
 
-**Decision:** controller/configuration and corpus gates pass. Keep the master default off. The
+**Decision:** controller/configuration, corpus, live I/O and native-frame
+gates pass. Keep the master default off pending reversed FPS/CPU. The
 [previous profile's gains](native-geometry-phase3b-host-pipeline-results.md)
 remain separate evidence; validate this profile before default-on.
 

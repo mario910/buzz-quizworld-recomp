@@ -73,6 +73,43 @@ class JobReportTests(unittest.TestCase):
             events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
             with self.assertRaisesRegex(ValueError,'actual native'):reporter.report(path,root)
 
+    def compact_fixture(self,root):
+        path,events=self.fixture(root)
+        for start,done in zip(events[::2],events[1::2]):
+            run=start['run'];job=run['job'];run.update(profile='host-groups-v1',debug_stages=0)
+            run['job_options']={key:job for key in ('BUZZ_GEOMETRY_JOB','BUZZ_GEOMETRY_JOB_HOST_PIPELINE','BUZZ_GEOMETRY_JOB_PUBLICATION','BUZZ_GEOMETRY_JOB_COMMANDS')}
+            run['job_options'].update(BUZZ_GEOMETRY_JOB_LEGACY=0,BUZZ_GEOMETRY_JOB_AUDIT=0)
+            log=root/f"vk-scene-{run['tag']}.stderr.log"
+            text=log.read_text().replace('[geometry-job/input-control/raw0] native=256 PASS\n','')
+            if job:text+='[geometry-job] profile=host-groups publication=1 commands=1 (JOB default off)\n[geometry-job] host pipeline=1 (host SoA)\n[geometry-job/host-pipeline] native 25000 (owner count;direct host data)\n'
+            log.write_text(text);done['log_sha256']=reporter.sha(log)
+        self.save(path,events);return path,events
+
+    def test_compact_groups_require_native_host_coverage_without_legacy_options(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path,_=self.compact_fixture(root);result=reporter.report(path,root)
+            self.assertEqual(result['settings']['profile'],'host-groups-v1')
+            self.assertEqual([r['native_host_pipeline_lower_bound'] for r in result['runs']],[0,25000,25000,0])
+            self.assertEqual([r['native_raw0_lower_bound'] for r in result['runs']],[0,0,0,0])
+            self.assertAlmostEqual(result['fps']['change_percent'],25)
+
+    def test_compact_groups_reject_mixed_or_legacy_profile_and_false_coverage(self):
+        for fault in ('extra-leaf','legacy-on','group-off','mixed-profile','debug-stages','runtime-profile','missing-native','legacy-input','legacy-formatter'):
+            with self.subTest(fault=fault),tempfile.TemporaryDirectory() as temp:
+                root=Path(temp);path,events=self.compact_fixture(root);run=events[2]['run']
+                log=root/'vk-scene-job-2.stderr.log';text=log.read_text()
+                if fault=='extra-leaf':run['job_options']['BUZZ_GEOMETRY_JOB_INPUT_CONTROL']=1
+                elif fault=='legacy-on':run['job_options']['BUZZ_GEOMETRY_JOB_LEGACY']=1
+                elif fault=='group-off':run['job_options']['BUZZ_GEOMETRY_JOB_PUBLICATION']=0
+                elif fault=='mixed-profile':run['profile']='legacy'
+                elif fault=='debug-stages':run['debug_stages']=1
+                elif fault=='runtime-profile':text=text.replace('profile=host-groups','profile=legacy-debug')
+                elif fault=='missing-native':text=text.replace('native 25000','native 255')
+                elif fault=='legacy-input':text+='[geometry-job/input-control/raw0] native=256 PASS\n'
+                else:text+='[geometry-job/formatter-registers] native=256 strict-parent=0 children=512 strict-children=0 PASS\n'
+                log.write_text(text);events[3]['log_sha256']=reporter.sha(log);self.save(path,events)
+                with self.assertRaises(ValueError):reporter.report(path,root)
+
     def cpu_fixture(self,root):
         path,events=self.fixture(root)
         for start,done in zip(events[::2],events[1::2]):

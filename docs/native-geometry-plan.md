@@ -176,8 +176,9 @@ All experimental-profile correctness, native-frame and separate FPS/CPU
 gates now pass. The initial incomplete CPU series remains rejected. Stage
 switch consolidation now provides a compact host/publication/commands
 profile. Its controller tests and eight-arm whole-job corpus pass
-([profile results](native-geometry-phase3b-profile-results.md)); live/frame
-and reversed FPS/CPU gates for that profile still precede default-on.
+([profile results](native-geometry-phase3b-profile-results.md)). Live I/O
+exceeds 1,275,000 completed comparisons and both native frames look normal.
+Reversed FPS/CPU gates for that profile still precede default-on.
 Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)

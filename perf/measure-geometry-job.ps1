@@ -1,7 +1,6 @@
 # Four fresh same-EXE 0/1/1/0 runs. FPS and CPU are separate series.
-# With Option, JOB stays1 and only that production option changes.
-# Native enables the production job options in the pinned runtime source;
-# baseline retains geometry mask827/StageF1 with those job options disabled.
+# Compact production profile only; historical option series remain readable.
+# Baseline retains geometry mask827/StageF1 with the job groups disabled.
 param([Parameter(Mandatory)][ValidatePattern('^build-[A-Za-z0-9_-]+$')][string]$BuildDirectory,
       [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9_-]+$')][string]$Tag,
       [Parameter(Mandatory)][string]$SaveTemplate,
@@ -50,9 +49,11 @@ try {
         if ($geometryBindingData.exe_sha256 -ne $geometryPins[$geometryExe] -or $geometryBindingData.map_sha256 -ne $geometryPins[$geometryMap]) { throw 'CPU binding differs from frozen EXE/map' }
     }
     $geometryOptions=@([regex]::Matches((Get-Content -LiteralPath $geometryRuntime -Raw),'"(BUZZ_GEOMETRY_(?:JOB_[A-Z0-9_]+|HOST_OUTPUT))"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-    if (-not ($geometryOptions -contains 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL')) { throw 'Missing production input options' }
-    if ($Option -and ($Option -notin $geometryOptions -or $Option -like 'BUZZ_GEOMETRY_JOB_AUDIT*')) { throw 'Option must be a production job switch' }
-    $geometryKnob=if ($Option) { $Option } else { 'JOB' }
+    foreach($geometryGroup in @('BUZZ_GEOMETRY_JOB_HOST_PIPELINE','BUZZ_GEOMETRY_JOB_PUBLICATION','BUZZ_GEOMETRY_JOB_COMMANDS','BUZZ_GEOMETRY_JOB_LEGACY')) {
+        if($geometryGroup -notin $geometryOptions){throw "Missing compact production group $geometryGroup"}
+    }
+    if($Option){throw 'Compact measurements compare aggregate JOB; historical isolated-option series remain supported by the reporter'}
+    $geometryKnob='JOB'
     $geometryWindow=if ($Scene -eq 'Menu') { @(40,98) } else { @(200,270) }
     New-Item -ItemType Directory -Path $geometryOut | Out-Null
     $geometryProgress=Join-Path $geometryOut 'progress.jsonl'
@@ -69,13 +70,13 @@ try {
         New-Item -ItemType Directory -Path $geometrySave | Out-Null
         Copy-Item -LiteralPath (Join-Path $geometryTemplate 'dev_hdd0') -Destination (Join-Path $geometrySave 'dev_hdd0') -Recurse
         if ((Get-FileHash -LiteralPath (Join-Path $geometrySave $geometrySaveRelative)).Hash.ToLowerInvariant() -ne $geometryPins[$geometryTemplateSave]) { throw 'Copied save differs from template' }
-        $geometrySelected=[ordered]@{ BUZZ_GEOMETRY_JOB=$geometryJob }
-        foreach ($geometryOption in $geometryOptions) { $geometrySelected[$geometryOption]=if ($geometryOption -like 'BUZZ_GEOMETRY_JOB_AUDIT*') { 0 } else { $geometryJob } }
-        if ($Option) { $geometrySelected[$Option]=$geometryArm }
+        $geometrySelected=[ordered]@{ BUZZ_GEOMETRY_JOB=$geometryJob; BUZZ_GEOMETRY_JOB_HOST_PIPELINE=$geometryJob; BUZZ_GEOMETRY_JOB_PUBLICATION=$geometryJob; BUZZ_GEOMETRY_JOB_COMMANDS=$geometryJob; BUZZ_GEOMETRY_JOB_LEGACY=0; BUZZ_GEOMETRY_JOB_AUDIT=0 }
         $geometryEnvironment=(@($geometrySelected.Keys | ForEach-Object { "$_=$($geometrySelected[$_])" }) -join ';')
-        $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0;SPU_INTERP_EXACT=0"
+        $geometryEnvironment+=";BUZZ_GEOMETRY=1;BUZZ_GEOMETRY_KERNELS=827;BUZZ_GEOMETRY_DEBUG_STAGES=0;BUZZ_STAGEF=1;BUZZ_IMAGE40_LOCALS=0;PS3_GAMEDATA_ROOT=$geometrySave;SPU_INTERP_STATS=0;SPU_INTERP_ENTRIES=0;SPU_INTERP_EXACT=0"
         $geometryRecord=[ordered]@{ tag=$geometryRunTag;scene=$Scene;metric=$Metric;job=$geometryJob;arm=$geometryArm;knob=$geometryKnob;index=$geometryIndex;window_seconds=$geometryWindow;exe_sha256=$geometryPins[$geometryExe];map_sha256=$geometryPins[$geometryMap];save_sha256=$geometryPins[$geometryTemplateSave];helper_sha256=$geometryPins[$geometryHelper];runner_sha256=$geometryPins[$geometryRunner];runtime_options_sha256=$geometryPins[$geometryRuntime];job_options=$geometrySelected;geometry_mask=827;stage_f=1;dump_every=0;cpu_binding_sha256=$geometryBindingHash;cpu_tool_sha256=$geometryCpuToolHash;round_intro_seconds=50;content_shot_at=195 }
         $geometryRecord.content_method=if ($Scene -eq 'Round') { 'gpu-once' } else { 'none' }
+        $geometryRecord.profile='host-groups-v1'
+        $geometryRecord.debug_stages=0
         $geometryRecord.renderer='vulkan';$geometryRecord.manifest_sha256=$geometryPins[$geometryManifest]
         $geometryRecord.content_capture_ms=if ($Scene -eq 'Round') { 190000 } else { 0 }
         $geometryRecord.content_tool_sha256=if ($Scene -eq 'Round') { $geometryPins[$geometryContentTool] } else { '' }
@@ -91,6 +92,7 @@ try {
         foreach ($geometryMarker in @('window present mode mailbox','two-context asynchronous draw batches enabled')) {
             if (-not (Select-String -LiteralPath $geometryLog -SimpleMatch $geometryMarker)) { throw "Invalid Vulkan runtime: missing $geometryMarker" }
         }
+        if($geometryJob -and -not (Select-String -LiteralPath $geometryLog -SimpleMatch 'profile=host-groups publication=1 commands=1')){throw 'Frozen EXE did not run the compact production profile'}
         $geometryRows=Import-Csv -LiteralPath $geometryCsv
         if ($geometryRows.Count -lt 500 -or [double]$geometryRows[-1].elapsed_ms -lt 1000*$geometryWindow[1]) { throw 'Incomplete measurement window' }
         $geometryCpuHash=if ($CpuBinding) { (Get-FileHash -LiteralPath $geometryCpuPath).Hash.ToLowerInvariant() } else { '' }

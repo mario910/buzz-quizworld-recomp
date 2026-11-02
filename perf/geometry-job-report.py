@@ -40,19 +40,24 @@ def report(progress,csv_directory,scene_qa=None):
     if [r['job'] for r in runs]!=([0,1,1,0] if knob=='JOB' else [1]*4):raise ValueError('Option comparison must retain JOB1 in every arm')
     for field in ('scene','metric','window_seconds','exe_sha256','map_sha256','save_sha256','helper_sha256','runner_sha256','runtime_options_sha256','geometry_mask','stage_f','dump_every','cpu_binding_sha256','cpu_tool_sha256','round_intro_seconds','content_shot_at'):
         if any(r[field]!=runs[0][field] for r in runs):raise ValueError('Series differs in '+field)
-    for field in ('content_method','content_capture_ms','content_tool_sha256'):
+    for field in ('content_method','content_capture_ms','content_tool_sha256','profile','debug_stages'):
         if any(r.get(field)!=runs[0].get(field) for r in runs):raise ValueError('Series differs in '+field)
     scene=runs[0]['scene'];metric=runs[0]['metric']
     if scene not in ('Menu','Round') or metric not in ('Fps','Cpu'):raise ValueError('Unknown series method')
     window={'Menu':[40,98],'Round':[200,270]}[scene]
     if runs[0]['window_seconds']!=window or runs[0]['dump_every'] or runs[0]['geometry_mask']!=827 or runs[0]['stage_f']!=1:raise ValueError('Wrong window/common settings')
     option_keys=set(runs[0]['job_options'])
-    if 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL' not in option_keys:raise ValueError('Missing production input option')
+    compact=runs[0].get('profile')=='host-groups-v1'
+    if compact:
+        expected_keys={'BUZZ_GEOMETRY_JOB','BUZZ_GEOMETRY_JOB_HOST_PIPELINE','BUZZ_GEOMETRY_JOB_PUBLICATION','BUZZ_GEOMETRY_JOB_COMMANDS','BUZZ_GEOMETRY_JOB_LEGACY','BUZZ_GEOMETRY_JOB_AUDIT'}
+        if option_keys!=expected_keys or knob!='JOB' or runs[0].get('debug_stages')!=0:raise ValueError('Invalid compact production group inventory/knob/debug mode')
+    elif runs[0].get('profile') is not None:raise ValueError('Unknown production profile')
+    elif 'BUZZ_GEOMETRY_JOB_INPUT_CONTROL' not in option_keys:raise ValueError('Missing production input option')
     if knob!='JOB' and (knob not in option_keys or not re.fullmatch(r'BUZZ_GEOMETRY_(?:JOB_[A-Z0-9_]+|HOST_OUTPUT)',knob) or knob.startswith('BUZZ_GEOMETRY_JOB_AUDIT')):raise ValueError('Unknown production option')
     for run,arm in zip(runs,arms):
         if set(run['job_options'])!=option_keys:raise ValueError('Option inventory differs')
         for key,value in run['job_options'].items():
-            expected=0 if key.startswith('BUZZ_GEOMETRY_JOB_AUDIT') else arm if key==knob else run['job']
+            expected=0 if key.startswith('BUZZ_GEOMETRY_JOB_AUDIT') or (compact and key=='BUZZ_GEOMETRY_JOB_LEGACY') else arm if key==knob else run['job']
             if value!=expected:raise ValueError('Mismatched job option '+key)
     if metric=='Cpu' and (not runs[0]['cpu_binding_sha256'] or not runs[0]['cpu_tool_sha256']):raise ValueError('CPU series lacks observer binding')
     if metric=='Fps' and any(runs[0][f] for f in ('cpu_binding_sha256','cpu_tool_sha256')):raise ValueError('FPS series contains CPU observer')
@@ -67,6 +72,7 @@ def report(progress,csv_directory,scene_qa=None):
         tag=run['tag'];csv_path=csv_directory/f'vk-scene-{tag}.csv';log=csv_directory/f'vk-scene-{tag}.stderr.log'
         if sha(csv_path)!=event['csv_sha256'] or sha(log)!=event['log_sha256']:raise ValueError('Completed-run file hash differs')
         text=log.read_text(errors='replace')
+        if compact and run['job'] and 'profile=host-groups publication=1 commands=1 ' not in text:raise ValueError('Runtime compact production profile differs')
         if any(marker not in text for marker in ('window present mode mailbox','two-context asynchronous draw batches enabled')):
             raise ValueError('Missing Vulkan mailbox/asynchronous runtime evidence')
         if any(token in text for token in ('] DIFF','SPU HALT','MISMATCH')):raise ValueError('Game reported a validation failure')
@@ -87,10 +93,12 @@ def report(progress,csv_directory,scene_qa=None):
         if host_output and not host_pipeline and output_roots<256:raise ValueError('Missing actual host output coverage')
         if not host_output and output_roots:raise ValueError('Disabled host output reported native coverage')
         if host_pipeline and output_roots:raise ValueError('Host pipeline executed legacy output producers')
+        register_paths=[tuple(map(int,m)) for m in re.findall(r'^\[geometry-job/formatter-registers\] native=(\d+) strict-parent=(\d+) children=(\d+) strict-children=(\d+)(?: PASS)?$',text,re.M)]
+        if host_pipeline and any(any(counts) for counts in register_paths):raise ValueError('Host pipeline executed legacy formatter producers')
         register_coverage=0
         if registers is not None:
             if run['job'] and f'formatter registers={registers} ' not in text:raise ValueError('Runtime register-bank option differs')
-            host=[tuple(map(int,m)) for m in re.findall(r'^\[geometry-job/formatter-registers\] native=(\d+) strict-parent=(\d+) children=(\d+) strict-children=(\d+)(?: PASS)?$',text,re.M)]
+            host=register_paths
             if registers:
                 if not (host_output or host_pipeline) and not any(roots>=256 and children>=256 for roots,_,children,_ in host):raise ValueError('Missing actual shared-bank formatter coverage')
                 if any(parent or child for _,parent,_,child in host):raise ValueError('Shared-bank performance run contains strict comparisons')
