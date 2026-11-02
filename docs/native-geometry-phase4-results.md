@@ -10,6 +10,9 @@
 | Fresh menu diagnostic | 20 s RIP sample, four selected SPURS lanes, 41,664 active-interval samples; 1,117 exclusive image-40 samples; native menu frame inspected; mailbox and asynchronous batches confirmed |
 | Hottest image-40 blocks | `6DB8_reference`: 233 samples (20.859% of image 40); `3460`: 114 (10.206%); `52A0`: 107 (9.579%) |
 | Profiler validation | Five tests pass; existing image-41 report reproduces exactly; image-specific reports exclude other roles |
+| Host affine producer | Eight joints per AVX2 batch; shared geometry BE/SoA decoder and exact FP helpers; final 3x4 stream written once; no SPU register bank or ABI frame |
+| Captured-output proof | All 17,714 jobs: 461,853 matrices / 22,168,944 bytes match the first PUT exactly, using captured world matrices and staged reference matrices as inputs |
+| Independent arithmetic/tails | 4,096 numeric batches / 18,432 matrices match the pinned original seven-block producer, including SPU extended-range values; guarded input/output tails 1–8 pass; inputs unchanged |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -25,7 +28,10 @@ from image 41. Establish logical clip/pose/matrix inputs and reuse host
 algorithms; do not transplant the image-41 job descriptor or generate new
 register-bank transliterations. Code matches do not establish job-contract
 compatibility or live coverage for images 43/45/47. Phase 4 remains open;
-there is no new native path, default change or FPS/CPU gain claim yet.
+the host affine producer is implemented and exact as a standalone component.
+It consumes captured world matrices for now: full native clip/pose production,
+job integration, live checks and candidate FPS/CPU gates remain. There is no
+new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
 
 Private evidence: `analysis/native-geometry/phase4/`.

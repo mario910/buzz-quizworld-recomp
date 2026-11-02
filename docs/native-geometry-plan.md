@@ -1045,6 +1045,10 @@ image-40 captures and their 115,162 exact baseline transfers. Image 40 has
 the animation job layout; its 48/64-byte published record streams need a
 separate frontend. Fresh menu hot blocks and code-only shared candidates
 are recorded; native integration and all candidate acceptance gates remain open.
+The host AVX2 affine producer now matches all 461,853 captured matrices
+(22,168,944 published bytes), with independent original-producer numeric and
+guarded-tail checks. It uses captured world matrices until native clip/pose
+production is connected; this is not whole-job native acceptance.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
