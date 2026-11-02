@@ -2,6 +2,7 @@
 #include "../port/native_animation_host_vectors.h"
 #include "../port/native_animation_host_additive.h"
 #include "../port/native_animation_host_curve_keys.h"
+#include "../port/native_animation_clip_input.h"
 #include "../port/native_animation_host_hierarchy.h"
 #include "../port/native_animation_job_input.h"
 #include "../port/native_animation_host_matrices.h"
@@ -27,6 +28,14 @@ static std::string current_case;
 static uint64_t jobs=0,total_transfers=0,quaternion_calls=0,nonempty_calls=0;
 static buzz::AnimationJobInput pending_job_input;
 static unsigned planned_publication=0;
+static buzz::AnimationClipInput pending_clip_input;
+static unsigned pending_clip_vector_kind=1;
+static uint64_t clip_inputs=0,clip_recipe_checks=0,clip_tail_inputs=0;
+static std::array<uint8_t,SPU_LS_SIZE> entry_ls;
+static std::map<unsigned,uint64_t> clip_tail_sizes;
+static uint64_t clip_nonzero_tail_inputs=0;
+static unsigned clip_guard_cases=0;
+static void check_clip_input_bounds(buzz::AnimationByteView,buzz::AnimationByteView,buzz::AnimationByteView,unsigned,unsigned,unsigned,uint32_t,bool);
 static uint64_t frontend_jobs=0,frontend_nodes[2]{},frontend_clips=0,frontend_publications=0;
 static std::map<unsigned,uint64_t> quaternion_counts;
 static std::filesystem::path output_directory;
@@ -151,7 +160,7 @@ u128 spu_rdch(spu_context* c,uint32_t channel)
 }
 uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
 }
-#include "../analysis/native-geometry/phase4/job-oracle-v15/reference.inc"
+#include "../analysis/native-geometry/phase4/job-oracle-v16/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next=animation_original_lookup(c->pc&SPU_LS_MASK);
@@ -172,18 +181,57 @@ static void dump(const char* name,const void* data,size_t bytes)
     auto* file=fopen((output_directory/name).string().c_str(),"wb");assert(file);
     assert(fwrite(data,1,bytes,file)==bytes);assert(!fclose(file));
 }
+static void check_clip_recipe(const buzz::AnimationKeyTracks& recipe,const spu_context* c)
+{
+    assert(recipe.tracks==c->gpr[17]._u32[0]);
+    if(!recipe.tracks)return; // Unused source addresses are not observable.
+    const unsigned bit=unsigned(recipe.key_bits.data-c->ls)*8+recipe.first_bit;
+    if(bit!=c->gpr[3]._u32[0]||recipe.first.data!=c->ls+c->gpr[15]._u32[0]||
+       recipe.last.data!=c->ls+c->gpr[16]._u32[0]||recipe.interior.data!=c->ls+c->gpr[14]._u32[0]||
+       recipe.interior_frames!=c->gpr[20]._u32[0]||recipe.frame!=c->gpr[12]._u32[0]||recipe.fraction!=c->gpr[13]._u32[0]) {
+        fprintf(stderr,"clip semantic recipe mismatch %s kind=%u bits=%X/%X endpoints=%X,%X/%X,%X interior=%X/%X\n",current_case.c_str(),pending_clip_vector_kind,
+            bit,c->gpr[3]._u32[0],unsigned(recipe.first.data-c->ls),unsigned(recipe.last.data-c->ls),c->gpr[15]._u32[0],c->gpr[16]._u32[0],unsigned(recipe.interior.data-c->ls),c->gpr[14]._u32[0]);abort();
+    }
+    ++clip_recipe_checks;
+}
 static void animation_original_probe(unsigned pc,spu_context* c)
 {
     if(!probe_enabled)return;
+    if(pc==0x5c00) {
+        const unsigned header=c->gpr[5]._u32[0],block=c->gpr[6]._u32[0];
+        buzz::AnimationByteView header_view,block_view;
+        for(size_t i=0;i<transfer_index;++i)if(const auto& t=transfers[i];t.kind==1) {
+            if(t.lsa==header)header_view={c->ls+header,t.size};
+            if(t.lsa==block)block_view={c->ls+block,t.size};
+        }
+        const char* reason=nullptr;
+        assert(block+block_view.bytes+1548<=SPU_LS_SIZE);
+        const buzz::AnimationByteView tail{c->ls+block+block_view.bytes,1548};
+        if(!buzz::read_animation_clip_input(header_view,block_view,tail,(pending_job_input.curve_floats+3)&~3u,c->gpr[7]._u32[0],c->gpr[8]._u32[0],c->gpr[9]._u32[0],pending_clip_input,&reason)) {
+            fprintf(stderr,"clip input rejected %s header=%X block=%X: %s\n",current_case.c_str(),header,block,reason);abort();
+        }
+        if(pending_clip_input.published_tail_bytes) {
+            if(memcmp(tail.data,entry_ls.data()+block+block_view.bytes,pending_clip_input.published_tail_bytes)) {
+                fprintf(stderr,"published tail depends on mutated scratch %s block=%X tail=%u\n",current_case.c_str(),block,pending_clip_input.published_tail_bytes);abort();
+            }
+            ++clip_tail_inputs;++clip_tail_sizes[pending_clip_input.published_tail_bytes];
+            for(unsigned i=0;i<pending_clip_input.published_tail_bytes;++i)if(tail.data[i]){++clip_nonzero_tail_inputs;break;}
+        }
+        if(!clip_inputs||(pending_clip_input.published_tail_bytes&&clip_tail_inputs==1))
+            check_clip_input_bounds(header_view,block_view,{tail.data,pending_clip_input.published_tail_bytes},(pending_job_input.curve_floats+3)&~3u,c->gpr[7]._u32[0],c->gpr[8]._u32[0],c->gpr[9]._u32[0],!clip_inputs);
+        pending_clip_vector_kind=1;++clip_inputs;
+        return;
+    }
     if(pc==0x9f50) {
-        const unsigned count=c->gpr[17]._u32[0],ids=c->gpr[19]._u32[0],bit=c->gpr[3]._u32[0];
+        const unsigned count=c->gpr[17]._u32[0],ids=c->gpr[19]._u32[0];
+        auto recipe=pending_clip_input.animated[3];check_clip_recipe(recipe,c);
         pending_curve_base=c->gpr[18]._u32[0];
         if(count) {
         assert(ids<=SPU_LS_SIZE);
         const unsigned capacity=(pending_job_input.curve_floats+3)&~3u;
-        if(!buzz::plan_animation_host_curve_keys({c->ls+ids,SPU_LS_SIZE-ids},count,capacity,pending_curve_keys)){fprintf(stderr,"curve key mapping rejected %s count=%u capacity=%u\n",current_case.c_str(),count,capacity);abort();}
-        auto view=[&](unsigned at){assert(at<=SPU_LS_SIZE);return buzz::AnimationByteView{c->ls+at,SPU_LS_SIZE-at};};
-        buzz::AnimationKeyTracks recipe{view(bit/8),view(c->gpr[15]._u32[0]),view(c->gpr[16]._u32[0]),view(c->gpr[14]._u32[0]),bit%8,c->gpr[20]._u32[0],pending_curve_keys.tracks,c->gpr[12]._u32[0],c->gpr[13]._u32[0]};
+        if(!buzz::plan_animation_host_curve_keys(pending_clip_input.animated_ids[3],count,capacity,pending_curve_keys)){fprintf(stderr,"curve key mapping rejected %s count=%u capacity=%u\n",current_case.c_str(),count,capacity);abort();}
+        assert(pending_clip_input.animated_ids[3].data==c->ls+ids);
+        recipe.tracks=pending_curve_keys.tracks;
         if(!buzz::sample_animation_host_curve_keys(recipe,pending_curve_keys,pending_curve_values.data())){fprintf(stderr,"native curve key recipe rejected %s\n",current_case.c_str());abort();}
         for(unsigned i=0;i<pending_curve_keys.tracks;++i)owned_curve_keys+=pending_curve_keys.publish[i];
         } else pending_curve_keys={};
@@ -402,11 +450,12 @@ static void animation_original_probe(unsigned pc,spu_context* c)
     if(pc==0x9a18) {
         const unsigned count=c->gpr[17]._u32[0];assert(count<=256);
         pending_vector_indices.clear();pending_vector_base=c->gpr[18]._u32[0];
-        auto view=[&](unsigned at){assert(at<=SPU_LS_SIZE);return buzz::AnimationByteView{c->ls+at,SPU_LS_SIZE-at};};
-        const unsigned bit=c->gpr[3]._u32[0];
-        buzz::AnimationVectorTracks recipe{view(bit/8),view(c->gpr[15]._u32[0]),view(c->gpr[16]._u32[0]),view(c->gpr[14]._u32[0]),bit%8,c->gpr[20]._u32[0],count,c->gpr[12]._u32[0],c->gpr[13]._u32[0]};
+        assert(pending_clip_vector_kind==1||pending_clip_vector_kind==2);
+        const unsigned kind=pending_clip_vector_kind++;
+        const auto& recipe=pending_clip_input.animated[kind];check_clip_recipe(recipe,c);
+        if(count)assert(pending_clip_input.animated_ids[kind].data==c->ls+c->gpr[19]._u32[0]);
         assert(buzz::sample_animation_host_vectors(recipe,pending_vectors.data()));
-        for(unsigned i=0;i<count;++i){const unsigned at=c->gpr[19]._u32[0]+i*2;assert(at+2<=SPU_LS_SIZE);pending_vector_indices.push_back(uint16_t(c->ls[at])<<8|c->ls[at+1]);}
+        for(unsigned i=0;i<count;++i){const auto* p=pending_clip_input.animated_ids[kind].data+i*2;pending_vector_indices.push_back(uint16_t(p[0])<<8|p[1]);}
         if(count&&!vector_observation[3].started)check_numeric_vectors(c);
     }
     if(pc==0x19a18&&!replace_quaternions) {
@@ -439,9 +488,10 @@ static void animation_original_probe(unsigned pc,spu_context* c)
         ++static_calls;const unsigned count=c->gpr[5]._u32[0];assert(count<=256);
         if(static_nonempty==0&&count)printf("first static quaternion producer count=%u destination=%X keys=%X indices=%X permutation=%X\n",count,c->gpr[3]._u32[0],c->gpr[4]._u32[0],c->gpr[6]._u32[0],c->gpr[7]._u32[0]);
         static_nonempty+=count!=0;pending_static_base=c->gpr[3]._u32[0];pending_static_indices.clear();
-        const unsigned at=c->gpr[4]._u32[0];assert(at<=SPU_LS_SIZE);
-        assert(buzz::decode_animation_host_static_quaternions({c->ls+at,SPU_LS_SIZE-at},count,pending_static_quaternions.data()));
-        for(unsigned i=0;i<count;++i){const unsigned id=c->gpr[6]._u32[0]+2*i;assert(id+2<=SPU_LS_SIZE);pending_static_indices.push_back(uint16_t(c->ls[id])<<8|c->ls[id+1]);}
+        assert(count==pending_clip_input.static_count[0]);
+        if(count)assert(pending_clip_input.static_values[0].data==c->ls+c->gpr[4]._u32[0]&&pending_clip_input.static_ids[0].data==c->ls+c->gpr[6]._u32[0]);
+        assert(buzz::decode_animation_host_static_quaternions(pending_clip_input.static_values[0],count,pending_static_quaternions.data()));
+        for(unsigned i=0;i<count;++i){const auto* p=pending_clip_input.static_ids[0].data+i*2;pending_static_indices.push_back(uint16_t(p[0])<<8|p[1]);}
         return;
     }
     if(pc==0x7788) {
@@ -458,11 +508,10 @@ static void animation_original_probe(unsigned pc,spu_context* c)
         ++quaternion_calls;const unsigned count=c->gpr[17]._u32[0];++quaternion_counts[count];
         if(count)++nonempty_calls;
         assert(count<=256);pending_indices.clear();pending_base=c->gpr[18]._u32[0];
-        auto view=[&](unsigned at){assert(at<=SPU_LS_SIZE);return buzz::AnimationByteView{c->ls+at,SPU_LS_SIZE-at};};
-        const unsigned bit=c->gpr[3]._u32[0];
-        buzz::AnimationQuaternionTracks recipe{view(bit/8),view(c->gpr[15]._u32[0]),view(c->gpr[16]._u32[0]),view(c->gpr[14]._u32[0]),bit%8,c->gpr[20]._u32[0],count,c->gpr[12]._u32[0],c->gpr[13]._u32[0]};
+        const auto& recipe=pending_clip_input.animated[0];check_clip_recipe(recipe,c);
+        if(count)assert(pending_clip_input.animated_ids[0].data==c->ls+c->gpr[19]._u32[0]);
         if(!buzz::sample_animation_host_quaternions(recipe,pending_quaternions.data())){fprintf(stderr,"native quaternion recipe rejected %s frames=%u frame=%u count=%u\n",current_case.c_str(),recipe.interior_frames,recipe.frame,count);abort();}
-        for(unsigned i=0;i<count;++i){const auto at=c->gpr[19]._u32[0]+2*i;assert(at+2<=SPU_LS_SIZE);pending_indices.push_back(uint16_t(c->ls[at])<<8|c->ls[at+1]);}
+        for(unsigned i=0;i<count;++i){const auto* p=pending_clip_input.animated_ids[0].data+i*2;pending_indices.push_back(uint16_t(p[0])<<8|p[1]);}
         if(count&&!dump_started) {
             dump_started=true;dump("quaternion-entry-arguments.bin",c->gpr+3,18*sizeof(u128));
             dump("quaternion-entry-ls.bin",c->ls,SPU_LS_SIZE);
@@ -656,6 +705,65 @@ static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,u
 #else
     return {data,bytes};
 #endif
+}
+static void check_clip_input_bounds(buzz::AnimationByteView header,buzz::AnimationByteView block,
+    buzz::AnimationByteView tail,unsigned capacity,unsigned width,unsigned frame,uint32_t fraction,bool malformed)
+{
+    const auto guarded_header=guarded_view(header.data,unsigned(header.bytes),0);
+    const auto storage=guarded_view(block.data,unsigned(block.bytes+tail.bytes),1);
+    buzz::AnimationClipInput plan;
+    assert(buzz::read_animation_clip_input(guarded_header,{storage.data,block.bytes},
+        {storage.data+block.bytes,tail.bytes},capacity,width,frame,fraction,plan));
+    ++clip_guard_cases;
+    if(!malformed)return;
+    constexpr unsigned invalid_cases=30;
+    for(unsigned test=0;test<invalid_cases;++test) {
+        std::vector<uint8_t> h(header.data,header.data+header.bytes),b(block.data,block.data+block.bytes+tail.bytes);
+        buzz::AnimationByteView hv{h.data(),h.size()},bv{b.data(),block.bytes},tv{b.data()+block.bytes,tail.bytes};
+        unsigned cap=capacity,w=width,f=frame;
+        auto set16=[](std::vector<uint8_t>& bytes,size_t at,unsigned n){bytes[at]=n>>8;bytes[at+1]=n;};
+        auto set32=[](std::vector<uint8_t>& bytes,size_t at,uint32_t n){for(unsigned i=0;i<4;++i)bytes[at+i]=n>>(24-i*8);};
+        const unsigned last_header=unsigned(pending_clip_input.animated[0].last.data-block.data)-16;
+        switch(test) {
+        case 0:h[0]^=1;break;
+        case 1:set16(h,12,unsigned(h.size())+16);break;
+        case 2:hv.bytes=95;break;
+        case 3:bv.bytes=15;tv={};break;
+        case 4:w=129;break;
+        case 5:f=width+1;break;
+        case 6:set16(h,14,0);break;
+        case 7:set16(h,14,257);break;
+        case 8:set16(h,16,0);break;
+        case 9:set16(h,18,0);break;
+        case 10:set16(h,38,1);break;
+        case 11:set16(h,22,257);break;
+        case 12:set32(h,60,0);break;
+        case 13:set32(h,60,0xfffffff0);break;
+        case 14:set32(h,60,unsigned(h.size())-60);break;
+        case 15:set16(h,30,257);break;
+        case 16:set16(b,0,65535);break;
+        case 17:set16(b,8,65535);break;
+        case 18:set16(b,last_header,65535);break;
+        case 19:cap=257;break;
+        case 20:set16(h,96,pending_clip_input.joints);break;
+        case 21:set16(h,unsigned(pending_clip_input.animated_ids[0].data-header.data),pending_clip_input.joints);break;
+        case 22:tv.bytes=1549;break;
+        case 23:tv={b.data(),1};break;
+        case 24:hv.bytes=96;set16(h,12,96);break;
+        case 25:set16(b,0,pending_clip_input.animated_count[0]*6-1);break;
+        case 26:set16(b,last_header,pending_clip_input.animated_count[0]*6-1);break;
+        case 27:bv.bytes=block.bytes-1;tv={};break;
+        case 28:hv.data=nullptr;break;
+        case 29:bv.data=nullptr;break;
+        }
+        buzz::AnimationClipInput rejected;memset(&rejected,0x5a,sizeof(rejected));
+        const auto unchanged=rejected;const char* reason=nullptr;
+        if(buzz::read_animation_clip_input(hv,bv,tv,cap,w,f,fraction,rejected,&reason)) {
+            fprintf(stderr,"invalid clip input accepted case=%u\n",test);abort();
+        }
+        assert(reason&&!memcmp(&rejected,&unchanged,sizeof(rejected)));
+    }
+    puts("PASS native clip input: 30 malformed spans/counts/IDs rejected without changing admission output");
 }
 static void check_numeric_quaternions(const spu_context* original)
 {
@@ -1191,7 +1299,7 @@ int main(int argc,char** argv)
         auto read=[&](void* data,unsigned n){assert(gzread(file,data,n)==int(n));};
         uint32_t header[6];read(header,sizeof(header));assert(header[0]==0x434a5a42&&header[1]==1&&header[2]==40&&header[5]==SPU_LS_SIZE);
         memset(c.get(),0,sizeof(*c));c->ls=c->ls_store;c->image_id=40;c->host_depth=1;
-        read(c->gpr,sizeof(c->gpr));read(c->ls,SPU_LS_SIZE);
+        read(c->gpr,sizeof(c->gpr));read(c->ls,SPU_LS_SIZE);memcpy(entry_ls.data(),c->ls,SPU_LS_SIZE);
         uint32_t n;read(&n,4);transfers.clear();transfer_index=0;
         for(unsigned i=0;i<n;++i){uint32_t h[4];read(h,16);Transfer t{h[0],h[1],h[2],h[3],{}};assert((t.kind==1||t.kind==2)&&uint64_t(t.lsa)+t.size<=SPU_LS_SIZE);t.data.resize(t.size);read(t.data.data(),t.size);transfers.push_back(std::move(t));}
         read(skipped.data(),unsigned(skipped.size()));uint32_t expected[7];read(expected,sizeof(expected));assert(gzread(file,skipped.data(),1)==0);assert(gzclose(file)==Z_OK);
@@ -1210,6 +1318,10 @@ int main(int argc,char** argv)
         assert(!memcmp(exit,expected,sizeof(exit)));++jobs;total_transfers+=n;
     }
     assert(jobs==17714&&total_transfers==115162&&dump_finished);
+    assert(clip_inputs==38025&&clip_recipe_checks&&clip_guard_cases==2);
+    printf("PASS clip tail input spans=%zu nonzero=%llu guarded parser cases=%u\n",clip_tail_sizes.size(),(unsigned long long)clip_nonzero_tail_inputs,clip_guard_cases);
+    for(auto [bytes,n]:clip_tail_sizes)printf("clip published input tail bytes=%u clips=%llu\n",bytes,(unsigned long long)n);
+    printf("PASS bounded EA03 clip inputs=%llu nonempty semantic recipes=%llu explicit entry-LS tail inputs=%llu\n",(unsigned long long)clip_inputs,(unsigned long long)clip_recipe_checks,(unsigned long long)clip_tail_inputs);
     assert(numeric_vectors==9216&&vector_observation[3].calls==76050&&vector_observation[3].nonempty==21052);
     assert(replace_quaternions?(replaced_vectors==76050):(compared_vectors==24548));
     assert(numeric_matrices==9216&&pose_observation[2].calls==17714&&pose_observation[2].nonempty==17714);

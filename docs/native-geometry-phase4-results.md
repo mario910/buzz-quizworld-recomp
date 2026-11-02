@@ -30,6 +30,9 @@
 | Additional numeric proofs | Each arm: 2,048 original-producer batches / 9,216 logical samples per operation; scalar checks include 12,288 aligned words per operation; read-only guarded source tails, host canaries, same/opposite quaternions and extended FP pass |
 | Host FLOAT1 key sampler | Shared temporal selection and exact eight-lane interpolation; 38,025 calls (3,863 nonempty), 52,640 final channel owners match, including published alignment channels; repeated IDs publish only their final owner |
 | FLOAT1 numeric/bounds proof | Each arm: 2,048 original-producer batches / 10,752 projected results; stored four-slot groups, guarded inputs/tails, duplicate IDs, offsets and masks through 128 bits, extended FP, output canaries; 12 invalid recipes/mappings rejected; compressed alternative has zero real calls and remains unimplemented |
+| Native clip stream frontend | All 38,025 EA03 header/block pairs decoded into bounded static/animated Q/T/S/curve recipes and ID views; 60,605 nonempty sampler recipes match the original; native samplers now consume these views |
+| Clip bounds proof | Each arm: 30 malformed span/count/offset/ID cases rejected with unchanged admission output; read-only guard-page checks with and without trailing input pass |
+| Observable trailing input | 648 clips require 4-156 bytes beyond the fetched block for published curve padding; all match entry LS (zero in this corpus); explicit bounded input, no scratch-state reconstruction or zero assumption |
 | Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; also 2,597 additive-pose, 3,684 scalar-blend, 2,597 scalar-add and 38,025 FLOAT1 sampler calls; no volatile GPR or ABI reconstruction |
 | Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
 | Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
@@ -57,8 +60,9 @@ captured matrix inputs. Nonuniform joint-weight streams and the small hierarchy
 alternative have no real corpus coverage and remain unsupported. Production
 job integration, live checks and candidate FPS/CPU gates remain. The new
 metadata parser is not the complete native driver: original code still
-handles clip/stream discovery, static/default-pose setup, control-tree
-traversal and the DMA/channel lifecycle. FLOAT1 key sampling and operation-1
+handles time-to-block selection/GET scheduling, static/default-pose setup,
+control-tree traversal and the DMA/channel lifecycle. The native clip parser
+now supplies stream views directly from fetched header/block bytes. FLOAT1 key sampling and operation-1
 pose/curve arithmetic now use native producers in the replacement oracle.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.

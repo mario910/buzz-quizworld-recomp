@@ -133,6 +133,7 @@ inline bool animation_track_recipe_valid(const AnimationKeyTracks& recipe,unsign
         uint64_t(recipe.tracks)*stride<=recipe.first.bytes&&uint64_t(recipe.tracks)*stride<=recipe.last.bytes;
 }
 // Track/time ordering and interpolation times are independent of key format.
+template<bool Interpolate=true>
 inline void select_animation_host_tracks8(const AnimationKeyTracks& recipe,unsigned first,
     unsigned& key_prefix,AnimationTrackSelection8& selection)
 {
@@ -160,6 +161,7 @@ inline void select_animation_host_tracks8(const AnimationKeyTracks& recipe,unsig
         selection.after_index[lane]=found_next?next_key:track;
         key_prefix+=keys;before_delta[lane]=recipe.frame-previous;span[lane]=next-previous;
     }
+    if constexpr(!Interpolate)return; // Bounds discovery needs only integer key locations.
     const v8 length=_mm256_castps_si256(_mm256_cvtepi32_ps(_mm256_load_si256(reinterpret_cast<const v8*>(span))));
     v8 inverse=v8_fi(length,v8_frest(length));
     inverse=v8_fma(v8_fnms(length,inverse,v8_set(0x3f800000)),inverse,inverse);

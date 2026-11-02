@@ -207,8 +207,29 @@ registers, lookahead state and call frames are not reproduced.
 The bounded recipe must include the stored bytes that determine published
 alignment channels. Treating only the logical track count as observable loses
 those output values. Compressed scalar keys have no corpus calls and remain
-unsupported; static/default setup and clip-to-recipe discovery are separate
-frontend work.
+unsupported; static/default setup remains separate frontend work.
+
+`native_animation_clip_input.h` reads the raw EA03 header and fetched block
+into bounded static/animated stream and ID views. Header BE16 counts at
+22-28 / 30-36 describe static / animated Q, T, S and curve tracks; flags at
+38 select compressed alternatives (unsupported). IDs start at 96: static
+quaternions occupy groups of eight, other lists groups of four. Static
+payload offsets at 60-72 are relative to their own fields.
+
+The block's first 16 bytes contain four endpoint sizes and four interior
+sizes. First endpoints precede MSB-first temporal bits; interior payloads
+follow, with curves aligned to four bytes. The next endpoint header starts
+at the following 16-byte boundary. Time, block selection and GET scheduling
+still come from the original driver; this parser accepts the selected
+frame, fraction and interior-frame count as semantic inputs.
+
+Some published curve padding also depends on bytes beyond the fetched
+block. The parser takes a separate bounded tail view and determines its
+required extent from final-owner key selection. All 648 affected corpus
+clips use 4-156 trailing bytes; these equal entry-LS bytes and are zero in
+this corpus. Preserve them as explicit observable input, without assuming
+zero or reproducing scratch writes. The maximum accepted view is 1,548
+bytes (three extra slots * 128 interior keys * 4 bytes + 12 endpoint bytes).
 
 ## Historical groundwork and strict diagnostics
 
