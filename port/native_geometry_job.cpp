@@ -99,6 +99,7 @@ thread_local Recording* recording = nullptr;
 thread_local unsigned owner_token = 0;
 thread_local spu_context* shadow = nullptr;
 thread_local const spu_context* admission_owner=nullptr;
+thread_local const char* replay_case=nullptr;
 struct AdmissionOwnerScope {
     const spu_context* previous;
     explicit AdmissionOwnerScope(const spu_context* c):previous(admission_owner){admission_owner=c;}
@@ -116,6 +117,7 @@ void unsupported(Recording& r, const char* reason)
 {
     ++failures;
     std::fprintf(stderr, "[geometry-job-audit] DIFF pc=%05X: %s\n", ctx->pc, reason);
+    if(replay_case)std::fprintf(stderr,"[geometry-job-audit] corpus case=%s\n",replay_case);
     std::fflush(stderr); // abort does not flush the normal buffered live log.
     std::abort();
 }
@@ -188,6 +190,8 @@ u128 consume(spu_context* ctx, GeometryJobIoKind kind, uint32_t channel, uint32_
     if (!replay || !replay->consume(*ctx, kind, channel, argument, result)) {
         std::fprintf(stderr, "[geometry-job-audit] channel operation=%zu channel=%u argument=%08X\n",
                      replay ? replay->consumed() : 0, channel, argument);
+        if(replay)if(const auto* expected=replay->expected_operation())
+            std::fprintf(stderr,"[geometry-job-audit] expected channel=%u argument=%08X\n",expected->channel,expected->argument);
         mismatch(replay && replay->error() ? replay->error() : "missing shadow transcript", ctx);
     }
     return result;
@@ -248,6 +252,7 @@ struct Init {
             std::fprintf(stderr,"[geometry-job] formatter column spans=%d (0 exhaustive,1 proven spans;default off)\n",buzz_geometry_job_formatter_spans_enabled());
             std::fprintf(stderr,"[geometry-job] formatter registers=%d (0 ABI callbacks,1 shared host bank;default off)\n",buzz_geometry_job_formatter_registers_enabled());
             std::fprintf(stderr,"[geometry-job] host output=%d (8-lane SoA float/half/CMP;whole-job fallback;default off)\n",buzz_geometry_host_output_enabled());
+            std::fprintf(stderr,"[geometry-job] host pipeline=%d (persistent host SoA;whole-job admission;default off)\n",buzz_geometry_job_host_pipeline_enabled());
             std::fprintf(stderr,"[geometry-job] native I16 output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_i16_output_enabled());
             std::fprintf(stderr,"[geometry-job] native U8 integer output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_u8_integer_output_enabled());
             std::fprintf(stderr,"[geometry-job] native UNORM output=%d (0 lift, 1 native, 2 strict full-state; default off)\n",buzz_geometry_job_unorm_output_enabled());
@@ -329,6 +334,18 @@ extern "C" int buzz_geometry_host_output_enabled()
 {
     static OptionCache enabled;
     return enabled.get([] { return output_option("BUZZ_GEOMETRY_HOST_OUTPUT"); });
+}
+extern "C" int buzz_geometry_job_host_pipeline_enabled()
+{
+    static OptionCache enabled;
+    return enabled.get([] { return output_option("BUZZ_GEOMETRY_JOB_HOST_PIPELINE"); });
+}
+extern "C" void buzz_geometry_job_host_pipeline_result()
+{
+    static Counter completed;
+    const auto count=++completed;
+    if(count<=4 || count%25000==0)
+        std::fprintf(stderr,"[geometry-job/host-pipeline] native %llu (owner count;direct host data)\n",count);
 }
 extern "C" void buzz_geometry_host_output_result()
 {
@@ -1140,6 +1157,10 @@ extern "C" void buzz_geometry_job_io_root_end(spu_context* ctx, buzz_geometry_io
 extern "C" int buzz_geometry_job_owns_admission(const spu_context* ctx)
 {
     return ctx && admission_owner==ctx;
+}
+extern "C" void buzz_geometry_job_replay_case(const char* path)
+{
+    replay_case=path;
 }
 
 extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn reference,

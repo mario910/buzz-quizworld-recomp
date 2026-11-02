@@ -49,6 +49,7 @@
 extern "C" uint8_t* vm_base;
 extern "C" __attribute__((weak)) void buzz_geometry_trace_job(const char*) {}
 extern "C" __attribute__((weak)) void buzz_geometry_trace_report(void) {}
+extern "C" __attribute__((weak)) void buzz_geometry_job_replay_case(const char*) {}
 
 namespace {
 
@@ -580,6 +581,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
         transfers += job.transfers.size();
         g_trace_steps = getenv("BUZZ_REPLAY_STEPS") != nullptr;
         buzz_geometry_trace_job(path.c_str());
+        buzz_geometry_job_replay_case(path.c_str());
         const std::vector<Seed> seeds = seeds_of(job);
         const int drawn = job.transfers.size() > 1;
         const double seconds_before = g_run_seconds[drawn];
@@ -597,6 +599,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     buzz_stagef_report();
     buzz_geometry_trace_report();
     if (buzz_stagef_check_failures()) ++failed;
+    buzz_geometry_job_replay_case(nullptr);
     buzz_geometry_report();
     if (buzz_geometry_check_failures()) ++failed;
     buzz_geometry_job_audit_report();

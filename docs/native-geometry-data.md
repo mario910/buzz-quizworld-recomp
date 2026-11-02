@@ -70,7 +70,12 @@ from persistent SoA. Observable padding comes from one extra input position
 transformed with cached matrix/palette data. All admitted visible buffers match
 the original conversion; unsupported output storage and unresolved padded skin
 indices reject before mutation. See [vertex output results](native-geometry-phase3b-vertex-output-results.md).
-The producers remain outside the runtime pending full job integration.
+`native_geometry_host_job.h` now joins these producers into an experimental
+whole-job runtime path (`BUZZ_GEOMETRY_JOB_HOST_PIPELINE=1`, default off).
+It prepares data before mutation and writes final streams directly, with
+semantic publication bindings and no intermediate LS float tables. Additional
+blend streams and unsupported recipes retain the whole lifted job. All three
+JOB modes pass the complete corpus; see [host pipeline results](native-geometry-phase3b-host-pipeline-results.md).
 
 ## Historical groundwork and strict diagnostics
 

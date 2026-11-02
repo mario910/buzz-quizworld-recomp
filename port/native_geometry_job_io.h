@@ -143,6 +143,8 @@ struct GeometryJobIoOperation {
 
 class GeometryJobIoReplay {
 public:
+    const GeometryJobIoOperation* expected_operation() const
+    { return cursor_ < limit_ ? &operations_[cursor_] : nullptr; }
     // The controller must establish trace recordability before starting the
     // shadow. A consume/finish error is a sticky comparison failure, never a
     // reason to relabel an incorrect native execution as reference fallback.

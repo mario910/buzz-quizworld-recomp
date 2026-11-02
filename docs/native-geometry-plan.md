@@ -156,8 +156,7 @@ Job-owned input SoA now matches 54,481,150 logical component values across
 object transforms and direction normalization now match the full original
 producer for those same 19,399 captures ([skin results](native-geometry-phase3b-skin-results.md)).
 Host projection now produces exact logical clip records for the same family
-([clip results](native-geometry-phase3b-clip-results.md)). These producers are
-not connected to the runtime. Direct host index decoding now matches all
+([clip results](native-geometry-phase3b-clip-results.md)). Direct host index decoding now matches all
 19,508 captured index streams ([index results](native-geometry-phase3b-index-results.md)).
 Host culling now matches the composed original flow for 19,399 jobs
 ([cull results](native-geometry-phase3b-cull-results.md)). Final host index
@@ -166,8 +165,11 @@ allocations now match all logical and alignment bytes
 Direct host vertex output now matches 5,801 admitted visible buffers, including
 alignment bytes ([vertex output results](native-geometry-phase3b-vertex-output-results.md)).
 Unsupported output storage and unresolved padded skin indices retain whole-job
-fallback. Next is actual full-job runtime integration and its correctness and
-performance gates. Full phase 3b remains open.
+fallback. The experimental host job pipeline now integrates these producers:
+all JOB0/JOB1/JOB2 corpus arms match 19,508 jobs /58,195 transfers, and live
+whole-job comparisons exceed 1,275,000. See [integrated pipeline results](native-geometry-phase3b-host-pipeline-results.md).
+Native frame checks, reversed FPS/CPU series and switch consolidation precede
+default-on. Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 
