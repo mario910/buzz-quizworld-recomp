@@ -1,5 +1,6 @@
 """Pinned native geometry adapters; derived reference code stays private."""
 import hashlib
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -9,6 +10,18 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "port/spu/buzz_job_6eba"
 DEST = ROOT / "analysis/native-geometry/phase2"
 PINS = {"5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"}
+
+def port_include(name):
+    # Production adapters compile inside the game target, whose include path
+    # has port/; generated source carries no checkout's absolute path.
+    return f'#include "{name}"'
+
+
+def test_include(name):
+    # Private test oracles are included from tests/*.cpp without port/ on the
+    # include path, so they name the header relative to their own directory.
+    return '#include "' + os.path.relpath(ROOT / "port" / name, DEST).replace("\\", "/") + '"'
+
 # Initialized by 0x7FD8 and tables D1D0..D220/DA20 in the pinned lift.
 # Restrict the specialization, rather than changing the meaning of an SPU op.
 UNIT24 = {
@@ -99,30 +112,30 @@ def main():
         raise SystemExit("Unreviewed phase-2 lift; audit before adding a pin")
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-stagef.py")], check=True)
     source = (ROOT / "analysis/stagef-geometry/spu_recomp.c").read_text()
-    support = '\n'.join(f'#include "{(ROOT / "port" / name).as_posix()}"' for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
+    support = '\n'.join(port_include(name) for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
     support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015\n'
     support += constants_guard()
-    support += f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
+    support += port_include("native_geometry_unit24.h") + "\n"
     support += constants_guard("skin", SKIN)
-    support += f'#include "{(ROOT / "port/native_geometry_skin.h").as_posix()}"\n'
+    support += port_include("native_geometry_skin.h") + "\n"
     support += constants_guard("half", HALF)
-    support += f'#include "{(ROOT / "port/native_geometry_half.h").as_posix()}"\n'
+    support += port_include("native_geometry_half.h") + "\n"
     support += constants_guard("dehalf", DEHALF)
-    support += f'#include "{(ROOT / "port/native_geometry_half_decode.h").as_posix()}"\n'
+    support += port_include("native_geometry_half_decode.h") + "\n"
     support += constants_guard("pointers", POINTERS)
-    support += f'#include "{(ROOT / "port/native_geometry_pointers.h").as_posix()}"\n'
-    support += f'#include "{(ROOT / "port/native_geometry_fill.h").as_posix()}"\n'
+    support += port_include("native_geometry_pointers.h") + "\n"
+    support += port_include("native_geometry_fill.h") + "\n"
     support += constants_guard("float3", FLOAT3)
-    support += f'#include "{(ROOT / "port/native_geometry_float3.h").as_posix()}"\n'
+    support += port_include("native_geometry_float3.h") + "\n"
     support += constants_guard("emit", EMIT)
-    support += f'#include "{(ROOT / "port/native_geometry_emit.h").as_posix()}"\n'
+    support += port_include("native_geometry_emit.h") + "\n"
     support += constants_guard("triangles", TRIANGLES)
-    support += f'#include "{(ROOT / "port/native_geometry_triangles.h").as_posix()}"\n'
-    support += f'#include "{(ROOT / "port/native_geometry_indices.h").as_posix()}"\n'
+    support += port_include("native_geometry_triangles.h") + "\n"
+    support += port_include("native_geometry_indices.h") + "\n"
     support += constants_guard("compact", COMPACT)
-    support += f'#include "{(ROOT / "port/native_geometry_compact.h").as_posix()}"\n'
+    support += port_include("native_geometry_compact.h") + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
     for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0", "97A8", "46FC", "4750", "4808", "47F0", "7A90", "78A8", "5008", "51E0", "50C8", "51C8"):
@@ -209,50 +222,50 @@ def main():
     seed = "static void unit24_seed_constants(spu_context* ctx) {\n" + constant_declarations() + "\n"
     seed += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in UNIT24) + "\n}\n"
     test_tail = "buzz_job_6eba_spu_func_000092A0_reference"
-    tests = constants_guard() + f'#include "{(ROOT / "port/native_geometry_unit24.h").as_posix()}"\n'
+    tests = constants_guard() + test_include("native_geometry_unit24.h") + "\n"
     tests += f"static void {test_tail}(spu_context* ctx) {{{bodies['92A0']}}}\n" + setup + functions(test_tail)
     (DEST / "test-kernels.inc").write_text(tests + seed)
-    skin_tests = constants_guard("skin", SKIN) + f'#include "{(ROOT / "port/native_geometry_skin.h").as_posix()}"\n'
+    skin_tests = constants_guard("skin", SKIN) + test_include("native_geometry_skin.h") + "\n"
     for pc in ("B934", "B940"):
         skin_tests += f"static void buzz_job_6eba_spu_func_0000{pc}_reference(spu_context* ctx) {{{bodies[pc]}}}\n"
     skin_tests += skin_setup + skin_functions("buzz_job_6eba_spu_func_0000B940_reference", "buzz_job_6eba_spu_func_0000B934_reference")
     skin_tests += "static void skin_seed_constants(spu_context* ctx) {\n" + constant_declarations(SKIN) + "\n"
     skin_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in SKIN) + "\n}\n"
     (DEST / "test-skin-kernels.inc").write_text(skin_tests)
-    half_tests = constants_guard("half", HALF) + f'#include "{(ROOT / "port/native_geometry_half.h").as_posix()}"\n' + half_reference + half_native
+    half_tests = constants_guard("half", HALF) + test_include("native_geometry_half.h") + "\n" + half_reference + half_native
     half_tests += "static void half_seed_constants(spu_context* ctx) {\n" + constant_declarations(HALF) + "\n"
     half_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in HALF) + "\n}\n"
     (DEST / "test-half-kernels.inc").write_text(half_tests)
-    dehalf_tests = constants_guard("dehalf", DEHALF) + f'#include "{(ROOT / "port/native_geometry_half_decode.h").as_posix()}"\n'
+    dehalf_tests = constants_guard("dehalf", DEHALF) + test_include("native_geometry_half_decode.h") + "\n"
     dehalf_tests += f"static void buzz_job_6eba_spu_func_0000CB78_reference(spu_context* ctx) {{{bodies['CB78']}}}\n"
     dehalf_tests += dehalf_setup + dehalf_functions("buzz_job_6eba_spu_func_0000CB78_reference")
     dehalf_tests += "static void dehalf_seed_constants(spu_context* ctx) {\n" + constant_declarations(DEHALF) + "\n"
     dehalf_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in DEHALF) + "\n}\n"
     (DEST / "test-dehalf-kernels.inc").write_text(dehalf_tests)
-    pointers_tests = constants_guard("pointers", POINTERS) + f'#include "{(ROOT / "port/native_geometry_pointers.h").as_posix()}"\n'
+    pointers_tests = constants_guard("pointers", POINTERS) + test_include("native_geometry_pointers.h") + "\n"
     pointers_tests += f"static void buzz_job_6eba_spu_func_000009E0_reference(spu_context* ctx) {{{bodies['09E0']}}}\n"
     pointers_tests += pointers_setup + pointers_functions("buzz_job_6eba_spu_func_000009E0_reference")
     pointers_tests += "static void pointers_seed_constants(spu_context* ctx) {\n" + constant_declarations(POINTERS) + "\n"
     pointers_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in POINTERS) + "\n}\n"
     (DEST / "test-pointers-kernels.inc").write_text(pointers_tests)
-    (DEST / "test-fill-kernels.inc").write_text(f'#include "{(ROOT / "port/native_geometry_fill.h").as_posix()}"\n' + fill_reference + fill_native)
-    float3_tests = constants_guard("float3", FLOAT3) + f'#include "{(ROOT / "port/native_geometry_float3.h").as_posix()}"\n' + float3_reference + float3_native
+    (DEST / "test-fill-kernels.inc").write_text(test_include("native_geometry_fill.h") + "\n" + fill_reference + fill_native)
+    float3_tests = constants_guard("float3", FLOAT3) + test_include("native_geometry_float3.h") + "\n" + float3_reference + float3_native
     float3_tests += "static void float3_seed_constants(spu_context* ctx) {\n" + constant_declarations(FLOAT3) + "\n"
     float3_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in FLOAT3) + "\n}\n"
     (DEST / "test-float3-kernels.inc").write_text(float3_tests)
-    emit_tests = constants_guard("emit", EMIT) + f'#include "{(ROOT / "port/native_geometry_emit.h").as_posix()}"\n'
+    emit_tests = constants_guard("emit", EMIT) + test_include("native_geometry_emit.h") + "\n"
     for pc in ("4750", "4808", "47F0"):
         emit_tests += f"static void buzz_job_6eba_spu_func_0000{pc}_reference(spu_context* ctx) {{{bodies[pc]}}}\n"
     emit_tests += emit_setup + emit_functions("buzz_job_6eba_spu_func_00004750_reference", "buzz_job_6eba_spu_func_00004808_reference", "buzz_job_6eba_spu_func_000047F0_reference")
     emit_tests += "static void emit_seed_constants(spu_context* ctx) {\n" + constant_declarations(EMIT) + "\n"
     emit_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in EMIT) + "\n}\n"
     (DEST / "test-emit-kernels.inc").write_text(emit_tests)
-    triangles_tests = constants_guard("triangles", TRIANGLES) + f'#include "{(ROOT / "port/native_geometry_triangles.h").as_posix()}"\n' + triangles_reference + triangles_native
+    triangles_tests = constants_guard("triangles", TRIANGLES) + test_include("native_geometry_triangles.h") + "\n" + triangles_reference + triangles_native
     triangles_tests += "static void triangles_seed_constants(spu_context* ctx) {\n" + constant_declarations(TRIANGLES) + "\n"
     triangles_tests += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in TRIANGLES) + "\n}\n"
     (DEST / "test-triangles-kernels.inc").write_text(triangles_tests)
-    (DEST / "test-indices-kernels.inc").write_text(f'#include "{(ROOT / "port/native_geometry_indices.h").as_posix()}"\n' + indices_reference + indices_native)
-    compact_tests = constants_guard("compact", COMPACT) + f'#include "{(ROOT / "port/native_geometry_compact.h").as_posix()}"\n'
+    (DEST / "test-indices-kernels.inc").write_text(test_include("native_geometry_indices.h") + "\n" + indices_reference + indices_native)
+    compact_tests = constants_guard("compact", COMPACT) + test_include("native_geometry_compact.h") + "\n"
     for pc in ("51E0", "50C8", "51C8"):
         compact_tests += f"static void buzz_job_6eba_spu_func_0000{pc}_reference(spu_context* ctx) {{{bodies[pc]}}}\n"
     compact_tests += compact_setup + compact_functions("buzz_job_6eba_spu_func_000051E0_reference", "buzz_job_6eba_spu_func_000050C8_reference", "buzz_job_6eba_spu_func_000051C8_reference")

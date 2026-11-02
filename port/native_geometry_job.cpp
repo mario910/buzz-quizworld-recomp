@@ -1429,14 +1429,21 @@ extern "C" void buzz_geometry_job_audit_report()
         std::fprintf(stderr, "[geometry-job-audit] checked=%llu drawn=%llu culled=%llu skipped=%llu failed=%llu\n",
                      checked.load(), drawn.load(), culled.load(), skipped.load(), failures.load());
 }
-extern "C" int buzz_geometry_job_audit_failures()
+// coverage_expected: the run contained image-41 jobs, so an enabled native
+// profile must have executed (or compared) at least one. A replay without any
+// image-41 job, such as the image-40 corpus, has nothing to cover.
+extern "C" int buzz_geometry_job_audit_failures_for(int coverage_expected)
 {
     if (buzz_geometry_job_mode()) {
         const bool disabled = !buzz_geometry_job_legacy_enabled() &&
             (!buzz_geometry_job_host_pipeline_enabled() || !buzz_geometry_job_publication_enabled() ||
              !buzz_geometry_job_commands_enabled());
-        return failures.load() || (!disabled &&
+        return failures.load() || (!disabled && coverage_expected &&
             (buzz_geometry_job_mode() == 2 ? !native_compared.load() : !native_executed.load()));
     }
     return buzz_geometry_job_audit_enabled() && (!checked.load() || failures.load());
+}
+extern "C" int buzz_geometry_job_audit_failures()
+{
+    return buzz_geometry_job_audit_failures_for(1);
 }

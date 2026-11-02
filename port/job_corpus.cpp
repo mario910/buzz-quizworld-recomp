@@ -570,6 +570,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     if (const char* e = getenv("BUZZ_REPLAY_REPEAT")) repeat = (unsigned)atoi(e);
     if (!repeat) repeat = 1;
     unsigned exact = 0, divergent = 0, failed = 0;
+    unsigned image41_jobs = 0; // native image-41 coverage is required only if any were replayed
     struct Timing { double seconds = 0; unsigned runs = 0, jobs = 0; } timing[3][2];
     size_t transfers = 0;
     for (const std::string& path : files) {
@@ -580,6 +581,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
             continue;
         }
         transfers += job.transfers.size();
+        image41_jobs += job.image == 41;
         g_trace_steps = getenv("BUZZ_REPLAY_STEPS") != nullptr;
         buzz_geometry_trace_job(path.c_str());
         buzz_geometry_job_replay_case(path.c_str());
@@ -604,7 +606,7 @@ extern "C" int buzz_job_corpus_replay(const char* where)
     buzz_geometry_report();
     if (buzz_geometry_check_failures()) ++failed;
     buzz_geometry_job_audit_report();
-    if (buzz_geometry_job_audit_failures()) ++failed;
+    if (buzz_geometry_job_audit_failures_for(image41_jobs != 0)) ++failed;
 #ifdef BUZZ_NATIVE_IMAGE36
     buzz_image36_report();
     if (buzz_image36_mismatches()) ++failed;

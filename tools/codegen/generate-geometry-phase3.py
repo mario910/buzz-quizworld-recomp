@@ -6,10 +6,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture import text_sha256
 DEST = ROOT / "analysis/native-geometry/phase3"
 SOURCE = ROOT / "port/spu/buzz_job_6eba/spu_recomp.c"
 PIN = "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
-PARENT_PIN = "0cb78a3d3170bf81921021199fcd2144272858635224f3135208f76c76113d99"
+PARENT_PIN = "84de9d0c5b2788aa74f3e6756ed4e9ea03ada7bad8b047d272f50ec2f29bbe97"
 
 
 def guard_custom_callbacks(source):
@@ -40,7 +41,7 @@ def main():
     if hashlib.sha256(SOURCE.read_bytes()).hexdigest() != PIN:
         raise SystemExit("Unreviewed image-41 lift")
     parent_generator = ROOT / "tools/codegen/generate-geometry-phase2.py"
-    if hashlib.sha256(parent_generator.read_bytes()).hexdigest() != PARENT_PIN:
+    if text_sha256(parent_generator) != PARENT_PIN:
         raise SystemExit("Unreviewed phase-2 adapter; audit before updating the parent pin")
     subprocess.run([sys.executable, str(parent_generator)], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-index-control-test.py")], check=True)
@@ -524,7 +525,7 @@ def main():
                     f"void {name}(spu_context* ctx) {{ "
                     f"buzz_geometry_job_run(ctx, {name}_reference, {name}_native, "
                     f"buzz_geometry_job_native_eligible); }}", source, count=1)
-    support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
+    support = '#include "native_geometry_job.h"\n'  # resolved by the game target's port/ include path
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 48\n"
