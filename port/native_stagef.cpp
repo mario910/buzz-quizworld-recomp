@@ -2,7 +2,7 @@
  * The generated wrapper (generate-geometry-stagef.py, build-windows.ps1
  * -StageF) hands every call here.
  *
- *   BUZZ_STAGEF=0  lifted reference (default; the wrapper does not call in)
+ *   BUZZ_STAGEF=0  lifted reference (default outside the qualified EXE profile)
  *   BUZZ_STAGEF=1  native implementation, reference for what it does not cover
  *   BUZZ_STAGEF=2  run both and compare (reference result is kept)
  *   BUZZ_STAGEF=3  probe: write the entry/exit state of the first

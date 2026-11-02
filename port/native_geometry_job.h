@@ -1,11 +1,24 @@
 /* Port-only image-41 whole-job checks and incremental native flow hooks. */
 #pragma once
 #include "spu_context.h"
+/* Per-group encoder helpers: when outlined, their large Pack structs are
+ * materialized in memory for every group even though only the final group
+ * reads most fields. Inlining lets dead fields fold away; same operations. */
+#define BUZZ_GEOMETRY_HOT inline __attribute__((always_inline))
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef void (*buzz_geometry_job_fn)(spu_context*);
 typedef int (*buzz_geometry_job_eligibility_fn)(const spu_context*);
+
+/* Shared whole-job transport. Image 40 has its own option and audit totals;
+ * it never inherits image 41's qualified default or internal-state checks. */
+int buzz_native_job_eligible(const spu_context*, unsigned image, uint32_t entry);
+int buzz_native_job_audit(spu_context*, buzz_geometry_job_fn reference,
+    buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn prepare,
+    unsigned image, uint32_t entry);
+int buzz_native_job_is_shadow(const spu_context*);
+const uint8_t* buzz_native_job_input(const spu_context*, uint32_t ea, size_t bytes);
 typedef struct buzz_geometry_job_functions {
     buzz_geometry_job_fn attributes, blend, skin, indices, transform;
     buzz_geometry_job_fn vertex_bytes, allocate_output, put_indices, emit_vertices, put_vertices;
@@ -35,6 +48,17 @@ typedef struct buzz_geometry_descriptor_functions {
 } buzz_geometry_descriptor_functions;
 int buzz_geometry_job_audit_enabled(void);
 int buzz_geometry_job_mode(void);
+int buzz_geometry_job_legacy_enabled(void);
+int buzz_geometry_job_publication_enabled(void);
+int buzz_geometry_job_host_pipeline_enabled(void);
+void buzz_geometry_job_host_pipeline_result(void);
+/* Diagnostic: BUZZ_GEOMETRY_FALLBACK_REASONS=1 tallies why recognized
+ * image-41 jobs take the whole lifted job; printed with the exit report. */
+int buzz_geometry_fallback_reasons_enabled(void);
+void buzz_geometry_job_fallback_reason(const char* reason);
+// Optional full register/LS checks at stage boundaries under JOB2. The job
+// acceptance contract always checks published I/O and job exit controls.
+int buzz_geometry_job_debug_stages(void);
 int buzz_geometry_job_publish_enabled(void);
 void buzz_geometry_job_publish_result(int native);
 enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
@@ -42,7 +66,129 @@ enum { BUZZ_GEOMETRY_JOB_OUTPUT_SIZE = 0, BUZZ_GEOMETRY_JOB_VERTEX_PUBLISH = 1,
        BUZZ_GEOMETRY_JOB_COMMAND_BIND = 4, BUZZ_GEOMETRY_JOB_COMMAND_RESET = 5,
        BUZZ_GEOMETRY_JOB_POSITION_COMMANDS = 6, BUZZ_GEOMETRY_JOB_FULL_COMMANDS = 7,
        BUZZ_GEOMETRY_JOB_ATTRIBUTES = 8, BUZZ_GEOMETRY_JOB_RAW_STREAM = 9,
-       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23, BUZZ_GEOMETRY_JOB_SKIN_DISPATCH = 24, BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN = 25, BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS = 26, BUZZ_GEOMETRY_JOB_SKIN_FLOW = 27, BUZZ_GEOMETRY_JOB_RIGID_SKIN = 28, BUZZ_GEOMETRY_JOB_SKIN_COFACTOR = 29 };
+       BUZZ_GEOMETRY_JOB_COLOR_CODEC = 10, BUZZ_GEOMETRY_JOB_DESCRIPTORS = 11, BUZZ_GEOMETRY_JOB_UNIT_VECTORS = 12, BUZZ_GEOMETRY_JOB_HALF_STREAM = 13, BUZZ_GEOMETRY_JOB_FLOAT32_STREAM = 14, BUZZ_GEOMETRY_JOB_FIXED_STREAM = 15, BUZZ_GEOMETRY_JOB_SNORM_STREAM = 16, BUZZ_GEOMETRY_JOB_I16_STREAM = 17, BUZZ_GEOMETRY_JOB_CMP_STREAM = 18, BUZZ_GEOMETRY_JOB_U8_INTEGER_STREAM = 19, BUZZ_GEOMETRY_JOB_BLEND_SCATTER = 20, BUZZ_GEOMETRY_JOB_BLEND_LISTS = 21, BUZZ_GEOMETRY_JOB_RUN_LISTS = 22, BUZZ_GEOMETRY_JOB_CUSTOM_STREAM = 23, BUZZ_GEOMETRY_JOB_SKIN_DISPATCH = 24, BUZZ_GEOMETRY_JOB_WEIGHTED_SKIN = 25, BUZZ_GEOMETRY_JOB_SKIN_DIRECTIONS = 26, BUZZ_GEOMETRY_JOB_SKIN_FLOW = 27, BUZZ_GEOMETRY_JOB_RIGID_SKIN = 28, BUZZ_GEOMETRY_JOB_SKIN_COFACTOR = 29, BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED = 30 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_DELTAS = 31 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_UNPACK = 32 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_EXPAND = 33 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_RELOCATE = 34 };
+enum { BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES = 35 };
+typedef struct buzz_geometry_index_functions {
+    buzz_geometry_job_fn unpack,deltas,expansion_setup,expand,relocate,triangles,publish;
+} buzz_geometry_index_functions;
+enum { BUZZ_GEOMETRY_JOB_INDEX_CONTROL = 36 };
+enum { BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH = 37 };
+enum { BUZZ_GEOMETRY_JOB_VERTEX_PREPARE = 38 };
+typedef struct buzz_geometry_transform_functions {
+    buzz_geometry_job_fn vertex,cull,alternate,finish,restore;
+} buzz_geometry_transform_functions;
+enum { BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL = 39 };
+enum { BUZZ_GEOMETRY_JOB_ALTERNATE_CULL = 40 };
+enum { BUZZ_GEOMETRY_JOB_RING = 41 };
+enum { BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT = 42 };
+enum { BUZZ_GEOMETRY_JOB_HALF_OUTPUT = 43 };
+typedef struct buzz_geometry_formatter_functions {
+    buzz_geometry_job_fn data[7],finish,skip;
+} buzz_geometry_formatter_functions;
+typedef struct buzz_geometry_builtin_output_functions {
+    buzz_geometry_job_fn data[4],finish;
+} buzz_geometry_builtin_output_functions;
+typedef struct buzz_geometry_builtin_input_functions {
+    buzz_geometry_job_fn data[5],finish;
+} buzz_geometry_builtin_input_functions;
+enum { BUZZ_GEOMETRY_JOB_INPUT_CONTROL = 55, BUZZ_GEOMETRY_JOB_BUILTIN20_INPUT = 56,
+       BUZZ_GEOMETRY_JOB_BUILTIN24_INPUT = 57, BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_INPUT = 58,
+       BUZZ_GEOMETRY_JOB_BUILTIN12_INPUT = 59, BUZZ_GEOMETRY_JOB_BUILTIN15_INPUT = 60 };
+int buzz_geometry_job_input_control_enabled(void);
+int buzz_geometry_job_builtin_input_enabled(unsigned format);
+void buzz_geometry_job_input_control_result(unsigned path,int checked);
+void buzz_geometry_job_builtin_input_result(unsigned format,int checked);
+void buzz_geometry_job_input_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn descriptors,const buzz_geometry_builtin_input_functions*);
+void buzz_geometry_job_builtin_input(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format);
+enum { BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL = 50 };
+enum { BUZZ_GEOMETRY_JOB_BUILTIN_FLOAT3_OUTPUT = 51, BUZZ_GEOMETRY_JOB_BUILTIN20_OUTPUT = 52,
+       BUZZ_GEOMETRY_JOB_BUILTIN24_OUTPUT = 53, BUZZ_GEOMETRY_JOB_BUILTIN24_CMP_OUTPUT = 54 };
+int buzz_geometry_job_builtin_output_enabled(unsigned format);
+void buzz_geometry_job_builtin_output_result(unsigned format,int checked);
+void buzz_geometry_job_builtin_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format);
+int buzz_geometry_job_conversion_control_enabled(void);
+void buzz_geometry_job_conversion_control_result(unsigned path,int checked);
+void buzz_geometry_job_conversion_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn formatter,const buzz_geometry_builtin_output_functions* builtins);
+enum { BUZZ_GEOMETRY_JOB_FORMATTER = 49 };
+int buzz_geometry_job_formatter_enabled(void);
+int buzz_geometry_job_formatter_spans_enabled(void);
+int buzz_geometry_job_formatter_registers_enabled(void);
+int buzz_geometry_host_output_enabled(void);
+void buzz_geometry_host_output_result(void);
+void buzz_geometry_job_formatter_registers_result(unsigned children,unsigned strict_children,int checked);
+void buzz_geometry_job_formatter_result(unsigned fields,unsigned known,unsigned skipped,unsigned mask,int checked);
+void buzz_geometry_job_formatter(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_formatter_functions*);
+enum { BUZZ_GEOMETRY_JOB_I16_OUTPUT = 47 };
+int buzz_geometry_job_i16_output_enabled(void);
+void buzz_geometry_job_i16_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_i16_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+enum { BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT = 48 };
+int buzz_geometry_job_u8_integer_output_enabled(void);
+void buzz_geometry_job_u8_integer_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_u8_integer_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+enum { BUZZ_GEOMETRY_JOB_UNORM_OUTPUT = 46 };
+int buzz_geometry_job_unorm_output_enabled(void);
+void buzz_geometry_job_unorm_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_unorm_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+enum { BUZZ_GEOMETRY_JOB_SNORM_OUTPUT = 45 };
+int buzz_geometry_job_snorm_output_enabled(void);
+void buzz_geometry_job_snorm_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_snorm_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+enum { BUZZ_GEOMETRY_JOB_CMP_OUTPUT = 44 };
+int buzz_geometry_job_cmp_output_enabled(void);
+void buzz_geometry_job_cmp_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_cmp_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+int buzz_geometry_job_half_output_enabled(void);
+void buzz_geometry_job_half_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_half_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+int buzz_geometry_job_float_output_enabled(void);
+void buzz_geometry_job_float_output_result(unsigned columns,unsigned cross_columns,int checked);
+void buzz_geometry_job_float_output(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,buzz_geometry_job_fn skip);
+typedef struct buzz_geometry_ring_functions {
+    buzz_geometry_job_fn tail,initial_report,shared_report;
+} buzz_geometry_ring_functions;
+int buzz_geometry_job_ring_enabled(void);
+void buzz_geometry_job_ring_result(unsigned frontier,int checked);
+void buzz_geometry_job_ring(spu_context*,buzz_geometry_job_fn reference,const buzz_geometry_ring_functions*);
+int buzz_geometry_job_alternate_cull_enabled(void);
+void buzz_geometry_job_alternate_cull_result(unsigned iterations,int checked);
+void buzz_geometry_job_alternate_cull(spu_context*,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish);
+int buzz_geometry_job_transform_control_enabled(void);
+void buzz_geometry_job_transform_control_result(unsigned path,int checked);
+void buzz_geometry_job_transform_control(spu_context*,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,const buzz_geometry_transform_functions*);
+void buzz_geometry_job_transform_reference_cull(spu_context*,buzz_geometry_job_fn root,buzz_geometry_job_fn boundary,buzz_geometry_job_fn replacement);
+
+int buzz_geometry_job_vertex_prepare_enabled(void);
+void buzz_geometry_job_vertex_prepare_result(unsigned path,int checked);
+void buzz_geometry_job_vertex_prepare(spu_context*,buzz_geometry_job_fn reference,buzz_geometry_job_fn vertex);
+int buzz_geometry_job_transform_finish_enabled(void);
+void buzz_geometry_job_transform_finish_result(int publish,int checked);
+void buzz_geometry_job_transform_finish(spu_context*,buzz_geometry_job_fn reference);
+int buzz_geometry_job_index_control_enabled(void);
+void buzz_geometry_job_index_control_result(unsigned path, int checked);
+void buzz_geometry_job_index_control(spu_context*, buzz_geometry_job_fn fallback, buzz_geometry_job_fn reference, const buzz_geometry_index_functions*);
+int buzz_geometry_job_index_triangles_enabled(void);
+void buzz_geometry_job_index_triangles_result(unsigned iterations, int checked);
+void buzz_geometry_job_index_triangles(spu_context*, buzz_geometry_job_fn fallback, buzz_geometry_job_fn reference, buzz_geometry_job_fn publish);
+int buzz_geometry_job_index_relocate_enabled(void);
+void buzz_geometry_job_index_relocate_result(unsigned iterations, int checked);
+void buzz_geometry_job_index_relocate(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn triangles);
+int buzz_geometry_job_index_expand_enabled(void);
+void buzz_geometry_job_index_expand_result(unsigned iterations, int checked, int capacity_error);
+void buzz_geometry_job_index_expand(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn commands, buzz_geometry_job_fn capacity_error);
+int buzz_geometry_job_index_unpack_enabled(void);
+void buzz_geometry_job_index_unpack_result(unsigned width, int checked);
+void buzz_geometry_job_index_unpack(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn deltas, buzz_geometry_job_fn expansion);
+int buzz_geometry_job_index_deltas_enabled(void);
+void buzz_geometry_job_index_deltas_result(unsigned groups, int checked, int aliases);
+void buzz_geometry_job_index_deltas(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn tail);
+int buzz_geometry_job_skin_normalized_enabled(void);
+void buzz_geometry_job_skin_normalized_result(unsigned streams, int checked, int aliases);
+void buzz_geometry_job_skin_normalized(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn tail, unsigned streams);
 int buzz_geometry_job_skin_cofactor_enabled(void);
 void buzz_geometry_job_skin_cofactor_result(unsigned count, int checked, int aliases);
 void buzz_geometry_job_skin_cofactor(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn tail);
@@ -126,6 +272,9 @@ void buzz_geometry_job_descriptor_dispatched(unsigned storage);
 void buzz_geometry_job_audit_run(spu_context*, buzz_geometry_job_fn reference);
 void buzz_geometry_job_run(spu_context*, buzz_geometry_job_fn reference, buzz_geometry_job_fn native,
                            buzz_geometry_job_eligibility_fn);
+/* True only during the controller's contiguous JOB1 supports/native calls.
+ * Admission recipes may be handed off inside this owner scope, never later. */
+int buzz_geometry_job_owns_admission(const spu_context*);
 int buzz_geometry_job_native_eligible(const spu_context*);
 void buzz_geometry_job_native_start(spu_context*, const buzz_geometry_job_functions*);
 void buzz_geometry_job_native_fail(spu_context*, const char* reason);
@@ -140,11 +289,16 @@ void buzz_geometry_job_wrch(spu_context*, uint32_t, u128);
 u128 buzz_geometry_job_rdch(spu_context*, uint32_t);
 uint32_t buzz_geometry_job_rchcnt(spu_context*, uint32_t);
 void buzz_geometry_job_indirect(spu_context*);
+// A user conversion callback has no audited side-effect contract yet. The
+// retained arm may call the full resolver once; a paired shadow must not.
+void buzz_geometry_job_indirect_call(spu_context*);
+void buzz_geometry_job_callback_boundary(spu_context*);
 void buzz_geometry_job_step(spu_context*, uint32_t);
 buzz_geometry_job_fn buzz_geometry_job_indirect_target(spu_context*);
 void buzz_geometry_job_observe(spu_context*, uint32_t, uint32_t, uint32_t, uint32_t, const void*);
 void buzz_geometry_job_audit_report(void);
 int buzz_geometry_job_audit_failures(void);
+int buzz_geometry_job_audit_failures_for(int coverage_expected);
 #ifdef __cplusplus
 }
 #endif

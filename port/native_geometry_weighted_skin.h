@@ -42,11 +42,13 @@ inline bool read_geometry_weighted_skin(const spu_context& ctx,GeometryWeightedS
     if(uint64_t(p.position)+(p.count+2ull)*16>SPU_LS_SIZE ||
        uint64_t(p.weights)+(p.count+2ull)*8>SPU_LS_SIZE ||
        uint64_t(p.destination)+p.count*48ull>SPU_LS_SIZE)return reject("stream/lookahead bounds");
-    bool used[256]{};
+    bool used[256]{};unsigned low=255,high=0;
     // All four indices are read even for zero weights. Lookahead coefficients
     // survive in registers but do not cause another palette read.
-    for(unsigned v=0;v<p.count;++v)for(unsigned j=0;j<4;++j)
-        used[ctx.ls[p.weights+v*8+j*2+1]]=true;
+    for(unsigned v=0;v<p.count;++v)for(unsigned j=0;j<4;++j){
+        const unsigned index=ctx.ls[p.weights+v*8+j*2+1];used[index]=true;
+        low=index<low?index:low;high=index>high?index:high;
+    }
     if(geometry_output_overlap(p.position,p.count*16,p.weights,(p.count+2)*8) ||
        geometry_output_overlap(p.destination,p.count*48,p.weights,(p.count+2)*8) ||
        geometry_output_overlap(p.destination,p.count*48,p.position,(p.count+2)*16))return reject("written stream/input alias");
@@ -54,9 +56,14 @@ inline bool read_geometry_weighted_skin(const spu_context& ctx,GeometryWeightedS
         p.rows[row]=base[row+3];
         // Indexed palette quads can alias earlier output: each pair reads
         // all rows before writing, and the next pair sees those writes.
-        for(unsigned index=0;index<256;++index)if(used[index]){
+        // Used quads lie in [low,high]: the highest bounds them all, and a
+        // span clear of both written streams clears each quad inside it.
+        if(uint64_t(p.rows[row])+high*48+16>SPU_LS_SIZE)return reject("palette read bounds");
+        const uint32_t span=p.rows[row]+low*48,span_bytes=(high-low)*48+16;
+        if(!geometry_output_overlap(p.position,p.count*16,span,span_bytes) &&
+           !geometry_output_overlap(p.destination,p.count*48,span,span_bytes))continue;
+        for(unsigned index=low;index<=high;++index)if(used[index]){
             const uint64_t at=uint64_t(p.rows[row])+index*48;
-            if(at+16>SPU_LS_SIZE)return reject("palette read bounds");
             p.palette_alias|=geometry_output_overlap(p.position,p.count*16,uint32_t(at),16) ||
                 geometry_output_overlap(p.destination,p.count*48,uint32_t(at),16);
         }

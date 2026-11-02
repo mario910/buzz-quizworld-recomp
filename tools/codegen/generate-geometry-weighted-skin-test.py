@@ -5,8 +5,9 @@ from pathlib import Path
 import re
 
 ROOT=Path(__file__).resolve().parents[2]
+import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture import text_sha256
 PIN="5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
-PARENT_PIN="0cb78a3d3170bf81921021199fcd2144272858635224f3135208f76c76113d99"
+PARENT_PIN="84de9d0c5b2788aa74f3e6756ed4e9ea03ada7bad8b047d272f50ec2f29bbe97"
 PREFIX="buzz_job_6eba_spu_func_"
 
 
@@ -14,7 +15,7 @@ def main():
     raw=(ROOT/"port/spu/buzz_job_6eba/spu_recomp.c").read_bytes()
     if hashlib.sha256(raw).hexdigest()!=PIN:raise SystemExit("Unreviewed weighted skin source")
     parent=ROOT/"tools/codegen/generate-geometry-phase2.py"
-    if hashlib.sha256(parent.read_bytes()).hexdigest()!=PARENT_PIN:raise SystemExit("Unreviewed weighted skin constants")
+    if text_sha256(parent)!=PARENT_PIN:raise SystemExit("Unreviewed weighted skin constants")
     spec=importlib.util.spec_from_file_location("weighted_skin_constants",parent)
     constants=importlib.util.module_from_spec(spec);spec.loader.exec_module(constants)
     functions={int(pc,16):body for pc,body in re.findall(r"(?ms)^void buzz_job_6eba_spu_func_([0-9A-F]+)\(spu_context\* ctx\) \{(.*?)^\}",raw.decode())}

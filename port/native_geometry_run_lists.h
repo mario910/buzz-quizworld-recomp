@@ -2,27 +2,26 @@
  * output; the last two pipeline steps materialize the exact observable ABI. */
 #pragma once
 #include "native_geometry_output.h"
-#include <vector>
 namespace buzz {
-struct GeometryRunList { uint32_t base=0, bytes=0, vertices=0; std::vector<uint16_t> codes; };
+struct GeometryRunList { uint32_t base=0, bytes=0, vertices=0; uint16_t first[2]{}; };
 inline bool read_geometry_run_list(const spu_context& ctx,GeometryRunList& output,const char** reason=nullptr)
 {
     auto reject=[&](const char* why){if(reason)*reason=why;return false;};
     if(ctx.ls!=ctx.ls_store)return reject("foreign LS");
     GeometryRunList p;p.base=ctx.gpr[3]._u32[0];p.bytes=ctx.gpr[4]._u32[0];p.vertices=ctx.gpr[5]._u32[0];
-    if(!p.bytes){output=std::move(p);return true;}
+    if(!p.bytes){output=p;return true;}
     if((p.base&15) || p.base<0xe680 || p.base>=SPU_LS_SIZE || (p.bytes&1) ||
        p.bytes>SPU_LS_SIZE-p.base || p.vertices>(SPU_LS_SIZE-p.base)/2 || p.bytes>p.vertices*2)
         return reject("encoded/output span");
     uint32_t total=0;
-    for(unsigned i=0;i<p.bytes;i+=2){const uint16_t code=uint16_t(geometry_job_be16(ctx.ls+p.base+i));p.codes.push_back(code);total+=(code&31)+1;}
+    for(unsigned i=0;i<p.bytes;i+=2){const uint16_t code=uint16_t(geometry_job_be16(ctx.ls+p.base+i));if(i<4)p.first[i/2]=code;total+=(code&31)+1;}
     if(total!=p.vertices)return reject("run lengths/output count");
     for(unsigned table=0;table<9;++table)for(unsigned lane=0;lane<8;++lane){
         const unsigned expected=table<4?(table*8+lane)*16:((table-4)*8+lane)*2+1;
         if(geometry_job_be16(ctx.ls+0xd080+table*16+lane*2)!=expected)return reject("unreviewed run tables");
     }
     for(unsigned i=0;i<16;++i)if(ctx.ls[0xd980+i]!=i)return reject("unreviewed identity mask");
-    output=std::move(p);return true;
+    output=p;return true;
 }
 inline void geometry_run_list_setup(spu_context& c)
 {
@@ -80,20 +79,23 @@ inline void expand_geometry_run_list(spu_context& c,const GeometryRunList& p)
     auto& r=c.gpr;const auto encoded=r[4],output_bytes=spu_a(r[5],r[5]);r[20]=r[4];
     if(p.bytes){
         geometry_run_list_setup(c);
-        const unsigned bulk=p.codes.size()>2?unsigned(p.codes.size()-2):0;
+        const unsigned bulk=(p.bytes/2)>2?unsigned((p.bytes/2)-2):0;
         uint32_t cursor=p.vertices*2;
-        for(unsigned i=unsigned(p.codes.size());i>2;--i){
-            const uint16_t code=p.codes[i-1];const unsigned length=(code&31)+1;cursor-=length*2;
+        // Expanding backwards cannot overwrite an unread earlier code: each
+        // remaining run occupies at least its two encoded bytes. The first
+        // two codes are cached because their final ABI steps write in place.
+        for(unsigned i=unsigned((p.bytes/2));i>2;--i){
+            const uint16_t code=geometry_job_be16(c.ls+p.base+(i-1)*2);const unsigned length=(code&31)+1;cursor-=length*2;
             auto* out=c.ls+p.base+cursor;
             for(unsigned j=0;j<length;++j){const unsigned value=((code>>5)+j)*16;out[j*2]=uint8_t(value>>8);out[j*2+1]=uint8_t(value);}
         }
         if(bulk){
-            const unsigned current_length=((p.codes[1]&31)+1)*2,next_length=((p.codes[0]&31)+1)*2;
+            const unsigned current_length=((p.first[1]&31)+1)*2,next_length=((p.first[0]&31)+1)*2;
             r[20]=spu_ai(spu_rotmi(encoded,-1),-int(bulk));r[13]=spu_ai(encoded,-6-int(bulk*2));
             r[36]=spu_ai(output_bytes,-int(p.vertices*2-cursor+current_length));r[18]=spu_ai(r[36],-int(next_length));
-            const auto next=spu_ilh((p.codes[0]>>5)*16);r[16]=spu_ilh(next_length);
+            const auto next=spu_ilh((p.first[0]>>5)*16);r[16]=spu_ilh(next_length);
             r[19]=spu_ah(next,r[42]);r[17]=spu_ah(next,r[40]);r[14]=spu_ah(next,r[39]);r[11]=spu_ah(next,r[38]);
-            const auto start=spu_ilh((p.codes[1]>>5)*16),a=spu_ah(start,r[42]),b=spu_ah(start,r[40]),d=spu_ah(start,r[39]),e=spu_ah(start,r[38]);
+            const auto start=spu_ilh((p.first[1]>>5)*16),a=spu_ah(start,r[42]),b=spu_ah(start,r[40]),d=spu_ah(start,r[39]),e=spu_ah(start,r[38]);
             const auto offset=spu_andi(r[36],15),selector=spu_sf(spu_shufb(offset,r[15],r[49]),r[43]);
             r[27]=spu_shufb(a,r[15],selector);r[32]=spu_shufb(b,a,selector);r[29]=spu_shufb(d,b,selector);
             r[28]=spu_shufb(e,d,selector);r[35]=spu_shufb(r[15],e,selector);
@@ -101,7 +103,7 @@ inline void expand_geometry_run_list(spu_context& c,const GeometryRunList& p)
             r[26]=spu_clgth(spu_sfh(mod,r[48]),length);r[24]=spu_clgth(spu_sfh(mod,r[46]),length);
             r[23]=spu_clgth(spu_sfh(mod,r[47]),length);r[22]=spu_clgth(spu_sfh(mod,r[45]),length);r[25]=spu_clgth(spu_sfh(mod,r[44]),length);
         }
-        for(unsigned i=0;i<p.codes.size()-bulk;++i)geometry_run_list_finish_step(c);
+        for(unsigned i=0;i<(p.bytes/2)-bulk;++i)geometry_run_list_finish_step(c);
     }
     c.pc=r[0]._u32[0];g_spu_trampoline_fn=c.host_depth?nullptr:spu_indirect_branch;
 }

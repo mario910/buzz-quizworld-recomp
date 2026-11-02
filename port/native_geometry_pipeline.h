@@ -5,6 +5,8 @@
 #include "native_geometry_job.h"
 #include "native_geometry_job_call.h"
 #include "native_geometry_publish.h"
+#include "native_geometry_host_output_job.h"
+#include "native_geometry_host_job.h"
 
 namespace buzz {
 class GeometryPipeline {
@@ -16,6 +18,8 @@ class GeometryPipeline {
     const u128 command, output_parameters, flags, range;
     GeometryOutputLayout output_layout;
     bool cached_output_layout = false;
+    const GeometryHostOutputRecipe* host_output;
+    const GeometryHostJobWorkspace* host_job;
 
     void call(buzz_geometry_job_fn fn, uint32_t link)
     {
@@ -155,7 +159,12 @@ class GeometryPipeline {
             else call(functions.put_indices, 0x2240);
         } else call(functions.put_indices, 0x2240);
         ctx.gpr[3] = context;
-        call(functions.emit_vertices, 0x2248);
+        if (host_job) {
+            commit_geometry_host_job_vertices(ctx,setup.entry,*host_job);
+        } else if (host_output) {
+            call_native([&] { emit_geometry_host_output(ctx, setup.entry, *host_output); }, 0x2248);
+            buzz_geometry_host_output_result();
+        } else call(functions.emit_vertices, 0x2248);
         ctx.gpr[3] = context; ctx.gpr[4] = ctx.gpr[90]; ctx.gpr[5] = ctx.gpr[102];
         if (buzz_geometry_job_vertex_enabled()) {
             GeometryVertexPublication plan;
@@ -182,16 +191,22 @@ class GeometryPipeline {
         ctx.gpr[126] = spu_ls_read128(&ctx, ctx.gpr[1]._u32[0] - 0x1f0);
     }
 public:
-    GeometryPipeline(spu_context& ctx, const buzz_geometry_job_functions& functions, const GeometryJobSetup& setup)
+    GeometryPipeline(spu_context& ctx, const buzz_geometry_job_functions& functions, const GeometryJobSetup& setup,
+        const GeometryHostOutputRecipe* host_output = nullptr,const GeometryHostJobWorkspace* host_job = nullptr)
         : ctx(ctx), functions(functions), setup(setup), frame(ctx.gpr[1]), context(ctx.gpr[82]),
           palette_input(ctx.gpr[101]), skin_input(ctx.gpr[99]), palette_bytes(spu_a(ctx.gpr[105], ctx.gpr[106])),
           blend_flag(ctx.gpr[97]), position_flag(ctx.gpr[98]), pipeline(ctx.gpr[103]),
-          command(ctx.gpr[92]), output_parameters(ctx.gpr[96]), flags(ctx.gpr[89]), range(ctx.gpr[91]) {}
+          command(ctx.gpr[92]), output_parameters(ctx.gpr[96]), flags(ctx.gpr[89]), range(ctx.gpr[91]), host_output(host_output),host_job(host_job) {}
     void run()
     {
         initialize_output();
-        decode_attributes();
-        skin_and_indices();
+        if (host_job) {
+            commit_geometry_host_job_data(ctx,setup.entry,*host_job);
+            ctx.gpr[3]=spu_ila(host_job->indices.triangles*3);
+        } else {
+            decode_attributes();
+            skin_and_indices();
+        }
         const u128 visible = ctx.gpr[3];
         ctx.gpr[98] = load(0x30); ctx.gpr[97] = ctx.gpr[98]; ctx.gpr[97]._u32[0] = visible._u32[0];
         store(0x30, ctx.gpr[97]);

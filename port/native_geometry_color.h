@@ -3,7 +3,6 @@
 #pragma once
 #include "native_geometry_output.h"
 #include "native_stagef_avx2.h"
-#include <vector>
 
 namespace buzz {
 struct GeometryColorColumn {
@@ -12,7 +11,7 @@ struct GeometryColorColumn {
 };
 struct GeometryColorStream {
     uint32_t columns = 0, input_step = 0, output_step = 0, limit = 0;
-    std::vector<GeometryColorColumn> column;
+    GeometryColorColumn column[16]{}; // bounded by admission; no per-call allocation
 };
 inline bool read_geometry_color(const spu_context& ctx, GeometryColorStream& output)
 {
@@ -62,7 +61,7 @@ inline bool read_geometry_color(const spu_context& ctx, GeometryColorStream& out
                 output_end = std::max(output_end,(std::min(last,uint64_t(p.limit)) & ~15ull) + 16);
             }
         }
-        p.column.push_back(c);
+        p.column[column]=c;
     }
     if (input_begin < 0xe680 || input_end > SPU_LS_SIZE || output_begin < 0xe680 || output_end > SPU_LS_SIZE ||
         (input_begin < output_end && output_begin < input_end)) return false;

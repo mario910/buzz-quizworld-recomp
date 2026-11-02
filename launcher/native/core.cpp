@@ -253,24 +253,55 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
             require(digest_ok(expected)&&sha256(exe)==expected,"Game EXE does not match its manifest; rebuild it");
             auto defaults=j.value("runtime_defaults",Json::object());
             require(defaults.is_object(),"Invalid build runtime defaults");
-            for(auto& [key,value]:defaults.items())require(key=="BUZZ_NATIVE_COMPLETION"&&value.is_string()&&value.get<std::string>()=="2","Unknown build-bound runtime option");
-            if(profile.family!="quizworld-102-verified")require(defaults.value("BUZZ_NATIVE_COMPLETION",std::string{})=="2","Missing version-bound completion mode");
+            validate_runtime_defaults(j,profile);
+            if(profile.family!="quizworld-102-verified")require(defaults.value("BUZZ_NATIVE_COMPLETION",std::string{})=="2"||j.value("embedded_runtime_profile",std::string())=="eu100-vulkan-native-v1","Missing version-bound completion mode");
             validate_prepared_content(profile,root);
             return {root,exe,j,profile};
         } catch(const std::exception& e) { rejection=e.what(); }
     }}
     throw std::runtime_error(rejection.empty()?"No matching verified native build. Prepare the game with the developer tools first.":rejection);
 }
+void validate_runtime_defaults(const Json& manifest,const Profile& profile) {
+    const auto defaults=manifest.value("runtime_defaults",Json::object());
+    require(defaults.is_object(),"Invalid build runtime defaults");
+    const bool host_profile=profile.family=="quizworld-eu100"&&manifest.value("family",std::string())==profile.family&&
+        manifest.value("elf_sha256",std::string())==elf100&&manifest.value("renderer",std::string())=="vulkan"&&
+        manifest.value("geometry_job_profile",std::string())=="host-groups-v1";
+    if(manifest.contains("embedded_runtime_profile")) {
+        require(manifest.at("embedded_runtime_profile")=="eu100-vulkan-native-v1"&&host_profile&&
+            manifest.value("animation_job_profile",std::string())=="host-soa-v1"&&defaults.empty(),
+            "Unknown or unqualified embedded runtime profile");
+    }
+    for(auto& [key,value]:defaults.items()) {
+        const bool completion=key=="BUZZ_NATIVE_COMPLETION"&&value.is_string()&&value.get<std::string>()=="2";
+        const bool geometry=key=="BUZZ_GEOMETRY_JOB"&&value.is_string()&&value.get<std::string>()=="1"&&host_profile;
+        const bool animation=key=="BUZZ_ANIMATION_JOB"&&value.is_string()&&value.get<std::string>()=="1"&&host_profile&&
+            manifest.value("animation_job_profile",std::string())=="host-soa-v1";
+        require(completion||geometry||animation,"Unknown or unqualified build-bound runtime option");
+    }
+}
 Environment runtime_environment(const Settings& s,const Build& b,const fs::path& session,Environment env) {
-    auto def=[&](const char* k,const std::string& v,bool empty=true){auto it=env.find(k);if(it==env.end()||(empty&&it->second.empty()))env[k]=v;};
+    validate_runtime_defaults(b.manifest,b.profile);
+    const bool embedded=b.manifest.contains("embedded_runtime_profile");
+    auto def=[&](const char* k,const std::string& v,bool empty=true){
+        if(embedded) {
+#define X(name, value) if(std::string(k)==#name) return;
+#include "../../port/runtime_defaults.inc"
+#undef X
+        }
+        auto it=env.find(k);if(it==env.end()||(empty&&it->second.empty()))env[k]=v;
+    };
     // UI-owned input is isolated from shell/script leftovers; performance
     // overrides retain the original run-windows null-vs-empty semantics.
-    for(const char* k:{"BUZZ_KEYS","BUZZ_KEYS_2","BUZZ_KEYS_3","BUZZ_KEYS_4","BUZZ_PULSE_MS","BUZZ_SCRIPT","BUZZ_INPUT_CONFIG","SPURS_JOB_ABI_STACK","SPURS_JOB_KERNEL_MIRROR"})env.erase(k);
-    env["PS3_TITLE"]="Buzz! Quiz World";env["CULL_FLIP"]="1";env["PAD_NO_KEYBOARD"]="1";
+    for(const char* k:{"BUZZ_KEYS","BUZZ_KEYS_2","BUZZ_KEYS_3","BUZZ_KEYS_4","BUZZ_PULSE_MS","BUZZ_SCRIPT","BUZZ_INPUT_CONFIG","SPURS_JOB_ABI_STACK"})env.erase(k);
+    if(!embedded)env.erase("SPURS_JOB_KERNEL_MIRROR");
+    env["PS3_TITLE"]="Buzz! Quiz World";if(!embedded)env["CULL_FLIP"]="1";env["PAD_NO_KEYBOARD"]="1";
     env["BUZZ_OFFLINE"]=s.offline?"1":"0";env["BUZZ_HIDE_PSN_STORE"]=s.hide_store?"1":"0";
     env["BUZZ_INPUT_CONFIG"]=utf8(session/"input.ini");env["BUZZ_NO_FMV"]="0";
-    env["SPURS_JOB_ABI_STAGE_IMAGE"]="42";env["SPURS_JOB_KERNEL_MIRROR"]="1";env["GCM_STRICT_PARK"]="1";
-    env["RSX_VERTEX_CAPACITY"]="1048576";env["RSX_DRAW_CAPACITY"]="8192";env["RSX_TEXTURE_CAPACITY"]="256";
+    if(!embedded) {
+        env["SPURS_JOB_ABI_STAGE_IMAGE"]="42";env["SPURS_JOB_KERNEL_MIRROR"]="1";env["GCM_STRICT_PARK"]="1";
+        env["RSX_VERTEX_CAPACITY"]="1048576";env["RSX_DRAW_CAPACITY"]="8192";env["RSX_TEXTURE_CAPACITY"]="256";
+    }
     const std::pair<const char*,const char*> defaults[]={
         {"PS3_VERBOSE","0"},{"GCM_SECOND_V","1"},{"SPURS_JOB_ABI_MIN_IMAGE","32"},
         {"GCM_FIFO_STOP_AT_FLIP","1"},{"RSX_FLIP_BOUNDARY","1"},{"SPURS_JOB_LIST_WORKERS","4"},
@@ -280,7 +311,13 @@ Environment runtime_environment(const Settings& s,const Build& b,const fs::path&
         {"RSX_CACHE_ENV","1"},{"SPURS_GUARD_POLL_ONLY","0"},{"SPURS_JTS_WAKE","1"},{"SPURS_JTS_DMA_WAKE","1"},
         {"SPURS_MERGE_READY_LISTS","1"},{"SPURS_NATIVE_EXTRA_FP","1"},{"RSX_GUEST_SAMPLERS","1"},{"RSX_PIXEL_WINDOW","1"}};
     for(auto& [k,v]:defaults)def(k,v);
-    if(b.executable.parent_path().filename().string().find("vulkan")!=std::string::npos) {
+    // The build manifest names the renderer; older manifests fall back to the
+    // directory name (a renamed copy of such a build loses the Vulkan set).
+    const auto renderer=b.manifest.value("renderer",std::string());
+    const bool vulkan_build=renderer.empty()
+        ? utf8(b.executable.parent_path().filename()).find("vulkan")!=std::string::npos
+        : renderer=="vulkan";
+    if(vulkan_build) {
         // Measured-best Vulkan set (as scripts/run-windows.ps1): without the
         // batching options the Vulkan build runs a few FPS.
         const std::pair<const char*,const char*> vulkan[]={

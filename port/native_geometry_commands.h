@@ -11,6 +11,22 @@ inline void geometry_command_call(spu_context& ctx, buzz_geometry_job_fn fn, uin
     ++ctx.host_depth; fn(&ctx); spu_drain_call(&ctx, link); --ctx.host_depth; spu_img_restore(&ctx, image);
 }
 
+// Accumulate packet footprints as they are described, without a packet list.
+struct GeometryCommandFootprint {
+    uint32_t raw,relocated;bool publish;
+    GeometryCommandFootprint(uint32_t start,bool enabled):raw(start),relocated(start),publish(enabled){}
+    void add(unsigned words) {
+        raw+=4*(words+1);
+        if(!publish){relocated=raw;return;}
+        unsigned bytes=words*4;
+        while(bytes>124-(relocated&127)){
+            const unsigned available=124-(relocated&127);
+            bytes-=available;relocated+=available+4;
+        }
+        relocated+=bytes+4;
+    }
+};
+
 struct GeometryCommandBuffer {
     uint32_t context = 0, output = 0, stack = 0, workspace = 0, start = 0, limit = 0, end = 0;
     uint32_t records = 0, count = 0, first_sync = 0, first_ready = 0;

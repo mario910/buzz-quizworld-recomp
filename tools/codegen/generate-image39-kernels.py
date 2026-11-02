@@ -33,7 +33,7 @@ if pc is None:
 KERNELS = ((pc, "buzz_image39_native_05d0", 3),)
 
 source = (SOURCE / "spu_recomp.c").read_text(encoding="utf-8")
-header = (ROOT / "port/native_image39_kernels.h").as_posix()
+header = "native_image39_kernels.h"  # resolved by the game target's port/ include path
 included = False
 for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
     name = PREFIX + pc

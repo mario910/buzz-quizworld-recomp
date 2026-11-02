@@ -55,6 +55,53 @@ int main(int argc,char** argv) {
         check(env.at("BUZZ_NATIVE_COMPLETION")=="2"&&env.at("RSX_VERTEX_CAPACITY")=="1048576"&&env.at("SPURS_JTS_DMA_WAKE")=="1"&&!env.count("SPURS_POOL_SPIN_US")&&!env.count("SPURS_JOB_LS_ZERO"),"Runtime defaults");
         check(!env.count("BUZZ_SCRIPT")&&!env.count("BUZZ_PULSE_MS"),"Stale input removed");
         check(inherited.at("BUZZ_PULSE_MS")=="99","Parent environment untouched");
+        auto geometry=b;
+        geometry.manifest["family"]="quizworld-eu100";
+        geometry.manifest["elf_sha256"]=elf100;
+        geometry.manifest["renderer"]="vulkan";
+        geometry.manifest["geometry_job_profile"]="host-groups-v1";
+        geometry.manifest["runtime_defaults"]["BUZZ_GEOMETRY_JOB"]="1";
+        check(runtime_environment(s,geometry,temp/"geometry",{}).at("BUZZ_GEOMETRY_JOB")=="1","Qualified geometry default");
+        check(runtime_environment(s,geometry,temp/"geometry",{{"BUZZ_GEOMETRY_JOB","0"}}).at("BUZZ_GEOMETRY_JOB")=="0","Explicit geometry off overrides build default");
+        check(!runtime_environment(s,b,temp/"legacy",{}).count("BUZZ_GEOMETRY_JOB"),"Legacy build keeps geometry opt-in");
+        for(const auto& field:{"geometry_job_profile","family","elf_sha256","renderer"}) {
+            auto bad=geometry;bad.manifest[field]="unqualified";
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
+        for(const auto& value:Json::array({"0","2",1,true,nullptr})) {
+            auto bad=geometry;bad.manifest["runtime_defaults"]["BUZZ_GEOMETRY_JOB"]=value;
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
+        auto wrong_family=geometry;wrong_family.profile.family="quizworld-us100";
+        rejects([&]{runtime_environment(s,wrong_family,temp/"invalid",{});});
+        auto unknown_default=geometry;unknown_default.manifest["runtime_defaults"]["unexpected"]="1";
+        rejects([&]{runtime_environment(s,unknown_default,temp/"invalid",{});});
+        auto animation=geometry;
+        animation.manifest["animation_job_profile"]="host-soa-v1";
+        animation.manifest["runtime_defaults"]["BUZZ_ANIMATION_JOB"]="1";
+        check(runtime_environment(s,animation,temp/"animation",{}).at("BUZZ_ANIMATION_JOB")=="1","Qualified animation default");
+        for(const auto& value:{"0","1","2"})
+            check(runtime_environment(s,animation,temp/"animation",{{"BUZZ_ANIMATION_JOB",value}}).at("BUZZ_ANIMATION_JOB")==value,"Explicit animation override preserved");
+        check(!runtime_environment(s,b,temp/"legacy",{}).count("BUZZ_ANIMATION_JOB"),"Legacy build keeps animation opt-in");
+        for(const auto& field:{"animation_job_profile","geometry_job_profile","family","elf_sha256","renderer"}) {
+            auto bad=animation;bad.manifest[field]="unqualified";
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
+        for(const auto& value:Json::array({"0","2",1,true,nullptr})) {
+            auto bad=animation;bad.manifest["runtime_defaults"]["BUZZ_ANIMATION_JOB"]=value;
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
+        auto embedded=animation;
+        embedded.manifest["runtime_defaults"]=Json::object();
+        embedded.manifest["embedded_runtime_profile"]="eu100-vulkan-native-v1";
+        const auto bare=runtime_environment(s,embedded,temp/"embedded",{});
+#define X(name, value) check(!bare.count(#name),"EXE owns " #name); check(runtime_environment(s,embedded,temp/"embedded",{{#name,"0"}}).at(#name)=="0","Explicit override " #name);
+#include "../port/runtime_defaults.inc"
+#undef X
+        for(const auto& field:{"embedded_runtime_profile","animation_job_profile","geometry_job_profile","family","elf_sha256","renderer"}) {
+            auto bad=embedded;bad.manifest[field]="unqualified";
+            rejects([&]{runtime_environment(s,bad,temp/"invalid",{});});
+        }
         auto one=plan_launch(s,b,{}),two=plan_launch(s,b,{});
         check(one.session!=two.session&&fs::is_regular_file(one.session/"input.ini"),"Immutable unique snapshots");
         // Spawn this native test executable, not a shell or a game. Literal

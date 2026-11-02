@@ -7,50 +7,314 @@ within reach of weaker CPUs (Steam Deck, laptops, Switch 2-class ARM).
 
 This is a living document. Update the tracker tables after every session.
 
-## Continuing objective (2026-10-31)
+Current default handling (2026-11-02): the qualified EU100/Vulkan/AVX2 EXE
+owns all approved native, scheduling and renderer defaults. Missing environment
+variables enable the approved profile without launcher injection; explicit
+overrides remain supported. [Validation](native-runtime-defaults-results.md).
 
-The user has authorized continuing through the remaining phases until the
-native geometry functions are finished, documenting and committing each
-validated step. This supersedes earlier instructions to stop at phase 3 or
-wait for another request before proceeding to the following phase.
+## Course correction (2026-11-01, supersedes conflicting text below)
 
-Continue from completed phase 2 (`ef906be`, default mask 827 / `0x33B`):
+**Status: the phase-3 whole-job path is slower than the lift it replaces.**
+JOB1 vs JOB0 on the menu: FPS -8.78%, SPURS worker cycles/frame +15.9%
+([performance](native-geometry-phase3-performance.md)). The cause is the
+method, not a missing kernel. Each "native" kernel is a transliteration of
+the SPU instruction stream (`spu_shufb`/`spu_rotqbii` on a `u128 r[128]`
+bank over LS), required to reproduce every register, dummy iteration,
+prefetch and dead final value at every function boundary. That is the same
+work the lifted C already does at -O2, plus overhead. Differential RIP
+samples (`spans-rip-v3`, native vs off) attribute the extra lane time:
 
-1. Complete phase 3: the native image-41 whole-job flow, using the validated
-   kernels and preserving the lifted fallback for unsupported descriptors.
-2. Complete phase 4: the remaining image-40 native routines and reuse the
-   shared routines in images 43/45/47 after auditing each image's mapping,
-   contracts and real coverage. Keep an explicit inventory of remaining
-   required functions and paths; do not call the native work finished while
-   required implementations or validation gates remain open.
-3. Assess optional phases 5/6 after the mandatory native paths. They retain
-   their optional status: choose render/GPU work from measured bottlenecks
-   and portability work from the target platform and available validation.
-   Document any selection or deferral and its reason. An untested ARM path
-   must not be reported as validated or enabled by default.
-4. Complete phase 7 last: reconstruct Stage F's full strict state, pass
-   actual-native whole-job replay and all usual gates, then remove the
-   temporary baseline exception. If either optional phase is selected, do
-   it before this final Stage F cleanup.
+| Overhead | Share of active lane samples |
+| --- | --- |
+| Shared atomic ledgers + option getters (`native_geometry_job.cpp`) | ~4.5% |
+| Admission walks `read_*`/`prove_*` repeating each loop before emit | ~4.9% |
+| SPU-ABI shims: 2 KiB bank copies, `*_setup_abi`/`*_final_abi`/spills | ~4% |
+| Outlined per-group encoder helpers returning ~700-byte structs | ~3.7% |
 
-For every function or tightly coupled group, retain its runtime switch and
-strict correctness gates, record FPS/frame times and worker/process CPU
-cycles/time per completed job/frame, update the tracker and commit the
-reviewable result. Default-on decisions may use repeatable CPU savings with
-flat FPS, as specified below. Never weaken a checker or count fallback as
-native coverage. Preserve original saves, private corpus/derived artifacts,
-source pins and frozen executable/map/save bindings; keep compilation,
-CPU tests and profiling separate from performance runs.
+Already corrected (measure on top of these, keep them):
 
-At each phase boundary, finalize a separate results document, commit it and
-continue to the next unfinished phase without requiring renewed permission.
-The active objective includes phase 3 and the subsequent native-function
-phases; individual phase boundaries are milestones, not a request to stop.
-Keep the continuing objective active while required implementations or gates
-remain open. The overall objective is finished only after the mandatory
-native-function inventory and final strict Stage F gates are complete, with
-optional-phase decisions recorded. Do not mark unfinished work complete just
-to advance to another phase.
+- `d0a688b`: per-thread sharded ledger counters, constant-initialized option
+  cache, force-inlined encoder helpers. Menu JOB1 34.99 -> 35.94 FPS
+  (+2.7%, both reversed pairs); JOB1 vs JOB0 gap -7.3% -> -4.8%.
+- Closed-form output-encoder admission, narrowed weighted-skin palette scan,
+  no per-call heap in unit vectors (exact; differential test
+  `tests/geometry-output-admission-test.cpp`). Menu JOB1 35.21 -> 36.57 FPS
+  (+3.9%, pairs +3.89%/+3.84%); JOB1 vs JOB0 gap now -3.3%.
+- `b934a88`: the Vulkan runtime set follows `renderer` in `game-build.json`.
+  Before it, a frozen build directory without "vulkan" in its name silently
+  ran with FIFO present and no batching (~5 FPS). Name freezes
+  `build-vulkan-*` anyway and check the run log for `present mode mailbox`.
+
+### New exactness boundary: the job, not the function
+
+Ground rule 1 now means **bit-exact at the job boundary**: the ordered
+DMA/atomic/channel transcript, every byte the job publishes (vertex, index
+and RSX command output) and the job's exit state. Corpus replay already
+checks exactly this (19,508 jobs / 58,195 transfers); live whole-job I/O
+comparison checks it in game. SPU floating-point semantics still apply to
+every published value (RTZ, denormal flush, no contraction unless the SPU
+op fuses).
+
+Inside a job, native code no longer reproduces SPU registers, LS scratch,
+dummy/lookahead iterations, prefetches, dead final register values or
+SPU-ABI call frames that nothing outside the job observes. Per-function
+strict full-state checkers stay available as debugging tools; they are not
+required gates for new work and must not dictate data layout.
+
+Consequences:
+
+- Stop writing new per-function SPU-ABI transliterations, including cold
+  storage formats with zero real coverage. Unsupported descriptors fall
+  back to the lifted job as a whole.
+- Phase 7 (strict Stage F register reconstruction) is cancelled. Stage F
+  only has to meet the job-boundary gate like everything else.
+- Default decisions require JOB1 to be at least as fast as JOB0, in FPS
+  or in worker cycles per completed frame, before any further coverage work.
+
+### Phase 3 work order from here
+
+1. **3a: remove the remaining overhead without changing outputs.** One host
+   register bank per job (REGISTERS everywhere, no `memcpy` of `c.gpr` per
+   call); drop the per-call admission walks that the job-level admission
+   already implies; no heap allocation on the hot path (`std::vector` in
+   `color`, `fixed_stream`, `float32_stream`, `half_stream`, `typed_stream`,
+   `blend_scatter`, `full_commands`, `position_commands`, `run_lists`,
+   `command_publish`). Measure. Target: JOB1 >= JOB0 on the menu.
+2. **3b: host data pipeline.** For a recognized job, decode its Edge input
+   streams once into host little-endian SoA float/int arrays; skin,
+   transform and cull on those arrays with AVX2 (8 lanes, not 4-lane u128
+   emulation); write each output stream once, in its final format, into
+   the LS/DMA area the job publishes. Start with the profile's hottest
+   paths: float/half/CMP output, unit vectors, weighted skin, index
+   triangles. Unrecognized jobs run the lifted job unchanged.
+3. **Gates per step:** exact corpus replay of all job outputs; live
+   whole-job I/O comparison (>=10,000 jobs); native menu and round frames
+   inspected; same-EXE reversed menu and round FPS plus worker/process
+   CPU per completed frame.
+4. **Housekeeping:** collapse the 61 per-stage option switches into
+   `BUZZ_GEOMETRY_JOB` plus a few group switches once 3b replaces those
+   stages. Keep results documents short: a table per measurement and the
+   decision, not a narrative of every proof.
+
+## Continuing objective (revised 2026-11-01)
+
+The **Course correction** above and the user's latest instructions govern
+this objective and supersede conflicting historical requirements below.
+Preserve the improvements in `d0a688b`, `1abd397` and `b934a88`; `51ab514`
+defines the revised method. Continue in this order:
+
+1. **3a: eliminate overhead with unchanged job outputs.** Use one host
+   register bank for the entire job, extending REGISTERS throughout without
+   per-call `memcpy(c.gpr)`. Remove per-call admission already implied by
+   whole-job admission. Remove hot-path `std::vector` allocation in `color`,
+   `fixed_stream`, `float32_stream`, `half_stream`, `typed_stream`,
+   `blend_scatter`, `full_commands`, `position_commands`, `run_lists` and
+   `command_publish`. Target: JOB1 >= JOB0 in the menu.
+2. **3b: build the host data pipeline.** Decode recognized Edge streams once
+   into little-endian host SoA arrays. Skin, transform and cull using AVX2
+   with eight lanes. Write each output stream once in its final format at
+   the location from which the job publishes it. Prioritize float/half/CMP
+   output, unit vectors, weighted skin and index triangles in profile order.
+   Unsupported descriptors use the lifted job as a whole, without partial
+   mutation before the fallback decision.
+3. **Validate each increment at the job boundary.** Require the exact ordered
+   DMA/atomic/channel transcript, every published vertex/index/RSX byte and
+   job exit state against all 19,508 corpus jobs / 58,195 transfers, plus
+   >=10,000 live whole-job I/O comparisons and inspected native menu/round
+   frames. Preserve SPU FP semantics for published values: RTZ, denormal
+   flush and no contraction unless the SPU operation fuses. Internal SPU
+   registers, LS scratch, lookahead/dummy iterations, prefetches and SPU-ABI
+   frames are not requirements. Existing per-function strict checks remain
+   optional debugging tools and must not dictate the native data layout.
+4. **Measure and decide.** Run reversed same-EXE JOB0/JOB1 menu and round FPS
+   series and separate worker/process cycles and CPU time per completed
+   frame. Freeze builds as `build-vulkan-*`, record `renderer` in their
+   manifests and verify both `window present mode mailbox` and
+   `two-context asynchronous draw batches enabled` in every run log. Never
+   run another game, compilation, CPU tests or independent profiling during
+   a measurement. Default-on requires all gates and JOB1 >= JOB0; 3a's
+   explicit target remains menu FPS parity or better. Do not substitute
+   isolated-option gains for the aggregate JOB0/JOB1 comparison.
+5. **Document, commit and continue.** For each validated increment, record a
+   short measurement table and decision, then make a local commit. Preserve
+   original saves, private corpus/derived-code policy, prior frozen builds
+   and source/evidence bindings. After phase 3 passes, continue the remaining
+   required shared native work in phase 4 under the same job-boundary method.
+   Phases 5/6 remain optional. Consolidate stage switches into
+   `BUZZ_GEOMETRY_JOB` and a few groups as 3b replaces them.
+
+Stop new per-function SPU transliterations, cold-format implementation and
+coverage work without real inputs, and round interpreter-count work.
+**Phase 7 is cancelled**, including strict Stage F register reconstruction.
+Stage F follows the same job-boundary contract. Do not resume these cancelled
+or stopped tracks from older goals, checkpoints or results documents.
+
+### Current implementation checkpoint (2026-11-02)
+
+The experimental host output path passes correctness gates, but remains off:
+menu FPS +0.964%, round FPS -0.077%, round worker cycles/frame +1.734%.
+See the [measurement table and decision](native-geometry-phase3b-results.md).
+Eight-vertex input helpers pass original-decoder and guarded source tests.
+Job-owned input SoA now matches 54,481,150 logical component values across
+19,399 real captures; 109 fixed-format entries retain whole-job fallback
+([results](native-geometry-phase3b-input-results.md)). Eight-vertex skinning,
+object transforms and direction normalization now match the full original
+producer for those same 19,399 captures ([skin results](native-geometry-phase3b-skin-results.md)).
+Host projection now produces exact logical clip records for the same family
+([clip results](native-geometry-phase3b-clip-results.md)). Direct host index decoding now matches all
+19,508 captured index streams ([index results](native-geometry-phase3b-index-results.md)).
+Host culling now matches the composed original flow for 19,399 jobs
+([cull results](native-geometry-phase3b-cull-results.md)). Final host index
+allocations now match all logical and alignment bytes
+([index output results](native-geometry-phase3b-index-output-results.md)).
+Direct host vertex output now matches 5,801 admitted visible buffers, including
+alignment bytes ([vertex output results](native-geometry-phase3b-vertex-output-results.md)).
+Unsupported output storage and unresolved padded skin indices retain whole-job
+fallback. The experimental host job pipeline now integrates these producers:
+all JOB0/JOB1/JOB2 corpus arms match 19,508 jobs /58,195 transfers, and live
+whole-job comparisons exceed 1,275,000. See [integrated pipeline results](native-geometry-phase3b-host-pipeline-results.md).
+Native frames are normal. Reversed aggregate menu FPS improves +3.712%, with
+worker cycles/frame −8.668%; round FPS improves +1.460% (both pairs positive).
+The fresh reversed round CPU series improves worker cycles/frame −6.747%
+and process cycles/frame −4.335%, with both pairs positive for CPU savings.
+All experimental-profile correctness, native-frame and separate FPS/CPU
+gates now pass. The initial incomplete CPU series remains rejected. Stage
+switch consolidation now provides a compact host/publication/commands
+profile. Its controller tests and eight-arm whole-job corpus pass
+([profile results](native-geometry-phase3b-profile-results.md)). Live I/O
+exceeds 1,275,000 completed comparisons and both native frames look normal.
+The compact profile's reversed menu series improves FPS +3.510%, worker
+cycles/frame −8.957% and process cycles/frame −4.920%, in both pairs.
+Its separate round FPS series improves +2.849%, with both pairs positive.
+Round worker cycles/frame improve −5.303% and process cycles/frame −3.287%,
+with both pairs positive for CPU savings. All compact-profile gates pass.
+The qualified EU 1.00 Vulkan/AVX2 normal build now selects phase 3 and both
+launchers apply manifest JOB1 while preserving explicit JOB0. Default/off
+normal-launch replay and actual default native menu/round frames pass;
+the relink differs from the measured executable only in its timestamp.
+See [default integration results](native-geometry-phase3b-default-results.md).
+Phase 3b's supported image-41 pipeline is complete; unsupported jobs retain
+whole-job fallback. Next: required phase 4 under the corrected host-data method.
+
+### Historical implementation notes (superseded where conflicting)
+
+The notes below retain prior evidence; their former next steps and gates do
+not override the Course correction or the revised objective above.
+
+Current next milestone: continue host data across attributes/skin/output and
+close reliable interpreter-count validation, preserving existing StageF
+vertex/cull boundaries until phase7. Shared-bank measurements on frozenbc0d35df
+are complete:menuFPS+0.894%,round+0.169% with mixed pairs/tails;worker cycles/frame
+-0.341%/-0.010%,round worker CPUtime-1.148% in both pairs,process results mixed.
+REGISTERS stays0 after this small/mixed result. The implementation remains an
+opt-in first host-data boundary.
+The [exact interpreter counter foundation](native-geometry-interpreter-counts.md)
+passes production-state neutrality, concurrent recorder/process and observer
+failure tests. New9691ca43 EXE/a6bb229f MAP passes4full-corpus arms,each19,508exact
+jobs/58,195transfers;all3enabled arms explicitly count0. Reference/native live
+menu both prove all-image0 at requested15/60s,with actual read boundaries and
+the first failed timing-admission attempt preserved. The observer defaults off
+and is explicitly off in FPS/CPU series. Next is the round's positive per-page
+inventory with justified matched work; its count gate remains open.
+REGISTERS0/1 integrates all seven cores directly with the formatter's host
+bank,default0. Ten frozen arms each pass19,508exact jobs/58,195transfers,
+unchanged old ledgers and7,201host roots/17,278children where enabled. New
+live checks pass45,000whole-job/I/O +35,000parents +85,833children;separate
+UNORM2 proves>=10,000 strict calls. Native menu/actual round images pass.
+Same-EXE reversed FPS+separate worker/process cycles/CPU are documented in the
+[performance results](native-geometry-phase3-performance.md#shared-formatter-bank-measurements-and-default-decision). The
+[current phase3 audit](native-geometry-phase3-remaining.md) identifies the
+remaining host-data requirement;SPU-ABI wrappers and LS streams still remain.
+The earlier isolated SPANS round FPS repetition on3df improves2.22%(pairs+2.61/+1.84),with
+median/p90/p99 lower in both pairs. The earlier one-run54.80ms p99 remains
+recorded and was not reproduced. SPANS is validated opt-in;its product default
+stays0 with the experimental parent,and optimized native profiles use SPANS1.
+Separate diagnostic profiles guide the next source change,without timing
+claims. Round interpreted counts,cold real/live,full host-buffer integration,
+aggregate/default decisions and final strictStageF7 remain open.
+All five standard input decoders and the complete standard93F0 controller
+are implemented and integrated behind independent default-off switches.
+Their standalone and production-routing checks pass; real coverage of the
+new builtin formats1..5 and the final acceptance gates remain OPEN.
+Standard input production routing is now complete opt-in:3,876 wrapper roots,
+1,938 parent-strict/1,440 child-strict;576 parent roots/all36 format pairs;
+292 layout cases/877 rejects;472 production getter cases. Whole-job admission
+protects parent frames and scratch on retained and new routes. Five final frozen
+arms each pass19,508 exact jobs/58,195 transfers, all19,508 native with zero
+whole-job fallback in enabled arms. The controller has19,508 real raw0 roots,
+reusing the old helper; new inputs1..5 remain real/live0. ABI48/61 stages.
+The initial5,838 coverage regression from an overlarge declared descriptor span
+was rejected and corrected; final ledgers match after raw-stage migration.
+Whole-job/raw0 live and menu/actual-question frame gates now pass on ABI48.
+Cold-path live, interpreter/reversed A/B/normalized CPU/default gates stay OPEN.
+The [input audit](native-geometry-input-audit.md) maps all23 standard blocks
+and six95C4 routes. The native54E8
+output controller now handles all seven paths, including all four complete
+output built-ins; independent0/1/2 switches default0. That earlier ABI47
+freeze is preserved; the current input integration uses ABI48/61 stages.
+Synthetic builtin integration passes15,988 strict complete-controller/data
+roots plus4,472 unchanged rejects; production routing adds3,072 native /
+1,536 parent-strict /1,536 child-strict roots. Earlier standalone payload
+and descriptor-control proofs remain valid. Five frozen full-corpus arms
+each pass19,508 exact jobs/58,195 transfers; enabled controller arms have
+7,201 native descriptor roots/zero fallback. All four new builtin real roots
+remain0. Cold real/256-live/native-frame, interpreter/reversedA/B/normalizedCPU
+and default gates stay OPEN; JOB0/geometry827/newflags0 remain unchanged.
+The [conversion audit](native-geometry-conversion-audit.md) and separate
+[phase3 results](native-geometry-phase3-results.md#native54e8-built-in-output-control-abi47)
+record complete function coverage and the limits of synthetic acceptance.
+The float32 output payload `46D0` now has a complete opt-in implementation,
+including every final iteration and both scatter arms. V2 excludes every active
+interrupt context and passes 6,177 strict cases plus five exact full-corpus
+arms, with 7,201 native roots and zero fallback per enabled arm.
+Binary16 `4880` now also has a complete
+seven-block opt-in path, including post-store prefetch and full final ABI.
+It passes 7,215 strict cases, 1,048,576 independent scalar inputs and five
+exact full-corpus arms, with 4,513 native roots and zero fallback per enabled
+arm. Live single/mixed checks and native menu/round frames pass.
+Packed CMP `4FDC` also has its complete five-block encoder: 7,471 strict
+cases, 32,772 independent dyadic encodings, 256 special-FP roots and five
+exact corpus arms, with 4,424 native roots/zero fallback per enabled arm.
+SNORM16 `4478` now also has a complete five-block encoder: 7,471 strict
+cases, 131,088 independent dyadic components, 256 special-FP roots and five
+exact corpus arms with 1,104 mixed native roots/zero fallback per enabled arm.
+Strict mixed live checks and native menu/round frames pass.
+UNORM8 `4B9C` also has a complete five-block path: 7,471 strict cases,
+131,088 independent components, 256 special-FP roots and five exact corpus
+arms with 36 mixed native roots/zero fallback per enabled arm. Dedicated
+strict UNORM live checks and actual-native frames pass. I16 and U8 integer
+were the last two storage implementations. Both now have complete five-block
+kernels: 7,503 strict cases and 1,048,576 independent FP-bit components each,
+plus 1,152 synthetic enclosing-conversion cases (576 native strict roots each).
+Their real corpus/live counts remain zero; those acceptance gates stay OPEN.
+All seven storage implementations exist. Shared `4178` is now production opt-in:
+1,908 standalone strict cases, 117 routing cases, five exact corpus arms with
+7,201 strict real roots and zero fallback, plus native live checks and normal
+menu/round frames. Its own 0/1/2 switch defaults off; final interpreter/A/B/CPU
+gates remain OPEN. Output built-ins and remaining cold real/live acceptance
+are still required.
+Custom callback boundaries are now
+excluded from paired replay until independently audited; they execute once
+on the retained arm. This is comparison protection, not native conversion.
+Ring/atomic flow `37C0` is now production
+opt-in with `BUZZ_GEOMETRY_JOB_RING=0/1`, default 0; JOB=2 checks its exact root
+state/I/O. It passes 5,821 standalone comparisons, seven unchanged rejects,
+six full-corpus arms and >=35,000 strict live root comparisons. Native menu/
+round frames are normal. Cold retained paths and final acceptance gates stay open.
+The [allocator audit](native-geometry-ring-audit.md) inventories 39 blocks,
+7,201 original allocator calls and 14,422 ordered ring transfers. Its cold
+interrupt-enable continuation `3CF4` contains a branch to `3B28`, but the
+unregistered target still needs resolver/interpreter acceptance. The kernel
+rejects enabled/saved interrupts before mutation and preserves original
+reporting handoffs; neither those handoffs nor the audit count as fully native
+allocator acceptance.
+Transform control, vertex preparation, alternate cull data and finalization
+now have complete native opt-in implementations, alongside the existing
+normal Stage F loops. Alternate data still has zero real/live coverage and
+open gates. See the [transform contract](native-geometry-transform-audit.md).
+The complete AEA0/7390 index flow is also native opt-in. Required cold coverage,
+final validation/performance/default gates and strict Stage F reconstruction
+remain open; these implementation milestones do not close phase 3.
 
 ## Why these jobs
 
@@ -76,17 +340,16 @@ uncapped) above 30, and is the prerequisite for any low-power target.
 
 ## Ground rules
 
-1. **Bit-exact or it does not ship.** Every native function must reproduce
-   the lift's registers, local store, DMA/atomic stream and exit state for
-   every corpus job. Floating point follows SPU semantics (round toward
+1. **Bit-exact at the job boundary or it does not ship** (revised
+   2026-11-01, see the course correction above). Every native job must
+   reproduce the lift's DMA/atomic/channel stream, all published output
+   bytes and its exit state for every corpus job. Intra-job SPU registers
+   and LS scratch are not part of the contract. Floating point follows SPU semantics (round toward
    zero, flush denormals, no FMA contraction unless the SPU op fuses);
    mirror the stage F build flags (`-mavx2 -mfma -frounding-math
    -ffp-contract=off`, `SPU_NATIVE_RTZ_*`).
-   Existing stage F is an explicitly accepted baseline exception (2026-10-30):
-   reproduce its established volatile-register/cull contract while reporting
-   strict differences separately. New kernels must pass strict full-state
-   comparisons. This exception is temporary: the final phase 7 removes it
-   after Stage F passes the same strict gates. See [data map and harness](native-geometry-data.md).
+   The former Stage F volatile-register exception and the phase 7 strict
+   reconstruction are obsolete under the job-boundary rule. See [data map and harness](native-geometry-data.md).
 2. **One function per step.** Replace a single lifted function (or a
    tightly coupled group), prove it, measure it, commit it. Never a big-bang
    rewrite.
@@ -473,7 +736,7 @@ round readbacks look normal. Final performance/default gates remain open
 and are tracked in the separate phase-3 results. AF18 palette/batch control
 is now implemented separately below; remaining rigid, cofactor and normalized
 directional data retain explicit inventory rows. A native controller count
-is not native data coverage. Strict Stage F reconstruction remains final phase 7.
+is not native data coverage. The later Course correction cancelled phase 7.
 
 The complete `0xB880/B934/B940` weighted position/matrix kernel now has a
 native implementation with no original setup or final-pair call. Its own
@@ -494,10 +757,10 @@ The reproducible AF18 audit (`tools/inspect/inspect-geometry-skin.py`) maps
 the job loader already staged palettes/weights. AF18 control/transpose now
 has a separately switched native implementation below. Rigid skin positions now have an implementation below, with real/live gates
 OPEN; cofactor normals now have an implementation below with real/live gates
-OPEN. Normalized directional variants still require native implementations
-and gates. Basic directional progress is
+OPEN. Normalized directional variants now have implementations below; their
+real/live gates remain OPEN. Basic directional progress is
 recorded below. Replacing B880 does not
-close these inventory rows or phase 3. Strict Stage F remains final phase 7.
+close these inventory rows or phase 3. The later Course correction cancelled phase 7.
 
 Basic directional kernels `0xBD4C/BE20/BF7C` now have a shared native host
 loop, AVX2 arithmetic and exact per-variant final ABI, independently switched
@@ -566,9 +829,234 @@ coverage and the >=256 live strict gate remain OPEN; normal scenes or a
 compatible replay cannot close those gates. Other data/stages, final
 performance/default gates and phase 3 remain open; strict Stage F stays last.
 
-### Phase 4: image 40 (2-4 sessions)
-Same library routines at shifted offsets (images 40/43/45/47 share them):
-reuse phase 2 kernels with per-image entry mapping. Exit as phase 2/3.
+Normalized direction data C14C/C280/B5A0 now has complete native host loops
+for one/two/three streams, independently switched by
+`BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2`, default 0. Cached first primary and
+matrix inputs, distinct first/nominal pointers, all lookahead and ordered
+stream/matrix aliases remain exact. AVX2 prefix arithmetic is followed by the
+original SPU FRSQEST/FI normalization and explicit per-variant final ABI.
+Tests pass 9,219 strict cases plus 9 independent geometry/cache/padding checks
+and 12 unchanged rejects. The additional geometry tolerance 5e-4 never applies
+to strict state/corpus/live checking. AF18 composition adds 1,152 actual-data
+cases with three original/native rigid/cofactor combinations and all three
+normalized roots. Existing control/data composition, full driver-entry
+models and 232 production configuration cases pass. Frozen replay/scene
+compatibility is recorded in the separate results. All AF18 data families now
+have native implementations, but **zero real calls** to these normalized
+roots means real/native corpus and >=256 strict live gates remain OPEN.
+Other enclosing stages/built-in inputs/cold coverage and final interpreter/
+reversed A/B/normalized CPU/default decisions still keep phase 3 open. The later
+Course correction cancelled phase 7 and stopped interpreter/cold coverage work.
+
+### Native compressed-index delta reconstruction
+
+`7730/7770` now has a complete native implementation, independently selected
+by `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default 0. It preserves all eight
+u16 prefix chains, warmup/flush, input lookahead, aliases and the full final
+GPR/LS/77F8 boundary without an original final iteration. Strict tests pass
+5,763 cases plus three independent numeric checks and eight unchanged rejects;
+five corpus arms each pass 19,508 exact jobs / 58,195 transfers. All 9,763 real delta
+calls are native with zero fallback, comprising 2,999 one-group + 6,764 bulk calls.
+Strict live menu checks exceed 235,000 one-group + 315,000 bulk calls. Frozen
+native scene evidence is recorded in the [phase-3 results](native-geometry-phase3-results.md#complete-index-delta-reconstruction-77307770).
+The [remaining index inventory](native-geometry-index-audit.md#native-implementation-inventory)
+keeps the controller, relocation and triangle
+final ABI explicit. This completes one data region, not 7390 or phase 3.
+Final interpreter/reversed A/B/normalized worker/process CPU/default gates
+remain open. JOB=0 / leaf 827 / all new flags=0 are unchanged; strict Stage F remains last.
+
+### Native compressed-index bit unpack
+
+`74F0/7640/7C20/7CD0/77E8` now has a complete native low/high implementation,
+selected by `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0. It keeps both
+warmups, repeated final-block stores, backward progression, aliases and the
+entire final GPR/LS/7730-or-77F8 boundary. Preflight simulates every write
+using the real increment table and cached selector before any mutation.
+No original setup, step or final iteration executes.
+
+Tests pass 5,378 strict cases, including 256 independent packed-value cases,
+plus 10 unchanged rejects and 248 configuration cases. The ordinary MSB-first
+checks cover widths 1..15; width 16 has a separately derived
+[pinned-lift behavior](native-geometry-index-audit.md#width-16-source-compatibility).
+Five corpus arms each pass 19,508 exact jobs / 58,195 transfers; all 9,763
+unpack roots are native with zero fallback (7,211 low + 2,552 high). Combined
+arms retain all 9,763 native delta roots. Strict live menu checks exceed
+545,000 low + 55,000 high calls. Frozen native scene evidence is in the
+[phase-3 results](native-geometry-phase3-results.md#complete-lowhigh-index-bit-unpack-74f076407c207cd0).
+7390 control, relocation and triangle final ABI remain
+unfinished, alongside the other enclosing stages/builtins/cold coverage.
+Final interpreter/reversed A/B/normalized worker/process CPU/default gates
+remain open. JOB=0 / leaf 827 / new flags=0 are unchanged; strict Stage F is last.
+
+### Complete native compressed-index flag expansion
+
+`7838/78A8` now has a complete native implementation through 79A8 or 7DCC,
+selected by `BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0. Host vectors
+and prepared shuffle masks retain the explicit/sequential merge, warmup,
+all lookahead, ordered writes and full final ABI. The capacity quad is read
+after writes, preserving manager/output alias effects and signed comparison.
+The older phase-2 bit6 prefix remains independent; no original setup, step or
+final iteration executes in the new native region.
+
+Tests pass 4,691 strict cases including 64 independent scalar merges and
+two post-write capacity reversals, plus seven unchanged rejects and 256
+configuration cases. Both tails are covered without executing reporting I/O
+twice. Five corpus arms each pass 19,508 exact jobs / 58,195 transfers, all
+19,508 expansion roots native with zero fallback (7,123 short + 12,385 bulk).
+Combined arms retain 9,763 unpack and 9,763 delta roots. Strict live menu checks
+reach at least 130,000 short + 330,000 bulk calls; native scene evidence is recorded in
+the [phase-3 results](native-geometry-phase3-results.md#complete-flag-expansion-783878a8).
+7390 control, relocation and triangle final ABI remain unfinished. Final
+interpreter/reversed A/B/normalized worker/process CPU/default gates stay
+open. JOB=0 / leaf 827 / new flags=0 remain unchanged; strict Stage F is last.
+
+### Complete native compressed-index command relocation
+
+`79A8/79C8` is completely native through queued 7A90, including zero warmup,
+repeated first destination, store-before-next-read aliases and full final ABI.
+`BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2` defaults to 0. All 5,777 strict cases,
+including 1,152 independent byte models, eight unchanged rejects and 264
+configuration cases pass. Five corpus arms each pass 19,508 exact jobs /
+58,195 transfers, with all 19,508 relocation calls native / zero fallback
+(0 warmup, 9,756 short, 9,752 bulk). Combined arms retain the preceding three native index
+regions. Strict live menu comparisons reach at least 460,000; inspected
+native menu and actual round frames are normal. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-command-relocation-79a879c8).
+7390 control and complete triangle/final ABI remain required. Interpreter,
+reversed same-EXE A/B, normalized worker/process CPU and default gates remain
+OPEN; JOB=0 / leaf 827 / new flags=0 are unchanged. Strict Stage F stays last.
+
+### Complete native triangle stitching and frame restoration
+
+All of 7A90 is now native through queued 2738: cached inputs, full body/final
+iteration, post-store LUT feedback and late 432-byte-frame restoration.
+`BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2` defaults to 0; the phase-2 bit3
+fallback remains independent. Tests pass 4,993 strict cases, including 80
+independent frame models and 32 mutable-LUT proofs, nine unchanged rejects,
+separate fallback/reference routing and 272 configuration cases. Five corpus
+arms each pass 19,508 exact jobs / 58,195 transfers, all 19,508 triangle calls
+native / zero fallback (0 warmup, 6,833 short, 12,675 bulk). Combined arms retain the preceding
+four native index regions. Strict live comparisons reach at least 465,000;
+native menu and actual round frames look normal. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-triangle-stitching-and-frame-restoration-7a90).
+Whole index control/setup/publication and other enclosing paths remain open.
+Final interpreter/reversed A/B/normalized worker/process CPU/default gates
+remain OPEN; JOB=0 / leaf 827 / new flags=0 are unchanged. Strict Stage F is last.
+
+### Complete native compressed-index controller
+
+AEA0/7390 now owns native control, frames, metadata/zero-width setup, 2738/end
+and outer/original-pointer publication, and exact root return. Five data
+switches remain independent; all enabled compose the complete native decoder.
+`BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2` defaults to 0. Eligibility checks all
+writes and four error frontiers before mutation; unsupported inputs keep the
+retained control without native credit. Tests pass 5,633 strict cases, all 32
+child combinations, 256 independent byte models, 20 unchanged rejects, API
+routing and 280 config cases. Five arms each pass 19,508 exact / 58,195 transfers,
+all 19,508 controller roots native / zero fallback (9,745 zero + 7,211 low +
+2,552 high). Combined arms retain every native data region. Strict live root
+checks reach at least 455,000; native menu/round frames are normal. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-index-control-frames-and-publication-aea07390).
+Other enclosing stages/builtins/cold functions and final interpreter/reversed
+A/B/normalized worker/process CPU/default gates remain OPEN. JOB=0 / leaf 827 /
+new flags=0 remain unchanged; strict Stage F stays last.
+
+### Native transform result publication and frame return
+
+Complete 6958/66C8 finalization is native opt-in, including shared 2738
+publication, exact selected bytes and late restoration from aliased frames.
+`BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2` defaults to 0. Tests pass 4,929
+strict cases including 320 independent byte models, six unchanged rejects,
+API routing and 288 configuration cases. All five corpus arms pass 19,508
+exact / 58,195 transfers; all enabled calls are native with zero fallback.
+Strict live publication checks reach >= 465,000; actual-native menu and
+round frames are normal. Count-only remains synthetic with real/live gates
+OPEN. Enclosing 6608 control, vertex preparation, alternate data, other stages
+and final interpreter/reversed A/B/CPU/default gates remain OPEN. See the
+[phase-3 results](native-geometry-phase3-results.md#transformcull-audit-and-native-finalization-695866c8).
+Strict Stage F reconstruction remains last; JOB=0 / leaf 827 / new flags=0.
+
+### Native vertex matrix preparation
+
+Complete 6188/65EC/65FC preparation is native opt-in through queued `63E0`.
+`BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2` defaults to zero, with full-state
+strict checks before the existing Stage F loop and no Stage F waiver.
+8,513 strict cases cover every format/bias pair, 256 special FP cases,
+64 independent matrix cases and six unchanged rejects. API routing and 296
+configuration cases pass. Five corpus arms each pass 19,508 exact / 58,195
+transfers, all 19,508 preparations native / zero fallback (10,699 base + 8,809
+middle). Live strict handoffs reach >= 470,000; native scene frames are
+normal. Five/other formats remain cold with open real/live gates. Enclosing
+6608, alternate cull data, other stages and final interpreter/reversed A/B/CPU/
+default gates remain OPEN. See the [phase-3 results](native-geometry-phase3-results.md#complete-vertex-matrix-preparation-618865ec65fc).
+JOB=0 / leaf 827 / new flags=0 remain unchanged; strict Stage F stays last.
+
+### Complete native enclosing transform control
+
+Complete 6608/6618/6744/6790/bypass/mode dispatch is native opt-in. Own
+`BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2` defaults to zero. The new checker
+compares ALL state using identical public retained data callbacks on each arm;
+no Stage F waiver is applied to controller state. Preflight rejects reporting/
+unsafe frame/manager cases before writes. 5,505 strict cases, eight child/
+baseline combinations, child-entry traces, 256 byte models, nine rejects,
+API routing and 304 configuration cases pass. All five V2 corpus arms pass
+19,508 exact / 58,195 transfers, all controller roots native / zero fallback
+(6,970/10,467/2,071 in modes 1/2/3). Strict live comparisons reach >= 455,000;
+actual-native frames are normal. Alternate 69E8/6B18 DATA remains original;
+bypass/idle/alternate real/live and final interpreter/reversed A/B/CPU/default
+gates remain OPEN. See the [phase-3 results](native-geometry-phase3-results.md#complete-enclosing-transform-control-6608).
+JOB=0 / leaf 827 / new flags=0 remain; strict Stage F stays last.
+
+### Complete alternate cull data: cold opt-in
+
+69E8/6B18/6B10 setup, every iteration and final 6958 handoff are native.
+`BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2` defaults to zero; no Stage F waiver.
+5,448 strict cases include 288 independent geometry/order models, 288 composed
+original-controller/data checks, 256 special FP cases and four unchanged
+rejects. API routing, 312 configuration cases and build pass. Five compatibility
+arms each pass 19,508 exact / 58,195 transfers, but the new function has ZERO
+real/native corpus calls. Actual-native Stage F checked menu passes >= 45,000
+whole-job state/I/O comparisons; native menu/round frames are normal, with
+ZERO alternate live calls. Its real/256-live gates remain OPEN. See the
+[phase-3 results](native-geometry-phase3-results.md#complete-alternate-cull-data-69e86b186b10-cold-opt-in).
+Ring/atomic integration is recorded below. Other implementations/cold/final gates keep
+phase 3 active; JOB=0 / leaf 827 / new flags=0 and strict Stage F last remain.
+
+### Ring allocator: production opt-in
+
+`37C0` now has its own binary `BUZZ_GEOMETRY_JOB_RING` switch, default 0.
+JOB=2 replays exact root I/O; JOB=1 executes natively without a strict credit.
+Six frozen-EXE corpus runs each pass 19,508 exact / 58,195 transfers. Enabled
+arms have 7,201 native returns, zero fallback/reporting handoffs; JOB=2 checks
+all 7,201 roots and 19,508 whole jobs. All older enabled stage totals match.
+Live actual-native Stage F menu passes >=35,000 strict ring and >=45,000 whole-
+job comparisons; native menu/round frames are normal. Reporting handoffs and
+enabled interrupts retain original code and cannot earn complete native credit.
+See the [results](native-geometry-phase3-results.md#output-allocator-37c0-production-integration).
+Final interpreter, reversed frozen-EXE A/B, normalized CPU/FPS and default
+gates remain OPEN. Next is complete `54E8`; phase 3 and the goal stay active.
+
+### Phase 4: image 40 — complete for the supported job family (2026-11-02)
+
+Recognized animation jobs decode clips once into host SoA, compute eight
+AVX2 lanes through pose control, hierarchy and world/reference matrices,
+then publish final streams with the original ordered I/O and job exit.
+No SPU register bank, ABI-frame or unpublished scratch reconstruction.
+
+| Gate | Result |
+| --- | --- |
+| Corpus | 17,714/17,714 native jobs, 115,162 exact transfers; native-retained original comparison passes; image-41 regression 19,508/58,195 exact |
+| Live / native frames | >=100,000 native-retained live checks; menu and actual solo-round frames normal |
+| Reversed FPS | Menu +2.052%; round +1.274%; both pairs positive in each scene |
+| CPU/frame | Worker cycles −5.386% / −6.420%, process cycles −3.006% / −3.471% (menu / round); CPU time also decreases in both pairs |
+| Default | `BUZZ_ANIMATION_JOB=1` in the qualified EU100/Vulkan/AVX2 host profile; explicit `0` preserved; bare EXE remains off |
+
+See [runtime results](native-geometry-phase4-runtime-results.md) for the
+measurement table and decision, and [algorithm checks](native-geometry-phase4-results.md)
+for the oracle proofs and shared code candidates. Uncovered descriptors,
+nonuniform weights and enabled interrupt entries retain whole-job fallback.
+Images 43/45/47 have code-only candidates; no frontend/default is enabled
+without real job inputs. Phases 5/6 remain optional; phase 7 stays cancelled.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
@@ -579,37 +1067,20 @@ frame dumps match, render drain reduced, A/B recorded.
 Every native kernel gets a scalar reference + NEON path next to AVX2,
 same corpus gate, for ARM targets.
 
-### Phase 7: strict Stage F cleanup (final)
-After the preceding selected phases, bring the existing Stage F vertex,
-transform, normalize and cull kernels up to the strict contract used by new
-native kernels. Reproduce all 128 GPRs, including volatile/dead temporaries,
-the entire LS including scratch/padding, control state and return/trampoline
-continuation. Fix the implementations or reconstruct their exact tail state;
-do not exclude differing fields or weaken the checker.
+### Phase 7: cancelled
 
-Require zero strict per-function differences on the full corpus and at least
-256 live comparisons per kernel. Whole-job replay must also pass with actual
-native Stage F execution (`BUZZ_STAGEF=1`), without relying on checked mode
-retaining the lifted state. Verify the complete DMA/atomic stream and exit
-state, normal native menu/round frame dumps, and the usual reversed menu/round
-A/B pairs. Preserve reference fallback, source pins and per-kernel switches;
-record any performance cost of stricter state reconstruction.
-
-Remove the accepted Stage F exception only after all these gates pass, update
-the contracts/trackers and commit the correction. Until then, earlier phases
-retain the explicitly accepted baseline contract. This remains the final
-roadmap phase under the continuing objective above; perform it after the
-other selected native-function phases, rather than folding it into phase 3.
+Cancelled by the Course correction (2026-11-01). Do not reconstruct Stage F's
+dead registers or scratch. Stage F follows the same job-boundary contract as
+the other native routines; per-function full-state checks are optional debug.
 
 ## Gates for every step
 
-- [ ] Corpus replay bit-exact (all captured jobs of the image)
-- [ ] Per-function harness: 0 differences
-- [ ] Live checked mode: N >= 256 calls compared in-game, PASS logged
+- [ ] Exact job outputs, ordered DMA/atomic/channel transcript and exit state across the full corpus
+- [ ] Live whole-job I/O: >=10,000 jobs compared in-game, PASS logged
 - [ ] Frame dump of menu and round renders normally
-- [ ] Menu A/B (2 pairs, reversed) and round A/B recorded below
-- [ ] For FPS-neutral default-on decisions: matched worker/process CPU-cost evidence recorded, with no material frame-time regression
-- [ ] Runtime bit documented; default flipped only after all of the above
+- [ ] Reversed same-EXE JOB0/JOB1 menu and round FPS plus separate worker/process cycles and CPU time per completed frame
+- [ ] Frozen build-vulkan-* manifest records renderer; every log confirms mailbox and asynchronous two-context batches
+- [ ] Runtime switch documented; default-on only after all gates and JOB1 >= JOB0 (menu FPS parity is the 3a target)
 - [ ] SDK/main commits, docs updated
 
 ## Tracker
@@ -623,9 +1094,19 @@ default-on after the FPS/CPU decisions; four are exact and opt-in. Final
 default replay, live comparison and native menu/round rendering also pass.
 The finalized separate results document is
 [native-geometry-phase2-results.md](native-geometry-phase2-results.md).
-Phase-2 results were committed in `ef906be`. Phase 3 is in progress in the
-tracker below and remains incomplete. Stage F strict cleanup remains the
-final phase 7.
+Phase-2 results were committed in `ef906be`. The supported phase-3b image-41
+profile now passes and defaults on in qualified builds; phase 4 remains.
+Phase 7 is cancelled. The Course correction governs the historical rows below.
+
+| Revised work | Status | Latest evidence |
+| --- | --- | --- |
+| 3a: remove overhead | structural implementation checkpointed; isolated result rejected | Host layout V1: menu FPS -2.207%; aggregate menu parity is first demonstrated with the 3b output candidate (+0.964%), not by structural 3a alone; native menu-and-round acceptance stays open |
+| Job-boundary checker | exact; optional full-state debug retained | Four full-corpus arms, 12 real-job fault fixtures, >=1,415,000 completed live comparisons; concurrent-input skips excluded; normal native menu |
+| 3b: host SoA / AVX2 pipeline | output increment exact, experimental/off; full pipeline wip | Eight-vertex float/half/CMP output: four full-corpus arms, >=1,395,000 live checks, normal native menu/round; menu FPS +0.964%, round -0.077%; round worker cycles/frame +1.734% mixed pairs. Continue persistent host input, skin/transform/cull and indices; no cold coverage |
+
+Measurements and decisions: [native-geometry-phase3a-results.md](native-geometry-phase3a-results.md).
+Host-pipeline increments: [native-geometry-phase3b-results.md](native-geometry-phase3b-results.md).
+Checker validation: [native-geometry-job-boundary-results.md](native-geometry-job-boundary-results.md).
 
 ### Phase 0
 
@@ -675,7 +1156,10 @@ subject to the kernel gates before replacement.
 | 0x0988 | 0.75 % | exact; off, mixed FPS and no repeatable CPU savings | `BUZZ_GEOMETRY_KERNELS` 10 | 19,508 exact; 19,508 strict groups, no fallback | >=300,000 exact | 31.73 -> 31.94 | 635e2f2 |
 | 0x4808 | 0.73 % | on; coupled with 4750 | shares bit 9 | same raw-float3 output group | same checked group | same measurement | eee46de |
 | 0x28F0 | 0.67 % | exact; off, mixed process/FPS results | `BUZZ_GEOMETRY_KERNELS` 12 | 19,508 exact; 19,068 strict groups | >=256 exact | 32.32 -> 32.44 | f23c3c7 |
-| Whole-job driver | n/a | wip; native outer control, SPU-ABI library/data-path integration and final gates open | `BUZZ_GEOMETRY_JOB=0/1/2`, default 0 | 19,508 exact / 58,195 transfers in all three modes; 1,024 synthetic outer paths | >=445,000 strict outer-flow + I/O matches | not measured for native driver | |
+| External-bank output cores/all7 | n/a | standalone exact; formatter integrated opt-in; fresh game gates OPEN | internal API; existing switches/defaults unchanged | 50,811 poisoned-GPR original-oracle cases +50,811 ABI comparisons; enclosing suites pass | no new executable/live claim | not measured | implementation in git log |
+| Formatter shared host bank | n/a | exact opt-in; measured small/mixed gains; default0;cold/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_REGISTERS=0/1`,default0 | 1,776 CPU roots/4 corruption probes;10 bc0 arms19,508exact/58,195transfers;7,201host roots/17,278children;old ledgers unchanged | >=45,000whole-job/I/O+35,000parents+85,833children;separateUNORM>=10,000;normal native menu/round;I16/U8 real0 | Menu25.616->25.845;round31.725->31.778;workerCPF-0.341%/-0.010%,process mixed;keep0 | a5fbf3d |
+| Formatter column admission proof | 3.57% active native pool leaf samples for parent reader,not exact time | validated opt-in;mean/CPU gains;tail repetition complete;parent/final OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER_SPANS=0/1`,default0 | 50,000quad models+1,908strict formatter;6arms19,508exact/58,195transfers;unchanged ledgers | >=35,000strict formatter+45,000whole-job/I/O;normal native menu/actual question on b95e457f | Same3df menu25.00 ->25.64,worker CPF-2.99%/process-1.84%;round30.93 ->31.52,worker-4.01%/process-2.82%;round tails open | c8e8e22 |
+| Whole-job driver | n/a | ABI48 opt-in; measured menu CPU/FPS regression; cold/round/final gates OPEN | `BUZZ_GEOMETRY_JOB=0/1/2`, default0 | Five arms19,508exact/58,195transfers;enabled19,508native/0whole-job fallback;strict synthetic/routing proofs in results | >=45,000strict whole-job/I/O on current freeze;normal native menu/actual question | Menu27.74 ->25.30;worker cycles/frame+15.92%;default-off | 272a375 |
 | 0x2DC0 index publication | n/a | native opt-in; final measurements open | `BUZZ_GEOMETRY_JOB_PUBLISH=0/1`, default 0 | 7,201 native publications, zero fallback in exact 19,508-job replay; 2,048 strict synthetic cases | >=370,000 executions inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x2B80 output sizing | n/a | native opt-in; shared host layout; final gates open | `BUZZ_GEOMETRY_JOB_LAYOUT=0/1`, default 0 | 7,201 native sizes, zero fallback; independent/combined 19,508-job replay exact; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks; normal native menu/round intro dumps | not measured | |
 | 0x35F0 vertex publication | n/a | native opt-in; final gates open | `BUZZ_GEOMETRY_JOB_VERTEX=0/1`, default 0 | 7,201 native publications, zero fallback; 7,201 host-layout reuses in combined runs; 2,048 strict synthetic cases | >=375,000 inside strict whole-job checks and layout reuses; normal native menu/round intro dumps | not measured | |
@@ -690,6 +1174,37 @@ subject to the kernel gates before replacement.
 | 0xAF18/B078/B100/B4C0/B868 skin orchestration | n/a | native opt-in control/palette; cold/final gates open | `BUZZ_GEOMETRY_JOB_SKIN_FLOW=0/1/2`, default 0 | Five arms19,508exact/58,195transfers;1,628work-native/0fallback;6,600strict+3numeric+3early+18rejects | See phase-3 report; empty/cold data gates OPEN | not measured | |
 | 0xB348 data suffix/B3C0/B3C8 rigid skin data | n/a | complete native implementation; real/live gates OPEN | `BUZZ_GEOMETRY_JOB_RIGID_SKIN=0/1/2`, default0 | 7,681strict+3numeric+10rejects;384AF18/data integration;five compatibility arms19,508exact/58,195transfers;zero real calls | Real/live >=256 gate OPEN; native scene compatibility in report | not measured | |
 | 0xBB58/BB68 cofactor normal data | n/a | complete native implementation;real/live gates OPEN | `BUZZ_GEOMETRY_JOB_SKIN_COFACTOR=0/1/2`, default0 | 7,808strict+3geometric+10rejects;768AF18/data integration;five compatibility arms in report;zero real calls | Real/live >=256 gate OPEN; scene compatibility only | not measured | |
+| 0xC14C/C280/B5A0 normalized direction data | n/a | complete native implementations;all real/live gates OPEN | `BUZZ_GEOMETRY_JOB_SKIN_NORMALIZED=0/1/2`, default0 | 9,219strict+9geometric/cache+12rejects;1,152AF18 actual-data integration;five compatibility arms in report;zero real calls | Real/live >=256 gate OPEN in each variant;scene compatibility only | not measured | |
+| 0x74F0/7640/7C20/7CD0/77E8 bit unpack | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_UNPACK=0/1/2`, default 0 | 5,378 strict incl256 numeric +10 rejects; five arms: 19,508 exact / 58,195 transfers; 9,763 native/0 fallback | >=545,000 strict low +55,000 strict high; native scenes in report | not measured | |
+| 0x7838/78A8 complete flag expansion | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_EXPAND=0/1/2`, default 0 | 4,691 strict including 64 numeric merges + 2 capacity reversals; seven rejects; five arms: 19,508 exact / 58,195 transfers; 19,508 native/0 fallback | >=130,000 strict short +330,000 strict bulk; native scenes in report | not measured | |
+| 0x79A8/79C8 command relocation | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_RELOCATE=0/1/2`, default 0 | 5,777 strict including 1,152 byte models; eight rejects; five arms 19,508 exact / 58,195 transfers; all 19,508 native / 0 fallback | >=460,000 strict live; native scene frames normal | not measured | |
+| 0x7A90 complete triangles/frame | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_TRIANGLES=0/1/2`, default 0 | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=465,000 strict live; native scene frames normal | not measured | |
+| AEA0/7390 complete index control/setup/publication | n/a | complete native opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_CONTROL=0/1/2`, default 0 | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; five arms 19,508 exact / 58,195 transfers; all native / 0 fallback | >=455,000 strict live; native scene frames normal | not measured | |
+| 6958/66C8 transform finalization | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_FINISH=0/1/2`, default 0 | 4,929 strict incl320 byte models; six rejects; five arms19,508 exact/58,195 transfers; all native/0fallback | >=465,000 strict publish; normal native frames; count-only real/live0 OPEN | not measured | |
+| 6188/65EC/65FC vertex preparation | n/a | complete native opt-in; enclosing/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_VERTEX_PREPARE=0/1/2`, default 0 | 8,513 strict; every format/bias; 256 special FP;64 matrix models;six rejects;five exact arms/all native | >=470,000 strict live;normal native frames;five/other real/live0 OPEN | not measured | |
+| 6608 complete enclosing transform control | n/a | complete native opt-in; alternate data/cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_TRANSFORM_CONTROL=0/1/2`, default0 | 5,505 strict;8 combinations;256 byte models;9rejects;five V2 exact arms/allnative0fallback | >=455,000 strict live;normal frames;cold paths OPEN | not measured | |
+| 69E8/6B18/6B10 alternate cull data | n/a | implemented; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_ALTERNATE_CULL=0/1/2`, default0 | 5,448 strict;288 numeric+288 composed;256 special FP;4 rejects;five compatibility arms exact;new real0 | new live0 OPEN;>=45,000 whole-job checks;normal compatible frames | not measured | |
+| 37C0 output ring allocation | n/a | production opt-in; cold/final gates OPEN | `BUZZ_GEOMETRY_JOB_RING=0/1`, default0; strict JOB2 | 5,821 strict +7 rejects; six arms exact;7,201 native/strict roots,0 fallback | >=35,000 strict ring /45,000 whole-job;normal native menu/round | not measured | kernel `206eb5f`; integration in git log |
+| A6A8/A750/A860/A864/A868 builtin input format2 | n/a | complete standalone decoder; production/cold/live/final gates OPEN | no production switch/routing yet | 5,678strict;256independent byte models;8,192CMP words/32,768float components;262,144signed16 components;1,024arbitrary controls;256special-FP;3,216full original93F0/3,168strict child roots;48late-frame aliases;14unchanged rejects;2input+7conversion audit tests | real/live0;no executable change | not measured | implementation in git log |
+| A390/A5D0/A5D8 builtin input format3 | n/a | complete standalone decoder; production/cold/live/final gates OPEN | no production switch/routing yet | 5,710strict;256independent byte models;8,192CMP words/32,768float components;1,024arbitrary controls;256special-FP;3,216full original93F0/3,168strict child roots;48late-frame aliases;17unchanged rejects;2input+7conversion audit tests | real/live0;no executable change | not measured | implementation in git log |
+| A8F8/AAF8/AB00 builtin input format1 | n/a | complete standalone decoder; production/cold/live/final gates OPEN | no production switch/routing yet | 5,646strict;256independent byte models;8,192CMP words/32,768float components;1,024arbitrary controls;256special-FP;3,216full original93F0/3,168strict child roots;48late-frame aliases;14unchanged rejects;2input+7conversion audit tests | real/live0;no executable change | not measured | implementation in git log |
+| 54E8 / 4178 output conversion | n/a | native all7-path control/formatter/all7 storage/all4 output built-ins opt-in; cold/final OPEN | separate control/formatter/encoder flags, default0 | original73-block graph;strict native whole descriptor roots and data as below | cold/final gates OPEN | not measured | audit and implementations in git log |
+| 5760/5970/5978 built-in output format2 | n/a | complete payload +native54E8 integration; cold/live/final gates OPEN | BUILTIN24_OUTPUT=0/1/2,default0;stage53 | 5,663strict;256independent byte models;32,772independent CMP encodings;131,088full-SNORM32 components;1,024arbitrary controls;256special-FP;828full original-controller/native-child;48late-frame aliases;12unchanged rejects;7audit tests | standalone576native/384strict +parent768native/384parent-strict/384child-strict routing;5exact compatibility arms/0real new roots;live/render OPEN | not measured | kernel in git log |
+| 5A30/5D18/5D20 built-in output format3 | n/a | complete payload +native54E8 integration; cold/live/final gates OPEN | BUILTIN24_CMP_OUTPUT=0/1/2,default0;stage54 | 5,663strict;256independent byte models;32,772independent CMP encodings;1,024arbitrary controls;256special-FP;828full original-controller/native-child;48late-frame aliases;12unchanged rejects;7audit tests | standalone576native/384strict +parent768native/384parent-strict/384child-strict routing;5exact compatibility arms/0real new roots;live/render OPEN | not measured | kernel in git log |
+| 5E28/6050/6058 built-in output format1 | n/a | complete payload +native54E8 integration; cold/live/final gates OPEN | BUILTIN20_OUTPUT=0/1/2,default0;stage52 | 5,663strict;256independent byte models;32,772independent CMP encodings;1,024arbitrary controls;256special-FP;828full original-controller/native-child;48late-frame aliases;12unchanged rejects;7audit tests | standalone576native/384strict +parent768native/384parent-strict/384child-strict routing;5exact compatibility arms/0real new roots;live/render OPEN | not measured | kernel in git log |
+| 56C8/5718 built-in output format0 | n/a | complete payload +native54E8 integration; cold/live/final gates OPEN | BUILTIN_FLOAT3_OUTPUT=0/1/2,default0;stage51 | 6,178 strict;5,154 independent byte models;1,024 arbitrary masks;1,024 special-FP-bit;828 full original-controller/native-child cases;48 late-frame aliases;8 unchanged rejects;7 audit tests | standalone576native/384strict +parent768native/384parent-strict/384child-strict routing;5exact compatibility arms/0real new roots;live/render OPEN | not measured | kernel in git log |
+| 54E8 builtin-path outer control | n/a | complete opt-in; cold/live/final gates OPEN | CONVERSION_CONTROL +used builtin0/1/2 switch, default0 | 15,988strict full controller/data;4,472unchanged rejects incl4,424padded metadata collisions;3,072native/1,536parent-strict/1,536child-strict routing;5exact full-corpus arms;ABI47/55stages | builtin real/live0 OPEN;descriptor coverage separate | not measured | implementation in git log |
+| 54E8 descriptor-path outer control | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_CONVERSION_CONTROL=0/1/2`, default0 | 1,853 full native cases;4,096 stride;4,195 control;90 routing/60 strict;26 unchanged owned rejects;five exact arms19,508jobs/58,195transfers;7,201strict/0fallback | >=25,000 strict control/>=30,000 whole-job;normal native menu/round;existing/empty and cold coverage separate | not measured | implementation in git log |
+| 46D0 complete float32 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_FLOAT_OUTPUT=0/1/2`, default0 | V2:6,177 strict;1,792 alias/wrap;256 byte models;9 rejects;five exact arms,7,201 native/0 fallback | >=256 single +30,000 mixed strict live;>=40,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
+| 4880 complete binary16 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_HALF_OUTPUT=0/1/2`, default0 | 7,215 strict;1,024 mixed/alias;1,048,576 scalar inputs;9 rejects;five exact arms,4,513 native/0 fallback | >=25,000 single+256 mixed strict live;>=40,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
+| 4FDC complete packed CMP output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_CMP_OUTPUT=0/1/2`, default0 | 7,471 strict;1,024 mixed/alias;32,772 independent encodings;256 special-FP;9 rejects;five exact arms,4,424 native/0 fallback | >=20,000 single+180,000 mixed strict live;>=175,000 whole-job;normal native menu/round;skip/all-double cold OPEN | not measured | implementation in git log |
+| 4478 complete SNORM16 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_SNORM_OUTPUT=0/1/2`, default0 | 7,471 strict;1,024 mixed/alias;131,088 independent components;256 special-FP;9 rejects;five exact arms,1,104 mixed native/0 fallback | >=256 mixed strict live;>=35,000 whole-job;normal native menu/round;skip/single/all-double cold OPEN | not measured | implementation in git log |
+| 4B9C complete UNORM8 output storage | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_UNORM_OUTPUT=0/1/2`, default0 | 7,471 strict;1,024 mixed/alias;131,088 independent components;256 special-FP;9 rejects;five exact arms,36 mixed native/0 fallback | >=10,000 mixed strict live;>=35,000 whole-job;normal native menu/round;skip/single/all-double cold OPEN | not measured | implementation in git log |
+| 4DD0 complete I16 output storage | n/a | complete implementation; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_I16_OUTPUT=0/1/2`, default0 | 7,503 strict;1,048,576 independent FP-bit components;576 synthetic enclosing strict roots/192 mixed;9 rejects;five compatibility arms19,508exact/58,195transfers;new real0 | new live0 OPEN;>=35,000 whole-job;normal compatibility native menu/round | not measured | implementation in git log |
+| 52B4 complete U8 integer output storage | n/a | complete implementation; real/live/final gates OPEN | `BUZZ_GEOMETRY_JOB_U8_INTEGER_OUTPUT=0/1/2`, default0 | 7,503 strict;1,048,576 independent FP-bit components;576 synthetic enclosing strict roots/144 mixed;9 rejects;five compatibility arms19,508exact/58,195transfers;new real0 | new live0 OPEN;>=35,000 whole-job;normal compatibility native menu/round | not measured | implementation in git log |
+| 4178 shared output formatter control | n/a | complete opt-in; final gates OPEN | `BUZZ_GEOMETRY_JOB_FORMATTER=0/1/2`, default0 | 1,908 standalone strict;117 routing/78 strict;28 unchanged rejects;five arms19,508exact/58,195transfers;7,201 strict real roots/0fallback | >=30,000 strict formatter/>=35,000 whole-job;normal actual-native menu/round;empty/skipped/mixed and cold coverage separate | not measured | implementation in git log |
+| Custom callback comparison boundaries | n/a | guarded; unaudited callback jobs skip paired replay | ABI37; existing driver switch | 53 runtime +320 configuration cases;3 full-corpus arms exact, all stage ledgers unchanged | callback real/live coverage OPEN | not measured | guard in git log |
+| 0x7730/7770 index delta reconstruction | n/a | complete native opt-in; final performance/default gates OPEN | `BUZZ_GEOMETRY_JOB_INDEX_DELTAS=0/1/2`, default0 | 5,763strict+3numeric+8rejects;five arms19,508exact/58,195transfers;9,763native/0fallback | >=235,000strict one-group+315,000strict bulk;native scenes in report | not measured | |
 | 0xBF7C basic three-stream data | n/a | native implementation; real/live gates OPEN | same switch, default 0 | strict synthetic/routing only;zero real calls | zero observed;OPEN | not measured | |
 
 Shares are exclusive block RIP samples divided by 63,969 active sampled
@@ -724,22 +1239,69 @@ See the separate
 
 | Function | Lane time share | Status | Notes |
 |---|---|---|---|
-| 0x6DB8 loop | | on | `BUZZ_IMAGE40_LOCALS` |
-| (fill in from phase 0 ranking) | | | |
+| 0x6DB8 loop | | exact | Historical local-register diagnostic, `BUZZ_IMAGE40_LOCALS=0` in the qualified profile; not the phase-4 host pipeline |
+| Native animation job (`0x10` frontend) | whole-job comparison | on | `BUZZ_ANIMATION_JOB`; all 17,714 corpus jobs admitted, live I/O and native frames pass; menu +2.052% / round +1.274% FPS; [runtime results](native-geometry-phase4-runtime-results.md); host core `fab2037`, runtime acceptance in this change |
+| Shared host clip/pose/hierarchy/matrix library | reused by whole job | exact | Host SoA / AVX2 eight lanes; 52,068,720 published bytes and 1,766,060 channel events match the original oracle |
+| Image 43/45/47 frontends | code-only candidates | dropped for this objective | No real corpus/live inputs; keep lifted execution and do not implement cold paths |
 
-### Phase 7: strict Stage F cleanup
+### Phase 7: cancelled
 
 | Item | Status | Exit evidence |
 |---|---|---|
-| Audit/reconstruct volatile GPRs, scratch/padding and continuations | todo | Exact full-state contract per Stage F kernel; no excluded fields |
-| Strict corpus and actual-native whole-job replay | todo | Zero differences/failures, including transfers and exit state |
-| Live/render/performance gates | todo | >=256 strict calls per kernel, normal native menu/round dumps, reversed A/B pairs |
-| Retire baseline exception | todo | All gates passed, switches/contracts updated, dedicated commit |
+| Strict Stage F register/scratch reconstruction | dropped | Cancelled by Course correction (2026-11-01); use the job-boundary gates above |
 
 ### Measurements log
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-02 | Image-40 native host animation job, qualified default on | Same-EXE menu/round ANIM0/1/1/0, image-41 JOB1 retained; separate FPS/CPU | Menu 28.972 -> 29.567 (+2.052%); round 33.857 -> 34.288 (+1.274%) | see runtime results | Worker cycles/frame −5.386% menu / −6.420% round, process −3.006% / −3.471%; all reversed pairs agree; exact full corpora/live/frame gates; first CPU round invalidated, entire fresh repeat accepted; [results](native-geometry-phase4-runtime-results.md) |
+| 2026-11-02 | Eight-vertex host SoA float/half/CMP output; whole-job descriptor fallback | Same-EXE menu and round JOB0/1/1/0, separate FPS/CPU | Menu 28.181 -> 28.453 (+0.964%); round 33.142 -> 33.116 (-0.077%) | see 3b results | Worker cycles/frame -1.879% menu / +1.734% round (mixed); four exact corpus arms; >=1,395,000 live checks; native frames normal; original CPU round rejected for scene mismatch, full fixed-ready repeat retained; experimental/defaults off; full 3b remains open |
+| 2026-11-02 | Host metadata layout, bank-free formatter/conversion/float admission | Same-EXE menu JOB0/1/1/0, separate FPS/CPU | 28.535 -> 27.905 (-2.207%) | see 3a results | Worker cycles/frame +4.035%, process +2.567%; four exact full-corpus arms; >=1,455,000 live checks; menu normal; rejected/defaults off; next 3b with performance target open |
+| 2026-11-02 | Phase 3a V3, parent command admission reuse | Same-EXE menu JOB0/1/1/0, separate FPS/CPU series | 28.456 -> 27.664 (-2.784%) | see results document | Worker cycles/frame +4.418%, process +2.454%; four exact full-corpus arms; >=50,000 live checks; native menu normal; rejected/defaults off; round gates not attempted |
+| 2026-11-01 | Shared-bank formatter full isolated matrix | Samebc0;16runs actualJOB1,REG0/1/1/0;FPS andCPU separate | Menu25.616->25.845;round31.725->31.778 | mixed p90/p99;all raw retained | FPS+0.894%(bothpairs)/+0.169%(mixed);workerCPF-0.341%/-0.010%;workerCPUms menu flat/round-1.148%(bothpairs);process cycles/time mixed;8normal roundimages;77pins/305sources unchanged;REGISTERS0 retained;host/interpreter/cold/aggregate/final OPEN |
+| 2026-11-01 | Shared-bank formatter frozen corpus/live/render | Newbc0 EXE/dc3 MAP;functional only | not measured | not measured | 10arms each19,508exact/58,195transfers;enabled19,508native/0whole fallback;host7,201roots/17,278children;independent strict knobs +old ledgers exact;live45,000whole-job/35,000parents/85,833children +UNORM>=10,000;normal native menu+actual round;15 reporter tests+old report exact;FPS/CPU/interpreter/cold/final OPEN |
+| 2026-11-01 | Shared-bank formatter production integration | CPU correctness/routing only | not measured | not measured | REGISTERS0/1 default0;1,776 original-state roots incl888 shared-bank/360 strict parents/822 host children/318 strict children;all7 crossing paths,48 frame-alias roots,20 rejects,4 child-corruption probes;488 runtime option cases;fresh game/full host pipeline gates OPEN |
+| 2026-11-01 | External-bank cores/all7 output encoders | CPU correctness suites only | not measured | not measured | 50,811 poisoned-physical-GPR strict original-oracle cases plus50,811 existing ABI comparisons;formatter/conversion/routing pass;no production fusion/new-game acceptance or performance claim;next formatter integration;phase3 OPEN |
+| 2026-11-01 | Complete 4880 binary16 output data | Menu/actual round (functional) | not measured | not measured | 7,215 strict/9 rejects;1,048,576 scalar inputs;five arms19,508exact/58,195transfers;4,513native/0fallback;>=25,000single+256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
+| 2026-11-01 | Complete 4FDC CMP output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;32,772 independent encodings;256 special-FP;five arms19,508exact/58,195transfers;4,424native/0fallback;>=20,000single+180,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
+| 2026-11-01 | Complete 4478 SNORM16 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;1,104mixed-native/0fallback;>=256mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
+| 2026-11-01 | Complete 4B9C UNORM8 output data | Menu/actual round (functional) | not measured | not measured | 7,471 strict/9 rejects;131,088 independent components;256 special-FP;five arms19,508exact/58,195transfers;36mixed-native/0fallback;>=10,000mixed strict live;native frames normal;own0/1/2 default0;final performance/default gates OPEN |
+| 2026-11-01 | Complete I16/U8 integer output implementations | Menu/actual round compatibility | not measured | not measured | Each7,503strict/1,048,576independent components;1,152synthetic enclosing cases/576native-strict each;five compatibility arms19,508exact/58,195transfers;bothnewreal/live0 OPEN;>=35,000whole-job;normal frames;two own0/1/2 flags default0;phase3open |
+| 2026-11-01 | Formatter SPANS independent round FPS repetition +diagnostics | Same3df EXE;4FPSarms0/1/1/0;separate matched diagnostic profiles | prior25.00 ->25.64 | 31.04 ->31.73 | FPS+2.22%(pairs+2.61/+1.84),median/p90/p99bothlower;old54.80msp99retained/notreproduced;validatedopt-in/default0withparent;diag21132native/20601referencepoolleaves notcosts;nextsharedhostregisterformatter/fullhostdatastillOPEN |
+| 2026-11-01 | Formatter SPANS same-EXE menu FPS+CPU | 3df8d057;actualJOB1 allarms;SPANS0/1/1/0;4FPS+4separateCPU;40..98s | 25.00 ->25.64 | priorround30.93 ->31.52 | MenuFPS+2.56%(pairs+1.07/+4.07),median/p90/p99bothlower;worker cycles/frame-2.99%(-2.94/-3.05),process-1.84%(-1.91/-1.78);CPUms-1.16%/-1.19%bothpairs lower;all4scene/metric series sameEXE;round tail/default/final OPEN |
+| 2026-11-01 | Formatter SPANS isolated round CPU | Same3df8d057;actualJOB1 all4 arms;SPANS0/1/1/0;200..270s;separate fromFPS | new-EXE menu pending | CPU series contextual | Worker cycles/frame-4.01%(pairs-3.28/-4.74),process-2.82%(-2.48/-3.17);CPUms-4.45%/-3.38%,bothpairs lower;4normal native scenes;8runclockalignment corroborated;newMenu/FPS-tail/default gates OPEN |
+| 2026-11-01 | Formatter SPANS isolated round FPS | New3df8d057;actualJOB1 all4 arms;SPANS0/1/1/0;200..270s;4normal native scenes | new-EXE menu pending | 30.93 ->31.52 | FPS+1.91%(pairs+2.87/+0.96);mixedtails nativep99=43.58/54.80vscontrols44.18/44.06ms;oneGPUcapture190s/continuousreadback0;CPU,newMenu,tail/default gates OPEN |
+| 2026-11-01 | One-shot pre-window scene proof repair | New3df8d057 freeze;rejected black roundV1;13GPU+13report tests;normal native menu/actual round | not measured | not measured | 6arms19,508exact/58,195transfers;unchanged ledgers/SPANS0vs1;>=45,000strict whole-job/I/O+35,000formatter;one190sGPU capture/readback0 andlosslessRGB;new-EXE reversed timings/default gates OPEN |
+| 2026-11-01 | Formatter SPANS isolated menu +native frames | JOB1 in all arms;SPANS0/1/1/0;4FPS+4separateCPU runs;40..98s | 25.01 ->25.73 | pending | FPS+2.88%(pairs+3.19/+2.58);worker cycles/frame-3.17%(-3.42/-2.91),process-2.07%(-2.36/-1.77);CPUms-4.25%/-2.40%;normal menu+actual-question readbacks;round/final/default pending;no aggregate JOB0 claim |
+| 2026-11-01 | Formatter admission span proof | Separate native/reference diagnostic profiles;50,000quad models+strict suites+6corpus arms+checked menu | not measured | not measured | New0/1 default0;3.57%active pool samples identify reader;conservative signed/modular span proof,exact scan retained;all19,508native/0whole-job fallback;live>=35,000strict formatter/45,000whole jobs;frames/reversedAB/CPU/default OPEN |
+| 2026-11-01 | ABI48 whole-job reversed menu FPS + separate CPU | Four FPS +four CPU runs,40..98s,same EXE/save | 27.74 ->25.30 | pending | FPS-8.78%(pairs-8.63/-8.92);pool cycles/frame+15.92%(+16.55/+15.29);process+9.19%(+9.81/+8.57);CPUms pool+16.02%/process+9.13%;combined default-off;profile next;round/cold/interpreter gates OPEN |
+| 2026-11-01 | ABI48 interpreter diagnostics | Fresh JOB0/JOB1 menu+actual round;mask827/StageF1 | not measured | not measured | Menu15/60s absolute0 in both;round240s observed300,699,624/300,952,932,allimage2/same5pages;whole-run entries2:07B4C/A6C8+40:02A18 match;positive legacy stats non-atomic;roundcount/reversedAB/CPU/default OPEN;8observer tests |
+| 2026-11-01 | ABI48 input routing live/render | Checked menu80s/native menu75s/visually verified solo round | not measured | not measured | >=45,000strict whole-job/I/O +45,000strict raw0 input returns;normal1280x720 menu+actual-question readbacks;native raw0 >=2,750,000menu/11,415,000round inclnavigation;no mismatch/first-fallback messages;periodic lower bounds;inputs1..5real/live0;interpreter/reversedAB/normalizedCPU/default OPEN |
+| 2026-11-01 | Standard93F0 and5 builtin input production wrappers | CPU routing/parent/layout/getter tests +5 frozen corpus arms | not measured | not measured | ABI48/61stages;3,876production/1,938parent strict/1,440child strict;576parent roots/292layouts/877rejects;472getters;each19,508exact/58,195transfers/zero whole-job fallback;raw0controller19,508real;new1..5real/live0;parent scratch/frame guards;initial5,838coverage regression corrected;live/final/default OPEN |
+| 2026-11-01 | Complete standard93F0 standalone control+native data | CPU root/prefix/frame-model tests | not measured | not measured | 23-block original oracle/all6 formats;8,391strict roots/7,796exact dispatch boundaries/8,391independent frame models;23unchanged rejects;40quad frame/metadata forecast+all5data regressions;production parent-safety/cold/final OPEN;app unchanged |
+| 2026-11-01 | Builtin input5 standalone fixed12/three-unit decoder | CPU function/model/original-control tests | not measured | not measured | All2blocks+four publications/delayed pipeline/table-read timing/final9498ABI;5,838strict/288byte models/3,145,728position components/3,216full93F0;20unchanged rejects;shared helper extraction+full input4 regression;production/cold/final OPEN;app unchanged |
+| 2026-11-01 | Builtin input4 standalone fixed12/packed-unit decoder | CPU function/model/original-control tests | not measured | not measured | All2blocks+delayed pipeline/table-read timing/final9498ABI;5,806strict/288ordered byte models/3,145,728independent position components/3,216full93F0;16unchanged rejects;production/cold/final OPEN;app unchanged |
+| 2026-11-01 | Builtin inputs2/3 standalone 24-byte decoders | CPU function/model/original-control tests | not measured | not measured | All5/3blocks+ordered metadata/read-lookahead/final9498ABI;5,678/5,710strict;each256byte models/32,768CMP;input2 262,144signed16;each3,216full93F0;14/17unchanged rejects;split IDs read/store fix+input1 regression;production/cold/final OPEN;app unchanged |
+| 2026-11-01 | Builtin input1 standalone XYZ+2CMP decoder | CPU function/model/original-control tests | not measured | not measured | All3blocks+metadata publication/pipeline/final9498ABI;5,646strict/256byte models/32,768numeric/3,216full93F0;14rejects;23block input inventory;production/corpus/live/render/performance OPEN;app unchanged |
+| 2026-11-01 | Native54E8 all4 builtin paths | Strict integration/routing +5 frozen corpus arms | not measured | not measured | 15,988strict controller/data+4,472unchanged rejects;3,072native/1,536parent-strict/1,536child-strict routing;scalar padded footprint protects control metadata before mutation;ABI47/55stages;each19,508exact/58,195transfers;7,201real descriptor native/0fallback;builtin real/live0 OPEN;default0 |
+| 2026-11-01 | All4 built-in output production wrappers | Synthetic routing +5 frozen compatibility arms | not measured | not measured | Each576native/384strict routing;12unchanged owned rejects;424config/7audit;ABI46/55stages;eachreplay19,508exact/58,195transfers;all4real new roots0;native54E8 parent/cold/live/final OPEN;default0 |
+| 2026-11-01 | Built-in outputs2/3 standalone 24-byte kernels | CPU function/model tests | not measured | not measured | All3blocks each;raw XYZ+CMP+SNORM or3CMP;ordered stores/post-store prefetch/5648 ABI;each5,663strict/256byte models/32,772CMP/828full original-controller;format2 131,088full-SNORM32;12rejects each;production/corpus/live/render/performance OPEN;default app unchanged |
+| 2026-11-01 | Built-in output1 standalone 20-byte kernel | CPU function/model tests | not measured | not measured | All3blocks;raw XYZ+2CMP;ordered padded stores/post-store prefetch/5648 ABI;5,663strict/256byte models/32,772numeric/828full original-controller;12rejects;production/corpus/live/render/performance OPEN;default app unchanged |
+| 2026-11-01 | Built-in output0 standalone raw XYZ kernel | CPU function/model tests | not measured | not measured | All2blocks/final prefetch/ordered padded stores/5648 ABI;6,178strict/5,154byte models/828full original-controller cases;8rejects;production/corpus/live/render/performance OPEN;default app unchanged |
+| 2026-11-01 | Native 54E8 descriptor conversion control | Menu/actual round (functional) | not measured | not measured | Own0/1/2 default0;ABI45/51stages;1,853full native +4,096stride +4,195control;90routing/60strict;five exact arms19,508jobs/58,195transfers;7,201strict/0fallback;>=25,000strict live;normal native frames;final gates OPEN |
+| 2026-11-01 | Shared formatter4178 production control | Menu/actual round (functional) | not measured | not measured | Own0/1/2 default0;ABI44/50stages;117routing/78strict;28unchangedrejects;five exact arms19,508jobs/58,195transfers;7,201strict real/0fallback;>=30,000strict live;normal native frames;final interpreter/reversedAB/normalizedCPU gates OPEN |
+| 2026-11-01 | Shared formatter4178 standalone control | CPU function/model tests | not measured | not measured | 1,908 strict/2,643 child entries/2,028 native data calls/all7;96 frame models;24 return-PC collisions;15 rejects;7 audit tests;production/corpus/live/render/performance gates OPEN;defaults unchanged |
+| 2026-11-01 | Complete 46D0 float32 output data | Menu/actual round (functional) | not measured | not measured | V2:6,177 strict/9 rejects;256 byte models;five arms19,508exact/58,195transfers;7,201native/0fallback;>=256single+30,000mixed strict live;native frames normal;own0/1/2 default0;allIRQ contexts retained;final performance/default gates OPEN |
+| 2026-11-01 | Complete alternate cull data | Menu/actual round (compatibility) | not measured | not measured | 5,448 strict;288 numeric+288 composed;256 special FP;312 configs;five exact compatibility arms;new real/live0 OPEN;>=45,000 strict whole-job native-StageF live;own0/1/2 default0;phase3open |
+| 2026-11-01 | Complete native enclosing 6608 control | Menu/actual round (functional) | not measured | not measured | 5,505 strict;8 child/baseline combinations;256 byte models;9 rejects;304 configs;five V2 arms19,508exact/58,195transfers;allnative/0fallback;>=455,000strict live;own0/1/2 default0;alternate data/cold/final gates OPEN |
+| 2026-11-01 | Complete native 6188 vertex preparation | Menu/actual round (functional) | not measured | not measured | 8,513 strict;all256formatsx16biases;256specialFP;64matrix models;six rejects;296config;five arms19,508exact/58,195transfers;allnative/0fallback;>=470,000strict live;own0/1/2 default0;enclosing/cold/final gates OPEN |
+| 2026-11-01 | Native 6958/66C8 transform publication/frame return | Menu/actual round (functional) | not measured | not measured | 4,929 strict incl320 byte models; six rejects; 288 config cases; five arms19,508 exact/58,195 transfers; all native/0fallback; >=465,000 strict live; own0/1/2 default0; enclosing/cold/final gates OPEN |
+| 2026-11-01 | Complete AEA0/7390 index control/setup/publication | Menu/actual round (functional) | not measured | not measured | 5,633 strict; 32 child combinations; 256 byte models; 20 rejects; 280 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=455,000 strict live; own 0/1/2 default 0; final gates OPEN |
+| 2026-11-01 | Complete 7A90 triangles/frame | Menu/actual round (functional) | not measured | not measured | 4,993 strict including 80 frame models + 32 mutable-LUT proofs; nine rejects; 272 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=465,000 strict live; own 0/1/2 default 0; final gates OPEN |
+| 2026-10-31 | Complete 79A8/79C8 command relocation | Menu/actual round (functional) | not measured | not measured | 5,777 strict including 1,152 byte models; eight rejects; 264 config cases; each replay 19,508 exact / 58,195 transfers, all native / 0 fallback; >=460,000 strict live; own 0/1/2 default 0; final gates OPEN |
+| 2026-10-31 | Complete 7838/78A8 flag expansion | Menu/actual round (functional) | not measured | not measured | 4,691 strict including 64 scalar merges + 2 capacity reversals; seven rejects; 256 configuration cases; each replay: 19,508 exact / 58,195 transfers, all 19,508 native / 0 fallback; >=130,000 strict short +330,000 strict bulk live; own 0/1/2, default 0; final gates OPEN |
+| 2026-10-31 | Complete 74F0/7640/7C20/7CD0/77E8 bit unpack | Menu/actual round (functional) | not measured | not measured | 5,378 strict incl256 independent numeric cases +10 rejects; 248 configuration cases; 9,763 native/0 fallback, each replay19,508 exact/58,195 transfers; >=545,000 strict low +55,000 strict high live; own 0/1/2 default0; width16 source behavior documented; final gates OPEN |
+| 2026-10-31 | Phase 3 complete 7730/7770 index delta reconstruction | Menu/actual round (functional) | not measured | not measured | 5,763 strict +3 numeric +8 rejects; 240 configuration cases; 9,763 native/0 fallback per enabled replay, each 19,508 exact/58,195 transfers; >=235,000 strict one-group +315,000 strict bulk live; normal native frames; own 0/1/2 default 0; remaining index stages and final gates OPEN |
 | 2026-10-30 | Baseline (all session fixes) | Menu 40-98 s | 36.3 | 29.6 / 34.8 | `vk-scene-final2-vk` |
 | 2026-10-30 | Baseline | Round 150-250 s | 44.2 | 22.6 / 27.3 | `vk-scene-final2-rvk` |
 | 2026-10-30 | Phase 0 capture / harness / profile | Menu, solo, two-player, loads | n/a (no optimization) | n/a | 37,222 real jobs replay exactly; native Stage F established contracts reproduced; native defaults unchanged |
@@ -777,17 +1339,17 @@ See the separate
 | 2026-10-31 | Phase 3 complete halfword stream 8378/CAC0/CAD8/CB78 | Four frozen corpus arms and same-EXE live/menu/round | functional evidence; no FPS/CPU claim | normal menu/crowd/round frames | 8,192 strict cases covering all65,536half encodings +23 rejects; 12,431 native regions /0 fallback; each replay19,508 exact /58,195 transfers; live>=280,000 strict half +425,000 whole-job/I/O; independent default0, leaf827 unchanged; phase 3 remains open |
 | 2026-10-31 | Phase 3 complete float32 stream 87CC/8800/8878/8910/8928 | Five frozen corpus arms and scene-specific same-EXE live checks | functional evidence; no FPS/CPU claim | normal native menu and actual round | 5,440 strict cases +25 rejects; all12corpus float calls native/0fallback; each replay19,508 exact/58,195 transfers; >=20,000 strict live float32 in round sequence and 70,000 whole-job/I/O in menu; final V3 parser +104 configuration checks; own0/1/2switch default0, leaf827 unchanged; phase3open |
 
-| 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own0/1/2 default0;112 configuration cases; phase3open |
+| 2026-10-31 | Phase 3 fixed-point implementation 9058/C810/C830/C910 | Five frozen corpus arms, strict synthetic and scene checks | functional only; no FPS/CPU claim | normal native menu and question/round | 9,216 strict +33 rejects; all3corpus fixed calls native/0fallback; each replay19,508 exact/58,195 transfers; >=5,000 strict fixed live calls in round sequence; >=115,000 whole-job/I/O menu checks; own 0/1/2, default 0;112 configuration cases; phase3open |
 
 | 2026-10-31 | Phase 3 remaining typed implementations 1/5/6/7 | Strict synthetic/routing and frozen replay/scene checks | functional only; no FPS/CPU claim | normal native menu/round | 30,208 strict +108 rejects;144 configuration cases;5 replay arms each19,508 exact/58,195 transfers;0new corpus dispatches;SNORM16 live gate OPEN; I16 live gate OPEN; CMP live gate OPEN; U8 integer live gate OPEN; own0/1/2 switches default0;phase3open |
 
-| 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own0/1/2 default0;152configuration cases;phase3open |
+| 2026-10-31 | Phase 3 complete C750/C7A8 weighted scatter | Strict synthetic, real corpus and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu/round | 6,153 strict +14 rejects;2,326 native roots/0fallback;5 replay arms each19,508exact/58,195transfers;>=940,000 strict live scatter;own 0/1/2, default 0;152configuration cases;phase3open |
 
 | 2026-10-31 | Phase 3 native BF8 additional-stream orchestration | Strict synthetic, four frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 2,672 strict +15 rejects;328 native roots/0fallback per enabled corpus arm;each19,508exact/58,195transfers;>=40,000 strict BF8 live roots;160 configuration cases;own0/1 default0;7118data dependency and final performance gates open |
 
-| 2026-10-31 | Phase 3 complete 7118/7298 run-list decoder | Strict/numeric tests, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 10,774 strict/numeric cases inclall65,536encodings +17rejects;1,198native/0fallback =895expanded+303empty;each19,508exact/58,195transfers;>=580,000strict nonemptylive+260,000empty;168configcases;own0/1/2 default0;phase3open |
+| 2026-10-31 | Phase 3 complete 7118/7298 run-list decoder | Strict/numeric tests, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 10,774 strict/numeric cases inclall65,536encodings +17rejects;1,198native/0fallback =895expanded+303empty;each19,508exact/58,195transfers;>=580,000strict nonemptylive+260,000empty;168configcases;own 0/1/2, default 0;phase3open |
 
-| 2026-10-31 | Phase 3 native 93F0 custom-descriptor dispatch | Strict synthetic, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 5,000strict state/handoff +13rejects;11,414native/0fallback per enabled arm;each19,508exact/58,195transfers;>=410,000strict live handoffs;176configcases;own0/1/2 default0;built-in1..5 notcovered;phase3open |
+| 2026-10-31 | Phase 3 native 93F0 custom-descriptor dispatch | Strict synthetic, five frozen corpus configurations and live/render | functional only; no FPS/CPU claim | normal native menu and actual round | 5,000strict state/handoff +13rejects;11,414native/0fallback per enabled arm;each19,508exact/58,195transfers;>=410,000strict live handoffs;176configcases;own 0/1/2, default 0;built-in1..5 notcovered;phase3open |
 
 ## Risks
 
@@ -799,12 +1361,14 @@ See the separate
   code must too.
 - **Lift changes** (new extra entries, lifter updates) move function
   boundaries: hash pins catch it; re-audit before regenerating.
-| 2026-10-31 | Phase 3 native 9F8 skin/rigid controller | Strict synthetic, five frozen corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,144 strict state/call-trace+8 rejects;each19,508exact/58,195transfers;1,628weighted+17,880rigid native/0fallback;>=300,000strict rigid+135,000strict weighted live;184configcases;own0/1/2 default0;AF18/B880 data stillrequired;phase3open |
-| 2026-10-31 | Phase 3 complete B880/B934/B940 weighted position/matrix data | Strict synthetic, five frozen V3 corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,912strict states+12rejects;each19,508exact/58,195transfers;all6,113native/0fallback incl30actual palette aliases;>=430,000strict data+256strict aliases live;native round>=7,515,000data+40,000aliases;192configcases;own0/1/2 default0;AF18/other data stillrequired;phase3open |
-| 2026-10-31 | Phase 3 basic skin direction data BD4C/BE20/BF7C | Strict synthetic, five frozen corpus arms and same-EXE scene checks | functional only; no FPS/CPU claim | normal native menu, actual round and checked round | 6,912strict states incl640aliases+3numeric+12rejects;all5,018real roots native/0fallback;each19,508exact/58,195transfers;>=1,125,000strict one-stream+680,000strict two-stream live;200configcases;own0/1/2 default0;BF7C real/live0 OPEN;phase3open |
+| 2026-10-31 | Phase 3 native 9F8 skin/rigid controller | Strict synthetic, five frozen corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,144 strict state/call-trace+8 rejects;each19,508exact/58,195transfers;1,628weighted+17,880rigid native/0fallback;>=300,000strict rigid+135,000strict weighted live;184configcases;own 0/1/2, default 0;AF18/B880 data stillrequired;phase3open |
+| 2026-10-31 | Phase 3 complete B880/B934/B940 weighted position/matrix data | Strict synthetic, five frozen V3 corpus arms and same-EXE live/render | functional only; no FPS/CPU claim | normal native menu and actual question/round | 6,912strict states+12rejects;each19,508exact/58,195transfers;all6,113native/0fallback incl30actual palette aliases;>=430,000strict data+256strict aliases live;native round>=7,515,000data+40,000aliases;192configcases;own 0/1/2, default 0;AF18/other data stillrequired;phase3open |
+| 2026-10-31 | Phase 3 basic skin direction data BD4C/BE20/BF7C | Strict synthetic, five frozen corpus arms and same-EXE scene checks | functional only; no FPS/CPU claim | normal native menu, actual round and checked round | 6,912strict states incl640aliases+3numeric+12rejects;all5,018real roots native/0fallback;each19,508exact/58,195transfers;>=1,125,000strict one-stream+680,000strict two-stream live;200configcases;own 0/1/2, default 0;BF7C real/live0 OPEN;phase3open |
 
-| 2026-10-31 | Phase3 native AF18 palette/frame/batch/dispatch/publication | Strict synthetic,five frozen corpus arms,same-EXE live/render | functional only;no FPS/CPU claim | normal native menu and actual round | 6,600strict+3numeric+3early+18rejects;208configcases;all1,628work-native/0fallback per enabled replay;each19,508exact/58,195transfers;>=425,000strict live work;own0/1/2 default0;retained/cold data and final gates OPEN |
+| 2026-10-31 | Phase3 native AF18 palette/frame/batch/dispatch/publication | Strict synthetic,five frozen corpus arms,same-EXE live/render | functional only;no FPS/CPU claim | normal native menu and actual round | 6,600strict+3numeric+3early+18rejects;208configcases;all1,628work-native/0fallback per enabled replay;each19,508exact/58,195transfers;>=425,000strict live work;own 0/1/2, default 0;retained/cold data and final gates OPEN |
 
-| 2026-10-31 | Phase3 rigid skin data suffix/B3C0/B3C8 | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,681strict+3numeric+10rejects;384 AF18/data integration;216config+abrupt-exit fallback logging;each replay19,508exact/58,195transfers;zero real/observed live rigid calls;real/256-live gates OPEN;own0/1/2 default0 |
+| 2026-10-31 | Phase3 rigid skin data suffix/B3C0/B3C8 | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,681strict+3numeric+10rejects;384 AF18/data integration;216config+abrupt-exit fallback logging;each replay19,508exact/58,195transfers;zero real/observed live rigid calls;real/256-live gates OPEN;own 0/1/2, default 0 |
 
-| 2026-10-31 | Phase3 BB58/BB68 cofactor normal data | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,808strict+3geometric+10rejects;768AF18/data integration;224config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live cofactor calls;real/256-live gates OPEN;own0/1/2 default0 |
+| 2026-10-31 | Phase3 BB58/BB68 cofactor normal data | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 7,808strict+3geometric+10rejects;768AF18/data integration;224config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live cofactor calls;real/256-live gates OPEN;own 0/1/2, default 0 |
+
+| 2026-10-31 | Phase3 C14C/C280/B5A0 normalized skin directions | Strict synthetic/integration,five compatibility replays,scene checks | functional only;no FPS/CPU claim | normal menu/actual round;new data uncalled | 9,219strict+9geometric/cache+12rejects;1,152AF18 actual-data integration;232config+fallback durability;each replay19,508exact/58,195transfers;zero real/observed live calls in all3;real/256-live gates OPEN;own 0/1/2, default 0 |

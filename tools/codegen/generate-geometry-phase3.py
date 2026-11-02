@@ -6,24 +6,248 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
+import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture import text_sha256
 DEST = ROOT / "analysis/native-geometry/phase3"
 SOURCE = ROOT / "port/spu/buzz_job_6eba/spu_recomp.c"
 PIN = "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
-PARENT_PIN = "0cb78a3d3170bf81921021199fcd2144272858635224f3135208f76c76113d99"
+PARENT_PIN = "84de9d0c5b2788aa74f3e6756ed4e9ea03ada7bad8b047d272f50ec2f29bbe97"
+
+
+def guard_custom_callbacks(source):
+    counts = {}
+    # 5614's custom conversion callback is a synchronous call, not a queued
+    # branch or SPU_IB_DISPATCH. Do not let it enter an unrecorded interpreter
+    # from the shadow and repeat externally visible effects.
+    source, counts["indirect_call"] = re.subn(r"\bspu_indirect_branch\(ctx\)",
+        "buzz_geometry_job_indirect_call(ctx)", source)
+    if counts["indirect_call"] != 1:
+        raise SystemExit("Unreviewed direct conversion callback sites")
+    # Custom stride and input callbacks also need a contract before replay.
+    # Mark their boundaries without changing their queued/RET_REG semantics.
+    for pc, marker in ((0x4114, "        ctx->pc = ctx->gpr[5]._u32[0];"),
+                       (0x95dc, "        SPU_RET_REG(ctx, 12);")):
+        callback_name = f"buzz_job_6eba_spu_func_{pc:08X}"
+        callback_pattern = rf"(?ms)^void {callback_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        match = re.search(callback_pattern, source)
+        if not match or match[1].count(marker) != 1:
+            raise SystemExit(f"Unreviewed custom callback boundary {pc:X}")
+        body = match[1].replace(marker, "        buzz_geometry_job_callback_boundary(ctx);\n" + marker, 1)
+        source = source[:match.start(1)] + body + source[match.end(1):]
+    counts["callback_boundaries"] = 2
+    return source, counts
 
 
 def main():
     if hashlib.sha256(SOURCE.read_bytes()).hexdigest() != PIN:
         raise SystemExit("Unreviewed image-41 lift")
     parent_generator = ROOT / "tools/codegen/generate-geometry-phase2.py"
-    if hashlib.sha256(parent_generator.read_bytes()).hexdigest() != PARENT_PIN:
+    if text_sha256(parent_generator) != PARENT_PIN:
         raise SystemExit("Unreviewed phase-2 adapter; audit before updating the parent pin")
     subprocess.run([sys.executable, str(parent_generator)], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-index-control-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-transform-control-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-float-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-half-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-cmp-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-snorm-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-unorm-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-u8-integer-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-i16-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-formatter-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-conversion-control-test.py")], check=True)
+    for name in ("builtin-float3", "builtin20", "builtin24", "builtin24-cmp"):
+        subprocess.run([sys.executable, str(ROOT / f"tools/codegen/generate-geometry-{name}-output-test.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-input-control-test.py")], check=True)
+    for name in ("builtin20", "builtin24", "builtin24-cmp", "builtin12", "builtin15"):
+        subprocess.run([sys.executable, str(ROOT / f"tools/codegen/generate-geometry-{name}-input-test.py")], check=True)
     parent = ROOT / "analysis/native-geometry/phase2"
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
     counts = {}
+    for format, root, private in ((0,0x56c8,"builtin_float3"),(1,0x5e28,"builtin20"),(2,0x5760,"builtin24"),(3,0x5a30,"builtin24_cmp")):
+        name=f"buzz_job_6eba_spu_func_{root:08X}"
+        pattern=rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(pattern,source)))!=1:raise SystemExit("Expected one pinned builtin output root")
+        source=re.sub(pattern,lambda m: f"static void {name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {name}(spu_context* ctx) {{ buzz_geometry_job_builtin_output(ctx, {name}_fallback, buzz_{private}_output_original_{root:08X}, buzz_job_6eba_spu_func_00005648, {format}); }}",source,count=1)
+    for format, root, private in ((1,0xa8f8,"builtin20"),(2,0xa6a8,"builtin24"),(3,0xa390,"builtin24_cmp"),(4,0x9e70,"builtin12"),(5,0x97f8,"builtin15")):
+        name=f"buzz_job_6eba_spu_func_{root:08X}"
+        pattern=rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(pattern,source)))!=1:raise SystemExit("Expected one pinned builtin input root")
+        source=re.sub(pattern,lambda m: f"static void {name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {name}(spu_context* ctx) {{ buzz_geometry_job_builtin_input(ctx, {name}_fallback, buzz_{private}_input_original_{root:08X}, buzz_job_6eba_spu_func_00009498, {format}); }}",source,count=1)
+    conversion_name = "buzz_job_6eba_spu_func_000054E8"
+    conversion_pattern = rf"(?ms)^void {conversion_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(conversion_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned conversion-control root")
+    source = re.sub(conversion_pattern, lambda m:
+        f"static const buzz_geometry_builtin_output_functions {conversion_name}_builtins = {{{{buzz_job_6eba_spu_func_000056C8, buzz_job_6eba_spu_func_00005E28, buzz_job_6eba_spu_func_00005760, buzz_job_6eba_spu_func_00005A30}}, buzz_job_6eba_spu_func_00005648}};\n"
+        f"static void {conversion_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {conversion_name}(spu_context* ctx) {{ buzz_geometry_job_conversion_control(ctx, {conversion_name}_fallback, buzz_conversion_original_run, buzz_job_6eba_spu_func_00004178, &{conversion_name}_builtins); }}",
+        source, count=1)
+    formatter_name = "buzz_job_6eba_spu_func_00004178"
+    formatter_pattern = rf"(?ms)^void {formatter_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(formatter_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned shared formatter root")
+    formatter_library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in
+        (0x4478,0x46d0,0x4880,0x4b9c,0x4dd0,0x4fdc,0x52b4))
+    source = re.sub(formatter_pattern, lambda m:
+        f"static const buzz_geometry_formatter_functions {formatter_name}_library = {{{{{formatter_library}}}, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618}};\n"
+        f"static void {formatter_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {formatter_name}(spu_context* ctx) {{ buzz_geometry_job_formatter(ctx, {formatter_name}_fallback, buzz_formatter_original_run, &{formatter_name}_library); }}",
+        source, count=1)
+    i16_output_name = "buzz_job_6eba_spu_func_00004DD0"
+    i16_output_pattern = rf"(?ms)^void {i16_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(i16_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned I16-output root")
+    source = re.sub(i16_output_pattern, lambda m:
+        f"static void {i16_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {i16_output_name}(spu_context* ctx) {{ buzz_geometry_job_i16_output(ctx, {i16_output_name}_fallback, buzz_i16_output_original_00004DD0, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    u8_integer_output_name = "buzz_job_6eba_spu_func_000052B4"
+    u8_integer_output_pattern = rf"(?ms)^void {u8_integer_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(u8_integer_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned U8 integer-output root")
+    source = re.sub(u8_integer_output_pattern, lambda m:
+        f"static void {u8_integer_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {u8_integer_output_name}(spu_context* ctx) {{ buzz_geometry_job_u8_integer_output(ctx, {u8_integer_output_name}_fallback, buzz_u8_integer_output_original_000052B4, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    unorm_output_name = "buzz_job_6eba_spu_func_00004B9C"
+    unorm_output_pattern = rf"(?ms)^void {unorm_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(unorm_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned UNORM-output root")
+    source = re.sub(unorm_output_pattern, lambda m:
+        f"static void {unorm_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {unorm_output_name}(spu_context* ctx) {{ buzz_geometry_job_unorm_output(ctx, {unorm_output_name}_fallback, buzz_unorm_output_original_00004B9C, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    snorm_output_name = "buzz_job_6eba_spu_func_00004478"
+    snorm_output_pattern = rf"(?ms)^void {snorm_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(snorm_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned SNORM-output root")
+    source = re.sub(snorm_output_pattern, lambda m:
+        f"static void {snorm_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {snorm_output_name}(spu_context* ctx) {{ buzz_geometry_job_snorm_output(ctx, {snorm_output_name}_fallback, buzz_snorm_output_original_00004478, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    cmp_output_name = "buzz_job_6eba_spu_func_00004FDC"
+    cmp_output_pattern = rf"(?ms)^void {cmp_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(cmp_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned CMP-output root")
+    source = re.sub(cmp_output_pattern, lambda m:
+        f"static void {cmp_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {cmp_output_name}(spu_context* ctx) {{ buzz_geometry_job_cmp_output(ctx, {cmp_output_name}_fallback, buzz_cmp_output_original_00004FDC, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    half_output_name = "buzz_job_6eba_spu_func_00004880"
+    half_output_pattern = rf"(?ms)^void {half_output_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(half_output_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned half-output root")
+    source = re.sub(half_output_pattern, lambda m:
+        f"static void {half_output_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {half_output_name}(spu_context* ctx) {{ buzz_geometry_job_half_output(ctx, {half_output_name}_fallback, buzz_half_output_original_00004880, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    float_name = "buzz_job_6eba_spu_func_000046D0"
+    float_pattern = rf"(?ms)^void {float_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(float_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned float-output root")
+    source = re.sub(float_pattern, lambda m:
+        f"static void {float_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {float_name}(spu_context* ctx) {{ buzz_geometry_job_float_output(ctx, {float_name}_fallback, buzz_float_output_original_000046D0, buzz_job_6eba_spu_func_00004610, buzz_job_6eba_spu_func_00004618); }}",
+        source, count=1)
+    ring_name = "buzz_job_6eba_spu_func_000037C0"
+    ring_pattern = rf"(?ms)^void {ring_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(ring_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned allocator root")
+    ring_library = ",".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x38d0,0x3dd0,0x4078))
+    source = re.sub(ring_pattern, lambda m:
+        f"static void {ring_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"static const buzz_geometry_ring_functions {ring_name}_library = {{{ring_library}}};\n"
+        f"void {ring_name}(spu_context* ctx) {{ buzz_geometry_job_ring(ctx, {ring_name}_reference, &{ring_name}_library); }}",
+        source, count=1)
+    alternate_name = "buzz_job_6eba_spu_func_000069E8"
+    alternate_pattern = rf"(?ms)^void {alternate_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(alternate_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned alternate cull entry")
+    source = re.sub(alternate_pattern, lambda m:
+        f"static void {alternate_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {alternate_name}(spu_context* ctx) {{ buzz_geometry_job_alternate_cull(ctx, {alternate_name}_reference, buzz_job_6eba_spu_func_00006958); }}",
+        source, count=1)
+    transform_name = "buzz_job_6eba_spu_func_00006608"
+    transform_pattern = rf"(?ms)^void {transform_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(transform_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned enclosing transform root")
+    transform_library = ",".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x6188,0x6e08,0x69e8,0x6958,0x66c8))
+    source = re.sub(transform_pattern, lambda m:
+        f"static void {transform_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"static const buzz_geometry_transform_functions {transform_name}_library = {{{transform_library}}};\n"
+        f"void {transform_name}(spu_context* ctx) {{ buzz_geometry_job_transform_control(ctx, {transform_name}_fallback, buzz_transform_control_original_00006608, &{transform_name}_library); }}",
+        source, count=1)
+    prepare_name = "buzz_job_6eba_spu_func_00006188"
+    prepare_pattern = rf"(?ms)^void {prepare_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(prepare_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned vertex-preparation entry")
+    source = re.sub(prepare_pattern, lambda m:
+        f"static void {prepare_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {prepare_name}(spu_context* ctx) {{ buzz_geometry_job_vertex_prepare(ctx, {prepare_name}_reference, buzz_job_6eba_spu_func_000063E0); }}",
+        source, count=1)
+    finish_name = "buzz_job_6eba_spu_func_00006958"
+    finish_pattern = rf"(?ms)^void {finish_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(finish_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned transform-finalization root")
+    source = re.sub(finish_pattern, lambda m:
+        f"static void {finish_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {finish_name}(spu_context* ctx) {{ buzz_geometry_job_transform_finish(ctx, {finish_name}_reference); }}",
+        source, count=1)
+    index_name = "buzz_job_6eba_spu_func_0000AEA0"
+    index_pattern = rf"(?ms)^void {index_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(index_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned index-controller root")
+    index_library = ",".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in (0x74f0,0x7730,0x77f8,0x7838,0x79a8,0x7a90,0x2738))
+    source = re.sub(index_pattern, lambda m:
+        f"static void {index_name}_fallback(spu_context* ctx) {{{m[1]}}}\n"
+        f"static const buzz_geometry_index_functions {index_name}_library = {{{index_library}}};\n"
+        f"void {index_name}(spu_context* ctx) {{ buzz_geometry_job_index_control(ctx, {index_name}_fallback, buzz_index_control_original_0000AEA0, &{index_name}_library); }}",
+        source, count=1)
+    triangles_name = "buzz_job_6eba_spu_func_00007A90"
+    triangles_pattern = rf"(?m)^void {triangles_name}\(spu_context\* ctx\) \{{([^\n]*)\}}[ \t]*$"
+    triangles_matches = list(re.finditer(triangles_pattern, source))
+    if len(triangles_matches) != 1 or "buzz_geometry_run" not in triangles_matches[0][1]:
+        raise SystemExit("Expected one pinned single-line phase-2 triangle wrapper")
+    source = re.sub(triangles_pattern, lambda m:
+        f"static void {triangles_name}_phase2(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {triangles_name}(spu_context* ctx) {{ buzz_geometry_job_index_triangles(ctx, {triangles_name}_phase2, {triangles_name}_reference, buzz_job_6eba_spu_func_00002738); }}",
+        source, count=1)
+    relocate_name = "buzz_job_6eba_spu_func_000079A8"
+    relocate_pattern = rf"(?ms)^void {relocate_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(relocate_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned complete command-relocation entry")
+    source = re.sub(relocate_pattern, lambda m:
+        f"static void {relocate_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {relocate_name}(spu_context* ctx) {{ buzz_geometry_job_index_relocate(ctx, {relocate_name}_reference, buzz_job_6eba_spu_func_00007A90); }}",
+        source, count=1)
+    expand_name = "buzz_job_6eba_spu_func_00007838"
+    expand_pattern = rf"(?ms)^void {expand_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(expand_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned full index-expansion entry")
+    source = re.sub(expand_pattern, lambda m:
+        f"static void {expand_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {expand_name}(spu_context* ctx) {{ buzz_geometry_job_index_expand(ctx, {expand_name}_reference, buzz_job_6eba_spu_func_000079A8, buzz_job_6eba_spu_func_00007DCC); }}",
+        source, count=1)
+    unpack_name = "buzz_job_6eba_spu_func_000074F0"
+    unpack_pattern = rf"(?ms)^void {unpack_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(unpack_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned index-unpack entry")
+    source = re.sub(unpack_pattern, lambda m:
+        f"static void {unpack_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {unpack_name}(spu_context* ctx) {{ buzz_geometry_job_index_unpack(ctx, {unpack_name}_reference, buzz_job_6eba_spu_func_00007730, buzz_job_6eba_spu_func_000077F8); }}",
+        source, count=1)
+    delta_name = "buzz_job_6eba_spu_func_00007730"
+    delta_pattern = rf"(?ms)^void {delta_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    if len(list(re.finditer(delta_pattern, source))) != 1:
+        raise SystemExit("Expected one pinned index-delta entry")
+    source = re.sub(delta_pattern, lambda m:
+        f"static void {delta_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+        f"void {delta_name}(spu_context* ctx) {{ buzz_geometry_job_index_deltas(ctx, {delta_name}_reference, buzz_job_6eba_spu_func_000077F8); }}",
+        source, count=1)
     for old, new in (("spu_wrch", "buzz_geometry_job_wrch"),
                      ("spu_rdch", "buzz_geometry_job_rdch"),
                      ("spu_rchcnt", "buzz_geometry_job_rchcnt")):
@@ -33,6 +257,8 @@ def main():
     source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
     source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
                             "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
+    source, callback_counts = guard_custom_callbacks(source)
+    counts.update(callback_counts)
     # Original interrupt thunks branch to r2+8, sometimes a lexical suffix
     # omitted from the lift's public entry table. Compile those exact suffixes
     # too, so strict BF8 replay never falls through to interpreted instructions.
@@ -123,6 +349,15 @@ def main():
         f"static void {weighted_name}_phase2(spu_context* ctx) {{{m[1]}}}\n"
         f"void {weighted_name}(spu_context* ctx) {{ buzz_geometry_job_weighted_skin(ctx, {weighted_name}_phase2, {weighted_name}_reference, buzz_job_6eba_spu_func_0000B4C0, buzz_job_6eba_spu_func_0000BB58); }}",
         source, count=1)
+    for streams, pc in enumerate((0xc14c,0xc280,0xb5a0),1):
+        normalized_name = f"buzz_job_6eba_spu_func_{pc:08X}"
+        normalized_pattern = rf"(?ms)^void {normalized_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+        if len(list(re.finditer(normalized_pattern, source))) != 1:
+            raise SystemExit("Expected one pinned normalized direction root")
+        source = re.sub(normalized_pattern, lambda m:
+            f"static void {normalized_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+            f"void {normalized_name}(spu_context* ctx) {{ buzz_geometry_job_skin_normalized(ctx, {normalized_name}_reference, buzz_job_6eba_spu_func_0000B868, {streams}); }}",
+            source,count=1)
     cofactor_name = "buzz_job_6eba_spu_func_0000BB58"
     cofactor_pattern = rf"(?ms)^void {cofactor_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
     if len(list(re.finditer(cofactor_pattern, source))) != 1:
@@ -168,8 +403,9 @@ def main():
     if len(list(re.finditer(stream_pattern, source))) != 1:
         raise SystemExit("Expected one pinned attribute stream entry")
     source = re.sub(stream_pattern, lambda m:
+        f"static const buzz_geometry_builtin_input_functions {stream_name}_builtins = {{{{buzz_job_6eba_spu_func_0000A8F8, buzz_job_6eba_spu_func_0000A6A8, buzz_job_6eba_spu_func_0000A390, buzz_job_6eba_spu_func_00009E70, buzz_job_6eba_spu_func_000097F8}}, buzz_job_6eba_spu_func_00009498}};\n"
         f"static void {stream_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
-        f"void {stream_name}(spu_context* ctx) {{ buzz_geometry_job_decode_custom_stream(ctx, {stream_name}_reference, buzz_job_6eba_spu_func_00007DF8); }}",
+        f"void {stream_name}(spu_context* ctx) {{ buzz_geometry_job_input_control(ctx, {stream_name}_reference, buzz_input_original_run, buzz_job_6eba_spu_func_00007DF8, &{stream_name}_builtins); }}",
         source, count=1)
     attribute_name = "buzz_job_6eba_spu_func_0000AC68"
     attribute_pattern = rf"(?ms)^void {attribute_name}\(spu_context\* ctx\) \{{(.*?)^\}}"
@@ -289,10 +525,26 @@ def main():
                     f"void {name}(spu_context* ctx) {{ "
                     f"buzz_geometry_job_run(ctx, {name}_reference, {name}_native, "
                     f"buzz_geometry_job_native_eligible); }}", source, count=1)
-    support = f'#include "{(ROOT / "port/native_geometry_job.h").as_posix()}"\n'
+    support = '#include "native_geometry_job.h"\n'  # resolved by the game target's port/ include path
     support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
     support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 24\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 48\n"
+    support += (DEST / "index-control-original.inc").read_text() + "\n"
+    support += (DEST / "transform-control-original.inc").read_text() + "\n"
+    support += (DEST / "float-output-original.inc").read_text() + "\n"
+    support += (DEST / "half-output-original.inc").read_text() + "\n"
+    support += (DEST / "cmp-output-original.inc").read_text() + "\n"
+    support += (DEST / "snorm-output-original.inc").read_text() + "\n"
+    support += (DEST / "unorm-output-original.inc").read_text() + "\n"
+    support += (DEST / "u8-integer-output-original.inc").read_text() + "\n"
+    support += (DEST / "i16-output-original.inc").read_text() + "\n"
+    support += (DEST / "formatter-original.inc").read_text() + "\n"
+    support += (DEST / "conversion-control-original.inc").read_text() + "\n"
+    for name in ("builtin-float3", "builtin20", "builtin24", "builtin24-cmp"):
+        support += (DEST / (name+"-output-original.inc")).read_text() + "\n"
+    support += (DEST / "input-control-original.inc").read_text() + "\n"
+    for name in ("builtin20", "builtin24", "builtin24-cmp", "builtin12", "builtin15"):
+        support += (DEST / (name+"-input-original.inc")).read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)

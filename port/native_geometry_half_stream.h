@@ -4,13 +4,12 @@
 #pragma once
 #include "native_geometry_output.h"
 #include "native_stagef_avx2.h"
-#include <vector>
 
 namespace buzz {
 struct GeometryHalfColumn { uint32_t offset=0,groups=0; };
 struct GeometryHalfStream {
     uint32_t columns=0,input_step=0,output_step=0,limit=0;
-    std::vector<GeometryHalfColumn> column;
+    GeometryHalfColumn column[16]{}; // bounded by admission; no per-call allocation
 };
 inline bool read_geometry_half_stream(const spu_context& ctx,GeometryHalfStream& output,const char** reason=nullptr)
 {
@@ -60,7 +59,7 @@ inline bool read_geometry_half_stream(const spu_context& ctx,GeometryHalfStream&
                 if(physical<stack+0x80 && stack<last_end)return reject("destination/stack metadata alias");
             }
         }
-        p.column.push_back(c);
+        p.column[column]=c;
     }
     if(output_begin<0xe680 || output_end>SPU_LS_SIZE ||
         (input_begin<output_end && output_begin<input_end))return reject("output/source bounds or alias");

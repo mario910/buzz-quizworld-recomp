@@ -68,3 +68,74 @@ skinning pool cycles/frame -0.95% (pairs -1.23%, -0.66%), process cycles/frame
 -0.75%). Pool CPU time is mixed. Encoder and pointer series show no repeatable
 savings. Full results and default decisions are in
 [the phase 2 report](native-geometry-phase2-results.md).
+
+
+## Interpreter diagnostics are a separate series
+
+`perf/observe-spu-interpreter.py` binds existing interpreter statistics to an
+exact frozen EXE/MAP. Start a fresh game with `SPU_INTERP_STATS=3600` and
+`SPU_INTERP_ENTRIES=1`; use the scene runner's `-InterpreterBinding`,
+`-InterpreterOutput` and `-InterpreterAt` parameters. The runner rejects a
+combined interpreter/CPU observation. These diagnostic runs do not count as
+FPS or CPU-cost A/B runs. Raw counter bytes remain inspectable.
+
+The absolute-zero case is useful below the logger's65,536-step threshold.
+Positive legacy counters are non-atomic observations; they do not establish
+exact per-image counts or unchanged workload by themselves. On ABI48, both
+menu arms remain absolutely zero at15/60s. Actual-round arms have the same
+five image2 pages at240s and matching whole-run image2/image40 entry keys;
+this leaves the round instruction-count gate open. See the
+[phase3 diagnostics](native-geometry-phase3-results.md#map-bound-interpreter-diagnostics-on-abi48).
+
+
+## Phase3 combined whole-job result
+
+The first reversed JOB0/JOB1 menu series finds **higher**, not lower, normalized
+CPU cost: worker cycles/frame+15.92%, process+9.19%, worker CPU ms/frame+16.02%
+and process+9.13%, with both pairs agreeing. Separate FPS pairs regress8.78%.
+The [phase3 performance report](native-geometry-phase3-performance.md) binds
+the actual EXE/MAP/settings and records the per-run data. Defaults remain off;
+individual option savings cannot be inferred from this aggregate test.
+
+
+## Isolated formatter span proof
+
+A separate same-EXE option reversal keeps JOB1/all other native options fixed:
+SPANS1 lowers menu worker cycles/frame3.17%,process2.07%,worker CPU ms/frame4.25%
+and process2.40%,with both pairs lower. The separate FPS series improves2.88%.
+This is a measured individual-option saving;it does not reverse or supersede
+the earlier aggregate JOB0/JOB1 regression. Round checks remain open and the
+option stays default0. Exact method and per-pair values are in the
+[phase3 performance report](native-geometry-phase3-performance.md#formatter-span-proof-isolated-menu-measurements).
+
+
+## Isolated span proof: round CPU on the capture-enabled EXE
+
+Four separate SPANS0/1/1/0 round CPU runs on3df8d057/MAP9b027e64 keep actual
+JOB1 and every other production option enabled. Worker cycles/frame fall4.01%,
+process2.82%;worker CPU ms/frame falls4.45%,process3.38%. Both reversed pairs
+agree for every metric. Raw OS counters,stable lane identities,boundaries,
+completed-frame denominators and inspected native round readbacks validate.
+
+This is normalized CPU evidence for one option within the native driver.
+It does not supersede the separately bound V3 aggregate JOB0/JOB1 regression.
+The primary separate round FPS series improves1.91% on average but has a mixed
+p99;CPU-series frame times are contextual. Same-EXE menu FPS/CPU and round tail
+follow-up remain required. SPANS stays default0. See the
+[round CPU table](native-geometry-phase3-performance.md#isolated-formatter-span-proof-round-cpu).
+
+
+## Isolated span proof: same-EXE menu follow-up
+
+The3df8d057/MAP9b027e64 freeze now has separate reversed menu FPS and CPU
+series as well as the round series. Menu worker cycles/frame fall2.99%,
+process1.84%;worker CPU ms/frame falls1.16%,process1.19%. Both pairs agree
+for all four metrics. Raw OS counters,completed-frame normalization,stable
+named-lane identities and boundary/uncertainty checks pass. No code changed.
+
+Separate menu FPS improves2.56%,with median/p90/p99 lower in both pairs.
+The old B95 menu measurements stay separately bound. These isolated savings
+support CPU cost as a useful metric even when FPS is flat;they do not prove
+power savings or reverse the separately bound aggregate JOB0/JOB1 regression.
+Independent round FPS tail follow-up remains required,so SPANS stays default0.
+See the [same-EXE menu tables](native-geometry-phase3-performance.md#isolated-formatter-span-proof-same-exe-menu-follow-up).

@@ -4,7 +4,7 @@
 #pragma once
 #include "native_geometry_commands.h"
 #include <algorithm>
-#include <vector>
+#include <memory>
 
 namespace buzz {
 struct GeometryCommandPublication {
@@ -13,10 +13,78 @@ struct GeometryCommandPublication {
     uint32_t splits = 0, padding_words = 0;
 };
 
+// Endpoints proved by the enclosing full/position emitter, including its
+// semaphore packets. Only the matching synchronous child may use this proof.
+struct GeometryCommandPublicationForecast { uint32_t raw_end, relocated_end; };
+struct GeometryCommandAdmissionScope;
+inline thread_local GeometryCommandAdmissionScope* geometry_command_admission = nullptr;
+struct GeometryCommandAdmissionScope {
+    GeometryCommandAdmissionScope* previous;
+    const GeometryCommandBuffer& reservation;
+    GeometryCommandPublicationForecast forecast;
+    const spu_context* owner;
+    uint32_t prepare_link, publish_link, semaphore_bytes;
+    uint8_t record[32]{};
+    bool prepared = false, published = false;
+
+    GeometryCommandAdmissionScope(const spu_context& c, const GeometryCommandBuffer& p,
+                                  uint32_t raw, uint32_t relocated, uint32_t prepare, uint32_t publish)
+        : previous(geometry_command_admission), reservation(p), forecast{raw, relocated},
+          owner(&c), prepare_link(prepare), publish_link(publish), semaphore_bytes(0)
+    {
+        // These two parents reserve exactly one immutable synchronization record.
+        if (p.count != 1) owner = nullptr;
+        else {
+            memcpy(record, c.ls + p.records, sizeof record);
+            if (p.destination._u32[0] && geometry_job_be32(record + 16)) semaphore_bytes = 16;
+        }
+        geometry_command_admission = this;
+    }
+    ~GeometryCommandAdmissionScope() { geometry_command_admission = previous; }
+    GeometryCommandAdmissionScope(const GeometryCommandAdmissionScope&) = delete;
+    GeometryCommandAdmissionScope& operator=(const GeometryCommandAdmissionScope&) = delete;
+
+    bool matches(const spu_context& c, uint32_t link) const {
+        const auto& p = reservation;
+        return owner == &c && c.ls == c.ls_store && !c.int_enable &&
+            c.gpr[1]._u32[0] == p.stack && c.gpr[0]._u32[0] == link &&
+            !memcmp(&c.gpr[3], &p.context_arg, 16) && !memcmp(&c.gpr[4], &p.output_arg, 16) &&
+            !memcmp(&c.gpr[5], &p.destination, 16) && !memcmp(&c.gpr[6], &p.records_arg, 16) &&
+            !memcmp(&c.gpr[7], &p.count_arg, 16) &&
+            !memcmp(c.ls + p.records, record, sizeof record);
+    }
+    const GeometryCommandBuffer* take_prepare(const spu_context& c) {
+        if (owner != &c) return nullptr;
+        if (prepared || !matches(c, prepare_link)) { owner = nullptr; return nullptr; }
+        // The parent prologue only writes its disjoint stack frame. Check the
+        // three context quads consumed by preparation before forwarding them.
+        const auto configuration = geometry_output_quad(c, reservation.context);
+        const auto context50 = geometry_output_quad(c, reservation.context + 0x50);
+        const auto tag = geometry_output_quad(c, reservation.context + 0x150);
+        if (memcmp(&configuration, &reservation.configuration, 16) ||
+            memcmp(&context50, &reservation.context50, 16) || memcmp(&tag, &reservation.tag, 16)) {
+            owner = nullptr; return nullptr;
+        }
+        prepared = true; return &reservation;
+    }
+    const GeometryCommandPublicationForecast* take_publish(const spu_context& c) {
+        if (owner != &c) return nullptr;
+        const bool usable = prepared && !published && matches(c, publish_link) &&
+            geometry_job_be32(c.ls + reservation.output) == reservation.start &&
+            geometry_job_be32(c.ls + reservation.output + 4) == reservation.limit &&
+            forecast.raw_end >= semaphore_bytes &&
+            geometry_job_be32(c.ls + reservation.output + 8) == forecast.raw_end - semaphore_bytes;
+        published = true;
+        if (!usable) { owner = nullptr; return nullptr; }
+        return &forecast;
+    }
+};
+
 // Simulate only command bytes, before any register/LS/channel mutation. This
 // bounds data-dependent packet expansion and also proves the terminating
 // look-ahead load, which can read beyond the last logical command.
-inline bool read_geometry_command_publication(const spu_context& ctx, GeometryCommandPublication& output, const char** reason = nullptr)
+inline bool read_geometry_command_publication(const spu_context& ctx, GeometryCommandPublication& output, const char** reason = nullptr,
+                                              const GeometryCommandPublicationForecast* forecast = nullptr)
 {
     auto reject = [&](const char* message) { if (reason) *reason = message; return false; };
     GeometryCommandPublication p;
@@ -39,9 +107,22 @@ inline bool read_geometry_command_publication(const spu_context& ctx, GeometryCo
         if (sizes[a] && sizes[b] && geometry_output_overlap(begins[a], sizes[a], begins[b], sizes[b])) return reject("overlapping command/state spans");
     static constexpr uint8_t shift[] = {12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27};
     if (memcmp(ctx.ls + 0xcea0, shift, 16)) return reject("unreviewed shift mask");
-    std::vector<uint8_t> data(ctx.ls + first, ctx.ls + last);
+    if (forecast && p.count == 1) {
+        const unsigned semaphore = geometry_job_be32(ctx.ls + p.records + 16) ? 16 : 0;
+        if (forecast->raw_end == p.cursor + semaphore && forecast->relocated_end >= forecast->raw_end &&
+            forecast->relocated_end <= p.limit && !((forecast->relocated_end - forecast->raw_end) & 3)) {
+            p.splits = (forecast->relocated_end - forecast->raw_end) / 4;
+            p.final_cursor = p.limit; p.padding_words = (p.limit - forecast->relocated_end) / 4;
+            output = p; return true;
+        }
+    }
+    // Pure, non-reentrant admission: reuse a per-thread simulation buffer.
+    // Allocate only on first use, keeping the ordinary job path heap-free.
+    static thread_local std::unique_ptr<uint8_t[]> scratch;
+    if(!scratch)scratch=std::make_unique<uint8_t[]>(SPU_LS_SIZE);
+    auto* data=scratch.get();memcpy(data,ctx.ls+first,last-first);
     auto range = [&](uint32_t at, uint32_t bytes) { return at >= first && at <= last && bytes <= last - at; };
-    auto put = [&](uint32_t at, uint32_t value) { geometry_job_put32(data.data() + at - first, value); };
+    auto put = [&](uint32_t at, uint32_t value) { geometry_job_put32(data + at - first, value); };
     uint32_t cursor = p.cursor;
     for (unsigned i = 0; i < p.count; ++i) {
         const auto* record = ctx.ls + p.records + i * 32;
@@ -61,7 +142,7 @@ inline bool read_geometry_command_publication(const spu_context& ctx, GeometryCo
         // elsewhere; the record cursor already reflects appended semaphores.
         const uint32_t address = next & (SPU_LS_SIZE - 4);
         const uint32_t word = address == p.record + 8 ? cursor :
-            geometry_job_be32(range(address, 4) ? data.data() + address - first : ctx.ls + address);
+            geometry_job_be32(range(address, 4) ? data + address - first : ctx.ls + address);
         const bool more = end > previous, same_block = start_block == end_block;
         start_block = next & ~127u;
         if (!more) break;
@@ -75,7 +156,7 @@ inline bool read_geometry_command_publication(const spu_context& ctx, GeometryCo
             if (!range(old_address, 4) || boundary < 4 || move_end < boundary ||
                 !range(boundary - 4, move_end - boundary + 4) || end > last - 4) return reject("packet expansion span");
             put(old_address, gap ? (old_header & 0xe003ffffu) | (gap << 16) : 0);
-            memmove(data.data() + boundary - first, data.data() + boundary - first - 4, move_end - boundary);
+            memmove(data + boundary - first, data + boundary - first - 4, move_end - boundary);
             const uint32_t relocated = ((old_header & 0xe003ffffu) | (remainder << 16)) +
                 ((old_header & 0x40000000u) ? 0 : gap);
             put(boundary, relocated); next = previous = boundary; end += 4; end_block = start_block;

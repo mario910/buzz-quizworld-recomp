@@ -56,8 +56,69 @@ static std::vector<GeometryJobIoOperation> record(spu_context& ctx,
     return ops;
 }
 
+static void job_exit_contract()
+{
+    auto expected=context(), actual=context();
+    assert(!geometry_job_exit_difference(*expected,*actual));
+    actual->gpr[2]._u64[0]^=1; actual->gpr[127]._u64[1]^=1;
+    actual->ls[0xe800]^=1; actual->ls[SPU_LS_SIZE-1]^=1;
+    assert(!geometry_job_exit_difference(*expected,*actual)); // Not published by this job.
+    assert(!compare_function_state(*expected,*actual).exact()); // Optional debug still sees them.
+    const char* fields[]={"pc","status","stop_code","list_stall_stat","host_depth","image_id","policy_mode","resident_ovl"};
+    for(unsigned i=0;i<8;++i){
+        auto changed=context();
+        switch(i){
+        case 0: changed->pc^=4; break;
+        case 1: changed->status^=1; break;
+        case 2: changed->stop_code^=1; break;
+        case 3: changed->list_stall_stat^=1; break;
+        case 4: changed->host_depth^=1; break;
+        case 5: changed->image_id^=1; break;
+        case 6: changed->policy_mode^=1; break;
+        case 7: changed->resident_ovl^=1; break;
+        }
+        const auto* difference=geometry_job_exit_difference(*expected,*changed);
+        assert(difference && !strcmp(difference,fields[i]));
+    }
+    actual->ch_out_mbox.count=1;actual->ch_out_mbox.value=actual->ch_out_mbox.q[0]=1;
+    assert(!strcmp(geometry_job_exit_difference(*expected,*actual),"ch_out_mbox"));
+    actual->ch_out_mbox={}; actual->ls=expected->ls_store;
+    assert(!strcmp(geometry_job_exit_difference(*expected,*actual),"local-store ownership"));
+    actual->ls=actual->ls_store;
+    actual->irq_frame=reinterpret_cast<decltype(actual->irq_frame)>(uintptr_t(1));
+    assert(!strcmp(geometry_job_exit_difference(*expected,*actual),"irq_frame"));
+    puts("Job exit contract: internal GPR/LS differences allowed; PC/control/channel/host-state/LS-ownership faults rejected PASS");
+}
+static void prepared_input_contract()
+{
+    std::vector<GeometryJobIoOperation> ops(3);
+    // Lookups are by EA/range, never by channel position or LS alias.
+    ops[0].transfers.push_back({1,0x100,0x3000,{1,2,3,4}});
+    ops[1].transfers.push_back({2,0x100,0x1000,{7,7,7,7}}); // PUT is not input.
+    ops[1].transfers.push_back({3,0x100,0x2000,{8,8,8,8}}); // Neither is GETLLAR.
+    ops[2].transfers.push_back({1,0x100,0x1000,{9,10,11,12}});
+    GeometryJobIoReplay view(ops);
+    assert(view.input(0x1001,2) && view.input(0x1001,2)[0]==10 && view.input(0x1001,2)[1]==11);
+    assert(view.input(0x3000,4) && view.input(0x3000,4)[3]==4);
+    assert(!view.input(0x2000,4) && !view.input(0x1003,2) && !view.input(0x1000,0));
+    assert(!view.input(UINT32_MAX,2) && !view.input(0x1000,SIZE_MAX));
+    assert(view.consumed()==0 && !view.error());
+    ops[0].transfers.push_back({1,0x200,0x1000,{9,10,11,12}});
+    assert(view.input(0x1000,4)); // Identical repeated GET is safe.
+    ops[0].transfers.back().bytes[2]^=1;
+    assert(!view.input(0x1000,4)); // Ambiguous full snapshot.
+    ops[0].transfers.pop_back();
+    ops[0].transfers.push_back({1,0x200,0x1002,{99}});
+    assert(!view.input(0x1000,4)); // A partial overlapping GET differs too.
+    assert(view.consumed()==0 && !view.error());
+    ops[0].transfers.back().bytes[0]=11;
+    assert(view.input(0x1000,4));
+    puts("Prepared input: future GET lookup, exact bounded spans, repeated/partial ambiguity rejection, no channel consumption PASS");
+}
 int main()
 {
+    job_exit_contract();
+    prepared_input_contract();
     auto reference = context();
     std::array<uint8_t, 128> guest{};
     unsigned commits = 0;
