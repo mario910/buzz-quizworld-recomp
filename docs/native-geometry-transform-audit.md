@@ -3,7 +3,9 @@
 Status: source/real-input audit complete; native `6958/66C8` finalization and
 `6188/65EC/65FC` vertex preparation, complete enclosing `6608` control and
 alternate cull data are opt-in. **Alternate real/live and final gates remain OPEN.**
-The continuing objective and mandatory last strict Stage F phase are unchanged.
+Current acceptance follows the plan's **Course correction (2026-11-01)**:
+the strict Stage F reconstruction phase is cancelled. The full-state checks
+described below are historical diagnostics, not gates for the host pipeline.
 
 Source SHA-256:
 `5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812`.

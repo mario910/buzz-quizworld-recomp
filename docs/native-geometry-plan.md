@@ -155,8 +155,10 @@ Job-owned input SoA now matches 54,481,150 logical component values across
 ([results](native-geometry-phase3b-input-results.md)). Eight-vertex skinning,
 object transforms and direction normalization now match the full original
 producer for those same 19,399 captures ([skin results](native-geometry-phase3b-skin-results.md)).
-These producers are not connected to the runtime. Next is host transform/cull,
-publication-tail provenance and index/output integration. Full phase 3b remains open.
+Host projection now produces exact logical clip records for the same family
+([clip results](native-geometry-phase3b-clip-results.md)). These producers are
+not connected to the runtime. Next is host index decoding/culling,
+publication-tail provenance and output integration. Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 

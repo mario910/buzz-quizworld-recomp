@@ -46,8 +46,13 @@ from entry 6. Object transforms read the original object record before job
 setup reuses it. Cyclic per-coordinate FM/FMA order and reciprocal-root/FI
 normalization preserve SPU semantics. Full original producer comparisons
 cover all recognized real input families; see [skin results](native-geometry-phase3b-skin-results.md).
-The producers remain outside the runtime pending transform/cull, publication
-padding and index/output integration.
+`native_geometry_host_clip_job.h` derives job clip parameters once and projects
+eight host vertices into flat host SoA records: X/Y bits, clip flags and packed
+coordinates/W sign. It matches the complete original producer for the same
+real families and admits observed clip formats 0/3; see
+[clip results](native-geometry-phase3b-clip-results.md).
+The producers remain outside the runtime pending index decoding/culling,
+publication padding and output integration.
 
 ## Historical groundwork and strict diagnostics
 
