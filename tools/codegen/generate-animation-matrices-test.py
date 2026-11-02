@@ -30,7 +30,12 @@ def main():
     output += '\n' + '\n'.join(f'static void {PREFIX}{pc:08X}(spu_context* ctx) {{{functions[pc]}}}' for pc in sorted(selected))
     out = ROOT / 'analysis/native-geometry/phase4/matrices-v1'
     out.mkdir(parents=True, exist_ok=True)
-    (out / 'reference.inc').write_text(output, encoding='utf-8')
+    reference = out / 'reference.inc'
+    if reference.exists():
+        if reference.read_text(encoding='utf-8') != output:
+            raise SystemExit('Existing animation oracle differs; preserve its evidence and use a new oracle version')
+    else:
+        reference.write_text(output, encoding='utf-8')
     print('Pinned original matrix producer: seven complete blocks; published bytes only')
 
 
