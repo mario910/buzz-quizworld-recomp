@@ -149,10 +149,12 @@ or stopped tracks from older goals, checkpoints or results documents.
 The experimental host output path passes correctness gates, but remains off:
 menu FPS +0.964%, round FPS -0.077%, round worker cycles/frame +1.734%.
 See the [measurement table and decision](native-geometry-phase3b-results.md).
-Standalone eight-vertex input helpers now pass original-decoder and guarded
-source tests ([results](native-geometry-phase3b-input-results.md)); they are
-not connected to the runtime. Next is persistent input SoA and eight-vertex
-skin/transform/cull, feeding output directly. Full phase 3b remains open.
+Eight-vertex input helpers pass original-decoder and guarded source tests.
+Job-owned input SoA now matches 54,481,150 logical component values across
+19,399 real captures; 109 fixed-format entries retain whole-job fallback
+([results](native-geometry-phase3b-input-results.md)). This input model is
+not connected to the runtime. Next is eight-vertex skin/transform/cull and
+publication-tail provenance, feeding output directly. Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 

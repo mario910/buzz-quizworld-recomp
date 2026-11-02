@@ -33,8 +33,12 @@ defaults off; see [phase 3b results](native-geometry-phase3b-results.md).
 Host input helpers share `GeometryHostSoA8` with output and decode raw BE
 float words, Edge half and packed unit vectors into eight-vertex SoA.
 Half decoding retains the source quad's prefix byte; it is not IEEE half.
-They have independent original-decoder and guarded-source proofs but remain
-outside the runtime pending the persistent host pipeline; see
+`native_geometry_host_input_job.h` captures those logical fields once into
+bounded job-owned blocks, joining primary DMA entries 8–10. Payload admission
+can fail without LS/GPR/I/O mutation and invalidates partially captured data.
+The input model has original-attribute corpus and guarded-source proofs but
+remains outside the runtime pending host skin/transform/cull and publication
+padding provenance; see
 [input results](native-geometry-phase3b-input-results.md).
 
 ## Historical groundwork and strict diagnostics
