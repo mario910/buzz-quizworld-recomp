@@ -25,11 +25,14 @@
 | Native job metadata frontend | Read-only job256 parser: four input spans, two caches, ES01 skeleton/hierarchy, root pose, clip records and control handles; all 17,714 entries accepted; 17,714 operation-0 and 2,597 operation-1 nodes, 38,025 clip references |
 | Publication recipe proof | All 39,112 ordered PUTs predicted from entry metadata: LSA, EA, byte count and DMA tag match the original in both arms, including 3,684 optional curve buffers |
 | Metadata rejection proof | Each arm: 31 malformed family/span/control/clip/skeleton/publication cases rejected; admission output remains unchanged |
-| Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; no volatile GPR or ABI reconstruction |
+| Operation-1 pose producer | Covered full-strength flags-0/full-weight recipe; host quaternion composition plus shared interpolation; all 184,387 poses across 2,597 calls match |
+| Scalar curve producers | Operation 0: 3,684 calls / 85,296 aligned words; operation 1: 2,597 calls / 62,328 aligned words; all match, including published tail words and flag-1 clamping |
+| Additional numeric proofs | Each arm: 2,048 original-producer batches / 9,216 logical samples per operation; scalar checks include 12,288 aligned words per operation; read-only guarded source tails, host canaries, same/opposite quaternions and extended FP pass |
+| Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; also 2,597 additive-pose, 3,684 scalar-blend and 2,597 scalar-add calls; no volatile GPR or ABI reconstruction |
 | Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
 | Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
-| Publication fault probes | Independent quaternion, FLOAT3, host world-matrix, final affine, pose-blend and hierarchy sign changes each fail the first job's PUT byte comparison, as expected |
+| Publication fault probes | Eight independent sign faults (including additive pose and scalar curve) are each rejected at a recorded PUT byte comparison |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -48,12 +51,13 @@ compatibility or live coverage for images 43/45/47. Phase 4 remains open;
 host key producers, pose blending and the Q/T/S-to-world/reference matrix chain pass
 whole-job I/O with their original producers replaced in the test oracle.
 Hierarchy and the matrix chain now use native host pose arrays, without
-captured matrix inputs. Explicit joint-weight streams and the small hierarchy
+captured matrix inputs. Nonuniform joint-weight streams and the small hierarchy
 alternative have no real corpus coverage and remain unsupported. Production
 job integration, live checks and candidate FPS/CPU gates remain. The new
 metadata parser is not the complete native driver: original code still
-handles clip/stream discovery, control operation 1, auxiliary curves and the
-DMA/channel lifecycle.
+handles clip/stream discovery, curve key sampling, control-tree traversal and
+the DMA/channel lifecycle. Operation-1 pose/curve arithmetic is now native in
+the replacement oracle.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
 

@@ -135,7 +135,8 @@ It reuses shortest-path quaternion interpolation; translation and scale each
 retain `FMA(last, t, first)` followed by `FNMS(first, t, sum)`, including W.
 The effective `t` includes the fixed SPU RTZ full-weight reciprocal refinement
 (`factor * 0x3F7FFFFF`); exact division by one changes bits. Output joint
-weights are 255. Explicit weight streams need whole-job fallback until covered.
+weights are 255. Explicit weights for this linear recipe need whole-job
+fallback until covered.
 
 `native_animation_host_hierarchy.h` admits the observed four-record schedule
 groups (at least eight entries). Each BE32 entry contains the local joint in
@@ -175,8 +176,24 @@ Let `n = align4(joints)` and `world = context.output`. Reference output starts
 at `world + n*64`; curve output at `reference + n*48 + 48`. Publication order
 is reference `joints*48`, world `joints*64`, then optional curves
 `align16(curve_floats*4)`, using the context DMA tag. All recorded publications
-match this recipe. Runtime clip GET staging and operation-1/curve evaluation
-still belong to the original oracle until the native frontend is connected.
+match this recipe. Runtime clip GET staging, curve key sampling and control
+traversal still belong to the original oracle until the frontend is connected.
+
+`native_animation_host_additive.h` implements the observed operation-1 pose
+recipe: flags 0, strength 1, explicit full weights on the base and implicit
+full weights on the added pose. Compose base/additive quaternions in the
+original fused order, then reuse shortest-path interpolation to that product.
+Translation first adds the XYZ delta (delta W is zero); scale first multiplies
+by the delta scale. Both then retain the original two fused lerp roundings,
+even at strength 1. Other strength/weight/flag recipes remain uncovered.
+
+Scalar operation 0 uses the same fixed RTZ strength normalization and two
+fused interpolation roundings as pose blending. Scalar operation 1 uses one
+`FMA(delta, 1, base)`. Curve flag 1 clamps the final value to [0,1]; flag 0
+leaves it unbounded. Other curve flags remain unsupported. Every word up to
+`align4(curve_floats)` is part of the published contract: compute and compare
+those tail values and weights explicitly. They are observable output, not
+scratch or dead lookahead state.
 
 ## Historical groundwork and strict diagnostics
 

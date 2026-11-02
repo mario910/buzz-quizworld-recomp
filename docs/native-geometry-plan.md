@@ -1071,7 +1071,7 @@ captured job/transfer/exit; numeric/tail and four publication-fault probes
 pass. Host pose blending now also matches all 461,853 poses, including 541
 strengths, with shared quaternion interpolation and exact translation/scale
 rounding. Replacing its 17,714 calls preserves every captured job output;
-guarded numerics and a fifth publication-fault probe pass. Explicit joint
+guarded numerics and a fifth publication-fault probe pass. Nonuniform joint
 weights remain uncovered/unsupported. Native hierarchy now matches all
 461,853 world poses; dependency-safe batches remove repeated schedule entries.
 Replacing its 17,714 calls together with the previous host producers preserves
@@ -1080,7 +1080,11 @@ probes pass. A native read-only metadata frontend now accepts all 17,714
 entries and predicts all 39,112 publications (LSA/EA/size/tag). Thirty-one
 malformed recipes are rejected without output mutation. The corpus includes
 2,597 operation-1 control nodes in addition to 17,714 operation-0 nodes;
-clip/stream discovery, that control operation, auxiliary curves and full
+its full-strength pose arithmetic now matches all 184,387 results. Scalar
+blend/add arithmetic also matches all 85,296 / 62,328 aligned output words,
+including published curve padding. Replacing these operations preserves every
+job output; guarded numeric proofs and eight publication-fault probes pass.
+Clip/stream discovery, curve key sampling, control-tree traversal and full
 native I/O lifecycle integration remain, followed by live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)

@@ -1,6 +1,6 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_animation_host_vectors.h"
-#include "../port/native_animation_host_blend.h"
+#include "../port/native_animation_host_additive.h"
 #include "../port/native_animation_host_hierarchy.h"
 #include "../port/native_animation_job_input.h"
 #include "../port/native_animation_host_matrices.h"
@@ -37,14 +37,21 @@ static unsigned pending_base=0;
 static uint64_t compared_quaternions=0;
 static uint64_t replaced_quaternion_calls=0;
 static bool replace_quaternions=false;
-static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corrupt_blend=false,corrupt_hierarchy=false,corruption_injected=false;
+static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corrupt_blend=false,corrupt_hierarchy=false,corrupt_extra_pose=false,corrupt_extra_curve=false,corruption_injected=false;
 static uint64_t numeric_cases=0,numeric_samples=0;
 static std::array<buzz::AnimationHostQuaternion8,32> pending_static_quaternions;
 static std::vector<uint16_t> pending_static_indices;
 static unsigned pending_static_base=0;
 static uint64_t static_calls=0,static_nonempty=0,compared_static=0,replaced_static=0,numeric_static=0;
 struct VectorObservation { bool started=false,finished=false;uint64_t calls=0,nonempty=0; };
-static VectorObservation vector_observation[4],pose_observation[3];
+static VectorObservation vector_observation[4],pose_observation[3],extra_observation[3];
+static std::map<std::array<uint32_t,4>,uint64_t> extra_recipes[3];
+static std::array<buzz::AnimationHostPose8,32> pending_extra_pose;
+static std::array<v8,32> pending_extra_curve;
+static unsigned pending_extra_base[3]{},pending_extra_weights[3]{},pending_extra_count[3]{};
+static uint64_t compared_extra[3]{},replaced_extra[3]{},numeric_extra[3]{},extra_curve_flags[4]{};
+static bool animation_native_extra_override(unsigned,spu_context*);
+static void check_numeric_extra(const spu_context*);
 static std::map<std::array<uint32_t,4>,std::pair<uint64_t,uint64_t>> blend_recipes;
 static std::array<buzz::AnimationHostVector8,32> pending_vectors;
 static std::vector<uint16_t> pending_vector_indices;
@@ -136,7 +143,7 @@ u128 spu_rdch(spu_context* c,uint32_t channel)
 }
 uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
 }
-#include "../analysis/native-geometry/phase4/job-oracle-v11/reference.inc"
+#include "../analysis/native-geometry/phase4/job-oracle-v13/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next=animation_original_lookup(c->pc&SPU_LS_MASK);
@@ -160,6 +167,60 @@ static void dump(const char* name,const void* data,size_t bytes)
 static void animation_original_probe(unsigned pc,spu_context* c)
 {
     if(!probe_enabled)return;
+    if(pc==0x3888||pc==0x42f0||pc==0x4838||pc==0x4ac8||pc==0x4ad0||pc==0x4d58) {
+        const unsigned kind=(pc==0x3888||pc==0x42f0)?0:(pc==0x4838||pc==0x4ac8)?1:2;
+        const char* names[]={"pose-operation1","curve-operation0","curve-operation1"};
+        auto& observation=extra_observation[kind];
+        if(pc==0x3888||pc==0x4838||pc==0x4ad0) {
+            const unsigned logical=c->gpr[kind==2?12:11]._u32[0];assert(logical<=256);
+            // Every aligned curve word is published, including its tail.
+            const unsigned count=kind?(logical+3)&~3u:logical;
+            const unsigned a=c->gpr[5]._u32[0],b=c->gpr[7]._u32[0];
+            pending_extra_base[kind]=c->gpr[3]._u32[0];pending_extra_weights[kind]=c->gpr[4]._u32[0];pending_extra_count[kind]=count;
+            assert(!c->gpr[8]._u32[0]);
+            if(kind!=1){assert(c->gpr[kind==2?10:9]._u32[0]==0x3f800000&&c->gpr[kind==2?11:10]._u32[0]==0);}
+            if(c->gpr[6]._u32[0]){assert(uint64_t(c->gpr[6]._u32[0])+count<=SPU_LS_SIZE);for(unsigned i=0;i<count;++i)assert(c->ls[c->gpr[6]._u32[0]+i]==255);}
+            for(unsigned first=0;first<count;first+=8) {
+                const unsigned lanes=std::min(8u,count-first);
+                if(!kind) {
+                    assert(uint64_t(a)+count*48<=SPU_LS_SIZE&&uint64_t(b)+count*48<=SPU_LS_SIZE);
+                    pending_extra_pose[first/8]=buzz::add_animation_host_poses8(buzz::decode_animation_host_pose8(c->ls+a+first*48,lanes),buzz::decode_animation_host_pose8(c->ls+b+first*48,lanes));
+                } else {
+                    const unsigned flags=c->gpr[9]._u32[0];assert(uint64_t(a)+count*4<=SPU_LS_SIZE&&uint64_t(b)+count*4<=SPU_LS_SIZE&&uint64_t(flags)+count<=SPU_LS_SIZE);
+                    alignas(32) uint32_t mask[8]{};
+                    for(unsigned lane=0;lane<lanes;++lane){const unsigned value=c->ls[flags+first+lane];if(value>1){fprintf(stderr,"uncovered curve flag=%u %s\n",value,current_case.c_str());abort();}++extra_curve_flags[value];mask[lane]=value?~0u:0;}
+                    const auto x=buzz::decode_geometry_host_floats8(c->ls+a+first*4,4,1,lanes).component[0],y=buzz::decode_geometry_host_floats8(c->ls+b+first*4,4,1,lanes).component[0];
+                    const v8 clamp=_mm256_load_si256(reinterpret_cast<const v8*>(mask));
+                    pending_extra_curve[first/8]=kind==1?buzz::blend_animation_host_curves8(x,y,v8_set(c->gpr[10]._u32[0]),clamp):buzz::add_animation_host_curves8(x,y,clamp);
+                }
+            }
+            if(!kind&&count&&!observation.started)check_numeric_extra(c);
+        } else if(!replace_quaternions) {
+            for(unsigned first=0;first<pending_extra_count[kind];first+=8) {
+                alignas(32) uint32_t values[12][8];
+                const unsigned components=kind?1:12,lanes=std::min(8u,pending_extra_count[kind]-first);
+                if(kind)_mm256_store_si256(reinterpret_cast<v8*>(values[0]),pending_extra_curve[first/8]);
+                else for(unsigned component=0;component<4;++component){_mm256_store_si256(reinterpret_cast<v8*>(values[component]),pending_extra_pose[first/8].rotation.component[component]);_mm256_store_si256(reinterpret_cast<v8*>(values[4+component]),pending_extra_pose[first/8].translation.component[component]);_mm256_store_si256(reinterpret_cast<v8*>(values[8+component]),pending_extra_pose[first/8].scale.component[component]);}
+                for(unsigned lane=0;lane<lanes;++lane)for(unsigned component=0;component<components;++component){const unsigned at=pending_extra_base[kind]+(first+lane)*components*4+component*4;assert(at+4<=SPU_LS_SIZE);const auto* p=c->ls+at;const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];if(expected!=values[component][lane]){fprintf(stderr,"native extra mismatch kind=%u %s index=%u component=%u expected=%08X actual=%08X\n",kind,current_case.c_str(),first+lane,component,expected,values[component][lane]);abort();}}
+                compared_extra[kind]+=lanes;
+            }
+            if(pending_extra_weights[kind])for(unsigned i=0;i<pending_extra_count[kind];++i)assert(c->ls[pending_extra_weights[kind]+i]==255);
+        }
+        if(pc==0x3888||pc==0x4838||pc==0x4ad0) {
+            const unsigned count=c->gpr[kind==2?12:11]._u32[0];
+            ++observation.calls;observation.nonempty+=count!=0;
+            ++extra_recipes[kind][{c->gpr[kind?10:9]._u32[0],kind==1?0:c->gpr[kind==2?11:10]._u32[0],c->gpr[6]._u32[0]!=0,c->gpr[8]._u32[0]!=0}];
+            if(count&&!observation.started) {
+                observation.started=true;printf("first %s %s count=%u\n",names[kind],current_case.c_str(),count);
+                for(unsigned r=3;r<=12;++r)printf("%s arg%u %08X %08X %08X %08X\n",names[kind],r,c->gpr[r]._u32[0],c->gpr[r]._u32[1],c->gpr[r]._u32[2],c->gpr[r]._u32[3]);
+                dump((std::string(names[kind])+"-entry-arguments.bin").c_str(),c->gpr+3,10*sizeof(u128));
+                dump((std::string(names[kind])+"-entry-ls.bin").c_str(),c->ls,SPU_LS_SIZE);
+            }
+        } else if(observation.started&&!observation.finished) {
+            observation.finished=true;dump((std::string(names[kind])+"-exit-ls.bin").c_str(),c->ls,SPU_LS_SIZE);
+        }
+        return;
+    }
     if(pc==0x4fb8) {
         const unsigned at=c->gpr[6]._u32[0],entries=c->gpr[7]._u32[0];assert(at<=SPU_LS_SIZE);
         assert(at==pending_job_input.hierarchy.lsa&&entries==pending_job_input.hierarchy_entries&&c->gpr[5]._u32[0]==pending_job_input.root_pose_lsa);
@@ -503,6 +564,22 @@ static bool animation_native_hierarchy_override(spu_context* c)
     }
     ++replaced_hierarchy;animation_original_probe(0x5730,c);
     if(corrupt_hierarchy&&!corruption_injected&&pending_hierarchy_plan.joints){c->ls[pending_hierarchy_base]^=0x80;corruption_injected=true;}
+    c->pc=c->gpr[0]._u32[0];return true;
+}
+static bool animation_native_extra_override(unsigned pc,spu_context* c)
+{
+    if(!replace_quaternions||!probe_enabled)return false;
+    const unsigned kind=pc==0x3888?0:pc==0x4838?1:2;
+    animation_original_probe(pc,c);
+    for(unsigned first=0;first<pending_extra_count[kind];first+=8) {
+        alignas(32) uint32_t values[12][8];const unsigned components=kind?1:12,lanes=std::min(8u,pending_extra_count[kind]-first);
+        if(kind)_mm256_store_si256(reinterpret_cast<v8*>(values[0]),pending_extra_curve[first/8]);
+        else for(unsigned component=0;component<4;++component){_mm256_store_si256(reinterpret_cast<v8*>(values[component]),pending_extra_pose[first/8].rotation.component[component]);_mm256_store_si256(reinterpret_cast<v8*>(values[4+component]),pending_extra_pose[first/8].translation.component[component]);_mm256_store_si256(reinterpret_cast<v8*>(values[8+component]),pending_extra_pose[first/8].scale.component[component]);}
+        for(unsigned lane=0;lane<lanes;++lane)for(unsigned component=0;component<components;++component){const unsigned at=pending_extra_base[kind]+(first+lane)*components*4+component*4;assert(at+4<=SPU_LS_SIZE);auto* p=c->ls+at;const unsigned value=values[component][lane];p[0]=value>>24;p[1]=value>>16;p[2]=value>>8;p[3]=value;}
+    }
+    if(pending_extra_weights[kind]){assert(uint64_t(pending_extra_weights[kind])+pending_extra_count[kind]<=SPU_LS_SIZE);memset(c->ls+pending_extra_weights[kind],255,pending_extra_count[kind]);}
+    ++replaced_extra[kind];animation_original_probe(kind==0?0x42f0:kind==1?0x4ac8:0x4d58,c);
+    if(!corruption_injected&&pending_extra_count[kind]&&((!kind&&corrupt_extra_pose)||(kind&&corrupt_extra_curve))){c->ls[pending_extra_base[kind]]^=0x80;corruption_injected=true;}
     c->pc=c->gpr[0]._u32[0];return true;
 }
 static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,unsigned slot)
@@ -873,10 +950,88 @@ static void check_invalid_job_inputs(const spu_context* c)
     assert(!buzz::read_animation_job_input(c->ls,SPU_LS_SIZE,valid.context,SPU_LS_SIZE-16,result,&reason));
     assert(!memcmp(&result,&valid,sizeof(valid)));
 }
+static void check_numeric_extra(const spu_context* original)
+{
+    const auto saved=g_spu_trampoline_fn;const auto saved_case=current_case;probe_enabled=false;
+    auto c=std::make_unique<spu_context>();
+    constexpr unsigned a=0x10000,b=0x12000,destination=0x24000,weights=0x26000,input_weights=0x27000,curve_flags=0x28000;
+    constexpr uint32_t fractions[]={0,0x80000000,1,0x3b6842e0,0x3e800000,0x3f000000,0x3f7fffff,0x3f800000};
+    constexpr uint32_t special[]={0,0x80000000,1,0x80000001,0x007fffff,0x807fffff,0x00800000,
+        0x80800000,0x3f800000,0xbf800000,0x7f7fffff,0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff};
+    uint32_t random=0x981c40a6;
+    auto next=[&](){random^=random<<13;random^=random>>17;random^=random<<5;return random;};
+    auto put=[&](unsigned at,uint32_t v){auto* p=c->ls+at;p[0]=v>>24;p[1]=v>>16;p[2]=v>>8;p[3]=v;};
+    for(unsigned test=0;test<2048;++test) {
+        memcpy(c.get(),original,sizeof(*original));c->ls=c->ls_store;
+        const unsigned count=1+test%8,factor=fractions[(test/8)%std::size(fractions)];
+        memset(c->ls+a,0,512);memset(c->ls+b,0,512);memset(c->ls+destination,0,512);memset(c->ls+weights,0,32);
+        uint64_t packed_a[8],packed_b[8];
+        auto pack=[&](){return uint64_t(8000+next()%16000)<<32|uint64_t(8000+next()%16000)<<17|uint64_t(8000+next()%16000)<<2|next()%4;};
+        for(unsigned lane=0;lane<8;++lane){packed_a[lane]=pack();packed_b[lane]=test%3?pack():packed_a[lane];}
+        const auto qa=buzz::decode_animation_host_quaternions8(packed_a),qb=buzz::decode_animation_host_quaternions8(packed_b);
+        alignas(32) uint32_t qa_words[4][8],qb_words[4][8];
+        for(unsigned component=0;component<4;++component){_mm256_store_si256(reinterpret_cast<v8*>(qa_words[component]),qa.component[component]);_mm256_store_si256(reinterpret_cast<v8*>(qb_words[component]),qb.component[component]);}
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component) {
+            put(a+joint*48+component*4,component<4?qa_words[component][joint]:test<512?special[(test+joint*3+component)%std::size(special)]:next());
+            put(b+joint*48+component*4,component<4?qb_words[component][joint]^(test%5?0:0x80000000u):test<512?special[(test*3+joint+component)%std::size(special)]:next());
+        }
+        const auto first=guarded_view(c->ls+a,count*48,0),last=guarded_view(c->ls+b,count*48,1);
+        struct alignas(32) GuardedPose {uint32_t before[8];buzz::AnimationHostPose8 value;uint32_t after[8];} actual;
+        memset(&actual,0xc4,sizeof(actual));
+        actual.value=buzz::add_animation_host_poses8(buzz::decode_animation_host_pose8(first.data,count),buzz::decode_animation_host_pose8(last.data,count));
+        for(unsigned i=0;i<8;++i)assert(actual.before[i]==0xc4c4c4c4&&actual.after[i]==0xc4c4c4c4);
+        assert(!memcmp(first.data,c->ls+a,count*48)&&!memcmp(last.data,c->ls+b,count*48));
+        c->gpr[0]=spu_link(0x1244);c->gpr[3]=spu_il(destination);c->gpr[4]=spu_il(weights);
+        memset(c->ls+input_weights,255,16);
+        c->gpr[5]=spu_il(a);c->gpr[6]=spu_il(input_weights);c->gpr[7]=spu_il(b);c->gpr[8]=spu_il(0);c->gpr[9]=spu_il(0x3f800000);c->gpr[10]=spu_il(0);c->gpr[11]=spu_il(8);
+        current_case=saved_case+"/numeric-extra-"+std::to_string(test);
+        // Eight original logical slots select the covered pipelined producer;
+        // only count native input/output lanes are compared at guarded tails.
+        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00003888(c.get());drain(c.get(),0x1244);
+        alignas(32) uint32_t words[12][8];
+        for(unsigned component=0;component<4;++component) {
+            _mm256_store_si256(reinterpret_cast<v8*>(words[component]),actual.value.rotation.component[component]);
+            _mm256_store_si256(reinterpret_cast<v8*>(words[4+component]),actual.value.translation.component[component]);
+            _mm256_store_si256(reinterpret_cast<v8*>(words[8+component]),actual.value.scale.component[component]);
+        }
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component) {
+            const auto* p=c->ls+destination+joint*48+component*4;
+            const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+            if(words[component][joint]!=expected){fprintf(stderr,"numeric additive pose mismatch test=%u factor=%08X joint=%u component=%u expected=%08X actual=%08X\n",test,factor,joint,component,expected,words[component][joint]);abort();}
+        }
+        for(unsigned joint=0;joint<count;++joint)assert(c->ls[weights+joint]==255);
+        numeric_extra[0]+=count;
+        for(unsigned i=0;i<8;++i) {
+            put(a+i*4,test<512?special[(test+i)%std::size(special)]:next());
+            put(b+i*4,test<512?special[(test*3+i)%std::size(special)]:next());
+            c->ls[curve_flags+i]=(test+i)%2;
+        }
+        const unsigned published=(count+3)&~3u;
+        const auto x=guarded_view(c->ls+a,published*4,0),y=guarded_view(c->ls+b,published*4,1),flags=guarded_view(c->ls+curve_flags,published,2);
+        const v8 xv=buzz::decode_geometry_host_floats8(x.data,4,1,published).component[0],yv=buzz::decode_geometry_host_floats8(y.data,4,1,published).component[0];
+        alignas(32) uint32_t mask[8]{};for(unsigned i=0;i<published;++i)mask[i]=flags.data[i]?~0u:0;
+        const v8 clamp=_mm256_load_si256(reinterpret_cast<const v8*>(mask));
+        for(unsigned kind=1;kind<3;++kind) {
+            const v8 actual_curve=kind==1?buzz::blend_animation_host_curves8(xv,yv,v8_set(factor),clamp):buzz::add_animation_host_curves8(xv,yv,clamp);
+            c->gpr[0]=spu_link(0x124c);c->gpr[3]=spu_il(destination);c->gpr[4]=spu_il(weights);
+            c->gpr[5]=spu_il(a);c->gpr[6]=spu_il(kind==1?0:input_weights);c->gpr[7]=spu_il(b);c->gpr[8]=spu_il(0);
+            c->gpr[9]=spu_il(curve_flags);c->gpr[10]=spu_il(kind==1?factor:0x3f800000);c->gpr[11]=spu_il(kind==1?count:0);c->gpr[12]=spu_il(count);
+            g_spu_trampoline_fn=nullptr;
+            if(kind==1)buzz_job_abe1_spu_func_00004838(c.get());else buzz_job_abe1_spu_func_00004AD0(c.get());
+            drain(c.get(),0x124c);
+            alignas(32) uint32_t values[8];_mm256_store_si256(reinterpret_cast<v8*>(values),actual_curve);
+            for(unsigned i=0;i<published;++i){const auto* p=c->ls+destination+i*4;const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];if(values[i]!=expected){fprintf(stderr,"numeric curve mismatch kind=%u test=%u lane=%u expected=%08X actual=%08X\n",kind,test,i,expected,values[i]);abort();}assert(c->ls[weights+i]==255);}
+            numeric_extra[kind]+=count;
+        }
+        assert(!memcmp(x.data,c->ls+a,published*4)&&!memcmp(y.data,c->ls+b,published*4)&&!memcmp(flags.data,c->ls+curve_flags,published));
+    }
+    current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
+}
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy");
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve");
+    corrupt_extra_pose=std::string(argv[3])=="CorruptExtraPose";corrupt_extra_curve=std::string(argv[3])=="CorruptExtraCurve";
     corrupt_hierarchy=std::string(argv[3])=="CorruptHierarchy";
     corrupt_blend=std::string(argv[3])=="CorruptBlend";
     corrupt_affines=std::string(argv[3])=="CorruptAffine";
@@ -923,6 +1078,8 @@ int main(int argc,char** argv)
     assert(numeric_hierarchy==9216&&hierarchy_plans==17714&&hierarchy_lanes==461853);
     assert(replace_quaternions?(replaced_hierarchy==17714):(compared_hierarchy==461853));
     assert(frontend_jobs==17714&&frontend_nodes[0]==17714&&frontend_nodes[1]==2597&&frontend_clips==38025&&frontend_publications==39112);
+    assert(extra_observation[0].calls==2597&&extra_observation[1].calls==3684&&extra_observation[2].calls==2597);
+    for(unsigned kind=0;kind<3;++kind){assert(numeric_extra[kind]==9216);if(replace_quaternions)assert(replaced_extra[kind]==extra_observation[kind].calls);else assert(compared_extra[kind]);}
     printf("PASS animation whole-job oracle mode=%s: %llu exact jobs / %llu ordered transfers; quaternion calls=%llu nonempty=%llu\n",argv[3],(unsigned long long)jobs,(unsigned long long)total_transfers,(unsigned long long)quaternion_calls,(unsigned long long)nonempty_calls);
     printf("PASS native host quaternion samples=%llu\n",(unsigned long long)compared_quaternions);
     printf("PASS native quaternion producer replacements=%llu\n",(unsigned long long)replaced_quaternion_calls);
@@ -941,6 +1098,10 @@ int main(int argc,char** argv)
     printf("PASS host hierarchy plans=%llu entries=%llu joints=%llu batches=%llu full8=%llu noScaleInheritance=%llu\n",(unsigned long long)hierarchy_plans,(unsigned long long)hierarchy_entries,(unsigned long long)hierarchy_lanes,(unsigned long long)hierarchy_batches,(unsigned long long)hierarchy_full_batches,(unsigned long long)hierarchy_flags);
     printf("PASS hierarchy compared=%llu replacements=%llu numeric=%llu\n",(unsigned long long)compared_hierarchy,(unsigned long long)replaced_hierarchy,(unsigned long long)numeric_hierarchy);
     printf("PASS native frontend jobs=%llu nodes0=%llu nodes1=%llu clips=%llu ordered-publications=%llu\n",(unsigned long long)frontend_jobs,(unsigned long long)frontend_nodes[0],(unsigned long long)frontend_nodes[1],(unsigned long long)frontend_clips,(unsigned long long)frontend_publications);
+    for(unsigned kind=0;kind<3;++kind) {
+        printf("PASS extra producer kind=%u calls=%llu nonempty=%llu recipes=%zu compared=%llu replacements=%llu numeric=%llu\n",kind,(unsigned long long)extra_observation[kind].calls,(unsigned long long)extra_observation[kind].nonempty,extra_recipes[kind].size(),(unsigned long long)compared_extra[kind],(unsigned long long)replaced_extra[kind],(unsigned long long)numeric_extra[kind]);
+        for(const auto& [shape,n]:extra_recipes[kind])printf("extra recipe kind=%u factor=%08X flags=%X weights=%u,%u calls=%llu\n",kind,shape[0],shape[1],shape[2],shape[3],(unsigned long long)n);
+    }
     puts("PASS native job frontend: 31 malformed metadata/span cases rejected without changing admission output");
     puts("PASS invalid recipes rejected: quaternion=6 FLOAT3=8; empty tracks touch no data");
     for(auto [count,n]:quaternion_counts)printf("quaternion count=%u calls=%llu\n",count,(unsigned long long)n);
