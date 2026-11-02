@@ -41,21 +41,23 @@ inline bool read_geometry_float_output(const spu_context& c,GeometryFloatOutput&
     {GeometryOutputWalk w;w.r=arguments;w.cursor=arguments[52]._u32[0];w.limit=arguments[3]._u32[0];
      w.step=arguments[29]._u32[0];w.first=arguments[67]._u32[0];w.second=arguments[76]._u32[0];unsigned total=0,cross_columns=0;
      if(prove_geometry_output_walk(w,columns,total,cross_columns)){out={columns,total,cross_columns};return true;}}
-    u128 r[128];memcpy(r,arguments,sizeof r);open_geometry_float_output(r);unsigned total=0,cross_columns=0;
+    unsigned total=0,cross_columns=0;
     for(unsigned col=0;col<columns;++col){
-        const bool cross=prepare_geometry_float_output_column(r);cross_columns+=cross;unsigned groups=0;
+        auto cursor=spu_ai(arguments[52],col*16);
+        auto route=spu_mpya(arguments[55],spu_ai(arguments[54],col),arguments[53]);
+        const bool cross=spu_cgti(spu_a(spu_andi(route,15),arguments[48]),16)._u32[0]!=0;
+        cross_columns+=cross;unsigned groups=0;
         for(;;){
             if(++groups>65536 || ++total>1048576)return reject("float output iteration budget");
-            const auto after=spu_cgt(r[21],r[25]),chosen=spu_selb(r[23],r[30],after);
+            const auto after=spu_cgt(cursor,arguments[3]),chosen=spu_selb(route,arguments[30],after);
             for(unsigned lane=0;lane<4;++lane){
-                const unsigned physical=(r[19]._u32[0]+chosen._u32[lane])&0x3fff0;
+                const unsigned physical=(arguments[67]._u32[0]+chosen._u32[lane])&0x3fff0;
                 if(physical<0xe680)return reject("float output protected first quad");
-                if(cross && ((r[22]._u32[0]+chosen._u32[lane])&0x3fff0)<0xe680)return reject("float output protected second quad");
+                if(cross && ((arguments[76]._u32[0]+chosen._u32[lane])&0x3fff0)<0xe680)return reject("float output protected second quad");
             }
             if(after._u32[0])break;
-            r[21]=spu_a(r[21],r[29]);r[23]=spu_a(r[23],r[31]);
+            cursor=spu_a(cursor,arguments[29]);route=spu_a(route,arguments[31]);
         }
-        r[32]=spu_ai(r[32],1);r[44]=spu_ai(r[44],16);
     }
     out={columns,total,cross_columns};return true;
 }

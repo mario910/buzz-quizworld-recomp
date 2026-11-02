@@ -15,6 +15,12 @@ ordered I/O and job exit controls; `BUZZ_GEOMETRY_DEBUG_STAGES=1` adds the
 historical full-state diagnostics. Corpus job-boundary gates explicitly use
 `BUZZ_REPLAY_CONTRACT=1`; 0/unset retain the full exit-state debug comparison.
 
+The current output metadata reader uses `GeometryFormatLayout`: descriptor
+bytes, stride, semantic slots and source/destination walks are host values.
+Conversion forecasts pass three scalar addresses, without a copied GPR bank.
+Its stack/dummy bounds describe the retained legacy writer only; they are not
+requirements for the new SoA data representation. Payload conversion is unchanged.
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

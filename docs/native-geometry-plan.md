@@ -1029,9 +1029,9 @@ phase 7 is cancelled. The Course correction governs the historical rows below.
 
 | Revised work | Status | Latest evidence |
 | --- | --- | --- |
-| 3a: remove overhead | wip; menu parity failed | V3: FPS -2.784%, worker cycles/frame +4.418%, process cycles/frame +2.454%; corpus/live/menu render pass; round gates not attempted; defaults off |
+| 3a: remove overhead | implementation checkpointed; FPS target open | Host layout V1: FPS -2.207%, worker cycles/frame +4.035%, process cycles/frame +2.567%; corpus/live/menu render pass; round gates not attempted; defaults off |
 | Job-boundary checker | exact; optional full-state debug retained | Four full-corpus arms, 12 real-job fault fixtures, >=1,415,000 completed live comparisons; concurrent-input skips excluded; normal native menu |
-| 3b: host SoA / AVX2 pipeline | todo | Prioritize float/half/CMP output, unit vectors, weighted skin, index triangles; no new cold coverage |
+| 3b: host SoA / AVX2 pipeline | next required work after measured 3a | Prioritize float/half/CMP output, unit vectors, weighted skin, index triangles; no new cold coverage; 3a's FPS target and native acceptance remain open |
 
 Measurements and decisions: [native-geometry-phase3a-results.md](native-geometry-phase3a-results.md).
 Checker validation: [native-geometry-job-boundary-results.md](native-geometry-job-boundary-results.md).
@@ -1180,6 +1180,7 @@ See the separate
 
 | Date | Change | Scene | FPS before -> after | Median / p90 ms | Notes |
 |---|---|---|---|---|---|
+| 2026-11-02 | Host metadata layout, bank-free formatter/conversion/float admission | Same-EXE menu JOB0/1/1/0, separate FPS/CPU | 28.535 -> 27.905 (-2.207%) | see 3a results | Worker cycles/frame +4.035%, process +2.567%; four exact full-corpus arms; >=1,455,000 live checks; menu normal; rejected/defaults off; next 3b with performance target open |
 | 2026-11-02 | Phase 3a V3, parent command admission reuse | Same-EXE menu JOB0/1/1/0, separate FPS/CPU series | 28.456 -> 27.664 (-2.784%) | see results document | Worker cycles/frame +4.418%, process +2.454%; four exact full-corpus arms; >=50,000 live checks; native menu normal; rejected/defaults off; round gates not attempted |
 | 2026-11-01 | Shared-bank formatter full isolated matrix | Samebc0;16runs actualJOB1,REG0/1/1/0;FPS andCPU separate | Menu25.616->25.845;round31.725->31.778 | mixed p90/p99;all raw retained | FPS+0.894%(bothpairs)/+0.169%(mixed);workerCPF-0.341%/-0.010%;workerCPUms menu flat/round-1.148%(bothpairs);process cycles/time mixed;8normal roundimages;77pins/305sources unchanged;REGISTERS0 retained;host/interpreter/cold/aggregate/final OPEN |
 | 2026-11-01 | Shared-bank formatter frozen corpus/live/render | Newbc0 EXE/dc3 MAP;functional only | not measured | not measured | 10arms each19,508exact/58,195transfers;enabled19,508native/0whole fallback;host7,201roots/17,278children;independent strict knobs +old ledgers exact;live45,000whole-job/35,000parents/85,833children +UNORM>=10,000;normal native menu+actual round;15 reporter tests+old report exact;FPS/CPU/interpreter/cold/final OPEN |

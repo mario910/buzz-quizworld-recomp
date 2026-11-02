@@ -3,6 +3,7 @@
 #pragma once
 #include "native_geometry_job.h"
 #include "native_geometry_context.h"
+#include "native_geometry_format_layout.h"
 #include "spu_helpers.h"
 #include <algorithm>
 #include <cstdint>
@@ -105,7 +106,7 @@ inline void close_geometry_formatter(spu_context& c,u128* r,GeometryFormatterMem
 // its pending cursor publication. Only metadata must avoid the parent's frame;
 // data may still touch frame bytes and is observed by actual late reloads.
 struct GeometryFormatterEntry {
-    const u128* registers=nullptr;
+    GeometryFormatArguments arguments{};
     const u128* cursor=nullptr;
     unsigned metadata_exclusion=0,metadata_exclusion_bytes=0;
     unsigned protected_data=0,protected_data_bytes=0;
@@ -160,14 +161,14 @@ inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,
     auto reject=[&](const char* text){if(reason)*reason=text;return false;};
     if(c.ls!=c.ls_store)return reject("foreign LS");
     if(c.int_enable || c.irq_saved || c.irq_frame)return reject("active interrupt context");
-    const auto* arguments=entry && entry->registers?entry->registers:c.gpr;
-    const unsigned manager=arguments[3]._u32[0]&~15u,sp=arguments[1]._u32[0],frame=sp&~15u;
-    if(arguments[3]._u32[0]>=SPU_LS_SIZE || manager<0xe680 || uint64_t(manager)+0x170>SPU_LS_SIZE)return reject("formatter manager span");
+    const GeometryFormatArguments arguments=entry?entry->arguments:GeometryFormatArguments{c.gpr[1]._u32[0],c.gpr[3]._u32[0],c.gpr[4]._u32[0]};
+    const unsigned manager=arguments.manager&~15u,sp=arguments.stack,frame=sp&~15u;
+    if(arguments.manager>=SPU_LS_SIZE || manager<0xe680 || uint64_t(manager)+0x170>SPU_LS_SIZE)return reject("formatter manager span");
     if(sp>=SPU_LS_SIZE || frame<0xe680+128)return reject("formatter frame span");
     if(geometry_formatter_overlap(manager,0x170,frame-128,128))return reject("formatter frame/manager alias");
     unsigned desc=0,desc_bytes=0;
     if(!(c.ls[manager]&16) && geometry_job_be16(c.ls+manager+8)){
-        const unsigned raw=arguments[4]._u32[0];desc=raw&~15u;
+        const unsigned raw=arguments.descriptor;desc=raw&~15u;
         if(raw>=SPU_LS_SIZE || desc<0xe680)return reject("formatter descriptor span");
         const unsigned count=c.ls[desc];const uint64_t end=(uint64_t(raw)+8+count*8+15)&~uint64_t(15);
         if(end>SPU_LS_SIZE)return reject("formatter descriptor span");desc_bytes=unsigned(end-desc);
@@ -175,45 +176,36 @@ inline bool read_geometry_formatter(const spu_context& c,GeometryFormatter& out,
     }
     if(entry && (geometry_formatter_overlap(manager,0x170,entry->metadata_exclusion,entry->metadata_exclusion_bytes) ||
         geometry_formatter_overlap(desc,desc_bytes,entry->metadata_exclusion,entry->metadata_exclusion_bytes)))return reject("formatter parent frame/metadata alias");
-    u128 r[128];memcpy(r,arguments,sizeof r);GeometryFormatterMemory m{const_cast<spu_context&>(c),false,manager+0x50};
-    if(entry && entry->cursor){m.cursor=*entry->cursor;m.has_cursor=true;}
     GeometryFormatter plan;
-    if(!open_geometry_formatter(r,m) || !prepare_geometry_formatter(r,m)){out=plan;return true;}
+    if((c.ls[manager]&16) || !geometry_job_be16(c.ls+manager+8)){out=plan;return true;}
+    const GeometryFormatLayout layout(c,arguments,entry?entry->cursor:nullptr);
     static constexpr unsigned roots[]={0x4478,0x46d0,0x4880,0x4b9c,0x4dd0,0x4fdc,0x52b4};unsigned total=0;
     const GeometryFormatterWriteBounds bounds{manager,desc,desc_bytes,entry?entry->protected_data:0,entry?entry->protected_data_bytes:0};
-    for(;;){
-        if(++plan.fields>255)return reject("formatter field budget");
-        const unsigned storage=prepare_geometry_formatter_field(r,m);
-        if(storage){
-            if(r[4]._u32[0]!=roots[storage-1])return reject("formatter data target");
-            ++plan.known;plan.mask|=1u<<(storage-1);
-            if(r[77]._u32[0]){
-                const unsigned columns=r[60]._u32[0]?r[60]._u32[0]:1;if(columns>256)return reject("formatter column budget");
-                const auto limit=storage==2?r[3]:spu_a(spu_xshw(r[29]),r[3]);
-                for(unsigned col=0;col<columns;++col){
-                    auto source=spu_a(spu_il(col*16),r[52]);auto cursor=storage==2?source:spu_a(source,r[29]);
-                    auto route=spu_mpya(r[55],spu_a(spu_il(col),r[54]),r[53]);
-                    const bool cross=spu_cgti(spu_a(spu_andi(route,15),r[48]),16)._u32[0]!=0;unsigned groups=0;
-                    if(column_spans && prove_geometry_formatter_column(cursor,limit,route,r[29],r[31],r[30],r[67]._u32[0],r[76]._u32[0],cross,bounds,total,groups)){
-                        total+=groups;continue;
-                    }
-                    for(;;){
-                        if(++groups>65536 || ++total>1048576)return reject("formatter iteration budget");
-                        const auto after=spu_cgt(cursor,limit),chosen=spu_selb(route,r[30],after);
-                        for(unsigned lane=0;lane<4;++lane)for(unsigned side=0;side<(cross?2u:1u);++side){
-                            const unsigned address=(r[side?76:67]._u32[0]+chosen._u32[lane])&0x3fff0;
-                            if(address<0xe680)return reject("formatter protected data write");
-                            if(entry && entry->protected_data_bytes && geometry_formatter_overlap(address,16,entry->protected_data,entry->protected_data_bytes))return reject("formatter saved parent control pointer");
-                            if(geometry_formatter_overlap(address,16,manager,0x170) || geometry_formatter_overlap(address,16,desc,desc_bytes))return reject("formatter data/metadata alias");
-                        }
-                        if(after._u32[0])break;cursor=spu_a(cursor,r[29]);route=spu_a(route,r[31]);
-                    }
-                }
+    const auto step=spu_splat_u32(layout.source_step),advance=spu_splat_u32(layout.destination_step),dummy=spu_splat_u32(layout.dummy);
+    for(unsigned index=0;index<layout.fields;++index){
+        ++plan.fields;const auto field=layout.field(index);
+        if(!field.converted()){++plan.skipped;continue;}
+        if(field.target!=roots[field.storage-1])return reject("formatter data target");
+        ++plan.known;plan.mask|=1u<<(field.storage-1);
+        for(unsigned col=0;col<layout.columns;++col){
+            auto column=layout.column(field,col);unsigned groups=0;
+            if(column_spans && prove_geometry_formatter_column(column.cursor,column.limit,column.route,step,advance,dummy,layout.destination,layout.destination+16,column.cross,bounds,total,groups)){
+                total+=groups;continue;
             }
-        }else ++plan.skipped;
-        // No data effects touch control metadata. Only the live execution uses
-        // the actual child's scratch values and actual ordered header reload.
-        if(!finish_geometry_formatter_field(r,m,storage!=0))break;
+            for(;;){
+                if(++groups>65536 || ++total>1048576)return reject("formatter iteration budget");
+                const bool last=column.cursor._s32[0]>column.limit._s32[0];
+                for(unsigned lane=0;lane<4;++lane)for(unsigned side=0;side<(column.cross?2u:1u);++side){
+                    const uint32_t route=column.cursor._s32[lane]>column.limit._s32[lane]?layout.dummy:column.route._u32[lane];
+                    const unsigned address=(layout.destination+(side?16:0)+route)&0x3fff0;
+                    if(address<0xe680)return reject("formatter protected data write");
+                    if(entry && entry->protected_data_bytes && geometry_formatter_overlap(address,16,entry->protected_data,entry->protected_data_bytes))return reject("formatter saved parent control pointer");
+                    if(geometry_formatter_overlap(address,16,manager,0x170) || geometry_formatter_overlap(address,16,desc,desc_bytes))return reject("formatter data/metadata alias");
+                }
+                if(last)break;
+                for(unsigned lane=0;lane<4;++lane){column.cursor._u32[lane]+=layout.source_step;column.route._u32[lane]+=layout.destination_step;}
+            }
+        }
     }
     out=plan;return true;
 }

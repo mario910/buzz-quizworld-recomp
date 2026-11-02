@@ -64,11 +64,10 @@ inline bool read_geometry_conversion_native(const spu_context& c,GeometryConvers
     // Outer frame writes and cursor publication cannot touch manager/descriptor
     // control metadata. Data/frame aliases stay allowed: execution reloads the
     // actual late frame. Formatter admission checks its own deeper 128-byte frame.
-    u128 arguments[128];memcpy(arguments,c.gpr,sizeof arguments);
-    arguments[1]=spu_ai(arguments[1],-96);arguments[0]=spu_link(0x56c4);
-    arguments[4]=spu_rotqbyi(spu_ls_read128(&c,c.gpr[3]._u32[0]+0x70),4);
+    const GeometryFormatArguments arguments{c.gpr[1]._u32[0]-96,c.gpr[3]._u32[0],
+        spu_rotqbyi(spu_ls_read128(&c,c.gpr[3]._u32[0]+0x70),4)._u32[0]};
     const auto old=spu_ls_read128(&c,c.gpr[3]._u32[0]+0x50);
-    const auto published=spu_shufb(spu_rotqbyi(old,8),old,spu_cwd(arguments[1],4));
+    const auto published=spu_shufb(spu_rotqbyi(old,8),old,spu_cwd(spu_splat_u32(arguments.stack),4));
     // Formatter restores r81 from this slot. Its caller immediately uses r81
     // to load callback/manager metadata again, so data must not replace that
     // pointer. Other data/frame aliases, including scratch and late outer
