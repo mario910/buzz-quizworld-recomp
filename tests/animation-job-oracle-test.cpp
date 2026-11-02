@@ -1,6 +1,7 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_animation_host_vectors.h"
 #include "../port/native_animation_host_blend.h"
+#include "../port/native_animation_host_hierarchy.h"
 #include "../port/native_animation_host_matrices.h"
 #include "zlib.h"
 #include <algorithm>
@@ -32,7 +33,7 @@ static unsigned pending_base=0;
 static uint64_t compared_quaternions=0;
 static uint64_t replaced_quaternion_calls=0;
 static bool replace_quaternions=false;
-static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corrupt_blend=false,corruption_injected=false;
+static bool corrupt_quaternions=false,corrupt_vectors=false,corrupt_matrices=false,corrupt_affines=false,corrupt_blend=false,corrupt_hierarchy=false,corruption_injected=false;
 static uint64_t numeric_cases=0,numeric_samples=0;
 static std::array<buzz::AnimationHostQuaternion8,32> pending_static_quaternions;
 static std::vector<uint16_t> pending_static_indices;
@@ -58,6 +59,13 @@ static unsigned pending_blend_base=0,pending_blend_weights=0,pending_blend_count
 static uint64_t compared_blends=0,replaced_blends=0,numeric_blends=0;
 static void check_numeric_blends(const spu_context*);
 static bool animation_native_blend_override(spu_context*);
+static buzz::AnimationHostHierarchyPlan pending_hierarchy_plan;
+static buzz::AnimationHostPoseArrays pending_hierarchy_local,pending_hierarchy_world;
+static unsigned pending_hierarchy_base=0;
+static uint64_t compared_hierarchy=0,replaced_hierarchy=0,numeric_hierarchy=0;
+static bool animation_native_hierarchy_override(spu_context*);
+static void check_numeric_hierarchy(const spu_context*);
+static uint64_t hierarchy_plans=0,hierarchy_entries=0,hierarchy_batches=0,hierarchy_lanes=0,hierarchy_full_batches=0,hierarchy_flags=0;
 static void check_numeric_matrices(const spu_context*);
 static bool animation_native_matrix_override(spu_context*);
 static void check_numeric_vectors(const spu_context*);
@@ -116,7 +124,7 @@ u128 spu_rdch(spu_context* c,uint32_t channel)
 }
 uint32_t spu_rchcnt(spu_context* c,uint32_t channel){assert(channel==SPU_RdInMbox);return c->ch_in_mbox.count;}
 }
-#include "../analysis/native-geometry/phase4/job-oracle-v10/reference.inc"
+#include "../analysis/native-geometry/phase4/job-oracle-v11/reference.inc"
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next=animation_original_lookup(c->pc&SPU_LS_MASK);
@@ -140,6 +148,32 @@ static void dump(const char* name,const void* data,size_t bytes)
 static void animation_original_probe(unsigned pc,spu_context* c)
 {
     if(!probe_enabled)return;
+    if(pc==0x4fb8) {
+        const unsigned at=c->gpr[6]._u32[0],entries=c->gpr[7]._u32[0];assert(at<=SPU_LS_SIZE);
+        if(!buzz::plan_animation_host_hierarchy({c->ls+at,SPU_LS_SIZE-at},entries,pending_blend_count,pending_hierarchy_plan)) {
+            fprintf(stderr,"hierarchy plan rejected %s entries=%u joints=%u\n",current_case.c_str(),entries,pending_blend_count);abort();
+        }
+        ++hierarchy_plans;hierarchy_entries+=entries;hierarchy_batches+=pending_hierarchy_plan.batches;hierarchy_lanes+=pending_hierarchy_plan.joints;
+        for(unsigned i=0;i<pending_hierarchy_plan.batches;++i)hierarchy_full_batches+=pending_hierarchy_plan.batch_size[i]==8;
+        for(unsigned i=0;i<pending_hierarchy_plan.joints;++i)hierarchy_flags+=pending_hierarchy_plan.no_scale_inheritance[i];
+        const unsigned source=c->gpr[4]._u32[0],root=c->gpr[5]._u32[0];pending_hierarchy_base=c->gpr[3]._u32[0];
+        assert(uint64_t(source)+pending_blend_count*48<=SPU_LS_SIZE&&root+48<=SPU_LS_SIZE);
+        for(unsigned first=0;first<pending_blend_count;first+=8) {
+            const unsigned count=std::min(8u,pending_blend_count-first);uint16_t indices[8];for(unsigned lane=0;lane<count;++lane)indices[lane]=first+lane;
+            buzz::scatter_animation_host_poses8(buzz::decode_animation_host_pose8(c->ls+source+first*48,count),pending_hierarchy_local,indices,count);
+        }
+        buzz::produce_animation_host_hierarchy(pending_hierarchy_plan,pending_hierarchy_local,
+            buzz::decode_animation_host_pose8(c->ls+root,1),pending_hierarchy_world);
+        if(!pose_observation[1].started)check_numeric_hierarchy(c);
+    }
+    if(pc==0x5730&&!replace_quaternions) {
+        for(unsigned joint=0;joint<pending_hierarchy_plan.joints;++joint)for(unsigned component=0;component<12;++component) {
+            const unsigned at=pending_hierarchy_base+joint*48+component*4;assert(at+4<=SPU_LS_SIZE);const auto* p=c->ls+at;
+            const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+            if(expected!=pending_hierarchy_world.component[component][joint]){fprintf(stderr,"native hierarchy mismatch %s joint=%u component=%u expected=%08X actual=%08X\n",current_case.c_str(),joint,component,expected,pending_hierarchy_world.component[component][joint]);abort();}
+        }
+        compared_hierarchy+=pending_hierarchy_plan.joints;
+    }
     if(pc==0x3188) {
         const std::array<uint32_t,4> shape{c->gpr[9]._u32[0],c->gpr[6]._u32[0]!=0,c->gpr[8]._u32[0]!=0,c->gpr[4]._u32[0]!=0};
         auto& record=blend_recipes[shape];
@@ -444,6 +478,18 @@ static bool animation_native_blend_override(spu_context* c)
     if(corrupt_blend&&!corruption_injected&&pending_blend_count){c->ls[pending_blend_base]^=0x80;corruption_injected=true;}
     c->pc=c->gpr[0]._u32[0];return true;
 }
+static bool animation_native_hierarchy_override(spu_context* c)
+{
+    if(!replace_quaternions||!probe_enabled)return false;
+    animation_original_probe(0x4fb8,c);
+    for(unsigned joint=0;joint<pending_hierarchy_plan.joints;++joint)for(unsigned component=0;component<12;++component) {
+        const unsigned at=pending_hierarchy_base+joint*48+component*4;assert(at+4<=SPU_LS_SIZE);auto* p=c->ls+at;
+        const unsigned word=pending_hierarchy_world.component[component][joint];p[0]=word>>24;p[1]=word>>16;p[2]=word>>8;p[3]=word;
+    }
+    ++replaced_hierarchy;animation_original_probe(0x5730,c);
+    if(corrupt_hierarchy&&!corruption_injected&&pending_hierarchy_plan.joints){c->ls[pending_hierarchy_base]^=0x80;corruption_injected=true;}
+    c->pc=c->gpr[0]._u32[0];return true;
+}
 static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,unsigned slot)
 {
 #ifdef _WIN32
@@ -711,10 +757,74 @@ static void check_numeric_blends(const spu_context* original)
     }
     current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
 }
+static void check_numeric_hierarchy(const spu_context* original)
+{
+    const auto saved=g_spu_trampoline_fn;const auto saved_case=current_case;probe_enabled=false;
+    auto c=std::make_unique<spu_context>();
+    constexpr unsigned source=0x10000,destination=0x14000,root=0x18000,schedule=0x19000;
+    constexpr uint32_t special[]={0,0x80000000,1,0x80000001,0x007fffff,0x807fffff,0x00800000,
+        0x80800000,0x3f800000,0xbf800000,0x7f7fffff,0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff};
+    uint32_t random=0x5317cd82;
+    auto next=[&](){random^=random<<13;random^=random>>17;random^=random<<5;return random;};
+    auto put=[&](unsigned at,uint32_t word){auto* p=c->ls+at;p[0]=word>>24;p[1]=word>>16;p[2]=word>>8;p[3]=word;};
+    auto local=std::make_unique<buzz::AnimationHostPoseArrays>();
+    struct alignas(32) GuardedWorld {uint32_t before[8];buzz::AnimationHostPoseArrays value;uint32_t after[8];};
+    auto actual=std::make_unique<GuardedWorld>();
+    for(unsigned test=0;test<2048;++test) {
+        memcpy(c.get(),original,sizeof(*original));c->ls=c->ls_store;
+        // At least two schedule groups select the real 52A0 producer. The
+        // <=4-record alternative is uncovered and deliberately unsupported.
+        const unsigned count=1+test%8,entries=8;
+        memset(c->ls+source,0,512);memset(c->ls+destination,0,512);
+        uint64_t packed[8];for(auto& key:packed)key=uint64_t(8000+next()%16000)<<32|uint64_t(8000+next()%16000)<<17|uint64_t(8000+next()%16000)<<2|next()%4;
+        const auto q=buzz::decode_animation_host_quaternions8(packed);
+        alignas(32) uint32_t words[4][8];for(unsigned component=0;component<4;++component)_mm256_store_si256(reinterpret_cast<v8*>(words[component]),q.component[component]);
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component)put(source+joint*48+component*4,
+            component<4?words[component][joint]:test<512?special[(test+joint+component)%std::size(special)]:next());
+        for(unsigned component=0;component<12;++component)put(root+component*4,component<4?words[component][7]:
+            test<512?special[(test*3+component)%std::size(special)]:next());
+        for(unsigned i=0;i<entries;++i){const unsigned child=std::min(i,count-1);put(schedule+i*4,child<<16|((test+child)%2?0xffff:0x7fff));}
+        buzz::AnimationHostHierarchyPlan plan;
+        const auto input=guarded_view(c->ls+source,count*48,0),parent=guarded_view(c->ls+root,48,1),table=guarded_view(c->ls+schedule,entries*4,2);
+        assert(buzz::plan_animation_host_hierarchy(table,entries,count,plan));
+        uint16_t indices[8];for(unsigned i=0;i<count;++i)indices[i]=i;
+        buzz::scatter_animation_host_poses8(buzz::decode_animation_host_pose8(input.data,count),*local,indices,count);
+        memset(actual.get(),0xb6,sizeof(*actual));
+        buzz::produce_animation_host_hierarchy(plan,*local,buzz::decode_animation_host_pose8(parent.data,1),actual->value);
+        for(unsigned i=0;i<8;++i)assert(actual->before[i]==0xb6b6b6b6&&actual->after[i]==0xb6b6b6b6);
+        for(unsigned component=0;component<12;++component)for(unsigned joint=count;joint<256;++joint)assert(actual->value.component[component][joint]==0xb6b6b6b6);
+        assert(!memcmp(input.data,c->ls+source,count*48)&&!memcmp(parent.data,c->ls+root,48)&&!memcmp(table.data,c->ls+schedule,entries*4));
+        c->gpr[0]=spu_link(0x1248);c->gpr[3]=spu_il(destination);c->gpr[4]=spu_il(source);
+        c->gpr[5]=spu_il(root);c->gpr[6]=spu_il(schedule);c->gpr[7]=spu_il(entries);
+        current_case=saved_case+"/numeric-hierarchy-"+std::to_string(test);
+        g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00004FB8(c.get());drain(c.get(),0x1248);
+        for(unsigned joint=0;joint<count;++joint)for(unsigned component=0;component<12;++component) {
+            const auto* p=c->ls+destination+joint*48+component*4;const unsigned expected=uint32_t(p[0])<<24|uint32_t(p[1])<<16|uint32_t(p[2])<<8|p[3];
+            if(expected!=actual->value.component[component][joint]){fprintf(stderr,"numeric hierarchy mismatch test=%u joint=%u component=%u expected=%08X actual=%08X\n",test,joint,component,expected,actual->value.component[component][joint]);abort();}
+        }
+        numeric_hierarchy+=count;
+    }
+    // Admission rejects malformed or cyclic descriptors before pose mutation.
+    buzz::AnimationHostHierarchyPlan plan;
+    for(unsigned rejection=0;rejection<8;++rejection) {
+        for(unsigned i=0;i<8;++i)put(schedule+i*4,i?0x00010000:0x0000ffff);
+        unsigned entries=8,joints=2,bytes=32;
+        assert(buzz::plan_animation_host_hierarchy({c->ls+schedule,bytes},entries,joints,plan));
+        switch(rejection){case 0:bytes=31;break;case 1:entries=1025;break;case 2:joints=257;break;
+            case 3:put(schedule+4,0x00000000);break;case 4:put(schedule,0x00000001);break;
+            case 5:put(schedule+4,0x00010002);break;case 6:for(unsigned i=0;i<8;++i)put(schedule+i*4,0x0000ffff);break;case 7:put(schedule+4,0x00020000);break;}
+        assert(!buzz::plan_animation_host_hierarchy({c->ls+schedule,bytes},entries,joints,plan));
+    }
+    assert(!buzz::plan_animation_host_hierarchy({c->ls+schedule,16},4,1,plan));
+    assert(!buzz::plan_animation_host_hierarchy({c->ls+schedule,36},9,2,plan));
+    assert(buzz::plan_animation_host_hierarchy({},0,0,plan)&&plan.batches==0);
+    current_case=saved_case;g_spu_trampoline_fn=saved;probe_enabled=true;
+}
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend");
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy");
+    corrupt_hierarchy=std::string(argv[3])=="CorruptHierarchy";
     corrupt_blend=std::string(argv[3])=="CorruptBlend";
     corrupt_affines=std::string(argv[3])=="CorruptAffine";
     corrupt_matrices=std::string(argv[3])=="CorruptMatrix";
@@ -748,6 +858,8 @@ int main(int argc,char** argv)
     assert(replace_quaternions?(replaced_affines==17714):(compared_affines==461853));
     assert(numeric_blends==9216&&blend_recipes.size()==541);
     assert(replace_quaternions?(replaced_blends==17714):(compared_blends==461853));
+    assert(numeric_hierarchy==9216&&hierarchy_plans==17714&&hierarchy_lanes==461853);
+    assert(replace_quaternions?(replaced_hierarchy==17714):(compared_hierarchy==461853));
     printf("PASS animation whole-job oracle mode=%s: %llu exact jobs / %llu ordered transfers; quaternion calls=%llu nonempty=%llu\n",argv[3],(unsigned long long)jobs,(unsigned long long)total_transfers,(unsigned long long)quaternion_calls,(unsigned long long)nonempty_calls);
     printf("PASS native host quaternion samples=%llu\n",(unsigned long long)compared_quaternions);
     printf("PASS native quaternion producer replacements=%llu\n",(unsigned long long)replaced_quaternion_calls);
@@ -763,6 +875,8 @@ int main(int argc,char** argv)
     for(const auto& [shape,n]:blend_recipes)fprintf(recipes,"%08X\t%u\t%u\t%u\t%llu\t%llu\n",shape[0],shape[1],shape[2],shape[3],(unsigned long long)n.first,(unsigned long long)n.second);
     assert(!fclose(recipes));
     printf("PASS pose blend recipes=%zu compared=%llu replacements=%llu numeric=%llu\n",blend_recipes.size(),(unsigned long long)compared_blends,(unsigned long long)replaced_blends,(unsigned long long)numeric_blends);
+    printf("PASS host hierarchy plans=%llu entries=%llu joints=%llu batches=%llu full8=%llu noScaleInheritance=%llu\n",(unsigned long long)hierarchy_plans,(unsigned long long)hierarchy_entries,(unsigned long long)hierarchy_lanes,(unsigned long long)hierarchy_batches,(unsigned long long)hierarchy_full_batches,(unsigned long long)hierarchy_flags);
+    printf("PASS hierarchy compared=%llu replacements=%llu numeric=%llu\n",(unsigned long long)compared_hierarchy,(unsigned long long)replaced_hierarchy,(unsigned long long)numeric_hierarchy);
     puts("PASS invalid recipes rejected: quaternion=6 FLOAT3=8; empty tracks touch no data");
     for(auto [count,n]:quaternion_counts)printf("quaternion count=%u calls=%llu\n",count,(unsigned long long)n);
 }

@@ -1072,8 +1072,11 @@ pass. Host pose blending now also matches all 461,853 poses, including 541
 strengths, with shared quaternion interpolation and exact translation/scale
 rounding. Replacing its 17,714 calls preserves every captured job output;
 guarded numerics and a fifth publication-fault probe pass. Explicit joint
-weights remain uncovered/unsupported. Hierarchy remains original (17,714
-nonempty calls), followed by production frontend and live/performance gates.
+weights remain uncovered/unsupported. Native hierarchy now matches all
+461,853 world poses; dependency-safe batches remove repeated schedule entries.
+Replacing its 17,714 calls together with the previous host producers preserves
+all jobs/transfers/exit controls; guarded numerics and six publication-fault
+probes pass. Production frontend and live/performance gates remain open.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

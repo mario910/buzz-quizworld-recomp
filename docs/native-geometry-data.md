@@ -127,7 +127,7 @@ Its reference-composition producer also transposes them for the second,
 64-byte-per-joint published stream while producing the first, 48-byte affine
 stream. The native chain keeps row-major world SoA through composition and
 emits both final streams directly; the LS layout bridge exists only in the
-original-job test adapter. Parent/child hierarchy remains original.
+original-job test adapter.
 
 `native_animation_host_blend.h` handles the observed implicit-full-weight
 recipe: 541 clip strengths in [0,1], no explicit input joint-weight streams.
@@ -136,6 +136,23 @@ retain `FMA(last, t, first)` followed by `FNMS(first, t, sum)`, including W.
 The effective `t` includes the fixed SPU RTZ full-weight reciprocal refinement
 (`factor * 0x3F7FFFFF`); exact division by one changes bits. Output joint
 weights are 255. Explicit weight streams need whole-job fallback until covered.
+
+`native_animation_host_hierarchy.h` admits the observed four-record schedule
+groups (at least eight entries). Each BE32 entry contains the local joint in
+high16 and the parent in low15; parent greater than `0x3FFF` selects the root.
+Bit15 disables inheritance of the resulting joint scale. Local translation
+still multiplies by the parent's scale before quaternion-vector rotation and
+addition of the parent's translation. World rotation is the normalized
+parent/local quaternion product. Preserve the original fused order and
+reciprocal-root refinement; translation W is `1 + parent.W`.
+
+Identical repeated definitions are canonicalized. The planner rejects
+conflicts, missing joints, invalid spans/indices, cycles and uncovered small
+or partial groups before pose mutation. Ready joints form batches of at most
+eight, and children enter the queue after their parent batch completes.
+Local/world data stays in little-endian host SoA; masked gathers give inactive
+lanes neutral quaternions without reading their data. Inputs and outputs have
+no SPU registers, scratch frames or dummy schedule iterations.
 
 ## Historical groundwork and strict diagnostics
 

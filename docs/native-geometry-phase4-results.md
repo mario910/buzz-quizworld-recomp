@@ -22,10 +22,11 @@
 | Pose numeric/tail proof | Each arm: 2,048 pinned original-producer batches / 9,216 matrices, random and extended-range FP; read-only source at guard page, tails 1-8, host/output canaries, exact BE row-major emission |
 | Host pose blend | Shared quaternion interpolation plus eight-lane translation/scale FMA/FNMS; all 461,853 poses match; 541 strengths, 17,714 calls; all inputs have implicit full joint weights |
 | Blend numeric/bounds proof | Each arm: 2,048 original-producer batches / 9,216 poses; endpoints, near/opposite quaternions, random/extended-range translation and scale, guarded read-only tails 1-8, output canaries; fixed RTZ weight normalization checked against original arithmetic |
-| Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, world-matrix conversion and reference composition; no volatile GPR or ABI reconstruction |
-| Remaining pose stage | Hierarchy `4FB8`: 17,714 real nonempty calls; still original in the oracle |
+| Whole-job producer replacement | Same EXE Compare/Replace: each 17,714 exact jobs / 115,162 ordered transfers and captured exit controls. Native arm replaces 38,025 animated quaternion, 38,025 static quaternion, 76,050 FLOAT3 and 17,714 calls each of pose blend, hierarchy, world-matrix conversion and reference composition; no volatile GPR or ABI reconstruction |
+| Host hierarchy | All 461,853 world poses match; 790,384 recorded entries canonicalized to unique joints; 167,608 dependency-safe batches, 14,979 full eight-lane batches; AVX2 masked SoA gathers and neutral inactive lanes |
+| Hierarchy numeric/admission proof | Each arm: 2,048 original real-producer batches / 9,216 world poses, guarded read-only tails 1-8, non-unit root scales and both inheritance flags, extended-range translation/scale, output canaries; ten invalid/uncovered schedules rejected; empty plan touches no poses |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
-| Publication fault probes | Independent quaternion, FLOAT3, host world-matrix, final affine and pose-blend sign changes each fail the first job's PUT byte comparison, as expected |
+| Publication fault probes | Independent quaternion, FLOAT3, host world-matrix, final affine, pose-blend and hierarchy sign changes each fail the first job's PUT byte comparison, as expected |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -43,10 +44,10 @@ register-bank transliterations. Code matches do not establish job-contract
 compatibility or live coverage for images 43/45/47. Phase 4 remains open;
 host key producers, pose blending and the Q/T/S-to-world/reference matrix chain pass
 whole-job I/O with their original producers replaced in the test oracle.
-The matrix chain uses current world Q/T/S, without captured matrix inputs;
-hierarchy still runs the original code. Explicit joint-weight streams have
-no real corpus coverage and remain unsupported. Hierarchy, production job
-integration, live checks and candidate FPS/CPU gates remain.
+Hierarchy and the matrix chain now use native host pose arrays, without
+captured matrix inputs. Explicit joint-weight streams and the small hierarchy
+alternative have no real corpus coverage and remain unsupported. Production
+job integration, live checks and candidate FPS/CPU gates remain.
 There is no new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
 
