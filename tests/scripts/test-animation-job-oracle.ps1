@@ -25,17 +25,19 @@ try {
         if($LASTEXITCODE){throw "Animation job oracle $animationMode failed"}
     }
     if($Mode -eq 'Both') {
-        $animationCase=Join-Path $animationRun 'Corrupt'
+        foreach($animationFaultMode in @('Corrupt','CorruptVector')) {
+        $animationCase=Join-Path $animationRun $animationFaultMode
         New-Item -ItemType Directory -Path $animationCase | Out-Null
         # Isolate the expected failing process so its exit status does not
         # leave LASTEXITCODE nonzero for a successful calling test driver.
-        $animationArguments='"'+(Resolve-Path -LiteralPath $Corpus).Path+'" "'+$animationCase+'" Corrupt'
+        $animationArguments='"'+(Resolve-Path -LiteralPath $Corpus).Path+'" "'+$animationCase+'" '+$animationFaultMode
         $animationFault=Start-Process -FilePath (Join-Path $animationRun 'test.exe') -ArgumentList $animationArguments -WorkingDirectory $animationRoot -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput (Join-Path $animationCase 'stdout.log') -RedirectStandardError (Join-Path $animationCase 'stderr.log')
         Get-Content -LiteralPath (Join-Path $animationCase 'stdout.log'),(Join-Path $animationCase 'stderr.log') | Set-Content -LiteralPath (Join-Path $animationCase 'test.log') -Encoding utf8
         $animationFailure=$animationFault.ExitCode
-        if(-not $animationFailure -or -not (Select-String -LiteralPath (Join-Path $animationCase 'test.log') -SimpleMatch 'published bytes mismatch')){throw 'Injected quaternion corruption was not rejected at published job output'}
-        @{exit_code=$animationFailure;expected_failure=$true;reason='Injected native quaternion sign fault rejected by full published-byte comparison'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $animationCase 'expected-failure.json') -Encoding utf8
-        Write-Output 'PASS injected native quaternion corruption rejected at job publication'
+        if(-not $animationFailure -or -not (Select-String -LiteralPath (Join-Path $animationCase 'test.log') -SimpleMatch 'published bytes mismatch')){throw "Injected $animationFaultMode corruption was not rejected at published job output"}
+        @{exit_code=$animationFailure;expected_failure=$true;reason="Injected $animationFaultMode sign fault rejected by full published-byte comparison"} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $animationCase 'expected-failure.json') -Encoding utf8
+        Write-Output "PASS injected native $animationFaultMode corruption rejected at job publication"
+        }
     }
     Write-Output "Animation job oracle evidence: $animationRun"
 } finally {Pop-Location}

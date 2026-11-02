@@ -6,11 +6,12 @@
 namespace buzz {
 using AnimationHostQuaternion8 = GeometryHostSoA8;
 struct AnimationByteView { const uint8_t* data=nullptr;size_t bytes=0; };
-struct AnimationQuaternionTracks {
+struct AnimationKeyTracks {
     AnimationByteView key_bits,first,last,interior;
     unsigned first_bit=0,interior_frames=0,tracks=0,frame=0;
     uint32_t fraction=0;
 };
+using AnimationQuaternionTracks = AnimationKeyTracks;
 
 inline v8 animation_add8(v8 a,v8 b)
 {
@@ -117,49 +118,74 @@ inline AnimationHostQuaternion8 interpolate_animation_host_quaternions8(
     return result;
 }
 
+struct AnimationTrackSelection8 {
+    AnimationByteView before_stream[8],after_stream[8];
+    unsigned before_index[8]{},after_index[8]{};
+    v8 weight;
+};
+inline bool animation_track_recipe_valid(const AnimationKeyTracks& recipe,unsigned stride)
+{
+    // Original clips expose four 32-bit masks. Frame N+1 is the final
+    // endpoint, reached from integer frame N plus its fractional part.
+    return recipe.first_bit<=7&&recipe.interior_frames<=128&&
+        recipe.frame<=recipe.interior_frames&&
+        uint64_t(recipe.first_bit)+uint64_t(recipe.tracks)*recipe.interior_frames<=uint64_t(recipe.key_bits.bytes)*8&&
+        uint64_t(recipe.tracks)*stride<=recipe.first.bytes&&uint64_t(recipe.tracks)*stride<=recipe.last.bytes;
+}
+// Track/time ordering and interpolation times are independent of key format.
+inline void select_animation_host_tracks8(const AnimationKeyTracks& recipe,unsigned first,
+    unsigned& key_prefix,AnimationTrackSelection8& selection)
+{
+    alignas(32) uint32_t before_delta[8]{},span[8];
+    for(unsigned lane=0;lane<8;++lane) {
+        span[lane]=1;
+        const unsigned track=first+lane;if(track>=recipe.tracks)continue;
+        unsigned previous=0,next=recipe.interior_frames+1,keys=0,previous_key=0,next_key=0;
+        bool found_previous=false,found_next=false;
+        const uint64_t bit_base=recipe.first_bit+uint64_t(track)*recipe.interior_frames;
+        for(unsigned frame=0;frame<recipe.interior_frames;frame+=64) {
+            const unsigned count=recipe.interior_frames-frame<64?recipe.interior_frames-frame:64;
+            const uint64_t bits=animation_key_bits64(recipe.key_bits,bit_base+frame,count);
+            const unsigned prefix=recipe.frame<=frame?0:recipe.frame-frame<count?recipe.frame-frame:count;
+            const uint64_t mask=prefix==64?~uint64_t(0):prefix?~uint64_t(0)<<(64-prefix):0;
+            const uint64_t before_bits=bits&mask,after_bits=bits&~mask;
+            const unsigned before_keys=__builtin_popcountll(before_bits);
+            if(before_bits){previous=frame+64-__builtin_ctzll(before_bits);previous_key=key_prefix+keys+before_keys-1;found_previous=true;}
+            if(after_bits&&!found_next){next=frame+unsigned(__builtin_clzll(after_bits))+1;next_key=key_prefix+keys+before_keys;found_next=true;}
+            keys+=__builtin_popcountll(bits);
+        }
+        selection.before_stream[lane]=found_previous?recipe.interior:recipe.first;
+        selection.after_stream[lane]=found_next?recipe.interior:recipe.last;
+        selection.before_index[lane]=found_previous?previous_key:track;
+        selection.after_index[lane]=found_next?next_key:track;
+        key_prefix+=keys;before_delta[lane]=recipe.frame-previous;span[lane]=next-previous;
+    }
+    const v8 length=_mm256_castps_si256(_mm256_cvtepi32_ps(_mm256_load_si256(reinterpret_cast<const v8*>(span))));
+    v8 inverse=v8_fi(length,v8_frest(length));
+    inverse=v8_fma(v8_fnms(length,inverse,v8_set(0x3f800000)),inverse,inverse);
+    const v8 elapsed=_mm256_castps_si256(_mm256_cvtepi32_ps(_mm256_load_si256(reinterpret_cast<const v8*>(before_delta))));
+    selection.weight=v8_fm(animation_add8(v8_set(recipe.fraction),elapsed),inverse);
+}
+
 // Selection and decoding happen once into job-owned host output. A rejection
 // may leave partial host data, which the frontend discards before job mutation.
 inline bool sample_animation_host_quaternions(const AnimationQuaternionTracks& recipe,
     AnimationHostQuaternion8* output)
 {
-    if(recipe.first_bit>7||recipe.frame>recipe.interior_frames+1||
-       uint64_t(recipe.first_bit)+uint64_t(recipe.tracks)*recipe.interior_frames>uint64_t(recipe.key_bits.bytes)*8||
-       uint64_t(recipe.tracks)*6>recipe.first.bytes||uint64_t(recipe.tracks)*6>recipe.last.bytes)return false;
+    if(!animation_track_recipe_valid(recipe,6))return false;
     unsigned key_prefix=0;
     for(unsigned first=0;first<recipe.tracks;first+=8) {
+        AnimationTrackSelection8 selection;
+        select_animation_host_tracks8(recipe,first,key_prefix,selection);
         uint64_t before[8],after[8];
-        alignas(32) uint32_t before_delta[8]{},span[8];
         for(unsigned lane=0;lane<8;++lane) {
-            before[lane]=after[lane]=0x400080010003ull;span[lane]=1;
-            const unsigned track=first+lane;if(track>=recipe.tracks)continue;
-            unsigned previous=0,next=recipe.interior_frames+1,keys=0,previous_key=0,next_key=0;
-            bool found_previous=false,found_next=false;
-            const uint64_t bit_base=recipe.first_bit+uint64_t(track)*recipe.interior_frames;
-            for(unsigned frame=0;frame<recipe.interior_frames;frame+=64) {
-                const unsigned count=recipe.interior_frames-frame<64?recipe.interior_frames-frame:64;
-                const uint64_t bits=animation_key_bits64(recipe.key_bits,bit_base+frame,count);
-                const unsigned prefix=recipe.frame<=frame?0:recipe.frame-frame<count?recipe.frame-frame:count;
-                const uint64_t mask=prefix==64?~uint64_t(0):prefix?~uint64_t(0)<<(64-prefix):0;
-                const uint64_t before_bits=bits&mask,after_bits=bits&~mask;
-                const unsigned before_keys=__builtin_popcountll(before_bits);
-                if(before_bits){previous=frame+64-__builtin_ctzll(before_bits);previous_key=key_prefix+keys+before_keys-1;found_previous=true;}
-                if(after_bits&&!found_next){next=frame+unsigned(__builtin_clzll(after_bits))+1;next_key=key_prefix+keys+before_keys;found_next=true;}
-                keys+=__builtin_popcountll(bits);
-            }
-            if(!animation_read_key(found_previous?recipe.interior:recipe.first,
-                found_previous?previous_key:track,before[lane])||
-               !animation_read_key(found_next?recipe.interior:recipe.last,
-                found_next?next_key:track,after[lane]))return false;
-            key_prefix+=keys;before_delta[lane]=recipe.frame-previous;span[lane]=next-previous;
-            if(!span[lane])return false;
+            before[lane]=after[lane]=0x400080010003ull;
+            if(first+lane>=recipe.tracks)continue;
+            if(!animation_read_key(selection.before_stream[lane],selection.before_index[lane],before[lane])||
+               !animation_read_key(selection.after_stream[lane],selection.after_index[lane],after[lane]))return false;
         }
-        const v8 length=_mm256_castps_si256(_mm256_cvtepi32_ps(_mm256_load_si256(reinterpret_cast<const v8*>(span))));
-        v8 inverse=v8_fi(length,v8_frest(length));
-        inverse=v8_fma(v8_fnms(length,inverse,v8_set(0x3f800000)),inverse,inverse);
-        const v8 elapsed=_mm256_castps_si256(_mm256_cvtepi32_ps(_mm256_load_si256(reinterpret_cast<const v8*>(before_delta))));
-        const v8 weight=v8_fm(animation_add8(v8_set(recipe.fraction),elapsed),inverse);
         output[first/8]=interpolate_animation_host_quaternions8(
-            decode_animation_host_quaternions8(before),decode_animation_host_quaternions8(after),weight);
+            decode_animation_host_quaternions8(before),decode_animation_host_quaternions8(after),selection.weight);
     }
     return true;
 }

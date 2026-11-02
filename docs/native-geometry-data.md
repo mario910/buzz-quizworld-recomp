@@ -104,6 +104,16 @@ order; cosine greater than `0x3F7FBE77` selects linear weights. Discarded
 near-parallel polynomial intermediates are not evaluated. Stream, numeric
 and whole-job replacement proofs are in [phase 4 results](native-geometry-phase4-results.md).
 
+`native_animation_host_vectors.h` reuses that temporal selection for raw
+FLOAT3 translation/scale tracks (`9A18` in image 40). Endpoint and interior
+keys are 12-byte BE float triples; output is host XYZ plus W = `1.0`.
+For each component, preserve `sum = FMA(t, next, previous)`, then
+`result = FNMS(previous, t, sum)`. Combining these into a single lerp changes
+rounding. The supported clip domain has 0-128 interior mask bits and integer
+frame 0-`interior_frames`; the final endpoint is at frame
+`interior_frames+1`. Bounded views reject truncated selected keys before
+publication; host output is disposable if the recipe is rejected.
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

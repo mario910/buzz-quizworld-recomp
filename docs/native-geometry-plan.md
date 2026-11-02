@@ -1058,6 +1058,12 @@ Static quaternion decoding now reuses that kernel and matches all 388,032
 captured values. Replacing both quaternion producers in the original whole-job
 oracle preserves every captured transfer and exit control; production
 pose/world integration and live/performance acceptance still remain.
+FLOAT3 sampling now shares host temporal key selection and matches all 24,548
+captured vectors. Replacing its 76,050 calls together with both quaternion
+producers preserves all 17,714 jobs / 115,162 transfers and exit controls;
+independent guarded numeric and publication-fault checks pass. Uncalled key
+formats remain unimplemented. Production integration and live/performance
+gates remain open.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

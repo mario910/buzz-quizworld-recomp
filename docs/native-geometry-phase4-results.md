@@ -15,9 +15,12 @@
 | Independent arithmetic/tails | 4,096 numeric batches / 18,432 matrices match the pinned original seven-block producer, including SPU extended-range values; guarded input/output tails 1–8 pass; inputs unchanged |
 | Host quaternion producer | Bitset predecessor/successor selection with host popcount/bit scans, packed 6-byte keys, exact eight-lane decode and shortest-path interpolation; all 596,095 real quaternion results match the original |
 | Static quaternion producer | Same eight-lane 6-byte decoder; all 388,032 static results match the original; 2,048 original-producer numeric batches / 9,216 static samples and guarded tails pass; truncated/empty stream checks pass |
-| Whole-job producer replacement | Same oracle EXE, original-comparison and native-replacement arms each pass 17,714 exact jobs / 115,162 ordered transfers and captured exit controls; native arm replaces 38,025 animated and 38,025 static quaternion calls without restoring volatile registers or SPU frames |
+| Host FLOAT3 producer | Shared temporal key selection; BE float3 keys decoded once into eight host lanes; two original fused roundings retained; all 24,548 real vectors match; 76,050 calls, 21,052 nonempty |
+| FLOAT3 numeric/bounds proof | Each arm: 2,048 original-producer batches / 9,216 vectors; masks 0-128 bits, offsets/tails 1-8, random/extended-range FP, read-only streams at guard pages, output canaries; eight invalid recipes rejected |
+| Uncovered key formats | `8688`, `7790`, `9608`: zero calls in all 17,714 jobs; observed only, no native implementation |
+| Whole-job producer replacement | Same oracle EXE, original-comparison and native-replacement arms each pass 17,714 exact jobs / 115,162 ordered transfers and captured exit controls; native arm replaces 38,025 animated quaternion, 38,025 static quaternion and 76,050 FLOAT3 calls without restoring volatile registers or SPU frames |
 | Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
-| Publication fault probe | Injected native quaternion sign change fails the first job's PUT byte comparison, as expected |
+| Publication fault probes | Independent native quaternion and FLOAT3 sign changes each fail the first job's PUT byte comparison, as expected |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -33,9 +36,10 @@ from image 41. Establish logical clip/pose/matrix inputs and reuse host
 algorithms; do not transplant the image-41 job descriptor or generate new
 register-bank transliterations. Code matches do not establish job-contract
 compatibility or live coverage for images 43/45/47. Phase 4 remains open;
-host affine composition and quaternion sampling are implemented. The latter
-also passes whole-job I/O with the original producer replaced in the test
-oracle. The affine proof still consumes captured world matrices; remaining
+host affine composition, quaternion decoding/sampling and FLOAT3 sampling
+are implemented. The key producers also pass whole-job I/O with their
+original producers replaced in the test oracle. The affine proof still consumes
+captured world matrices; remaining
 pose/hierarchy/world production, production job integration, live checks and
 candidate FPS/CPU gates remain. There is no
 new runtime path, default change or FPS/CPU gain claim yet.
