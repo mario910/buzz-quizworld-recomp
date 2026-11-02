@@ -29,7 +29,10 @@ void spu_stop(spu_context*) { abort(); }
 void spu_wrch(spu_context*, uint32_t, u128) { abort(); }
 u128 spu_rdch(spu_context*, uint32_t) { abort(); }
 }
-#include "../analysis/native-geometry/phase3/host-cull-job-v1/reference.inc"
+#ifndef BUZZ_HOST_CULL_REFERENCE
+#define BUZZ_HOST_CULL_REFERENCE "../analysis/native-geometry/phase3/host-cull-job-v1/reference.inc"
+#endif
+#include BUZZ_HOST_CULL_REFERENCE
 extern "C" void spu_indirect_branch(spu_context* c)
 {
     auto next = host_cull_reference_lookup(c->pc);
@@ -134,6 +137,9 @@ int main(int argc, char** argv)
         }
         const unsigned end=geometry_job_be32(reference->ls+e.geometry_context_lsa+0x58),bytes=(count*2+15)&~15u;
         assert(end==index_source+bytes);
+#ifdef BUZZ_HOST_INDEX_OUTPUT_CHECK
+        BUZZ_HOST_INDEX_OUTPUT_CHECK(*indices,reference->ls+index_source,bytes);
+#endif
         for(unsigned at=count*2;at<bytes;++at){
             const unsigned value=reference->ls[index_source+at];nonzero_padding+=value!=0;++padding_bytes;
             padding_equal_index+=value==prior_index_padding[at-count*2];padding_equal_entry+=value==entry->ls[index_source+at];
@@ -321,13 +327,17 @@ int main(int argc, char** argv)
         memcpy(before.get(),entry.get(),sizeof(*entry));memcpy(index_before.get(),indices.get(),sizeof(*indices));
         if(cull_geometry_host_triangles(*entry,e,*clips,*indices,&reason)||!reason){fprintf(stderr,"Cull fault%u accepted\n",fault);abort();}
         assert(!indices->ready&&!memcmp(before.get(),entry.get(),sizeof(*entry)));
-        assert(!memcmp(indices->component,index_before->component,sizeof indices->component)&&indices->triangles==index_before->triangles&&indices->maximum_index==index_before->maximum_index);
+        assert(!memcmp(indices->component,index_before->component,sizeof indices->component)&&indices->triangles==index_before->triangles&&indices->maximum_index==index_before->maximum_index&&indices->final_group_kept==index_before->final_group_kept);
     }
     assert(captured==19399 && jobs==19508 && fallback.size()==1);
     for(const auto& [mode,count]:modes)printf("Observed cull mode%u:%u jobs\n",mode,count);
     printf("PASS host cull composed pipeline:%u jobs/%llu kept indices/%u fully culled;stable order;8 exact mask-FNMS truth cases\n",captured,
         static_cast<unsigned long long>(corpus_kept_indices),corpus_fully_culled);
-    printf("Observed original cull producer padding:%llu alignment bytes/%llu nonzero;requires provenance before publication;not a final DMA gate\n",static_cast<unsigned long long>(corpus_padding_bytes),static_cast<unsigned long long>(corpus_nonzero_padding));
+#ifdef BUZZ_HOST_INDEX_OUTPUT_CHECK
+    printf("PASS original index padding:%llu alignment bytes/%llu nonzero exact;whole-job DMA gate remains open\n",static_cast<unsigned long long>(corpus_padding_bytes),static_cast<unsigned long long>(corpus_nonzero_padding));
+#else
+    printf("Observed original cull producer padding:%llu alignment bytes/%llu nonzero;not a final DMA gate\n",static_cast<unsigned long long>(corpus_padding_bytes),static_cast<unsigned long long>(corpus_nonzero_padding));
+#endif
     printf("Padding byte provenance observations:equal pre-cull decoded indices=%llu;equal entry LS=%llu;16 cull rejects preserve source and owned index arrays\n",
         static_cast<unsigned long long>(corpus_equal_index),static_cast<unsigned long long>(corpus_equal_entry));
     for (const auto& [reason, count] : fallback) printf("Host skin unsupported: %s = %u\n", reason.c_str(), count);

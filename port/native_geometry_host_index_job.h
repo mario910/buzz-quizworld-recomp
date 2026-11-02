@@ -9,6 +9,9 @@ struct GeometryHostIndexData {
     static constexpr unsigned capacity = (65535 / 3 + 7) & ~7u;
     alignas(32) uint16_t component[3][capacity];
     unsigned triangles = 0, maximum_index = 0;
+    // Retained triangles in the last source group of four. Five means
+    // decoded but not culled; the final byte serializer requires culling.
+    unsigned final_group_kept = 5;
     bool ready = false;
 };
 inline bool geometry_host_index_codec_matches(const spu_context& c)
@@ -61,7 +64,7 @@ inline bool geometry_host_index_codec_matches(const spu_context& c)
 inline bool decode_geometry_host_indices(const spu_context& c, const GeometryJobEntry& e,
     GeometryHostIndexData& output, const char** reason = nullptr)
 {
-    output.ready = false;
+    output.ready = false; output.final_group_kept = 5;
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
     if (c.ls != c.ls_store || e.index_flavor() != 3 || e.index_count > 65535 || e.index_count % 3)
         return reject("host index job family");

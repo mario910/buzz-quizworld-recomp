@@ -67,7 +67,7 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
         indices.maximum_index >= clips.vertices) return reject("host cull source readiness/range");
     GeometryHostCullParameters params;
     if (!read_geometry_host_cull_parameters(c,e,params,reason)) return false;
-    unsigned kept = 0, maximum = 0;
+    unsigned kept = 0, maximum = 0, final_group_kept = 0;
     for (unsigned first = 0; first < indices.triangles; first += 8) {
         const unsigned active = indices.triangles - first < 8 ? indices.triangles - first : 8;
         v8 index[3], x[3], y[3], flags[3], packed[3];
@@ -91,6 +91,11 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
         // table is exactly common || (back && enabled), including -MAX.
         const v8 drop = _mm256_or_si256(zero,_mm256_or_si256(common,_mm256_and_si256(back,v8_set(params.mode == 1 ? 0 : -1))));
         const unsigned mask = unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(drop)));
+        if (first + 8 >= indices.triangles) {
+            const unsigned last = (active - 1) & ~3u;
+            const unsigned live = (1u << (active - last)) - 1;
+            final_group_kept = unsigned(_mm_popcnt_u32((~(mask >> last)) & live));
+        }
         for (unsigned lane = 0; lane < active; ++lane) if (!(mask & (1u << lane))) {
             for (unsigned corner = 0; corner < 3; ++corner) {
                 const unsigned value = values[corner][lane]; indices.component[corner][kept] = uint16_t(value);
@@ -101,7 +106,8 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
     }
     for (unsigned triangle = kept; triangle < ((kept + 7) & ~7u); ++triangle)
         for (auto& component : indices.component) component[triangle] = 0;
-    indices.triangles = kept; indices.maximum_index = maximum; indices.ready = true;
+    indices.triangles = kept; indices.maximum_index = maximum;
+    indices.final_group_kept = final_group_kept; indices.ready = true;
     if (reason) *reason = nullptr; return true;
 }
 } // namespace buzz

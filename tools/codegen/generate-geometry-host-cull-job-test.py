@@ -9,7 +9,7 @@ PIN = "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
 PREFIX = "buzz_job_6eba_spu_func_"
 
 
-def main():
+def main(output_directory="host-cull-job-v1"):
     raw = (ROOT / "port/spu/buzz_job_6eba/spu_recomp.c").read_bytes()
     if hashlib.sha256(raw).hexdigest() != PIN:
         raise SystemExit("Unreviewed host cull oracle source")
@@ -49,7 +49,7 @@ def main():
     output += "\nstatic void (*host_cull_reference_lookup(unsigned pc))(spu_context*) { switch(pc) {\n"
     output += "\n".join(f"case 0x{pc:x}:return {PREFIX}{pc:08X};" for pc in sorted(selected))
     output += "\ndefault:return nullptr;} }\n"
-    out = ROOT / "analysis/native-geometry/phase3/host-cull-job-v1"; out.mkdir(parents=True,exist_ok=True)
+    out = ROOT / "analysis/native-geometry/phase3" / output_directory; out.mkdir(parents=True,exist_ok=True)
     (out / "reference.inc").write_text(output,encoding="utf-8")
     print(f"Pinned original host cull graph: {len(selected)} complete blocks; no native/model data callbacks")
 

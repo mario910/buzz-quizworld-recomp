@@ -61,10 +61,12 @@ captured index streams match the complete original decoder; see
 arrays and compacts retained indices in place. SPU area/comparison semantics,
 quantized degeneracy, clipping and winding match the composed original flow;
 see [cull results](native-geometry-phase3b-cull-results.md). The orientation
-selector comes from configuration byte 6. Actual index alignment padding
-includes nonzero bytes, so logical compaction alone does not define the final
-published byte stream. The producers remain outside the runtime pending
-publication padding and output integration.
+selector comes from configuration byte 6. `native_geometry_host_index_output.h`
+now serializes the full aligned index allocation, including nonzero padding
+from repeated bytes of the last retained group. All 5,280,336 observed final
+index bytes match; see [index output results](native-geometry-phase3b-index-output-results.md).
+The producers remain outside the runtime pending vertex publication tails
+and output integration.
 
 ## Historical groundwork and strict diagnostics
 
