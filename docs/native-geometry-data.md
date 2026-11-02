@@ -36,10 +36,18 @@ Half decoding retains the source quad's prefix byte; it is not IEEE half.
 `native_geometry_host_input_job.h` captures those logical fields once into
 bounded job-owned blocks, joining primary DMA entries 8–10. Payload admission
 can fail without LS/GPR/I/O mutation and invalidates partially captured data.
-The input model has original-attribute corpus and guarded-source proofs but
-remains outside the runtime pending host skin/transform/cull and publication
-padding provenance; see
+The input model has original-attribute corpus and guarded-source proofs;
+see
 [input results](native-geometry-phase3b-input-results.md).
+
+`native_geometry_host_skin_job.h` consumes those arrays directly, with one
+vertex per AVX2 lane. Weighted palette data comes from entries 4–5 and weights
+from entry 6. Object transforms read the original object record before job
+setup reuses it. Cyclic per-coordinate FM/FMA order and reciprocal-root/FI
+normalization preserve SPU semantics. Full original producer comparisons
+cover all recognized real input families; see [skin results](native-geometry-phase3b-skin-results.md).
+The producers remain outside the runtime pending transform/cull, publication
+padding and index/output integration.
 
 ## Historical groundwork and strict diagnostics
 

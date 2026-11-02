@@ -152,9 +152,11 @@ See the [measurement table and decision](native-geometry-phase3b-results.md).
 Eight-vertex input helpers pass original-decoder and guarded source tests.
 Job-owned input SoA now matches 54,481,150 logical component values across
 19,399 real captures; 109 fixed-format entries retain whole-job fallback
-([results](native-geometry-phase3b-input-results.md)). This input model is
-not connected to the runtime. Next is eight-vertex skin/transform/cull and
-publication-tail provenance, feeding output directly. Full phase 3b remains open.
+([results](native-geometry-phase3b-input-results.md)). Eight-vertex skinning,
+object transforms and direction normalization now match the full original
+producer for those same 19,399 captures ([skin results](native-geometry-phase3b-skin-results.md)).
+These producers are not connected to the runtime. Next is host transform/cull,
+publication-tail provenance and index/output integration. Full phase 3b remains open.
 
 ### Historical implementation notes (superseded where conflicting)
 
