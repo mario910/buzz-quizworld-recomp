@@ -3,6 +3,7 @@
 #include "../port/native_animation_host_additive.h"
 #include "../port/native_animation_host_curve_keys.h"
 #include "../port/native_animation_clip_input.h"
+#include "../port/native_animation_clip_time.h"
 #include "../port/native_animation_host_hierarchy.h"
 #include "../port/native_animation_job_input.h"
 #include "../port/native_animation_host_matrices.h"
@@ -28,6 +29,15 @@ static std::string current_case;
 static uint64_t jobs=0,total_transfers=0,quaternion_calls=0,nonempty_calls=0;
 static buzz::AnimationJobInput pending_job_input;
 static unsigned planned_publication=0;
+static buzz::AnimationClipTimeSelection clip_time[3];
+static unsigned clip_header_lsa[3]{},planned_clip_headers=0,planned_clip_bodies=0;
+static uint64_t clip_time_headers=0,clip_time_bodies=0,clip_time_samples=0;
+static std::map<unsigned,uint64_t> clip_time_blocks;
+static uint64_t numeric_clip_times=0,numeric_clip_time_batches=0;
+static bool corrupt_clip_time=false;
+static void check_numeric_clip_times(const spu_context*);
+static void check_invalid_clip_times(const buzz::AnimationClipTimeInput&);
+static void observe_clip_get(spu_context*,const Transfer&);
 static buzz::AnimationClipInput pending_clip_input;
 static unsigned pending_clip_vector_kind=1;
 static uint64_t clip_inputs=0,clip_recipe_checks=0,clip_tail_inputs=0;
@@ -138,7 +148,7 @@ void spu_wrch(spu_context* c,uint32_t channel,u128 value)
             }
             ++frontend_publications;
         }
-        if(kind==1)memcpy(c->ls+lsa,expected.data.data(),expected.size);
+        if(kind==1){memcpy(c->ls+lsa,expected.data.data(),expected.size);observe_clip_get(c,expected);}
         else if(memcmp(c->ls+lsa,expected.data.data(),expected.size)) {
             fprintf(stderr,"published bytes mismatch %s transfer=%zu\n",current_case.c_str(),transfer_index-1);abort();
         }
@@ -181,6 +191,28 @@ static void dump(const char* name,const void* data,size_t bytes)
     auto* file=fopen((output_directory/name).string().c_str(),"wb");assert(file);
     assert(fwrite(data,1,bytes,file)==bytes);assert(!fclose(file));
 }
+static void observe_clip_get(spu_context* c,const Transfer& transfer)
+{
+    if(transfer.data.size()>=4&&buzz::animation_job_be32(transfer.data.data())==0x45413033) {
+        assert(planned_clip_headers<pending_job_input.clips);
+        const unsigned index=planned_clip_headers++;const auto& clip=pending_job_input.clip[index];
+        assert(transfer.ea==clip.ea&&transfer.size==clip.header_bytes);
+        const buzz::AnimationClipTimeInput input{{c->ls+transfer.lsa,transfer.size},clip.ea,transfer.lsa,clip.time};
+        const char* reason=nullptr;
+        if(!buzz::select_animation_clip_times8(&input,1,clip_time+index,&reason)) {
+            fprintf(stderr,"native clip time rejected %s clip=%u: %s\n",current_case.c_str(),index,reason);abort();
+        }
+        if(!clip_time_headers)check_invalid_clip_times(input);
+        clip_header_lsa[index]=transfer.lsa;++clip_time_headers;++clip_time_blocks[clip_time[index].block];
+    } else {
+        assert(planned_clip_bodies<planned_clip_headers);
+        const auto& selection=clip_time[planned_clip_bodies++];
+        if(transfer.ea!=selection.ea||transfer.lsa!=selection.lsa||transfer.size!=selection.bytes) {
+            fprintf(stderr,"native clip body plan mismatch %s clip=%u actual=%X,%X,%u planned=%X,%X,%u\n",current_case.c_str(),planned_clip_bodies-1,transfer.ea,transfer.lsa,transfer.size,selection.ea,selection.lsa,selection.bytes);abort();
+        }
+        ++clip_time_bodies;
+    }
+}
 static void check_clip_recipe(const buzz::AnimationKeyTracks& recipe,const spu_context* c)
 {
     assert(recipe.tracks==c->gpr[17]._u32[0]);
@@ -188,7 +220,7 @@ static void check_clip_recipe(const buzz::AnimationKeyTracks& recipe,const spu_c
     const unsigned bit=unsigned(recipe.key_bits.data-c->ls)*8+recipe.first_bit;
     if(bit!=c->gpr[3]._u32[0]||recipe.first.data!=c->ls+c->gpr[15]._u32[0]||
        recipe.last.data!=c->ls+c->gpr[16]._u32[0]||recipe.interior.data!=c->ls+c->gpr[14]._u32[0]||
-       recipe.interior_frames!=c->gpr[20]._u32[0]||recipe.frame!=c->gpr[12]._u32[0]||recipe.fraction!=c->gpr[13]._u32[0]) {
+       recipe.interior_frames!=c->gpr[20]._u32[0]||recipe.frame!=c->gpr[12]._u32[0]||(!corrupt_clip_time&&recipe.fraction!=c->gpr[13]._u32[0])) {
         fprintf(stderr,"clip semantic recipe mismatch %s kind=%u bits=%X/%X endpoints=%X,%X/%X,%X interior=%X/%X\n",current_case.c_str(),pending_clip_vector_kind,
             bit,c->gpr[3]._u32[0],unsigned(recipe.first.data-c->ls),unsigned(recipe.last.data-c->ls),c->gpr[15]._u32[0],c->gpr[16]._u32[0],unsigned(recipe.interior.data-c->ls),c->gpr[14]._u32[0]);abort();
     }
@@ -204,10 +236,20 @@ static void animation_original_probe(unsigned pc,spu_context* c)
             if(t.lsa==header)header_view={c->ls+header,t.size};
             if(t.lsa==block)block_view={c->ls+block,t.size};
         }
+        unsigned slot=planned_clip_headers;
+        while(slot&&clip_header_lsa[slot-1]!=header)--slot;
+        assert(slot);const auto& selected=clip_time[slot-1];
+        if(selected.lsa!=block||selected.frame!=c->gpr[8]._u32[0]||selected.fraction!=c->gpr[9]._u32[0]||selected.interior_frames!=c->gpr[7]._u32[0]) {
+            fprintf(stderr,"native clip time sample mismatch %s slot=%u block=%X/%X frame=%u/%u fraction=%08X/%08X width=%u/%u\n",current_case.c_str(),slot-1,selected.lsa,block,selected.frame,c->gpr[8]._u32[0],selected.fraction,c->gpr[9]._u32[0],selected.interior_frames,c->gpr[7]._u32[0]);abort();
+        }
+        if(!clip_time_samples)check_numeric_clip_times(c);
+        ++clip_time_samples;
+        uint32_t fraction=selected.fraction;
+        if(corrupt_clip_time&&!corruption_injected){fraction^=0x80000000u;corruption_injected=true;}
         const char* reason=nullptr;
         assert(block+block_view.bytes+1548<=SPU_LS_SIZE);
         const buzz::AnimationByteView tail{c->ls+block+block_view.bytes,1548};
-        if(!buzz::read_animation_clip_input(header_view,block_view,tail,(pending_job_input.curve_floats+3)&~3u,c->gpr[7]._u32[0],c->gpr[8]._u32[0],c->gpr[9]._u32[0],pending_clip_input,&reason)) {
+        if(!buzz::read_animation_clip_input(header_view,block_view,tail,(pending_job_input.curve_floats+3)&~3u,selected.interior_frames,selected.frame,fraction,pending_clip_input,&reason)) {
             fprintf(stderr,"clip input rejected %s header=%X block=%X: %s\n",current_case.c_str(),header,block,reason);abort();
         }
         if(pending_clip_input.published_tail_bytes) {
@@ -705,6 +747,132 @@ static buzz::AnimationByteView guarded_view(const uint8_t* data,unsigned bytes,u
 #else
     return {data,bytes};
 #endif
+}
+static void check_invalid_clip_times(const buzz::AnimationClipTimeInput& original)
+{
+    constexpr unsigned cases=36;
+    for(unsigned test=0;test<cases;++test) {
+        std::vector<uint8_t> header(original.header.data,original.header.data+original.header.bytes);
+        auto input=original;input.header={header.data(),header.size()};
+        auto put16=[&](unsigned at,unsigned n){header[at]=n>>8;header[at+1]=n;};
+        auto put32=[&](unsigned at,uint32_t n){for(unsigned i=0;i<4;++i)header[at+i]=n>>(24-i*8);};
+        const unsigned data=52+buzz::animation_job_be32(header.data()+52),table=56+buzz::animation_job_be32(header.data()+56);
+        const unsigned count=buzz::animation_job_be16(header.data()+18),size=buzz::animation_job_be32(header.data()+data);
+        const unsigned last=table+(count-1)*4;
+        unsigned lanes=1;bool null_input=false,null_output=false;
+        switch(test) {
+        case 0:lanes=9;break;
+        case 1:input.header.data=nullptr;break;
+        case 2:input.header.bytes=63;break;
+        case 3:header[0]^=1;break;
+        case 4:put16(12,unsigned(header.size())+16);break;
+        case 5:input.ea=0;break;
+        case 6:input.ea|=1;break;
+        case 7:input.lsa|=1;break;
+        case 8:input.lsa=0x40000;break;
+        case 9:put16(18,1);break;
+        case 10:put16(16,1);break;
+        case 11:put32(52,0);break;
+        case 12:put32(56,0);break;
+        case 13:put32(52,0xfffffff0);break;
+        case 14:put32(56,0xfffffff0);break;
+        case 15:put32(8,0);break;
+        case 16:put32(8,0xbf800000);break;
+        case 17:put32(8,0x7f800000);break;
+        case 18:put32(8,1);break;
+        case 19:put16(table,1);break;
+        case 20:put16(table+4,1);break;
+        case 21:put16(table+2,129);break;
+        case 22:put16(last+2,1);break;
+        case 23:put16(16,buzz::animation_job_be16(header.data()+16)+1);break;
+        case 24:put32(data,0);break;
+        case 25:put32(data,16400);break;
+        case 26:put32(data,size|0x8000);break;
+        case 27:put32(data,size-1);break;
+        case 28:put32(data+4,buzz::animation_job_be32(header.data()+data+4)|1);break;
+        case 29:put32(data+4,0);break;
+        case 30:input.ea=0xfffffff0;break;
+        case 31:input.lsa=0x40000-unsigned(header.size());break;
+        case 32:input.time=0x7f7fffff;break;
+        case 33:null_input=true;break;
+        case 34:null_output=true;break;
+        case 35:input.header.bytes=64;put16(12,64);break;
+        }
+        buzz::AnimationClipTimeSelection output[8];memset(output,0x5a,sizeof(output));
+        std::array<uint8_t,sizeof(output)> unchanged;memcpy(unchanged.data(),output,sizeof(output));
+        const char* reason=nullptr;
+        if(buzz::select_animation_clip_times8(null_input?nullptr:&input,lanes,null_output?nullptr:output,&reason)) {
+            fprintf(stderr,"invalid clip timing accepted case=%u\n",test);abort();
+        }
+        assert(reason&&!memcmp(output,unchanged.data(),sizeof(output)));
+    }
+    assert(buzz::select_animation_clip_times8(nullptr,0,nullptr));
+    puts("PASS native clip time: 36 invalid clocks/tables/GET spans rejected without changing output; empty lanes touch no data");
+}
+static void check_numeric_clip_times(const spu_context* original)
+{
+    const auto saved=g_spu_trampoline_fn;probe_enabled=false;
+    auto c=std::make_unique<spu_context>();
+    constexpr unsigned header_at=0x10000,ref_at=0x1f000,clip_at=0x1f100,stack=0x30000;
+    constexpr unsigned counts[]={2,3,4,8};
+    constexpr uint32_t rates[]={0x3f000000,0x3f800000,0x41c00000,0x41efffff,0x42700000};
+    auto put16=[](uint8_t* p,unsigned n){p[0]=n>>8;p[1]=n;};
+    auto put32=[](uint8_t* p,uint32_t n){for(unsigned i=0;i<4;++i)p[i]=n>>(24-i*8);};
+    for(unsigned test=0;test<4096;++test) {
+        std::array<uint8_t,256> header{};
+        const unsigned count=counts[test%4],data=64,table=data+count*8,bytes=(table+count*4+15)&~15u;
+        const uint32_t rate=rates[test%std::size(rates)];
+        put32(header.data(),0x45413033);put32(header.data()+8,rate);put16(header.data()+12,bytes);
+        put16(header.data()+18,count);put32(header.data()+52,data-52);put32(header.data()+56,table-56);
+        unsigned starts[8]{},widths[8]{},samples=0;
+        for(unsigned i=0;i<count;++i) {
+            const unsigned width=i+1==count?0:(test/4+i*13)%129;
+            starts[i]=samples;widths[i]=width;
+            put16(header.data()+table+i*4,samples);put16(header.data()+table+i*4+2,width);
+            put32(header.data()+data+i*8,i+1==count?0:256+i*16);put32(header.data()+data+i*8+4,bytes+i*1024);
+            samples+=width+1;
+        }
+        put16(header.data()+16,samples);
+        const auto view=guarded_view(header.data(),bytes,0);
+        buzz::AnimationClipTimeInput input[8];
+        const unsigned lanes=1+test%8;
+        for(unsigned lane=0;lane<lanes;++lane) {
+            const unsigned boundary=starts[(test/8+lane)%(count-1)];
+            float frequency;memcpy(&frequency,&rate,4);
+            const float clock=float(test%3==0?samples+1:boundary)/frequency;
+            uint32_t time;memcpy(&time,&clock,4);
+            if(test%3) {if(lane%3==1&&time)--time;else if(lane%3==2)++time;}
+            if(test%19==0)time=lane%4==0?0x80000000:lane%4==1?1:lane%4==2?0x80000001:0xbf800000;
+            input[lane]={view,0x70000000u+lane*0x10000,header_at,time};
+        }
+        struct GuardedOutput {uint32_t before[8];buzz::AnimationClipTimeSelection value[8];uint32_t after[8];} result;
+        memset(&result,0xa7,sizeof(result));
+        assert(buzz::select_animation_clip_times8(input,lanes,result.value));
+        for(unsigned i=0;i<8;++i)assert(result.before[i]==0xa7a7a7a7&&result.after[i]==0xa7a7a7a7);
+        for(unsigned lane=lanes;lane<8;++lane)for(unsigned byte=0;byte<sizeof(result.value[lane]);++byte)
+            assert(reinterpret_cast<uint8_t*>(result.value+lane)[byte]==0xa7);
+        for(unsigned lane=0;lane<lanes;++lane) {
+            memcpy(c.get(),original,sizeof(*original));c->ls=c->ls_store;
+            memcpy(c->ls+header_at,header.data(),bytes);put32(c->ls+ref_at+4,clip_at);put32(c->ls+clip_at+8,input[lane].time);
+            c->gpr[80]=spu_il(header_at);c->gpr[85]=spu_il(ref_at);
+            g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00001F58(c.get());assert(c->pc==0x2020);
+            unsigned steps=0;
+            while(c->gpr[5]._u32[0]>c->gpr[10]._u32[0]){assert(++steps<=16);buzz_job_abe1_spu_func_00001FE0(c.get());}
+            const unsigned block=c->gpr[14]._u32[0];assert(block<count-1);
+            c->gpr[1]=spu_il(stack);c->gpr[80]=spu_il(header_at);c->gpr[86]=spu_il(ref_at);c->gpr[83]=spu_il(0);
+            put16(c->ls+stack+48,starts[block]);put16(c->ls+stack+50,widths[block]);
+            g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_000026A8(c.get());
+            if(c->pc==0x2b0c)buzz_job_abe1_spu_func_00002B0C(c.get());
+            assert(c->pc==0x2734);
+            const auto& actual=result.value[lane];
+            if(actual.block!=block||actual.frame!=c->gpr[8]._u32[0]||actual.fraction!=c->gpr[9]._u32[0]) {
+                fprintf(stderr,"numeric clip time mismatch test=%u lane=%u time=%08X block=%u/%u frame=%u/%u fraction=%08X/%08X\n",test,lane,input[lane].time,actual.block,block,actual.frame,c->gpr[8]._u32[0],actual.fraction,c->gpr[9]._u32[0]);abort();
+            }
+            ++numeric_clip_times;
+        }
+        ++numeric_clip_time_batches;
+    }
+    g_spu_trampoline_fn=saved;probe_enabled=true;
 }
 static void check_clip_input_bounds(buzz::AnimationByteView header,buzz::AnimationByteView block,
     buzz::AnimationByteView tail,unsigned capacity,unsigned width,unsigned frame,uint32_t fraction,bool malformed)
@@ -1280,8 +1448,8 @@ static void check_numeric_curve_keys(const spu_context* original)
 int main(int argc,char** argv)
 {
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
-    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys");
-    corrupt_scalar_keys=std::string(argv[3])=="CorruptScalarKeys";
+    assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys"||std::string(argv[3])=="CorruptClipTime");
+    corrupt_scalar_keys=std::string(argv[3])=="CorruptScalarKeys";corrupt_clip_time=std::string(argv[3])=="CorruptClipTime";
     corrupt_extra_pose=std::string(argv[3])=="CorruptExtraPose";corrupt_extra_curve=std::string(argv[3])=="CorruptExtraCurve";
     corrupt_hierarchy=std::string(argv[3])=="CorruptHierarchy";
     corrupt_blend=std::string(argv[3])=="CorruptBlend";
@@ -1310,14 +1478,20 @@ int main(int argc,char** argv)
         if(!frontend_jobs)check_invalid_job_inputs(c.get());
         ++frontend_jobs;frontend_clips+=pending_job_input.clips;
         for(unsigned i=0;i<pending_job_input.nodes;++i)++frontend_nodes[pending_job_input.node[i].operation];
-        planned_publication=0;
+        planned_publication=0;planned_clip_headers=0;planned_clip_bodies=0;
         g_spu_trampoline_fn=nullptr;buzz_job_abe1_spu_func_00000010(c.get());drain(c.get(),expected[0]);
         assert(planned_publication==pending_job_input.publications);
+        assert(planned_clip_headers==pending_job_input.clips&&planned_clip_bodies==pending_job_input.clips);
         assert(transfer_index==transfers.size()&&c->host_depth==1&&c->image_id==40&&c->ls==c->ls_store&&!g_spu_trampoline_fn);
         const uint32_t exit[]={c->pc,c->status,c->stop_code,unsigned(spu_channel_has_data(&c->ch_out_mbox)),c->ch_out_mbox.value,unsigned(spu_channel_has_data(&c->ch_out_intr_mbox)),c->ch_out_intr_mbox.value};
         assert(!memcmp(exit,expected,sizeof(exit)));++jobs;total_transfers+=n;
     }
     assert(jobs==17714&&total_transfers==115162&&dump_finished);
+    assert(numeric_clip_time_batches==4096&&numeric_clip_times==18432);
+    printf("PASS numeric clip time selection: batches=%llu samples=%llu\n",(unsigned long long)numeric_clip_time_batches,(unsigned long long)numeric_clip_times);
+    assert(clip_time_headers==38025&&clip_time_bodies==38025&&clip_time_samples==38025);
+    printf("PASS native clip time/body plans: headers=%llu bodies=%llu samples=%llu\n",(unsigned long long)clip_time_headers,(unsigned long long)clip_time_bodies,(unsigned long long)clip_time_samples);
+    for(auto [block,n]:clip_time_blocks)printf("clip time selected block=%u clips=%llu\n",block,(unsigned long long)n);
     assert(clip_inputs==38025&&clip_recipe_checks&&clip_guard_cases==2);
     printf("PASS clip tail input spans=%zu nonzero=%llu guarded parser cases=%u\n",clip_tail_sizes.size(),(unsigned long long)clip_nonzero_tail_inputs,clip_guard_cases);
     for(auto [bytes,n]:clip_tail_sizes)printf("clip published input tail bytes=%u clips=%llu\n",bytes,(unsigned long long)n);

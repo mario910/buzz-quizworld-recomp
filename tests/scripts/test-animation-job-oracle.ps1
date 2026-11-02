@@ -25,7 +25,7 @@ try {
         if($LASTEXITCODE){throw "Animation job oracle $animationMode failed"}
     }
     if($Mode -eq 'Both') {
-        foreach($animationFaultMode in @('Corrupt','CorruptVector','CorruptMatrix','CorruptAffine','CorruptBlend','CorruptHierarchy','CorruptExtraPose','CorruptExtraCurve','CorruptScalarKeys')) {
+        foreach($animationFaultMode in @('Corrupt','CorruptVector','CorruptMatrix','CorruptAffine','CorruptBlend','CorruptHierarchy','CorruptExtraPose','CorruptExtraCurve','CorruptScalarKeys','CorruptClipTime')) {
         $animationCase=Join-Path $animationRun $animationFaultMode
         New-Item -ItemType Directory -Path $animationCase | Out-Null
         # Isolate the expected failing process so its exit status does not

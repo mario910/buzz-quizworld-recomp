@@ -219,9 +219,27 @@ payload offsets at 60-72 are relative to their own fields.
 The block's first 16 bytes contain four endpoint sizes and four interior
 sizes. First endpoints precede MSB-first temporal bits; interior payloads
 follow, with curves aligned to four bytes. The next endpoint header starts
-at the following 16-byte boundary. Time, block selection and GET scheduling
-still come from the original driver; this parser accepts the selected
+at the following 16-byte boundary. The stream parser accepts selected
 frame, fraction and interior-frame count as semantic inputs.
+
+`native_animation_clip_time.h` supplies those inputs from header/time data.
+The BE32 offsets at 52 and 56 are relative to their own fields: the first
+table contains `(byte_count, clip_relative_offset)` BE32 pairs; the second
+contains `(first_frame, interior_frames)` BE16 pairs. The last interval is
+an endpoint sentinel, not a body GET candidate. Select the latest preceding
+nonterminal interval from `floor(max(SPU_FM(time, rate), 0))`, with rate at
+header offset 8. Subtract the interval start using SPU FS, truncate the local
+frame and subtract it to form the fraction. If the local integer exceeds
+the interior count, use that count and fraction 1. The eight-lane host
+implementation retains each FP rounding and denormal rule.
+
+Body EA is clip EA plus its selected record offset. With `table_lsa =
+header_lsa + data_table_offset`, body LSA is `table_lsa + ((body_ea -
+table_lsa) & 127)`. All 38,025 real body GET recipes match. Header/table
+selection must happen before body DMA can overwrite those table bytes.
+Uncovered clock ranges above 65,535 samples, compressed flags, malformed
+tables and invalid GET spans are rejected. DMA/channel emission and control
+traversal still belong to the original oracle until whole-job integration.
 
 Some published curve padding also depends on bytes beyond the fetched
 block. The parser takes a separate bounded tail view and determines its

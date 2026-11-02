@@ -1090,9 +1090,12 @@ curve tails. Native replacement retains every job/transfer/exit; guarded
 numeric/mapping checks and a ninth publication-fault probe pass. A native
 EA03 header/block parser now supplies bounded stream/ID views for all 38,025
 clips; 30 malformed cases and guarded input checks pass. Observable trailing
-bytes for curve padding are explicit entry-LS input. Time-to-block selection
-and GET scheduling, static/default-pose setup, control-tree traversal and
-full native I/O lifecycle integration remain, then live/performance gates.
+bytes for curve padding are explicit entry-LS input. Native time/block
+selection also matches all 38,025 body GET recipes and feeds sampling;
+18,432 pinned-original numeric samples, 36 invalid cases and a tenth
+publication-fault probe pass. Static/default-pose setup, control-tree
+traversal and full native I/O lifecycle integration remain, then
+live/performance gates.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest
