@@ -252,17 +252,21 @@ both UIs:
   the next screen or round); upscales are kept, so later runs start with
   them. Unpack the `realesrgan-ncnn-vulkan` release (the executable with its
   `models/` folder) into `runtime/textures/upscaler/`; the launcher shows
-  whether it is found. It runs at below-normal priority, one texture at a
-  time, on the GPU, and skips textures whose upscale would exceed 4096
-  pixels and any texture with a hand-made replacement, which always wins
+  whether it is found. It runs at below-normal priority on the GPU, in
+  batches of up to 32 textures (smallest first, at most 4 megapixels of
+  input), so the model loads once per batch rather than once per texture
+  (one 128x128 texture 2.1 s, ten 3.5 s). It skips textures whose upscale would exceed 2048
+  pixels (so 4x covers textures up to 512: ~445 MB of video memory for the
+  menu's set, against ~2 GB at 4096; `BUZZ_TEXTURE_UPSCALER_MAX_SIDE`
+  raises the limit up to 8192) and any texture with a hand-made replacement, which always wins
   over `replace/auto/`. Delete `replace/auto/` to redo the upscales.
   `BUZZ_TEXTURE_UPSCALER` (executable path), `BUZZ_TEXTURE_UPSCALER_MODEL`
   and `BUZZ_TEXTURE_UPSCALER_SCALE` (2-4, matching the model) override the
-  defaults. After five failures in a row (no Vulkan GPU, missing model) it
+  defaults. After five failed batches in a row (no Vulkan GPU, missing model) it
   stops for the run and logs why. A running upscale ends with the game, on
   every exit: a Windows job object, and on Linux the child's parent-death
   signal plus an exit handler (other POSIX systems have the exit handler
-  only, so a crash there can leave one upscale to finish).
+  only, so a crash there can leave one batch to finish).
 - All are read at startup and are restart-only. `RSX_TEXPACK_DIR`,
   `RSX_TEXPACK_DUMP=0/1` and `RSX_TEXPACK_REPLACE=0/1` override them for
   diagnosis. They are set in the launcher's Game tab and the settings file,

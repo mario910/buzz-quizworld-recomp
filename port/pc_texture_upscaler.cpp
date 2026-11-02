@@ -1,5 +1,6 @@
 #include "pc_texture_upscaler.h"
 #include "ps3emu/host_controls.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -23,8 +24,19 @@
 namespace fs=std::filesystem;
 namespace buzz_pc {
 namespace {
-constexpr unsigned max_output_side=4096; // keeps a pack's VRAM sane; the renderer accepts up to 8192
-constexpr unsigned give_up_after=5;      // consecutive failures (no Vulkan GPU, missing model, ...)
+// Default largest upscale side. 4x of the menu's 130 eligible textures is
+// ~2 GB of RGBA with mips at 4096 and ~445 MB at 2048: the 1024-pixel
+// textures are a third of the count and three quarters of the memory, and
+// already the sharpest. BUZZ_TEXTURE_UPSCALER_MAX_SIDE raises it (to the
+// renderer's 8192 limit) for GPUs with memory to spare.
+constexpr unsigned default_max_side=2048;
+constexpr unsigned give_up_after=5;      // consecutive failed batches (no Vulkan GPU, missing model, ...)
+// One upscaler run per batch: loading the model costs more than a small
+// texture (2.1 s for one 128x128 file, 3.5 s for ten). Bounded by count and
+// by input pixels, so a batch of large textures still finishes in a minute
+// or two and new screens get their turn.
+constexpr size_t batch_files=32;
+constexpr unsigned long long batch_pixels=4ull<<20;
 using Args=std::vector<fs::path::string_type>;
 fs::path::string_type arg(const char* s){return fs::path(s).native();}
 std::string utf8(const fs::path& p){const auto s=p.u8string();return std::string(s.begin(),s.end());}
@@ -45,8 +57,8 @@ void kill_running_child() {
 }
 #endif
 
-// Exit code, or -1 when the process cannot start.
-int run(const fs::path& exe,const Args& args) {
+// Exit code, or -1 when the process cannot start. Killed after timeout_ms.
+int run(const fs::path& exe,const Args& args,unsigned timeout_ms) {
 #ifdef _WIN32
     // Killed with the game: the job closes when the process exits.
     static HANDLE job=[]{
@@ -63,7 +75,7 @@ int run(const fs::path& exe,const Args& args) {
                        nullptr,cwd.empty()?nullptr:cwd.c_str(),&si,&pi))return -1;
     if(job)AssignProcessToJobObject(job,pi.hProcess);
     ResumeThread(pi.hThread);CloseHandle(pi.hThread);
-    if(WaitForSingleObject(pi.hProcess,5*60*1000)!=WAIT_OBJECT_0){TerminateProcess(pi.hProcess,1);WaitForSingleObject(pi.hProcess,INFINITE);}
+    if(WaitForSingleObject(pi.hProcess,timeout_ms)!=WAIT_OBJECT_0){TerminateProcess(pi.hProcess,1);WaitForSingleObject(pi.hProcess,INFINITE);}
     DWORD code=1;GetExitCodeProcess(pi.hProcess,&code);CloseHandle(pi.hProcess);
     return int(code);
 #else
@@ -93,10 +105,9 @@ int run(const fs::path& exe,const Args& args) {
         _exit(127);
     }
     running_child.store(pid);
-    // The same five-minute bound as on Windows.
     int status=0;pid_t done=0;
-    for(int waited=0;(done=waitpid(pid,&status,WNOHANG))==0;waited+=100) {
-        if(waited>=5*60*1000){kill(pid,SIGKILL);done=waitpid(pid,&status,0);break;}
+    for(unsigned waited=0;(done=waitpid(pid,&status,WNOHANG))==0;waited+=100) {
+        if(waited>=timeout_ms){kill(pid,SIGKILL);done=waitpid(pid,&status,0);break;}
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     running_child.store(0);
@@ -116,18 +127,21 @@ std::set<std::string> hand_made(const fs::path& replace,const fs::path& automati
     return names;
 }
 
-void worker(fs::path exe,fs::path textures,fs::path::string_type model,unsigned scale) {
+void worker(fs::path exe,fs::path textures,fs::path::string_type model,unsigned scale,unsigned max_output_side) {
 #ifdef _WIN32
     SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_BELOW_NORMAL);
 #endif
-    const fs::path dump=textures/"dump",automatic=textures/"replace"/"auto",work=automatic/".work.png";
+    // Dot-named folders: the renderer's scan of replace/ skips them, so it
+    // never sees a staged input or a half-written output.
+    const fs::path dump=textures/"dump",automatic=textures/"replace"/"auto",
+                   batch_in=automatic/".batch-in",batch_out=automatic/".batch-out";
     const fs::path::string_type scale_arg=arg(std::to_string(scale).c_str());
     std::set<std::string> done; // upscaled, skipped or failed this run
     std::error_code ec;
     fs::create_directories(automatic,ec);
     unsigned made=0,failures=0;
     for(;;)try {
-        std::vector<std::string> todo;
+        std::vector<std::pair<unsigned long long,std::string>> todo; // input pixels, name
         for(fs::directory_iterator it(dump,ec),end;!ec&&it!=end;it.increment(ec)) {
             const std::string name=it->path().filename().string();
             unsigned w=0,h=0;
@@ -137,30 +151,49 @@ void worker(fs::path exe,fs::path textures,fs::path::string_type model,unsigned 
             if(ec||fs::file_time_type::clock::now()-written<std::chrono::seconds(2)){ec.clear();continue;}
             // Already upscaled (a previous run), or too large to be worth it.
             if(fs::exists(automatic/name,ec)||w*scale>max_output_side||h*scale>max_output_side){done.insert(name);continue;}
-            todo.push_back(name);
+            todo.push_back({(unsigned long long)w*h,name});
         }
         ec.clear();
         if(!todo.empty()) {
             const std::set<std::string> manual=hand_made(textures/"replace",automatic);
-            for(const std::string& name:todo) {
+            // Small first: the most textures on screen soonest.
+            std::sort(todo.begin(),todo.end());
+            std::vector<std::string> batch;unsigned long long pixels=0;
+            fs::remove_all(batch_in,ec);fs::remove_all(batch_out,ec);
+            fs::create_directories(batch_in,ec);fs::create_directories(batch_out,ec);
+            for(const auto& [size,name]:todo) {
+                if(batch.size()==batch_files||(!batch.empty()&&pixels+size>batch_pixels))break;
                 done.insert(name);
                 if(manual.count(name))continue;
-                fs::remove(work,ec);
-                const int code=run(exe,{arg("-i"),(dump/name).native(),arg("-o"),work.native(),arg("-n"),model,arg("-s"),scale_arg,
-                                        arg("-m"),(exe.parent_path()/"models").native(),arg("-f"),arg("png"),arg("-j"),arg("1:1:1")});
-                if(code==0&&fs::file_size(work,ec)>0&&!ec) {
+                // A hard link when the folders share a volume, else a copy.
+                fs::create_hard_link(dump/name,batch_in/name,ec);
+                if(ec){ec.clear();fs::copy_file(dump/name,batch_in/name,ec);}
+                if(ec){ec.clear();continue;}
+                batch.push_back(name);pixels+=size;
+            }
+            if(!batch.empty()) {
+                // Two minutes, plus one per megapixel of input: generous for
+                // a slow GPU, still bounded if the upscaler hangs.
+                const unsigned timeout=unsigned(120000+pixels*60000/(1u<<20));
+                const int code=run(exe,{arg("-i"),batch_in.native(),arg("-o"),batch_out.native(),arg("-n"),model,arg("-s"),scale_arg,
+                                        arg("-m"),(exe.parent_path()/"models").native(),arg("-f"),arg("png"),arg("-j"),arg("1:2:2")},timeout);
+                unsigned moved=0;
+                for(const std::string& name:batch) {
                     // Renamed into place whole: the renderer never sees a partial file.
-                    fs::rename(work,automatic/name,ec);
-                    if(!ec){failures=0;++made;ps3_host_texture_pack_changed();continue;}
+                    if(fs::file_size(batch_out/name,ec)>0&&!ec){fs::rename(batch_out/name,automatic/name,ec);if(!ec)++moved;}
+                    if(ec){ec.clear();fprintf(stderr,"[upscaler] %s failed (exit %d)\n",name.c_str(),code);}
                 }
-                ec.clear();fs::remove(work,ec);
-                fprintf(stderr,"[upscaler] %s failed (exit %d)\n",name.c_str(),code);
-                if(code<0||++failures>=give_up_after) {
+                fs::remove_all(batch_in,ec);fs::remove_all(batch_out,ec);ec.clear();
+                made+=moved;
+                if(moved)ps3_host_texture_pack_changed();
+                fprintf(stderr,"[upscaler] %u of %zu upscaled (%u this run)\n",moved,batch.size(),made);
+                if(moved)failures=0;
+                else if(code<0||++failures>=give_up_after) {
                     fprintf(stderr,"[upscaler] stopping after repeated failures; %u textures upscaled this run\n",made);
                     return;
                 }
+                continue; // more may be waiting: no pause between batches
             }
-            if(made)fprintf(stderr,"[upscaler] %u textures upscaled this run\n",made);
         }
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }catch(const std::exception& e) {
@@ -185,13 +218,16 @@ bool start_texture_upscaler(const fs::path& textures) {
     // The model decides the factor: realesrgan-x4plus(-anime) are 4x only.
     if(const char* v=getenv("BUZZ_TEXTURE_UPSCALER_SCALE");v&&*v)scale=unsigned(strtoul(v,nullptr,10));
     if(scale<2||scale>4){fprintf(stderr,"[upscaler] BUZZ_TEXTURE_UPSCALER_SCALE must be 2-4; automatic upscaling is off\n");return false;}
+    unsigned max_side=default_max_side;
+    if(const char* v=getenv("BUZZ_TEXTURE_UPSCALER_MAX_SIDE");v&&*v)max_side=unsigned(strtoul(v,nullptr,10));
+    if(max_side<64||max_side>8192){fprintf(stderr,"[upscaler] BUZZ_TEXTURE_UPSCALER_MAX_SIDE must be 64-8192; automatic upscaling is off\n");return false;}
     std::error_code ec;
     if(!fs::is_regular_file(exe,ec)) {
         fprintf(stderr,"[upscaler] %s not found; automatic upscaling is off\n",utf8(exe).c_str());
         return false;
     }
-    fprintf(stderr,"[upscaler] %s, %ux; upscales go to %s\n",utf8(exe).c_str(),scale,utf8(textures/"replace"/"auto").c_str());
-    std::thread(worker,exe,textures,model,scale).detach();
+    fprintf(stderr,"[upscaler] %s, %ux up to %u pixels; upscales go to %s\n",utf8(exe).c_str(),scale,max_side,utf8(textures/"replace"/"auto").c_str());
+    std::thread(worker,exe,textures,model,scale,max_side).detach();
     return true;
 }
 }
