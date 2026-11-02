@@ -1049,6 +1049,11 @@ The host AVX2 affine producer now matches all 461,853 captured matrices
 (22,168,944 published bytes), with independent original-producer numeric and
 guarded-tail checks. It uses captured world matrices until native clip/pose
 production is connected; this is not whole-job native acceptance.
+Host quaternion sampling now matches 596,095 real results. Replacing the
+original quaternion producer in the whole-job oracle preserves all 17,714
+jobs / 115,162 transfers and exit controls, with numeric, guarded-stream and
+publication-fault checks. Production integration and live/performance gates
+remain open; the native kernel does not recreate volatile registers or frames.
 
 ### Phase 5: render thread (optional, 3-6 sessions)
 After SPU is no longer the limit: GPU-side vertex decode (raw guest

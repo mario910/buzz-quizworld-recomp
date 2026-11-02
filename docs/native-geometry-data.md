@@ -78,6 +78,30 @@ semantic publication bindings and no intermediate LS float tables. Additional
 blend streams and unsupported recipes retain the whole lifted job. All three
 JOB modes pass the complete corpus; see [default results](native-geometry-phase3b-default-results.md).
 
+## Host animation keys (phase 4)
+
+`native_animation_host_quaternions.h` consumes bounded byte streams and emits
+host SoA, eight joints per batch. Each track has `interior_frames` packed
+MSB-first key-presence bits. Bit `k` represents frame `k+1`; first/last keys
+are separate, at frames zero and `interior_frames+1`. Interior keys follow
+track order and then time order. Popcount and bit scans select neighboring
+keys and their packed-stream offsets without an SPU register representation.
+
+| Packed quaternion bits | Field |
+| --- | --- |
+| 47..32 | First unsigned component field |
+| 31..17 | Second unsigned component field |
+| 16..2 | Third unsigned component field |
+| 1..0 | Omitted component index |
+
+All three fields are scaled by `2^-15`, then decoded with the original
+fused scale/bias. The omitted positive component uses the original SPU
+reciprocal-root estimate, FI and refinement. Interpolation preserves the
+original hemisphere choice, reciprocal refinement and acos/sine polynomial
+order; cosine greater than `0x3F7FBE77` selects linear weights. Discarded
+near-parallel polynomial intermediates are not evaluated. Stream, numeric
+and whole-job replacement proofs are in [phase 4 results](native-geometry-phase4-results.md).
+
 ## Historical groundwork and strict diagnostics
 
 The `0x7118/7298` in-place run-list format is now independently checked for

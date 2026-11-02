@@ -13,6 +13,10 @@
 | Host affine producer | Eight joints per AVX2 batch; shared geometry BE/SoA decoder and exact FP helpers; final 3x4 stream written once; no SPU register bank or ABI frame |
 | Captured-output proof | All 17,714 jobs: 461,853 matrices / 22,168,944 bytes match the first PUT exactly, using captured world matrices and staged reference matrices as inputs |
 | Independent arithmetic/tails | 4,096 numeric batches / 18,432 matrices match the pinned original seven-block producer, including SPU extended-range values; guarded input/output tails 1–8 pass; inputs unchanged |
+| Host quaternion producer | Bitset predecessor/successor selection with host popcount/bit scans, packed 6-byte keys, exact eight-lane decode and shortest-path interpolation; all 596,095 real quaternion results match the original |
+| Whole-job producer replacement | Same oracle EXE, original-comparison and native-replacement arms each pass 17,714 exact jobs / 115,162 ordered transfers and captured exit controls; native arm replaces all 38,025 quaternion calls without restoring volatile registers or SPU frames |
+| Quaternion bounds/numerics | Each arm: 2,048 original-producer batches / 9,216 quaternion samples, masks through 128 bits, offsets/tails 1–8, read-only inputs ending at a guard page; six invalid recipes rejected; empty tracks touch no data |
+| Publication fault probe | Injected native quaternion sign change fails the first job's PUT byte comparison, as expected |
 
 Code-only shared candidates retain register numbers, immediates and data
 addresses; only code symbols/PCs are normalized:
@@ -28,9 +32,11 @@ from image 41. Establish logical clip/pose/matrix inputs and reuse host
 algorithms; do not transplant the image-41 job descriptor or generate new
 register-bank transliterations. Code matches do not establish job-contract
 compatibility or live coverage for images 43/45/47. Phase 4 remains open;
-the host affine producer is implemented and exact as a standalone component.
-It consumes captured world matrices for now: full native clip/pose production,
-job integration, live checks and candidate FPS/CPU gates remain. There is no
+host affine composition and quaternion sampling are implemented. The latter
+also passes whole-job I/O with the original producer replaced in the test
+oracle. The affine proof still consumes captured world matrices; remaining
+pose/hierarchy/world production, production job integration, live checks and
+candidate FPS/CPU gates remain. There is no
 new runtime path, default change or FPS/CPU gain claim yet.
 RIP shares are diagnostic estimates; helper time is outside image symbols.
 
