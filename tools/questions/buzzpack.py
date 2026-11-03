@@ -10,8 +10,9 @@ Source JSON:
                   "question": "...", "topic": "...", "answers": ["correct", "w1", "w2", "w3"],
                   "image": "path.jpg" | null, "speech": "path.rsf" | null}]}
 subject/category are Quiz World category ids (root/sub, see questioncategories.clu
-in the template); they are re-registered under this pack's own ids with the
-same CAT_* text keys, so names display localised without new NAMEDTEXT.
+in the template); they are re-registered under this pack's own ids and internal
+names, with the same CAT_* text keys. pack.category_base can choose a free global
+category range in 1..999 (defaults: pack 101=500, 102=600, ... 105=900).
 
 What the builder writes (all validated by re-parsing):
   SCRIPTS/register.clu, GENERATED/{questioncategories,addpackinfo,roundpackages}.clu
@@ -29,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+import zlib
 from collections import OrderedDict
 from pathlib import Path
 
@@ -42,6 +44,12 @@ from make_test_pack import write_stored_zip  # noqa: E402
 
 LANG_CODES = {"pl": "POL", "ru": "RUS", "cs": "CZE", "el": "GRC", "hr": "CRO"}
 MAX_PICTURES = 427            # SDI index area 0x50..0x800 holds 428 entries, frame 0 is the placeholder
+MAX_CATEGORY_ID = 999         # AddQuestionCategoryItem silently rejects ids outside 1..999
+
+
+def category_name(pack_no, name):
+    """Internal lookup name; CAT_* remains the localised display key."""
+    return f"p{pack_no}_{name}"
 
 
 def template_categories(pak, lang):
@@ -84,19 +92,32 @@ def build(src, template, out_dir, pack_no):
         if len(q["answers"]) != 4:
             raise ValueError(f"{q['id']}: needs 4 answers")
 
-    # --- category ids: pack*100 + n, same names/keys, this pack's id and round numbers
+    # --- categories live in a GLOBAL 1..999 registry, not a pack-local u16
+    # namespace. Reserve 100-id blocks above the disc's highest id (436)
+    # for packs 101..105. Other pack numbers can choose category_base.
+    # Internal names must also be unique: AddRoundNew resolves them globally.
+    # Round numbers are this pack's round-file indices 1..k: AddRoundFile(n),
+    # the question records' round list and the categories all use them (the
+    # disc pack uses 1..11, Quiz TV packs 1..36; larger values hang the round).
     used_roots = sorted({q["subject"] for q in qs}, key=lambda r: cats[r][7])
+    category_base = s.get("pack", {}).get("category_base", 500 + (pack_no - 101) * 100)
+    if type(category_base) is not int:
+        raise ValueError("category_base must be an integer")
     new_id, round_of = {}, {}
     n = 1
-    for r in used_roots:
-        new_id[r] = pack_no * 100 + n
+    for k, r in enumerate(used_roots, 1):
+        new_id[r] = category_base + n - 1
         n += 1
-        round_of[r] = pack_no * 100 + cats[r][7]
+        round_of[r] = k
         for c in sorted({q["category"] for q in qs if q["subject"] == r}):
-            new_id[c] = pack_no * 100 + n
+            new_id[c] = category_base + n - 1
             n += 1
     if n > 100:
         raise ValueError("too many categories for one pack (99)")
+    if not new_id or not all(1 <= c <= MAX_CATEGORY_ID for c in new_id.values()):
+        raise ValueError("category ids must be in 1..999; set pack.category_base to a free range")
+    if set(new_id.values()) & cats.keys():
+        raise ValueError("category ids overlap the template; choose a free pack.category_base")
 
     # --- pictures: one sheet, frame 0 placeholder, slot = frame index
     images = []
@@ -127,9 +148,11 @@ def build(src, template, out_dir, pack_no):
 
     # --- one round per subject
     counts = {}
+    files = {}
     package_calls = []
     for r in used_roots:
         name = f"p{pack_no}_{re.sub('[^a-z]', '', cats[r][1].lower())}"[:24]
+        files[r] = name
         strings, rqs, media = [], [], []
         group = [q for q in qs if q["subject"] == r]
         group.sort(key=lambda q: 0 if q.get("image") else 1)   # media questions first, as shipped
@@ -140,7 +163,9 @@ def build(src, template, out_dir, pack_no):
             if q.get("image"):
                 local = slot[q["image"]]
                 if not any(row[0] == local for row in media):
-                    media.append((local, local, 0, local, 3, 0x10, 1, 0))
+                    # Raw media +0xE is an aspect-ratio enum, not a sheet flag:
+                    # 1=4:3, 2=2:3, 3=1:1, 4=16:9 (GetQuestionResourceAspectRatio).
+                    media.append((local, local, 0, local, 3, 0x10, 4, 0))
                 m = [next(i for i, row in enumerate(media) if row[0] == local)]
             sp = speech_no.get(q["id"], silent_no)
             rqs.append(buzzround.Question(
@@ -174,21 +199,45 @@ def build(src, template, out_dir, pack_no):
         for c in [r] + sorted(x for x in new_id if x != r and cats[x][3] == r):
             _, nm, key, parent, *_ = cats[c]
             cat_calls.append((("AddQuestionCategoryItem",),
-                              [new_id[c], nm, key, new_id[parent] if parent else 0,
+                              [new_id[c], category_name(pack_no, nm), key, new_id[parent] if parent else 0,
                                counts[c][0], counts[c][1], pack_no, round_of[r]]))
     gen = f"{lang}/SCRIPTS/GENERATED"
     entries[f"{gen}/questioncategories.clu"] = clu.dump(clu.call_script(cat_calls))
-    entries[f"{gen}/roundpackages.clu"] = clu.dump(clu.call_script(package_calls))
+    # A pack game needs its own games and rounds (Quiz TV DLC model, still
+    # supported by Quiz World): RoundSetup runs before the package list.
+    games = {m: f"p{pack_no}PackGame{m}" for m in ("1p", "4p", "8p")}
+    # The native chooser descends into subcategories. Each selectable category
+    # needs an AddRoundNew entry (0x10D668 maps the chosen id to a round).
+    # Registering just roots leaves no choices and falls back to the first round.
+    round_categories = [(cats[c][1], files[cats[c][3] or c]) for c in new_id]
+    entries[f"{gen}/roundsetup.clu"] = clu.dump(clu.call_script(
+        round_setup_calls(pack_no, dir_name, games, round_categories)))
+    entries[f"{gen}/roundpackages.clu"] = clu.dump(clu.call_script(
+        [(("IncludeScript",), ["Generated/RoundSetup"])] + package_calls))
+    title_key, desc_key = f"PackTitlePk{pack_no}Pack", f"PackDescPk{pack_no}Pack"
     info = clu.load(tz.read(f"{gen}/addpackinfo.clu"))
-    if clu.replace_consts(info, {100.0: float(pack_no), "PACK0100": dir_name}) != 2:
+    if clu.replace_consts(info, {100.0: float(pack_no), "PACK0100": dir_name,
+                                 "PackTitlePk100Pack": title_key, "PackDescPk100Pack": desc_key,
+                                 "p100PackGame1p": games["1p"], "p100PackGame4p": games["4p"],
+                                 "p100PackGame8p": games["8p"]}) != 7:
         raise ValueError("unexpected AddPackInfo template")
     entries[f"{gen}/addpackinfo.clu"] = clu.dump(info)
     # register: categories first (no ClearAll, unlike the disc pack), then pack info
     entries[f"{lang}/SCRIPTS/register.clu"] = clu.dump(clu.call_script(
         [(("IncludeScript",), ["Generated/QuestionCategories"]),
          (("IncludeScript",), ["Generated/AddPackInfo"])]))
+    # NAMEDTEXT: the template's strings (CAT_* keys etc.) plus this pack's title,
+    # description and game names.
+    pack = s.get("pack", {})
+    title = pack.get("title", dir_name)
+    extra = {title_key: title, desc_key: pack.get("description", title)}
+    extra.update({g: title for g in games.values()})
+    base = f"{lang}/NAMEDTEXT/default"
+    nt = named_text(tz.read(base + ".hdr"), tz.read(base + ".hst"), tz.read(base + ".ndx"), extra)
+    for ext, data in nt.items():
+        entries[f"{base}.{ext}"] = data
     for n_ in tz.namelist():
-        if "/NAMEDTEXT/" in n_ or "/DATA/" in n_:
+        if "/DATA/" in n_:
             entries[n_] = tz.read(n_)
 
     out = Path(out_dir) / dir_name
@@ -200,6 +249,68 @@ def build(src, template, out_dir, pack_no):
     _validate(pak, lang)
     return pak, dict(questions=len(qs), rounds=len(used_roots), pictures=len(images),
                      categories=len(new_id), size_mb=round(pak.stat().st_size / 1e6, 1))
+
+
+# Quiz World's own game model (Global/Scripts/GameSetup, RoundSetupDebug):
+# AddGame(name, id, kind, maxPlayers, 0, -1, 1, 0, 4) and
+# AddRoundNew(id, game, channel group, round type, category name, pack dir, round file).
+# Plans and all nine AddGame arguments copy the Knowledge channel games.
+# Omitting the penultimate 0 shifts 4 into a boolean flag and leaves the
+# native choice-count field at zero. Quiz TV's AddRound differs from AddRoundNew.
+GAME_PLANS = {
+    "1p": [("TriggerFinger", 0)] * 3,
+    "4p": [("PointBuilder", 0), ("PassTheBomb", 0), ("FastestFingerFirst", 0), ("PieFight", 0),
+           ("PointStealerMix", 0), ("BetIt", 0), ("FinalCountdown", 8)],
+    "8p": [("PointBuilder", 0), ("TriggerFinger", 0), ("BetIt", 0), ("FinalCountdown", 8)],
+}
+GAME_KIND = {"1p": ("1PPACKSPECIFIC", "Max1Player"), "4p": ("4PPACKSPECIFIC", "Max4Players"),
+             "8p": ("8PPACKSPECIFIC", "Max8Players")}
+# Channel group per Quiz World root category name
+CHANNEL = {"Music": "Music", "Movies": "TVCinema", "TV": "TVCinema", "Sport": "Sport",
+           "Leisure": "Lifestyle"}
+
+
+def round_setup_calls(pack_no, dir_name, games, subjects):
+    """AddGame / AddGamePlanRounds / AddRoundNew calls for this pack's games.
+    subjects: [(Quiz World category/subcategory name, containing round file)]."""
+    calls = []
+    for i, (m, g) in enumerate(games.items()):
+        kind, maxp = GAME_KIND[m]
+        calls.append((("AddGame",), [g, pack_no * 1000 + i, kind, maxp, 0, -1, 1, 0, 4]))
+    for m, g in games.items():
+        for rt, n in GAME_PLANS[m]:
+            calls.append((("AddGamePlanRounds",), [g, rt, n]))
+    rid = pack_no * 1000 + 300
+    for cat_name, f in subjects:
+        for m, g in games.items():
+            for rt in dict.fromkeys(rt for rt, _ in GAME_PLANS[m]):
+                calls.append((("AddRoundNew",), [rid, g, CHANNEL.get(cat_name, "Knowledge"), rt,
+                                                 category_name(pack_no, cat_name), dir_name, f]))
+                rid += 1
+    return calls
+
+
+def ndx_hash(key):
+    """NAMEDTEXT key hash (same CRC as the SDI header), signed int32."""
+    v = (zlib.crc32(key.encode()) ^ 0xFFFFFFFF ^ 0xFABCDEF7) & 0xFFFFFFFF
+    return v - (1 << 32) if v & 0x80000000 else v
+
+
+def named_text(hdr, hst, ndx, extra):
+    """Append {key: text} to a NAMEDTEXT table; returns {'hdr','hst','ndx'}."""
+    strings = buzzq.decode_strings(hdr, hst)
+    lines = [l for l in ndx.decode("utf-8-sig").splitlines() if l.strip()]
+    have = {int(l.split()[0]) for l in lines}
+    for key, text in extra.items():
+        h = ndx_hash(key)
+        if h in have:
+            raise ValueError(f"NAMEDTEXT key {key} already exists")
+        strings.append(text)
+        lines.append(f"{h} {len(strings)}")
+    h_, s_ = buzzq.encode_strings(strings)
+    crlf = chr(13) + chr(10)
+    ndx_text = chr(0xFEFF) + crlf.join(lines) + crlf
+    return {"hdr": h_, "hst": s_, "ndx": ndx_text.encode("utf-8")}
 
 
 def _speech_job(args):
@@ -233,6 +344,14 @@ def _validate(pak, lang):
     z = zipfile.ZipFile(pak)
     assert z.testzip() is None
     names = set(z.namelist())
+    categories = template_categories(z, lang)
+    category_ids = {c[0] for c in categories}
+    if len(category_ids) != len(categories) or not all(1 <= c <= MAX_CATEGORY_ID for c in category_ids):
+        raise AssertionError("duplicate category ids or ids outside the game's 1..999 registry")
+    if len({c[1] for c in categories}) != len(categories):
+        raise AssertionError("duplicate internal category names")
+    if any(c[3] and c[3] not in category_ids for c in categories):
+        raise AssertionError("unregistered parent category")
     with tempfile.TemporaryDirectory() as td:
         for n in names:
             if n.endswith(".qak"):
@@ -245,6 +364,8 @@ def _validate(pak, lang):
                 for q in r["questions"]:
                     if not q["question"] or len(q["answers"]) != 4 or not q["answers"][0]["correct"]:
                         raise AssertionError(f"{n}: bad question {q['id']}")
+                    if not q["categories"] or not set(q["categories"]) <= category_ids:
+                        raise AssertionError(f"{n}: unregistered category for question {q['id']}")
                     for t in q["texts"]:
                         if f"{lang}/{t['speech_file']}" not in names:
                             raise AssertionError(f"{n}: missing {t['speech_file']}")
@@ -292,7 +413,8 @@ def from_kip(kip, lang, limit=None, images_dir=None, include_finale=False, voice
     if limit:
         out = out[:limit]
     # KiP voice is ~4.5 dB quieter than Buzz's own question speech
-    return {"pack": {"title": "Knowledge Is Power", "topic": "Wiedza to potęga", "speech_gain_db": 4.5},
+    return {"pack": {"title": "WIEDZA TO POTĘGA", "description": "Pytania z gry Wiedza to potęga (PS4)",
+                     "topic": "Wiedza to potęga", "speech_gain_db": 4.5},
             "questions": out}
 
 

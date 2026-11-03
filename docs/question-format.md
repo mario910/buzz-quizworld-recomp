@@ -42,7 +42,10 @@ Encoding = count chars (+N×EOS), sort rows (freq,sym), write hdr, build tree as
 
 ## 2. `NAMEDTEXT/default.ndx`
 UTF-8 text with a BOM. Lines end in CRLF: `<signed int32 hash> <string number>`, one line per string. The lines are in string order 1..N (323 in POL) [C].
-The hash function / key names are **not identified** [G]. CRC32 (both bit orders), FNV-1/1a, djb2, sdbm and ×31/×65599 hashes of the CAT_* keys, the English category names and the pack keys did not match. The loader references `.ndx` via TOC slot r2-0x3BC (ppu_recomp_017.cpp:22024, around 0x2FFAFC). The key hash should be found in the lookup path from there.
+The key hash is `crc32(key.encode()) ^ 0xFFFFFFFF ^ 0xFABCDEF7`, converted to
+signed int32 [C: same CRC variant as the SDI header; custom pack UI strings work].
+The loader references `.ndx` via TOC slot r2-0x3BC (around 0x2FFAFC).
+`buzzpack.ndx_hash()` and `buzzpack.named_text()` write new keys and strings.
 
 ## 3. `.qak` (little-endian) / `.kaq` (big-endian)
 `.kaq` is the field-wise byte-swapped twin of `.qak` [C: `buzzq.py checkkaq` gives 0 differing bytes on all 11 files]. The game presumably reads `.kaq`. These fields are **not swapped** because they are byte fields: header 0x174..0x17B, the u8 index/pad of each section-table entry, the trailing u8s of records, and all string data.
@@ -68,10 +71,15 @@ An empty section has offset 0 and count 0 (miniquiz sections 0 and 2). Index sec
 Observed file layout: header, table (ends 0x1D4), sec0, sec1, sec2, sec3, sec4, sec5, sec6, [pad to 4], sec8, sec7, sec9, sec10. EOF is at the end of sec10.
 
 ### Section 0: media (16 B/row), sorted by localId
-`u32 localId, u32 assetNo, u16 0, u16 picSlot, u8 type, u8 0x10, u8 inPics, u8 0`
+`u32 localId, u32 assetNo, u16 0, u16 picSlot, u8 type, u8 0x10, u8 aspectRatio, u8 0`
 - type 1 = music: `QUESTIONASSETS/MUSIC/STREAMED/{1000000+assetNo}.rsf` [C: every one exists]
 - type 2 = video: `QUESTIONASSETS/VIDEO/{1000000+assetNo}.sdi` [C: every one exists]
-- type 3 = picture: picSlot 1..414 is unique per picture across the pack. [G] It is the frame in `QUESTIONASSETS/VIDEO/pics001.sdi`, whose header says 0x1A4 = 420 frames. inPics = 1 for 492 pictures and 0 for 13 [G: meaning unknown]. assetNo is not a file in the pack.
+- type 3 = picture: picSlot 1..414 is unique per picture across the pack. It is the frame in `QUESTIONASSETS/VIDEO/pics001.sdi`, whose header says 0x1A4 = 420 frames. assetNo is not a file in the pack.
+- **aspectRatio at +0xE:** 1=4:3, 2=2:3, 3=1:1, 4=16:9, 0=none [C:
+  `func_000DAE98` copies raw +0xE to cached +0x3E; `func_000DB098` and
+  `GetQuestionResourceAspectRatio` (`func_00139318`) map it to scene strings].
+  This field was previously misnamed `inPics` (`in_pics` remains a decoder alias).
+  New wide sheets use 4, not 1: marking a wide raster as 4:3 narrows every image.
 - localId is consistent across rounds (same id gives the same row). Rows are shared by several questions.
 - 0x10 and the u16 0 are constants [G].
 
@@ -107,6 +115,11 @@ Rows are laid out contiguously: question k uses rows k·count in each child sect
 - flags 5 = correct (bit 2), 1 = wrong. The correct answer is **always listed first** in all 6173 questions, so the game must shuffle [C for data; bit meaning G].
 ### Section 5: categories (2 B): `u16 categoryId`
 - Two per question: root (e.g. 230 People) and subcategory (231..234). The ids, English names and parents come from `SCRIPTS/GENERATED/questioncategories.clu`: `AddQuestionCategoryItem(id, name, key, parentId, nMediaQs, nTextQs, packId, roundNo)`. The root's nMediaQs/nTextQs match these files (People 66/156).
+- Although stored as u16, ids must be **1..999** [C: native binding
+  `func_0013C6E8` checks unsigned `(id - 1) <= 998` before registration]. Larger
+  ids are silently ignored. The registry is global across packs; its internal
+  names also need to be unique because `AddRoundNew` resolves a category by name
+  (`func_000E28F0`). The localised display key can still reuse `CAT_*`.
 ### Section 6: round number (2 B): `u16` = the categories.clu roundNo (1 = miniquiz ... 11 = tv).
 ### String order in .hst
 For each question in sec1 order: question, topic, then 4 answers (6 strings). Miniquiz has 5 strings: question and 4 answers. Section 3/4 hold explicit stringNos, so this order is only convention.
@@ -155,6 +168,9 @@ Stream: a CRI Sofdec MPEG-1 system stream, 2048-byte packs (mux rate 0x040F39).
 - Then one 2030-byte video PES per pack. A picture's first PES has STD + PTS + DTS = i×3600
   (25 fps). Following packets have 9 stuffing bytes + STD.
 - MPEG-1 video 640×368, pel-aspect code 0xC, VBV 608. One sequence header + GOP + I-picture per picture.
+- For new sheets, fit/letterbox in **640×360 display coordinates**, then resize
+  to the stored 640×368 raster and set media aspectRatio=4. The scene maps the
+  raster back to 16:9; fitting directly to 640×368 would leave a 2.2% stretch.
 
 Picture questions: slot = frame index; **frame 0 is a "Missing Picture" placeholder** [C:
 slot 1 decodes to the printing-press photo used by the printing questions]. The index area

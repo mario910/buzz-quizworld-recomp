@@ -1,6 +1,15 @@
 # Custom question packs: findings and plan
 
-Status: investigation complete, nothing implemented in the game yet.
+Current status (2026-11-03): custom packs register, appear with their own title
+and start rounds. Empty questions were traced to invalid category registration:
+the builder used ids above 999, which the native binding silently rejects.
+The builder now uses valid ids and pack-specific internal category names;
+the user confirmed v5 shows the question, all four answers and pictures. v7
+also registers subcategory rounds to fix repeating Arts / Point Builder;
+the user reported that manual play looks correct after this fix. See
+[handoff-question-packs.md](handoff-question-packs.md) for current paths and test rules.
+
+The investigation below includes earlier milestones and their historical status.
 Target: BCES00647 1.02 (Polish disc). All findings come from read-only
 inspection of the extracted disc, the Buzz! Quiz TV disc (BCES00305) and the
 recompiled EBOOT. Byte-level details: [question-format.md](question-format.md).
@@ -12,7 +21,7 @@ Reference decoder/encoder: `tools/questions/buzzq.py`; Lua 5.1 BE disassembler:
 | Goal | Feasible? | Notes |
 | --- | --- | --- |
 | Read every question (text, answers, category, difficulty, media) | **Yes, done** | 6,173 POL questions decode; re-encoding is byte-exact |
-| Write new round files | **Yes** | Huffman text, `.qak`/`.kaq` and indexes all rebuild byte-exact; not yet tested in game |
+| Write new round files | **Yes** | Huffman text, `.qak`/`.kaq` and indexes rebuild byte-exact; custom questions display in game |
 | New packs selectable by players | **Yes, the menu already exists** | Pack Game and Manage Quiz Packs appear when DLC packs are registered |
 | Text, picture, video and music questions | **Yes** | Pictures are frames in `pics00N.sdi`, video is `.sdi`, music is `.rsf` |
 | Question speech / per-language sets | **Yes, with an ATRAC3 encoder** | All audio is ATRAC3 at 48 kHz; one PAK per language |
@@ -73,9 +82,8 @@ POL pack 100 contents:
 - **Video / pictures** (`.sdi`): `SDIVIDEO` header + packet index + MPEG-2 PS,
   640x368. Picture questions point at a frame slot (1..414) in `pics00N.sdi`.
   New pictures mean encoding stills as MPEG-2 frames (FFmpeg) and writing the SDI index.
-- **Open item**: hash used by `NAMEDTEXT/default.ndx` (string-key lookup) is not
-  identified yet. It is needed for new pack titles, descriptions and category names. The workaround is
-  to reuse existing keys, or hook the lookup in the port.
+- **NAMEDTEXT hash:** `crc32(key) ^ 0xFFFFFFFF ^ 0xFABCDEF7`, interpreted as
+  signed int32. The builder adds its own title, description and game-name keys.
 
 ## Pack selection already in the game
 
@@ -152,7 +160,7 @@ Packs and plays one round from a custom pack.
 ## Pack builder prototype (`tools/questions/buzzpack.py`)
 
 Builds `<LANG>PACKnnnn.edat` (a plain ZIP; see the in-game results below) from a JSON
-source, or from a KiP export. Packs register and list in game; rounds not yet played.
+source, or from a KiP export. Packs register, list and play in game.
 Everything is checked by re-parsing the output.
 
 ```
@@ -174,13 +182,48 @@ Pieces, each verified independently:
 KiP Polish result (pack 102): 4,562 questions in 10 subject rounds, 304 pictures, 30 categories,
 15.4 MB. Spot check: the Einstein question's slot 1 frame decodes to the Einstein picture.
 
-Design choices to confirm in game:
-- Categories are re-registered with this pack's own ids (`pack*100+n`), the pack id and
-  existing `CAT_*` keys. There's no `ClearAll`, because the disc pack's script clears
-  everything first, and the load order is unknown.
-- Round numbers are `pack*100 + subject round no` (e.g. 10207), and file names are `p<pack>_<subject>`.
+Current builder registration:
+- Category ids are global **1..999**, enforced by `AddQuestionCategoryItem`
+  (`func_0013C6E8`, range check at 0x13C744). The template has 295 categories,
+  with ids reaching **436**. An out-of-range registration returns without adding
+  anything; having nonempty strings in the archive does not ensure a playable question.
+- Default category blocks: pack 101 starts at 500, 102 at 600, through 105 at 900.
+  Set `pack.category_base` in the source JSON for another free block. A pack uses
+  consecutive ids from that base (up to 99); co-installed custom packs must have
+  disjoint ranges. Invalid ranges and collisions with template ids fail before
+  expensive media encoding.
+- Internal category names are `p<pack>_<original name>` in both category registration
+  and `AddRoundNew`. Name lookup is global (`func_000E28F0`), so retaining a disc
+  category name can select the disc's id. Existing `CAT_*` keys still supply the
+  localised display names. There is no `ClearAll`.
+- Round-file indices are 1..k in `AddRoundFile`, question records and categories;
+  file names are `p<pack>_<subject>`.
 - Question ids are `pack*100000+n`, and the topic line is a fixed pack string.
-- `AddPackInfo` reuses pack 100's title, description and game-plan names (`p100PackGame*`).
+- `AddPackInfo` points to this pack's own NAMEDTEXT keys and `p<pack>PackGame*` plans.
+- `Generated/RoundPackages` includes `Generated/RoundSetup` before the package list.
+  The latter registers the Quiz World games, plans and `AddRoundNew` entries.
+- **v6:** `AddGame` needs nine arguments, matching the native binding and
+  Knowledge games: `(name, id, kind, maxPlayers, 0, -1, 1, 0, 4)`.
+  The earlier eight-argument call put 4 into a boolean flag and left the choice
+  count at 0. The user reported repeating Arts and Literature / Point Builder
+  across rounds. v6 corrected the call; v7 below fixed the remaining selection bug.
+- **v7:** `AddRoundNew` must cover **every registered category, including
+  subcategories**, pointing to its subject's question file. Native selection
+  descends into the category tree; `func_0010D668` maps selected category ids
+  to these entries. With only roots registered, that mapping returned no
+  choices, and `SelectNextRound(1)` fell back to the first Arts / Point Builder
+  entry. Registering all 30 categories fixes native selection: the same test
+  changes from 0 choices and repeated Point Builder to 2 choices, different
+  category ids and subsequent FastestFingerFirst / TriggerFinger rounds.
+  The user reported v7 looks correct in manual play. The automated probe has
+  no contestants, so player-count restrictions affect its plan. The finale,
+  all player counts and exactly four category choices need separate coverage.
+- The 4-player plan starts with Point Builder, then Pass The Bomb, Fastest Finger
+  First, Pie Fight, Point Stealer, Bet It and Final Countdown. Starting a fresh
+  game with Point Builder is intentional; repeating it throughout a game is not.
+- **v6 pictures:** raw media +0xE is the aspect-ratio enum, not a sheet flag.
+  Set it to 4 (16:9), and fit images in 640×360 before storing them at 640×368.
+  A synthetic encode/decode test verifies portrait, square and wide proportions.
 - Speech: `.rsf` sources are copied, and any other audio (wav/mp3/ogg, KiP `.wem`) is encoded
   by our own ATRAC3 encoder. Questions without speech share one silent clip.
 
@@ -204,6 +247,11 @@ This is our own implementation, so no third-party encoder is needed. It produces
 - KiP voice gets +4.5 dB to match Buzz's speech loudness (peak stays below −4 dBFS).
 - In-game decoding goes through the firmware ATRAC decoder lifted in the port. That is the
   remaining check.
+
+Registration regression checks (synthetic fixtures, no game assets):
+`python -I -m unittest discover -s tests -p test_buzzpack.py -v`.
+These cover the native category range, collisions, parent/child references,
+pack-specific lookup names, round indices and decoded question/answer text.
 
 ## In-game test results (2026-11-02, eu100 Vulkan build of main 499b6d4)
 
