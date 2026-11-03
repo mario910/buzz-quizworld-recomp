@@ -18,6 +18,8 @@
 /build-vulkan-smoke/
 /build-vulkan-windows/
 /dist-launcher/
+/build-studio/
+/dist-studio/
 /toolenv/
 __pycache__/
 *.pyc

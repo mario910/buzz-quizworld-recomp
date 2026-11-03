@@ -1,0 +1,3 @@
+<RCC><qresource prefix="/">
+<file alias="studio.svg">resources/studio.svg</file>
+</qresource></RCC>

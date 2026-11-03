@@ -40,6 +40,7 @@ host pipeline's internal representation.
 
 ## Questions and custom packs
 
+- [Question Studio: Windows/Linux editor, languages and EDAT building](question-studio.md)
 - [Building and installing packs](question-packs.md)
 - [Question, text and media formats](question-format.md)
 - [Knowledge Is Power import](question-import-kip.md)

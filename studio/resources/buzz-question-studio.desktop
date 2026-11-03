@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Buzz! Question Studio
+Comment=Create and edit Buzz question libraries
+Exec=BuzzQuestionStudio
+Icon=buzz-question-studio
+Terminal=false
+Categories=Game;Education;
