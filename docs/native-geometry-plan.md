@@ -12,6 +12,17 @@ owns all approved native, scheduling and renderer defaults. Missing environment
 variables enable the approved profile without launcher injection; explicit
 overrides remain supported. [Validation](native-runtime-defaults-results.md).
 
+Current handoff (2026-11-03): Claude's coverage changes admit 18,487 of
+19,508 image-41 corpus jobs; remaining fallbacks are padding palette indices
+(584), additional blend streams (328), and input storage 4 (109). Profile the
+current build before any further coverage work. Legacy JOB1 removal remains
+deferred. New switches must be explicitly routed and tested: `output_option`
+silently returns zero for names outside its production list. Earlier Codex
+absolute FPS is environment-specific; use the later reported approximately
+40.6 menu / 50 round baseline with its own measurement conditions, without
+mixing absolute results across environments. The suspected sandbox effect is
+not established causally. [Current measurements and sources](native-geometry-summary.md).
+
 ## Course correction (2026-11-01, supersedes conflicting text below)
 
 **Status: the phase-3 whole-job path is slower than the lift it replaces.**
