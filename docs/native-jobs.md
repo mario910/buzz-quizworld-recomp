@@ -1,0 +1,129 @@
+# Native geometry and animation jobs
+
+The port replaces recognized SPU jobs with host C++ and AVX2 while retaining
+the lifted implementation for unsupported inputs. The qualified EU
+1.00/Vulkan/AVX2 build enables these paths inside the executable; it does not
+need a launcher to set their environment switches. Other executable families
+retain their own hash-bound adapters and defaults.
+
+## Observable contract
+
+A replacement must preserve the ordered DMA, atomic and channel operations,
+every published vertex/index/RSX/animation byte, and the job's exit controls.
+Published floating-point values retain SPU rounding toward zero, denormal
+flush and the original fused versus separately rounded operation order.
+
+Internal SPU registers, scratch LS, dummy/lookahead iterations, prefetches and
+SPU-ABI frames need not be reconstructed. Full-state per-function checkers
+remain useful for debugging retained kernels; they must not dictate the host
+pipeline's representation. Strict dead-register reconstruction is not planned.
+
+Admission happens before observable mutation. An unsupported descriptor takes
+the entire lifted job; it must not execute a native prefix and then restart
+the original job after DMA or publication has already occurred.
+
+## Image 41: geometry
+
+`port/native_geometry_job_flow.cpp` owns the native job driver;
+`port/native_geometry_host_job.h` composes its host data path. Inputs remain
+big-endian guest bytes until bounded decoders produce little-endian host SoA.
+Each AVX2 lane represents one vertex or triangle.
+
+| Step | Implementation | Behavior |
+| --- | --- | --- |
+| Input admission and decode | `native_geometry_host_input_job.h` | Resolves descriptors and staged streams once; invalidates partial readiness on failure |
+| Skin/object transform | `native_geometry_host_skin_job.h` | Consumes host attributes and palettes directly, preserving SPU FP order |
+| Clip coordinates | `native_geometry_host_clip_job.h` | Produces host coordinates, clip flags and packed bounds; supports admitted clip formats 0/3 |
+| Index decode | `native_geometry_host_index_job.h` | Decodes deltas and flag-selected references into host u16 triangle arrays |
+| Cull | `native_geometry_host_cull_job.h` | Evaluates triangles in eight-lane batches and compacts retained indices |
+| Index serialization | `native_geometry_host_index_output.h` | Writes final aligned indices, including observable padding |
+| Vertex serialization | `native_geometry_host_vertex_job.h` | Writes admitted float, Edge-half, CMP and SNORM16 fields at byte offsets, including odd record strides |
+| Publication and commands | `native_geometry_job_flow.cpp` | Publishes final streams in the job's required order and prepares RSX commands |
+
+The host path retains persistent arrays between stages rather than serializing
+intermediate float4 tables through LS. Each final output stream is written in
+the format and location from which the job publishes it. Padding is observable:
+some positions require one additional transformed input, and aligned index
+tails can repeat bytes from the final retained group.
+
+Known whole-job fallback families include out-of-palette indices in that
+padding position, additional blend streams and input storage 4. A discarded
+padding value is not permission to read a different palette entry. Unknown
+descriptors and invalid spans also retain the lift.
+
+## Image 40: animation
+
+`port/native_animation_runtime.cpp` owns dispatch and the reusable worker-local
+workspace. `port/native_animation_job.h` prepares and executes the recognized
+256-byte-descriptor family without an SPU register bank or call frames.
+
+| Step | Implementation | Behavior |
+| --- | --- | --- |
+| Job metadata | `native_animation_job_input.h` | Resolves control nodes, clip references, skeleton, root pose and output destinations |
+| Clip selection | `native_animation_host_clip.h` | Selects bounded header/body data and combines defaults with static and sampled channels |
+| Quaternion keys | `native_animation_host_quaternions.h` | Decodes six-byte keys, selects temporal neighbors and interpolates with original hemisphere/FP rules |
+| Translation/scale keys | `native_animation_host_vectors.h` | Decodes BE float3 tracks into eight-lane host arrays |
+| Control/blending | `native_animation_host_pipeline.h`, `native_animation_host_blend.h` | Evaluates the admitted graph and keeps poses/curves in host arrays |
+| Hierarchy | `native_animation_host_hierarchy.h` | Builds dependency-ready joint batches, with parent scale and inheritance flags |
+| Matrices and output | `native_animation_host_pose.h`, `native_animation_job.h` | Produces final reference/world/curve streams once, then emits the required job I/O |
+
+The recognized graph has one/two control nodes and two/three clips. Host
+preparation validates the immutable guest inputs and computes output before
+LS/channel mutation. Runtime execution retains fenced GETs, tag waits, PUTs
+and channel ordering. Publication is reference matrices (48 bytes/joint),
+world matrices (64 bytes/joint), then optional aligned curve words.
+
+Unsupported key encodings, explicit weights outside the admitted recipe,
+enabled interrupt entries, allocation overrides and uncovered schedules use
+the whole lifted job. Similar code in images 43/45/47 is not sufficient to
+qualify those images for native dispatch.
+
+The [data reference](native-animation-data.md#animation-job-metadata-frontend)
+describes the descriptor fields, clip block selection, quaternion packing,
+curve padding and hierarchy layout.
+
+## Dispatch, controls and diagnostics
+
+| Switch | Meaning |
+| --- | --- |
+| `BUZZ_GEOMETRY_JOB=0/1/2` | Whole image-41 lift / native host pipeline / native with whole-job checking |
+| `BUZZ_ANIMATION_JOB=0/1/2` | Whole image-40 lift / native host pipeline / native-retained I/O comparison |
+| `BUZZ_GEOMETRY_JOB_HOST_PIPELINE` | Host data preparation group |
+| `BUZZ_GEOMETRY_JOB_PUBLICATION` | Geometry output-publication group |
+| `BUZZ_GEOMETRY_JOB_COMMANDS` | Geometry command group |
+| `BUZZ_GEOMETRY_FALLBACK_REASONS=1` | Diagnostic fallback-reason counts; off normally |
+| `BUZZ_GEOMETRY_JOB_LEGACY=1` | Old stage-by-stage implementation and its diagnostic switches; off normally |
+| `BUZZ_GEOMETRY_DEBUG_STAGES=1` | Optional internal full-state checks |
+
+The three production geometry groups default on with the supported host
+profile; disabling a required group selects the whole lifted job. Old stage
+switches are not cumulative upgrades to the host path. `output_option()`
+routes only its known production groups and returns zero for other names
+outside legacy mode. New production switches need explicit routing and tests;
+otherwise they can silently have no effect.
+
+Whole-job checking records actual ordered I/O and replays it into an isolated
+reference/shadow. It must not perform real DMA/atomics twice. Image-40 mode 2
+retains the native result and gives the original shadow the actual native GET
+payloads; this also detects inputs changing between preparation and DMA.
+Unrecordable comparisons are counted separately as skipped, never as passes.
+
+`port/job_corpus.cpp` implements capture/replay. `BUZZ_REPLAY_CORPUS` selects
+offline input and `BUZZ_REPLAY_CONTRACT=1` selects the observable job contract.
+An image-40-only replay does not require image-41 coverage; enabled image-41
+paths still require native coverage when image-41 jobs are present.
+
+## Retained code and maintenance
+
+Stage F, image 7/36 leaves and image-39 native FP retain their reviewed
+adapters. The geometry leaf mask is 827 (`0x33B`); the
+[kernel reference](native-geometry-kernels.md) describes the groups.
+These routines also serve the lifted fallback and diagnostics.
+
+Legacy JOB1 removal remains deferred. The next optimization starts with a
+profile of the current executable, rather than expanding cold-format coverage.
+Do not reintroduce per-function SPU transliterations or assume that unobserved
+formats are qualified because synthetic cases pass.
+
+See [runtime defaults](runtime-defaults.md) for configuration and
+[profiling and validation](performance.md) for acceptance requirements.

@@ -1,22 +1,16 @@
-# Custom question packs: findings and plan
+# Custom question packs
 
-Current status (2026-11-03): custom packs register, appear with their own title
-and start rounds. Empty questions were traced to invalid category registration:
-the builder used ids above 999, which the native binding silently rejects.
-The builder now uses valid ids and pack-specific internal category names;
-the user confirmed v5 shows the question, all four answers and pictures. v7
-also registers subcategory rounds to fix repeating Arts / Point Builder;
-the user reported that manual play looks correct after this fix. See
-[handoff-question-packs.md](handoff-question-packs.md) for current paths and test rules.
+Custom packs register, appear in Pack Game and can display questions,
+answers and pictures. The builder registers valid category IDs and
+subcategory round records. Broader finale/player-count coverage and voice
+quality still need manual validation. Byte-level formats are documented in
+[question-format.md](question-format.md).
 
-The investigation below includes earlier milestones and their historical status.
-Target: BCES00647 1.02 (Polish disc). All findings come from read-only
-inspection of the extracted disc, the Buzz! Quiz TV disc (BCES00305) and the
-recompiled EBOOT. Byte-level details: [question-format.md](question-format.md).
-Reference decoder/encoder: `tools/questions/buzzq.py`; Lua 5.1 BE disassembler:
-`tools/questions/luadis.py`.
+Tools: `tools/questions/buzzpack.py`, `buzzq.py`, `luadis.py` and `at3enc.py`.
+Addresses below are specific to the executable named in the surrounding
+reference; do not relocate EU 1.02 bindings into EU 1.00 by a global delta.
 
-## Verdict
+## Capabilities
 
 | Goal | Feasible? | Notes |
 | --- | --- | --- |
@@ -126,38 +120,7 @@ POL pack 100 contents:
 - `tools/questions/kip_export.py` exports 3,812 trivia + 750 Polish-only + 300
   finale questions in Polish, plus en/ru.
 
-## Proposed tool: `buzzpack`
-
-A Python CLI with an optional small GUI later. It works on an editable source format:
-
-```
-mypack/
-  pack.toml               id, title, description, languages, category tree
-  questions.csv|json      id, category, difficulty, type, text, answers[4], media, per-language text
-  media/                  png/jpg (pictures), mp4 (video), wav/ogg (music, speech)
-```
-
-Commands:
-- `buzzpack extract <PAK|ISO> -o dir`: game pack to source format (Quiz World, Quiz TV)
-- `buzzpack build dir -o PACKnnnn/`: source format to `<LANG>PACKnnnn.PAK` per language
-  (Huffman text, qak/kaq, generated Lua, ATRAC3 speech/music, SDI video/picture sheets)
-- `buzzpack import-kip <unpacked dir>`: once the format is known
-- `buzzpack validate`: round-trip and reference checks
-
-Port side: a switch to enable custom packs directory, any DLC-path mapping or Lua
-registration the scan needs, and a smoke test that boots, opens Manage Quiz
-Packs and plays one round from a custom pack.
-
-### Milestones
-1. Trace DLC discovery, then re-register an unmodified **copy** of PACK0100 under a new
-   pack id/dir and confirm it shows in Manage Quiz Packs. This proves the whole path in game.
-2. Tiny text-only custom pack (10 questions, reused title keys) built by the encoder.
-3. Picture/video/music questions; ATRAC3 speech (recorded or TTS) per language.
-4. Quiz TV pack import.
-5. NAMEDTEXT hash, for real pack titles and category names.
-6. Knowledge Is Power import after unpacking.
-
-## Pack builder prototype (`tools/questions/buzzpack.py`)
+## Pack builder (`tools/questions/buzzpack.py`)
 
 Builds `<LANG>PACKnnnn.edat` (a plain ZIP; see the in-game results below) from a JSON
 source, or from a KiP export. Packs register, list and play in game.
@@ -253,12 +216,7 @@ Registration regression checks (synthetic fixtures, no game assets):
 These cover the native category range, collisions, parent/child references,
 pack-specific lookup names, round indices and decoded question/answer text.
 
-## In-game test results (2026-11-02, eu100 Vulkan build of main 499b6d4)
-
-Run from this worktree's own frozen build and `runtime/`, in the background and muted, with
-`BUZZ_SCRIPT` input. Trace switches used: `PS3_FSLOG=1` (fs opendir/stat/open),
-`BUZZ_BOOT_TRACE=1` (Lua `IncludeScript`), `PS3RECOMP_VK_DUMP=<file.ppm>` +
-`PS3RECOMP_VK_DUMP_EVERY` (frame capture).
+## Installation and discovery
 
 **How to install a custom pack:**
 `runtime/dev_hdd0/game/BCES00647/USRDIR/PACKnnnn/<LANG>PACKnnnn.edat`.
@@ -272,22 +230,7 @@ Run from this worktree's own frozen build and `runtime/`, in the background and 
   language choice, together with `POL.PAK` and the disc's `POLPACK0100.PAK`.
 - **Registration:** `RunPackageRegistrationScripts` (frontend1, after network init) runs
   `SCRIPTS/register` for every mounted pack.
-  - **Verified:** with PACK0101 and PACK0102 installed, three registrations run (disc + both packs).
-  - For PACK0102, `Generated/RoundPackages` is included, so `AddPackInfo` returned true.
 
-**What the menus show:**
-- Play > "Gra z pakietami quizów" (Pack Game) is enabled.
-- It opens "Który Pakiet chcesz?" with **both custom packs** listed plus "Rozegraj wszystkie
-  pakiety" (play all packs). The disc pack is not listed, like real DLC.
-- Both packs are titled "STANDARD MIX" because they reuse pack 100's `PackTitlePk100Pack` key.
-- Selecting a pack continues to "Ile osób gra?" (2–4 players), then the player-join screen.
-
-**Not yet verified:**
-- Questions inside a round: the profile step ("Wczytać profil czy stworzyć nowy?") needs an
-  existing or newly created profile for at least two players. That is easiest done by hand with buzzers.
-- Generated ATRAC3 speech and picture sheets playing in game.
-
-## Milestone 1: second pack discovery
 
 ### DLC discovery, from the recompiled EBOOT
 - `func_00265AC0` (ppu_recomp_013.cpp) is the pack scanner. For each entry
@@ -302,35 +245,30 @@ Run from this worktree's own frozen build and `runtime/`, in the background and 
   The log shows `BCES00647` and `BCES00195`. So packs are expected under
   `/dev_hdd0/game/<title>/USRDIR/PACKnnnn/` (host:
   `runtime/dev_hdd0/game/BCES00647/USRDIR/PACKnnnn/`).
-- In the 2026-10-31 run, `cellFs` logged **no `Opendir` at all**, so the scan
-  was not reached on that boot. Which gate is closed is the first thing the
-  traced run must answer.
 
-### Test pack
-`tools/questions/make_test_pack.py` builds `PACK0101/POLPACK0101.PAK` from
-the disc pack. It contains one round (`q_people`, 222 questions), its 222 speech files,
-10 videos, 3 music clips and the 3 picture sheets. `AddPackInfo` has pack id/order 101 and
-dir `PACK0101`, and the round header has pack id 101. Titles and keys reuse pack 100's strings.
-`tools/questions/clu.py` reads and writes `.clu` (all 519 shipped scripts
-round-trip byte-exact) and emits simple call scripts.
+## Category and round registration
 
-```
-python -I tools/questions/make_test_pack.py <USRDIR>/PACK0100/POLPACK0100.PAK <outdir>
-```
+Category IDs must be in 1..999: the native binding rejects values outside
+that range. Default custom ranges start at `500 + (pack_no - 101)*100` for
+packs 101..105. `pack.category_base` can select another unused range;
+co-installed packs require disjoint IDs and pack-specific internal names.
+Display text keys remain separate.
 
-### Traced run checklist (after the Codex optimisation work is finished)
-1. Copy `<outdir>/PACK0101` to `runtime/dev_hdd0/game/BCES00647/USRDIR/PACK0101/`.
-   Remove it after the test so other runs are unaffected.
-2. Launch in the background and muted, to the main menu.
-3. stdout: `[cellFs] Opendir` lines show whether and where the scanner looks.
-   stderr: `[fs] open ... PACK0101` shows whether the PAK (or a `.edat` name) is opened.
-4. If there is no `Opendir`, read `0x8ED86C` and the list at `0x8ECDE8` from a live
-   process (`tools/inspect/inspect-live-memory.py`). Then decide between
-   satisfying the gate (cellGame/HDD state) and registering packs from the port.
-   For the port route: run the scanner after boot, or use a Lua `AddPackInfo` injection
-   via `frontend_policy.cpp`.
-5. In game: Main menu > Pack Game, and Extras > Manage Quiz Packs, should list
-   two packs. Then play one round of PACK0101 alone.
+RoundSetup must register subcategories as well as subject roots. The chooser
+can select a subcategory, and the native round lookup needs a record for that
+exact ID. Missing records leave zero choices and can repeatedly select the
+first round. Each category record references its containing subject file.
 
-Copyright: tools and docs only. No game questions, audio or video are committed;
-extraction happens locally from the user's own discs.
+## Limitations and debugging
+
+The PS Eye photo scene (`eyetoyscene_onyourmarks`) can hang custom-pack games:
+speech can remain active after `StartCamera`. `PS3_CAMERA=0` is a diagnostic
+workaround, not a root-cause fix. Keep manual full-game/finale, player-count
+and speech-quality validation distinct from a successful question display.
+
+For EU 1.00 Lua calls, `PS3_CALLTRACE=40000000` with
+`PS3_CALLTRACE_FROM=4829D8` traces `luaD_precall`; `BUZZ_BOOT_TRACE=1` logs
+script inclusion and `PS3_FSLOG=1` logs file operations. Use a binding map
+from the matching executable. Capture through the renderer's explicit GPU
+readback. Keep diagnostic packs/probes and save changes in an isolated runtime,
+then restore the normal archive before manual play.

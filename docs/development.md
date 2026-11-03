@@ -29,10 +29,10 @@ ps3recomp/       Pinned SDK submodule (normal fork master, validated v0.17.0 cod
 | Direct native start | `scripts/run-windows.ps1 -Seconds 0 -MenuBootstrap` |
 | Generation only | `scripts/generate.ps1 [-Jobs 6]` (ELF hash checked before writing) |
 | Experimental compiler/kernel variants | `scripts/build-windows.ps1` |
-| Isolated Windows Vulkan experiment | `scripts/Build-Buzz.ps1 -VulkanExperimental`; see [bring-up status](vulkan-bringup.md) |
+| Windows renderer architecture and diagnostics | [Vulkan and D3D12](renderer.md) |
 | Performance experiments | `perf/` and `tools/inspect/` |
 | 30 FPS cap checks | `tests/scripts/test-frame-limit.ps1`; `perf/measure-frame-limit.ps1 -LiveSwitches` |
-| Renderer frame-time A/B (menu, solo round) | `perf/measure-vulkan-scene.ps1`; `perf/scene-window-stats.py`; results in [frame-limit-status](frame-limit-status.md) |
+| Renderer frame-time A/B (menu, solo round) | `perf/measure-vulkan-scene.ps1`; `perf/scene-window-stats.py`; [measurement rules](performance.md) |
 
 The supported Build-Buzz configuration expands to:
 
@@ -87,6 +87,11 @@ private needs to be copied from another checkout.
   `tools/codegen/geometry_fixture.py`, so they hold under any `core.autocrlf`.
 
 ## Integration and measurement
+
+See [native jobs](native-jobs.md), [runtime defaults](runtime-defaults.md)
+and [profiling and validation](performance.md) for the maintained runtime
+contract and workflow. [The documentation index](README.md) lists format
+references. Completed phase reports remain in Git history.
 
 Use `-Background` and internal `BUZZ_SCRIPT` for unattended integration. No
 global desktop input or window activation is needed. Prefer the single-player

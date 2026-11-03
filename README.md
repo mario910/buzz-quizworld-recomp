@@ -37,12 +37,13 @@ in its entirety by this repository's MIT license. See
   enables reviewed host geometry, animation, completion and renderer defaults
   inside the EXE, with whole-job fallbacks for unsupported inputs. It builds
   from a clean checkout without private captured test data. See
-  [measured results](docs/native-geometry-summary.md) and
-  [runtime defaults](docs/native-runtime-defaults-results.md).
+  [native jobs](docs/native-jobs.md) and
+  [runtime defaults](docs/runtime-defaults.md).
 - **Custom question-pack tools:** question decoding/encoding, a JSON pack
   builder, picture sheets, an ATRAC3 speech encoder and Knowledge Is Power
-  export/conversion. Custom packs register and appear in Pack Game; playing
-  their questions and generated media is still unverified. See
+  export/conversion. Custom packs register and appear in Pack Game; manual
+  tests cover questions, answers and pictures. Full-game and speech-quality
+  validation remain limited. See
   [custom question packs](#custom-question-packs).
 
 ## Supported game — exact match required
@@ -198,13 +199,13 @@ volume, a 30 FPS lock, fullscreen, controllers and restart-only offline mode.
 It shares per-build settings with the native launcher. On Vulkan the game is
 paused while the menu is open (guest clock, vblank and audio held); on the
 D3D12 fallback the quiz keeps running. The optional 30 FPS lock paces the game's
-CPU thread and is off by default; see [frame-lock details and measurements](docs/frame-limit-status.md).
+CPU thread and is off by default; see [frame pacing](docs/frame-pacing.md).
 R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
 blue/orange/green/yellow. Windows physical Buzz HID is experimental and
 hardware-unverified. `Build-Buzz.ps1` builds both renderers (`-Renderer Vulkan`
 or `D3D12` for one); the launcher prefers Vulkan unless PC settings select
-`renderer=d3d12`. The [Vulkan bring-up notes](docs/vulkan-bringup.md)
-describe the earlier experiment; Vulkan is now the ordinary Windows default.
+`renderer=d3d12`. See [renderer architecture](docs/renderer.md) for submission,
+resource-lifetime and diagnostic behavior.
 
 **Phone buzzers:** enable the optional local HTTP host in **Escape / START →
 Phone buzzers**, then scan its QR code on phones connected to the same Wi-Fi.
@@ -293,11 +294,10 @@ either source game a supported executable for this port.
 The tested EU 1.00 installation path is
 `runtime/dev_hdd0/game/BCES00647/USRDIR/PACKnnnn/<LANG>PACKnnnn.edat`
 inside the selected build. The archive is a plain stored ZIP with an `.edat`
-name; a `.PAK` name on the HDD is ignored. Two custom packs have registered,
-appeared in **Pack Game**, and reached player setup. Their titles currently
-reuse disc strings. Full rounds, generated speech/pictures and other game
-profiles remain unverified. See the latest
-[in-game results and installation details](docs/question-packs.md#in-game-test-results-2026-11-02-eu100-vulkan-build-of-main-499b6d4).
+name; a `.PAK` name on the HDD is ignored. Custom packs register their own
+titles and category/round records. Manual tests cover question text, answers,
+pictures and round progression; full-game/finale and speech-quality coverage
+remain limited. See [pack installation and discovery](docs/question-packs.md#installation-and-discovery).
 No questions or media are bundled; the tools process your own local files.
 
 ## Buzzers and controllers
@@ -339,11 +339,10 @@ source release; the earlier separate server experiments are not included.
 Developer overrides (`BUZZ_OFFLINE=0`, `BUZZ_HIDE_PSN_STORE=0`) restore the
 original frontend path, not functioning Sony services.
 
-The latest qualified EU 1.00/Vulkan/AVX2 full-profile measurements at 1280×720,
-uncapped, recorded **29.57 FPS in the menu and 34.29 FPS in a solo round**.
-See [measurement scope and matched comparisons](docs/native-geometry-summary.md);
-these are scene/build-specific observations, **not a stable 30 FPS guarantee
-throughout the game**. The EXE owns the reviewed defaults for that qualified
+Performance depends on the build, scene, hardware and execution environment;
+the port does not guarantee stable 30 FPS throughout the game. Follow the
+[profiling and validation rules](docs/performance.md) for comparisons.
+The EXE owns the reviewed defaults for the qualified
 profile; launchers preserve explicit developer overrides. Other versions and
 renderers retain their own build profiles. Known limitations include
 occasional long frame-time spikes on menu transitions, an intermittent green
@@ -352,6 +351,8 @@ Windows with Vulkan (default) or D3D12 is the tested target; Linux and Steam Dec
 are not yet a supported build of this port. Other game languages/content sets are unverified.
 
 ## Troubleshooting and development
+
+See the [documentation index](docs/README.md) for runtime architecture and file-format references.
 
 - Missing submodule: `git submodule update --init --recursive --depth 1`.
 - Wrong ELF/audio hash: obtain the supported files from your own installation;

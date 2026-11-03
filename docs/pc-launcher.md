@@ -323,11 +323,11 @@ The Windows game has a default-enabled original Buzz HID provider, labelled
 independent of the virtual USB receiver emulation and the launcher's SDL input
 preview. See [physical buzzer scope and tests](physical-buzzers.md). The launcher
 Button test still covers keyboard/XInput, not physical Buzz receivers.
-Linux host HID remains pending. A separate Windows Vulkan experiment now uses a
-native Win32 window and has rendered initial screens/video and the 3D main menu. It still waits
-after individual GPU submissions, has no PC overlay, and is not exposed by the
-ordinary launcher. See [Vulkan bring-up scope and verification](vulkan-bringup.md).
-Gameplay, Linux title integration and D3D12 render-feature parity remain pending.
+Linux host HID remains unverified. Vulkan is the normal Windows renderer and
+supports the native PC menu, host pause and batched/asynchronous draw path.
+See [renderer architecture](renderer.md) for submission and resource lifetime.
+Linux title integration, complete gameplay coverage and renderer-feature parity
+remain unqualified.
 
 ```text
 BuzzLauncher --project DIR --check

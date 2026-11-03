@@ -139,17 +139,16 @@ states. Short down/up presses survive USB polling; a release from one provider
 does not clear another provider's held button. The USB layer only consumes a
 snapshot and packs the appropriate receiver's twenty bits.
 
-## Future Android/browser provider
+## Browser provider and additional transports
 
 The router does not know about Windows keys, XInput, USB, sockets or guest RAM.
-A future provider can submit five-bit button state for an assigned player and
+A provider submits five-bit button state for an assigned player and
 must release its own provider state on disconnect/timeout. Reserved provider
 slots start at `remote0`; the host adapter must serialize router access.
-The transport should enforce a paired session, player ownership, heartbeat
-expiry and bounded messages before accepting remote state. We have **not**
-implemented a mobile app, remote server or pairing/security protocol yet.
-No ports/firewall rules are opened by this change. SDL/GameInput could also be
-added without changing the guest USB protocol or the game's logic.
+The [phone-buzzer provider](phone-buzzers.md) supplies paired local browser
+sessions with player ownership, heartbeat expiry and bounded messages. It is
+optional; ordinary input does not require a network listener. Other transports
+can use the same router without changing the guest USB protocol or game logic.
 
 ## Tests and current validation
 
