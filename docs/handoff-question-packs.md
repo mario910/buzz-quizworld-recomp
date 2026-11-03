@@ -4,10 +4,120 @@ You are continuing work on custom quiz packs (DLC-style) for the Buzz! Quiz Worl
 static-recompilation port. Read this whole file first, then `docs/question-packs.md`
 and `docs/question-format.md` in this worktree.
 
+## Current task: Question Studio (2026-11-03)
+
+The user approved the v7 gameplay result, requested commit/push, then merge to
+main. Done: feature commit `37a2042`, main merge `2f3e41b`, both pushed. The next
+request is a polished native compiled question manager, with KiP/Buzz import,
+pack authoring, JSON import/export and eventual TTS. User chose **Qt**, explicitly
+requiring **Linux support**. Continue in this same worktree/feature branch.
+
+The first implementation stage is in `studio/` (C++17 / Qt Quick, Qt 6.2+).
+Read `docs/question-studio.md` for completed features, builds, tests and remaining
+stages. Windows package: `dist-studio/bin/BuzzQuestionStudio.exe`; launcher:
+`Launch-Question-Studio.cmd`. Linux build: `build-studio/linux/BuzzQuestionStudio`.
+Neither build folder nor local Qt/tool installations should be committed.
+
+Verified locally on Windows with Qt 6.8.3/MSVC and Ubuntu 22.04 under WSL with
+Qt 6.2.4/GCC 11. Both use the same QML and C++ sources. CTest covers document
+round trips, correct answers, controller undo/import behaviour, actual GUI text
+editing/switching/saving, and QML load warnings. The GUI edit test caught and
+fixed a focus-related loss of pending text. Native Quiz TV import skips picture
+answers and multiple-correct-answer questions explicitly; their answer indices
+must never be interpreted as string indices. Local WAV TTS is implemented via
+Windows SAPI / Linux eSpeak NG, with voice/rate/text selection and undoable audio
+attachment. Cloud/Piper/batch adapters and native SDI previews remain later
+implementation stages. App-side pack building is implemented in Studio 0.3 below.
+
+User then required independent language choices for the interface, imports and
+authoring. Studio 0.2 implements PL/EN UI switching using a compiled Qt Linguist
+catalog, source language detection/selection, and per-question translations
+inside v2 projects (v1 read/migrated). Header PL/EN button opens project languages;
+the menu contains the independent interface-language setting. Content edits,
+correct-answer indices, images and speech are retained separately for each language.
+
+**Latest user rule: skip source questions lacking the selected language.** Do not
+import them as empty drafts or substitute another language. Other translations
+are retained only for admitted questions. The multilingual KiP source
+`D:\Other\kip\export\kip_questions.json` has 6,263 identities: EN admits 4,763,
+PL admits 4,862; EN/PL/RU variants are available with differing coverage.
+Adding a new language to an existing authored project is separate: it creates
+editable empty translations. Opening an existing Studio project preserves drafts.
+Legacy buzzpack export emits only the active language; Studio JSON retains all.
+
+### Studio 0.3: native EDAT build/install (2026-11-03)
+
+Current user request: build/install EDAT directly from the app, respecting selected
+content language. Implemented in `studio/src/pack_{builder,codec,media,atrac}.*`,
+shared stored-ZIP reader `pack_format.h`, controller background jobs and
+`studio/ui/PackDialogs.qml`. Header build action and menu install action; FFmpeg
+selector, template/output/runtime paths, title ID, pack number/category base,
+progress/cancellation, completion and backup paths. All user-facing text is PL/EN.
+Qt 6.2 needs `qml6-module-qt-labs-platform` and QApplication/Widgets for folder dialogs.
+
+Native C++ writes aligned ZIP, Huffman, QAK/KAQ, CLU, NAMEDTEXT, ATRAC3 and SDI.
+FFmpeg is a separate native media process for MPEG1 encoding/audio decoding.
+Wwise ATRAC9 WEM must be rewrapped to ATRAC9 WAVE before FFmpeg (ported from
+`kip_export.wem_to_at9`); passing original KiP WEM directly does not work.
+No Python runtime is used. Windows package bundles the actual standalone FFmpeg
+via `build-question-studio.ps1 -FFmpeg <exe>`; do not bundle the Chocolatey shim.
+
+Builder takes a document snapshot and active language only. Entirely absent
+translations are skipped/counted; partial questions fail. Requires a PACK0100
+template containing the chosen language, including native category text and DATA;
+never relabel another language. Per-language source SDI metadata stays within its
+translation when migrating v1/saving/reloading; it must not leak into another language.
+Native-import category text keys permit remapping an existing custom pack back
+onto the original template. Unsupported source SDI/video/music is explicitly blocked
+unless a replacement image is provided. Retains v7 subcategory round registration,
+nine-argument AddGame, disjoint category IDs and 16:9 picture metadata.
+
+Installer: only custom packs >=101, title whitelist, archive/codec/media validation,
+category ID/internal-name collision scan in selected title and legacy BCES00195,
+runtime lock, symlink checks, SHA-256-checked atomic copy. Backups go into
+`runtime/pack-backups/<title>/PACKnnnn/`; old file remains if cancelled/failed.
+Outputs cannot go directly into dev_hdd0/dev_bdvd/PS3_GAME/USRDIR or overwrite template.
+
+Five CTest suites pass on Windows Qt 6.8.3/MSVC and WSL Ubuntu22.04 Qt6.2.4/GCC11.
+Tests compare whole owned pack and non-silent ATRAC3 output byte-for-byte against
+Python fixtures, decode audio/image proportions, and exercise UI build click,
+asynchronous controller build/install/backup/cancel, selected language, migration,
+collisions, corrupt sources and symlink escape. Runtime is not used by unit tests.
+
+Full real-library build (local only):
+`analysis/studio-native-voice/PACK0103/POLPACK0103.edat`, 198,662,235 bytes,
+SHA256 `0af2ea1634dcca5c2d5a4541ebd3ca0a8a774a1e07797e92474c2d6665bfd567`.
+4562 questions, 10 round files, 30 categories (700..729), 304 pictures, real WEM voice.
+Independent Python `buzzpack._validate` passes, and **all 4562 RSF files are byte-exact
+against the game-tested v7**. Pictures differ because Qt handles letterboxing and
+MPEG encoding; decoded portrait-aspect regression tests pass on both OSes.
+Build/install JSON and boot traces are under `analysis/studio-*` and `logs/`.
+Linux real WEM/image sample: `analysis/studio-linux-real-pack/PACK0104/`, system
+FFmpeg 4.4.2. Install FFmpeg before checking media tests; otherwise their integration
+case explicitly skips (the final runs include it).
+Game smoke: `logs/20261103-165607.*`, background/muted/camera off, runtime-only
+pack103 opened successfully. Only our test processes were stopped. The temporary
+runtime pack103 was removed after hash verification; the original v7 pack102 and
+main runtime remain unchanged. Full player/buzzer progression was not retested.
+Windows packaged app was also tested with PATH restricted to Windows system
+directories: UI screenshots (PL/EN) and real WEM/image build work with bundled
+FFmpeg and deployed Qt. An authored Russian question built using the real RUS
+PACK0100 template, producing RUSPACK0104.edat; independent Python validation passed
+for that pack and the Windows/Linux media samples. ENG is covered by owned
+multilingual template fixtures; the local retail base has no ENG template.
+`inspect-registry.py` returned empty registries against the current EU100 build:
+do not use this old address-based inspector as evidence of registration success
+without validating its globals/offsets and boot stage for the selected executable.
+Do not commit generated packs, retail templates, caches, SDK, builds or local logs.
+
+Studio 0.3 is a separate change on feature/question-packs; the user's earlier
+main merge covered v7, not this subsequent app work. Merge Studio to main only
+when requested.
+
 ## Where things are
 - Worktree: `D:\Other\BuzzRecomp\buzz-question-packs`, branch `feature/question-packs`
   (main checkout `D:\Other\BuzzRecomp\buzz-quizworld-recomp`, already merged/pushed up to
-  commit c1d0368 / main 0929230).
+  commit 37a2042 / main 2f3e41b).
 - Implementation in `tools/questions/buzzpack.py`:
   - `Generated/RoundSetup` with Quiz World's native `AddGame` (**9 args**, corrected in v6) and
     `AddGamePlanRounds` (Knowledge-channel plans), plus `AddRoundNew(id, game, channel,

@@ -1,0 +1,39 @@
+{
+  "pack": {
+    "title": "Owned fixture",
+    "description": "Test fixture",
+    "language": "en",
+    "topic": "Science",
+    "category_base": 700
+  },
+  "questions": [
+    {
+      "id": "letters",
+      "subject": 235,
+      "category": 237,
+      "question": "Which letter comes first?",
+      "answers": [
+        "B",
+        "C",
+        "D",
+        "A"
+      ],
+      "correct_index": 3,
+      "difficulty": 2
+    },
+    {
+      "id": "movies",
+      "subject": 199,
+      "category": 208,
+      "question": "What can a cinema show?",
+      "answers": [
+        "A tree",
+        "A film",
+        "A river",
+        "A cloud"
+      ],
+      "correct_index": 1,
+      "difficulty": 1
+    }
+  ]
+}
