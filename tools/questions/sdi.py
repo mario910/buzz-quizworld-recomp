@@ -23,6 +23,7 @@ PACK = 2048
 PES_PAYLOAD = PACK - 12 - 6        # pack header 12, PES header 6 -> 2030-byte PES
 DATA_START = 0x800
 WIDTH, HEIGHT = 640, 368
+DISPLAY_WIDTH, DISPLAY_HEIGHT = 640, 360   # 16:9 scene; stored video rows are 368
 TICKS_PER_FRAME = 3600             # 90 kHz / 25 fps
 MUX_RATE = 0x040F39                # units of 50 B/s, from the shipped sheets
 
@@ -101,9 +102,12 @@ def _video_packs(frames, first_pack_no):
 
 
 def encode_frames(images, quality=2):
-    """MPEG-1 intra pictures, one per image, letterboxed to 640x368."""
-    vf = (f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,"
-          f"pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1")
+    """MPEG-1 pictures fitted to 16:9, stored as the game's 640x368 raster."""
+    # Fit in display coordinates before stretching to the storage raster.
+    # The scene maps all 368 rows onto a 16:9 screen (media aspect enum 4).
+    vf = (f"scale={DISPLAY_WIDTH}:{DISPLAY_HEIGHT}:force_original_aspect_ratio=decrease,"
+          f"pad={DISPLAY_WIDTH}:{DISPLAY_HEIGHT}:(ow-iw)/2:(oh-ih)/2,"
+          f"scale={WIDTH}:{HEIGHT},setsar=1")
     with tempfile.TemporaryDirectory() as td:
         # Normalise each image (any format FFmpeg reads) to a numbered PNG.
         for k, p in enumerate(images):

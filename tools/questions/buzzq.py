@@ -8,6 +8,7 @@ Usage (always run with `python -I`):
   python -I buzzq.py roundtrip <base>           # re-encode strings, compare to .hdr/.hst bytes
 """
 import struct, sys, os, json, math, collections
+from pathlib import Path
 
 # ----------------------------------------------------------------------------
 # .hdr / .hst  : static Huffman-coded UTF-16 string table
@@ -69,7 +70,7 @@ def decode_strings(h, s):
     return out
 
 def load_strings(base):
-    return decode_strings(open(base + '.hdr', 'rb').read(), open(base + '.hst', 'rb').read())
+    return decode_strings(Path(base + '.hdr').read_bytes(), Path(base + '.hst').read_bytes())
 
 # --- encoder (for writing new files) ----------------------------------------
 def encode_strings(strings):
@@ -108,7 +109,7 @@ def encode_strings(strings):
 # ----------------------------------------------------------------------------
 # record layouts per section index (struct format w/o endian prefix)
 SEC_FMT = {
-    0: 'IIHHBBBB',            # media:   localId, assetNo, u16 0, picSlot, type, 0x10, inPics, 0
+    0: 'IIHHBBBB',            # media: localId, assetNo, u16 0, picSlot, type, 0x10, aspect, 0
     1: 'I4sIHHHHhHHHBBBBBBBB',  # question (36 bytes), see FORMAT.md
     2: 'HBB',                 # question->media link: sec0 row, u8 1, u8 0
     3: 'IHBB',                # speech/text link: speechNo, stringNo(1-based), kind, 0
@@ -149,7 +150,7 @@ def parse_index(q, off, e='<'):
                 entries_off=ep - off, buckets_off=bp - off)
 
 def parse_round(base, e='<', ext='.qak'):
-    q = open(base + ext, 'rb').read()
+    q = Path(base + ext).read_bytes()
     strs = load_strings(base)
     H = parse_header(q, e)
     secs = H['sections']
@@ -157,9 +158,11 @@ def parse_round(base, e='<', ext='.qak'):
     S = lambda n: strs[n - 1] if 0 < n <= len(strs) else None   # string numbers are 1-based
     media = []
     for r in R[0]:
-        local, asset, z0, slot, typ, b10, inpics, b0 = r
+        local, asset, z0, slot, typ, b10, aspect, b0 = r
         m = dict(local_id=local, asset_no=asset, type=MEDIA_TYPES.get(typ, typ),
-                 pic_slot=slot, in_pics=inpics, raw=[z0, b10, b0])
+                 pic_slot=slot, in_pics=aspect, aspect_ratio_code=aspect,
+                 aspect_ratio={1: '4:3', 2: '2:3', 3: '1:1', 4: '16:9'}.get(aspect),
+                 raw=[z0, b10, b0])  # in_pics retained for older callers
         if typ == 1: m['file'] = 'QUESTIONASSETS/MUSIC/STREAMED/%d.rsf' % (ASSET_BASE + asset)
         elif typ == 2: m['file'] = 'QUESTIONASSETS/VIDEO/%d.sdi' % (ASSET_BASE + asset)
         media.append(m)
