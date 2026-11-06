@@ -4,6 +4,7 @@
 #include "native_geometry_host_vertex_job.h"
 #include "native_geometry_host_cull_job.h"
 #include "native_geometry_host_index_output.h"
+#include "native_geometry_coarse_clip.h"
 
 namespace buzz {
 struct GeometryHostJobWorkspace {
@@ -18,7 +19,8 @@ struct GeometryHostJobWorkspace {
     unsigned index_source = 0, index_bytes = 0;
     bool ready = false;
 };
-inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntry& e,
+template<bool CoarseClip>
+inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJobEntry& e,
     GeometryHostJobWorkspace& w,const char** reason=nullptr)
 {
     w.ready=false;
@@ -33,7 +35,15 @@ inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntr
         !read_geometry_host_vertex_recipe(c,e,w.input,w.vertices,reason) ||
         !read_geometry_host_skin_recipe(c,e,w.input,w.skin,reason) ||
         !capture_geometry_host_inputs(c,w.input,w.data,reason) ||
-        !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason) ||
+        !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason)) return false;
+    if constexpr(CoarseClip) {
+        if(!decode_geometry_host_indices(c,e,w.indices,reason))return false;
+        if(geometry_host_trivially_outside(c,e,w.input,w.data)) {
+            w.indices.triangles=w.indices.maximum_index=w.indices.final_group_kept=0;
+            w.clips.ready=false;
+        } else if(!project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||
+                  !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason))return false;
+    } else if (
         !project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||
         !decode_geometry_host_indices(c,e,w.indices,reason) ||
         !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason)) return false;
@@ -48,6 +58,15 @@ inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntr
         if(reason)*reason="host job final publication span";return false;
     }
     w.ready=true;if(reason)*reason=nullptr;return true;
+}
+inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntry& e,
+    GeometryHostJobWorkspace& w,const char** reason=nullptr)
+{
+#if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
+    return prepare_geometry_host_job_impl<true>(c,e,w,reason);
+#else
+    return prepare_geometry_host_job_impl<false>(c,e,w,reason);
+#endif
 }
 inline void commit_geometry_host_job_data(spu_context& c,const GeometryJobEntry& e,
     const GeometryHostJobWorkspace& w)

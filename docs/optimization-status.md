@@ -83,6 +83,7 @@ is authoritative for which ones were actually packaged on the phone.
 | `BUZZ_GEOMETRY_DEFERRED_CLIP` | OFF; build30 rejected as an FPS upgrade after phone ABBA; exceptional blocks recomputed exactly | Rebuild OFF |
 | `BUZZ_GEOMETRY_NATIVE_RECIPROCAL` | OFF: experimental native SIMD division replaces SPU reciprocal estimation/interpolation/refinement for ordinary finite W; low projection bits and quantized culling coordinates may differ. Extreme/zero/extended W retains the reference path. PC FPS and end-to-end visual/gameplay qualification are pending; Android reference29 does not enable it | Rebuild OFF; takes precedence over deferred clip when both are enabled |
 | `BUZZ_GEOMETRY_BOUNDED_SKIN` | OFF: experimental bounded palette blending and weighted transforms. Palette coefficients are checked once; ordinary inputs use native SIMD without per-operation SPU range checks, with exact fallback for other ranges. PC qualification is pending; Android reference29 does not enable it | Rebuild OFF |
+| `BUZZ_GEOMETRY_COARSE_CLIP` | OFF: experimental interval bounds reject whole jobs outside one clip plane before projecting every vertex; bounded input/matrix/viewport, same-sign normal W and codec admission are required. Other jobs retain full projection/culling. Captured final-output comparisons pass on Windows, Linux x86 and ARM64/QEMU; PC FPS qualification is pending. Android reference29 does not enable it | Rebuild OFF |
 | `BUZZ_SPURS_POOL_LAYOUT` | OFF: separates polling/cache-line writes; no task-order change and no established FPS win | Rebuild OFF |
 | `BUZZ_RSX_PARK_WAKE` | OFF: notify exact watched self-JUMP replacement; needs ordinary SPURS DMA wake path | `BUZZ_RSX_PARK_WAKE=0` |
 | `BUZZ_WINDOWS_TIMER_REUSE` | OFF, Windows-only timer reuse experiment | Rebuild OFF |
@@ -161,6 +162,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_DEFERRED_CLIP` | `OFF` | Defer exceptional geometry projection repair to one block check ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_NATIVE_RECIPROCAL` | `OFF` | Use native SIMD reciprocal division for ordinary geometry projection (relaxed intermediate values) ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_BOUNDED_SKIN` | `OFF` | Use native bounded palette blending and weighted transforms ([source](../port/CMakeLists.txt)) |
+| `BUZZ_GEOMETRY_COARSE_CLIP` | `OFF` | Reject bounded whole geometry jobs before per-vertex projection ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_BATCHED` | `OFF` | Eight-lane packed geometry delta decoding ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |

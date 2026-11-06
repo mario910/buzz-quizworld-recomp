@@ -3,6 +3,7 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_host_skin_job.h"
 #include "../port/native_geometry_host_cull_job.h"
+#include "../port/native_geometry_coarse_clip.h"
 #include "zlib.h"
 #include <algorithm>
 #include <cassert>
@@ -55,10 +56,20 @@ int main(int argc,char** argv) {
                 for(unsigned n=0;n<repeat;++n){
                     assert(prepare_geometry_host_inputs(*c,e,input,*data));
                     assert(skin_geometry_host_inputs(*c,e,input,*data,*workspace));
+#if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
+                    assert(decode_geometry_host_indices(*c,e,*indices));
+                    if(geometry_host_trivially_outside(*c,e,input,*data)) {
+                        indices->triangles=indices->maximum_index=indices->final_group_kept=0;
+                    } else {
+                        assert(project_geometry_host_inputs(*c,e,input,*data,*clips));
+                        assert(cull_geometry_host_triangles(*c,e,*clips,*indices));
+                    }
+#else
                     assert(project_geometry_host_inputs(*c,e,input,*data,*clips));
                     assert(decode_geometry_host_indices(*c,e,*indices));
                     assert(cull_geometry_host_triangles(*c,e,*clips,*indices));
-                    checksum+=clips->component[0][n%e.vertices]+uint64_t(indices->triangles)+indices->final_group_kept;
+#endif
+                    checksum+=uint64_t(indices->maximum_index)+indices->triangles+indices->final_group_kept;
                 }
                 pipeline+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
             }
