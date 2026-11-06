@@ -120,7 +120,7 @@ template<bool Deferred> struct GeometryClipArithmetic {
 #endif
     }
 };
-template<bool Deferred>
+template<bool Deferred, bool NativeReciprocal = false>
 inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     const GeometryHostClipParameters& params, const GeometryHostSoA8& position)
 {
@@ -131,8 +131,27 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
         return fp.fma(position.component[2], v8_set(params.row[axis][2]), value);
     };
     const v8 w = row(3), sign = _mm256_and_si256(w, v8_set(0x80000000));
-    const v8 estimate = v8_fi(w, v8_frest(w));
-    const v8 reciprocal = fp.fma(fp.fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
+    v8 reciprocal;
+    if constexpr (NativeReciprocal) {
+        // Ordinary finite W only. Keep SPU extended floats, zero and extreme
+        // exponents on the original path; native division can differ by a few
+        // low bits from the SPU estimate/interpolation/refinement sequence.
+        const v8 magnitude = _mm256_and_si256(w, v8_set(0x7fffffff));
+        const v8 ordinary = _mm256_and_si256(
+            _mm256_cmpgt_epi32(magnitude, v8_set(0x1fffffff)),
+            _mm256_cmpgt_epi32(v8_set(0x5f000001), magnitude));
+        if (_mm256_movemask_ps(_mm256_castsi256_ps(ordinary)) != 255)
+            return geometry_host_clip8_impl<Deferred, false>(params, position);
+#if defined(__aarch64__)
+        reciprocal = {vreinterpretq_u32_f32(vdivq_f32(vdupq_n_f32(1.0f), vreinterpretq_f32_u32(w.lo))),
+                      vreinterpretq_u32_f32(vdivq_f32(vdupq_n_f32(1.0f), vreinterpretq_f32_u32(w.hi)))};
+#else
+        reciprocal = _mm256_castps_si256(_mm256_div_ps(_mm256_set1_ps(1.0f), _mm256_castsi256_ps(w)));
+#endif
+    } else {
+        const v8 estimate = v8_fi(w, v8_frest(w));
+        reciprocal = fp.fma(fp.fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
+    }
     const v8 x = _mm256_xor_si256(sign, fp.fm(row(0), reciprocal));
     const v8 y = _mm256_xor_si256(sign, fp.fm(row(1), reciprocal));
     const v8 z = _mm256_xor_si256(sign, fp.fm(row(2), reciprocal));
@@ -155,7 +174,9 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
 inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
     const GeometryHostClipParameters& params, const GeometryHostSoA8& position)
 {
-#if defined(BUZZ_GEOMETRY_DEFERRED_CLIP) && BUZZ_GEOMETRY_DEFERRED_CLIP
+#if defined(BUZZ_GEOMETRY_NATIVE_RECIPROCAL) && BUZZ_GEOMETRY_NATIVE_RECIPROCAL
+    return geometry_host_clip8_impl<false, true>(params,position);
+#elif defined(BUZZ_GEOMETRY_DEFERRED_CLIP) && BUZZ_GEOMETRY_DEFERRED_CLIP
     return geometry_host_clip8_impl<true>(params,position);
 #else
     return geometry_host_clip8_impl<false>(params,position);

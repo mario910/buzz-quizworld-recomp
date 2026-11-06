@@ -642,12 +642,14 @@ set_property(SOURCE native_geometry_job.cpp APPEND PROPERTY COMPILE_DEFINITIONS 
 set_property(SOURCE native_geometry_job.cpp APPEND PROPERTY COMPILE_DEFINITIONS "BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE=${geometry_job_native_setup_available}")
 option(BUZZ_GEOMETRY_INDEX_SEQUENTIAL "Bulk-validated sequential geometry index decoding" OFF)
 option(BUZZ_GEOMETRY_DEFERRED_CLIP "Defer exceptional geometry projection repair to one block check" OFF)
+option(BUZZ_GEOMETRY_NATIVE_RECIPROCAL "Use native SIMD reciprocal division for ordinary geometry projection (relaxed intermediate values)" OFF)
 option(BUZZ_GEOMETRY_INDEX_BATCHED "Eight-lane packed geometry delta decoding" OFF)
 # Explicitly reproduce the compaction path present in the qualified Windows
 # executable. Other platforms keep their existing source default.
 option(BUZZ_GEOMETRY_CULL_COMPACT "Eight-lane geometry output compaction" ${WIN32})
 set_property(SOURCE native_geometry_job_flow.cpp APPEND PROPERTY COMPILE_DEFINITIONS
     "BUZZ_GEOMETRY_DEFERRED_CLIP=$<BOOL:${BUZZ_GEOMETRY_DEFERRED_CLIP}>"
+    "BUZZ_GEOMETRY_NATIVE_RECIPROCAL=$<BOOL:${BUZZ_GEOMETRY_NATIVE_RECIPROCAL}>"
     "BUZZ_GEOMETRY_INDEX_SEQUENTIAL=$<BOOL:${BUZZ_GEOMETRY_INDEX_SEQUENTIAL}>"
     "BUZZ_GEOMETRY_INDEX_BATCHED=$<BOOL:${BUZZ_GEOMETRY_INDEX_BATCHED}>"
     "BUZZ_GEOMETRY_CULL_COMPACT=$<BOOL:${BUZZ_GEOMETRY_CULL_COMPACT}>")

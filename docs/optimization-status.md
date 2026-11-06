@@ -81,6 +81,7 @@ is authoritative for which ones were actually packaged on the phone.
 | `BUZZ_GEOMETRY_INDEX_SEQUENTIAL`, `BUZZ_GEOMETRY_INDEX_BATCHED` | OFF: producer-side flag validation / packed delta decoding; do not assume cumulative wins | Rebuild OFF |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | Windows default ON, other platforms OFF; Android reference OFF | Rebuild with the explicit platform choice |
 | `BUZZ_GEOMETRY_DEFERRED_CLIP` | OFF; build30 rejected as an FPS upgrade after phone ABBA; exceptional blocks recomputed exactly | Rebuild OFF |
+| `BUZZ_GEOMETRY_NATIVE_RECIPROCAL` | OFF: experimental native SIMD division replaces SPU reciprocal estimation/interpolation/refinement for ordinary finite W; low projection bits and quantized culling coordinates may differ. Extreme/zero/extended W retains the reference path. PC FPS and end-to-end visual/gameplay qualification are pending; Android reference29 does not enable it | Rebuild OFF; takes precedence over deferred clip when both are enabled |
 | `BUZZ_SPURS_POOL_LAYOUT` | OFF: separates polling/cache-line writes; no task-order change and no established FPS win | Rebuild OFF |
 | `BUZZ_RSX_PARK_WAKE` | OFF: notify exact watched self-JUMP replacement; needs ordinary SPURS DMA wake path | `BUZZ_RSX_PARK_WAKE=0` |
 | `BUZZ_WINDOWS_TIMER_REUSE` | OFF, Windows-only timer reuse experiment | Rebuild OFF |
@@ -157,6 +158,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_NATIVE_JOB_DEFAULTS` | `${native_job_default_candidate}` | Embed the approved native/Vulkan runtime profile in the qualified EXE ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_SEQUENTIAL` | `OFF` | Bulk-validated sequential geometry index decoding ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_DEFERRED_CLIP` | `OFF` | Defer exceptional geometry projection repair to one block check ([source](../port/CMakeLists.txt)) |
+| `BUZZ_GEOMETRY_NATIVE_RECIPROCAL` | `OFF` | Use native SIMD reciprocal division for ordinary geometry projection (relaxed intermediate values) ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_BATCHED` | `OFF` | Eight-lane packed geometry delta decoding ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |
