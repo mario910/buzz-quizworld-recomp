@@ -88,10 +88,10 @@ public class BuzzActivity extends SDLActivity {
         mLayout.addView(panel, new android.view.ViewGroup.LayoutParams(-1, -1));
         LinearLayout tools = new LinearLayout(this);
         Button menu = button("Menu", 0xcc20252d);
-        menu.setContentDescription("Otwórz menu gry");
+        menu.setContentDescription("Open game menu");
         menu.setOnClickListener(v -> { release(); nativeMenu(); });
         Button gpu = button("GPU", 0xcc20252d);
-        gpu.setContentDescription("Sterownik GPU i przyciski ekranowe");
+        gpu.setContentDescription("GPU driver and on-screen controls");
         gpu.setOnClickListener(v -> showSettings());
         tools.addView(menu, new LinearLayout.LayoutParams(dp(76), dp(44)));
         tools.addView(gpu, new LinearLayout.LayoutParams(dp(64), dp(44)));
@@ -111,17 +111,17 @@ public class BuzzActivity extends SDLActivity {
         top.setMargins(dp(12), dp(8), dp(12), 0); panel.addView(tools, top);
         buzzer = new LinearLayout(this); buzzer.setOrientation(LinearLayout.VERTICAL);
         playerButton = button("P1", 0xcc20252d);
-        playerButton.setContentDescription("Wybierz gracza buzzera");
+        playerButton.setContentDescription("Select buzzer player");
         playerButton.setOnClickListener(v -> choosePlayer());
         buzzer.addView(playerButton, new LinearLayout.LayoutParams(dp(76), dp(36)));
         int[] colors = {0xffd62c3a, 0xffffd043, 0xff39b967, 0xffff8e28, 0xff258de3};
-        String[] labels = {"BUZZ", "Żółty", "Zielony", "Pomarańczowy", "Niebieski"};
+        String[] labels = {"BUZZ", "Yellow", "Green", "Orange", "Blue"};
         // Physical handset order differs from the USB/router bit order.
         int[] handsetOrder = {0, 4, 3, 2, 1};
         for (int i : handsetOrder) {
             final int bit = 1 << i;
             Button b = buttons[i] = button(i == 0 ? "BUZZ" : "", colors[i]);
-            b.setContentDescription(labels[i] + " przycisk buzzera");
+            b.setContentDescription(labels[i] + " buzzer button");
             b.setOnTouchListener((view, event) -> {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
@@ -142,8 +142,8 @@ public class BuzzActivity extends SDLActivity {
         FrameLayout.LayoutParams bottom = new FrameLayout.LayoutParams(-2, -2, Gravity.RIGHT | Gravity.BOTTOM);
         bottom.setMargins(0, 0, dp(12), dp(10)); panel.addView(buzzer, bottom);
         buzzer.setVisibility(preferences().getBoolean("touch", true) ? View.VISIBLE : View.GONE);
-        if (recovering) panel.post(() -> new AlertDialog.Builder(this).setTitle("Sterownik GPU")
-            .setMessage("Poprzedni start nie wyświetlił klatki. Przywrócono sterownik systemowy.")
+        if (recovering) panel.post(() -> new AlertDialog.Builder(this).setTitle("GPU driver")
+            .setMessage("The previous launch did not display a frame. The system driver has been restored.")
             .setPositiveButton("OK", null).show());
     }
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
@@ -166,19 +166,19 @@ public class BuzzActivity extends SDLActivity {
         release();
         int count = Math.max(1, Math.min(8, nativePlayers()));
         String[] names = new String[count];
-        for (int i = 0; i < count; i++) names[i] = "Gracz " + (i + 1);
-        new AlertDialog.Builder(this).setTitle("Buzzer ekranowy").setSingleChoiceItems(names, player, (dialog, which) -> {
+        for (int i = 0; i < count; i++) names[i] = "Player " + (i + 1);
+        new AlertDialog.Builder(this).setTitle("On-screen buzzer").setSingleChoiceItems(names, player, (dialog, which) -> {
             release(); player = which; playerButton.setText("P" + (player + 1)); dialog.dismiss();
         }).show();
     }
     private void showSettings() {
         release();
-        String status = "Sterownik systemowy";
+        String status = "System driver";
         try { status = new String(Files.readAllBytes(new File(getFilesDir(), "gpu-driver-status.txt").toPath()), StandardCharsets.UTF_8); }
         catch (IOException ignored) {}
-        final String[] actions = {"Importuj sterownik z ZIP…", "Użyj sterownika systemowego", "Pokaż / ukryj buzzer"};
-        new AlertDialog.Builder(this).setTitle("GPU / sterowanie").setMessage(status)
-            .setPositiveButton("Zamknij", null).setNeutralButton("Opcje", (dialog, which) ->
+        final String[] actions = {"Import driver from ZIP…", "Use system driver", "Show / hide buzzer"};
+        new AlertDialog.Builder(this).setTitle("GPU / controls").setMessage(status)
+            .setPositiveButton("Close", null).setNeutralButton("Options", (dialog, which) ->
                 new AlertDialog.Builder(this).setItems(actions, (options, index) -> {
                     if (index == 0) startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT)
                         .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
@@ -192,12 +192,12 @@ public class BuzzActivity extends SDLActivity {
     }
     private static JSONObject metadata(File dir) throws Exception {
         File json = new File(dir, "meta.json");
-        if (json.length() > 65536) throw new IOException("Zbyt duże meta.json");
+        if (json.length() > 65536) throw new IOException("meta.json is too large");
         JSONObject meta = new JSONObject(new String(Files.readAllBytes(json.toPath()), StandardCharsets.UTF_8));
         String library = meta.getString("libraryName");
         if (meta.getInt("schemaVersion") != 1 || meta.getInt("minApi") > Build.VERSION.SDK_INT ||
             !library.matches("[A-Za-z0-9_+.-]{1,157}\\.so") || !new File(dir, library).isFile())
-            throw new IOException("Nieobsługiwana paczka sterownika");
+            throw new IOException("Unsupported driver package");
         DriverArchive.validateElf(new File(dir, library));
         meta.getString("name"); return meta;
     }
@@ -205,27 +205,27 @@ public class BuzzActivity extends SDLActivity {
         super.onActivityResult(request, result, data);
         if (request != IMPORT_DRIVER || result != RESULT_OK || data == null || data.getData() == null) return;
         final android.net.Uri uri = data.getData();
-        Toast.makeText(this, "Importowanie sterownika…", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Importing driver…", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             File root = new File(getFilesDir(), "drivers"); root.mkdirs();
             String id = UUID.randomUUID().toString(); File dir = new File(root, id);
             try (InputStream input = getContentResolver().openInputStream(uri)) {
-                if (input == null) throw new IOException("Nie można otworzyć pliku");
+                if (input == null) throw new IOException("Cannot open file");
                 DriverArchive.extract(input, dir); JSONObject meta = metadata(dir);
                 preferences().edit().putString("driver", id).commit();
                 runOnUiThread(() -> restartNotice());
             } catch (Exception error) {
                 DriverArchive.remove(dir);
-                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Nie można zaimportować sterownika")
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Cannot import driver")
                     .setMessage(error.getMessage()).setPositiveButton("OK", null).show());
             }
         }, "DriverImport").start();
     }
     private void restartNotice() {
-        new AlertDialog.Builder(this).setTitle("Sterownik zapisany")
-            .setMessage("Zmiana zacznie działać po ponownym uruchomieniu gry.")
-            .setPositiveButton("Zamknij grę", (dialog, which) -> { finishAndRemoveTask(); Process.killProcess(Process.myPid()); })
-            .setNegativeButton("Później", null).show();
+        new AlertDialog.Builder(this).setTitle("Driver settings saved")
+            .setMessage("The change will take effect after restarting the game.")
+            .setPositiveButton("Close game", (dialog, which) -> { finishAndRemoveTask(); Process.killProcess(Process.myPid()); })
+            .setNegativeButton("Later", null).show();
     }
     @Override protected void onPause() {
         if (nativeReady) nativeSurfaceReady(false);

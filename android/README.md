@@ -5,6 +5,8 @@ Android 10 / API 29 or newer and Vulkan. The generated guest ELF must have
 SHA-256 `6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8`.
 US and EU 1.02 desktop support does not imply Android support: Gradle rejects
 other generated profiles. The activity is landscape and uses SDL2.
+The Android controls, accessibility labels, driver status and import errors use
+English; this does not change the language of the supplied game content.
 
 **The APK does not yet import ISO/PUP and prepare the game on-device.** Prepare
 on Windows/Linux first, build the ARM64 APK on Linux/WSL, then stage the user's
@@ -221,7 +223,7 @@ is supported; focus loss, pause and menu opening release held inputs. `Menu`
 or Android Back opens game settings. `GPU` manages drivers and buzzer visibility.
 The app keeps the display awake while foregrounded and uses landscape orientation.
 
-Use `GPU → Opcje → Importuj sterownik z ZIP…` for an ADPKG with `meta.json`,
+Use `GPU → Options → Import driver from ZIP…` for an ADPKG with `meta.json`,
 its ARM64 `libraryName` and dependencies at the archive root. The importer
 validates metadata/API, ELF architecture, paths, duplicates and expanded size
 (up to 256 MiB), then selects the validated private installation. Restart the

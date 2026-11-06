@@ -26,15 +26,15 @@ void open_loader() {
         if (access(path.c_str(), R_OK) == 0)
             loader = adrenotools_open_libvulkan(RTLD_NOW | RTLD_LOCAL,
                 ADRENOTOOLS_DRIVER_CUSTOM, nullptr, hooks, dir, name, nullptr, nullptr);
-        if (loader) status("Wybrano sterownik z paczki ZIP");
-        else status("Błąd paczki — używam sterownika systemowego");
+        if (loader) status("Driver loaded from ZIP package");
+        else status("Cannot load custom driver; using system driver");
     }
     if (!loader) {
         loader = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
-        if (!dir) status("Sterownik systemowy");
+        if (!dir) status("System driver");
     }
     if (loader) get_proc = reinterpret_cast<GetProc>(dlsym(loader, "vkGetInstanceProcAddr"));
-    if (!get_proc) status("Nie można uruchomić Vulkan");
+    if (!get_proc) status("Cannot initialize Vulkan");
 }
 }
 // SDL and RSX both use this entry point; never mix Vulkan loader instances.

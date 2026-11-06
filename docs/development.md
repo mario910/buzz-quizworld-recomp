@@ -3,6 +3,13 @@
 Keep the root simple for players: **Prepare-Buzz.cmd → Launch-Buzz.cmd**.
 Developer commands live below `scripts/`; old root-level script paths have moved.
 
+Repository documentation, comments, logs, errors and interface text use English.
+Other interface languages are supported through an explicit language selection
+with a complete English translation, as in Question Studio. Keep accessibility
+labels and documented menu names consistent with the interface. Imported game
+content, user-authored questions, Unicode test fixtures and legacy-setting
+migration tokens retain their original text.
+
 ```text
 preparation/     Qt wizard and native import/generation primitives
 launcher/native/ Legacy C++ SDL3/ImGui launcher for developer builds

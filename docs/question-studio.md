@@ -48,16 +48,16 @@ It builds independently of the game, PS3 SDK and generated game code.
 ## Build and install a pack
 
 1. Select the content language in the header, complete its questions and category
-   mappings, and attach images/audio or generate WAV with **Generuj głos**.
-2. Click **Zbuduj paczkę…**. Choose the original Quiz World **PACK0100** PAK in
+   mappings, and attach images/audio or generate WAV with **Generate speech**.
+2. Click **Build an .edat pack…**. Choose the original Quiz World **PACK0100** PAK in
    that language, an output directory, and a custom pack number (default 103).
    For Polish, use `POLPACK0100.PAK`; English needs an English template. A template
    for another language cannot supply translated category names. Project language,
    not interface language, controls the resulting pack.
-3. Choose **Zbuduj .edat** or select the game's runtime folder (the folder containing
-   `dev_hdd0`) and click **Zbuduj i zainstaluj**. Set the correct title ID if it differs
+3. Choose **Build .edat** or select the game's runtime folder (the folder containing
+   `dev_hdd0`) and click **Build and install**. Set the correct title ID if it differs
    from `BCES00647`. The completion dialog shows generated/installed/backup paths.
-   Existing packs can also be installed using **… → Zainstaluj paczkę…**.
+   Existing packs can also be installed using **… → Install an .edat pack…**.
 4. Restart the game and choose the pack in the quiz-pack game mode.
 
 Output is `PACKnnnn/LANGPACKnnnn.edat`. Only the selected language is emitted.
@@ -69,7 +69,7 @@ foreign audio and the native encoder writes ATRAC3. Successfully encoded speech
 is cached by content and gain. Imported native SDI/video/music references require
 conversion or a replacement image; they are never silently dropped.
 
-In **Ustawienia zaawansowane**, select FFmpeg if it is absent from the application
+In **Advanced settings**, select FFmpeg if it is absent from the application
 directory and PATH. Change the category base if the installer reports a collision:
 custom category IDs must remain disjoint and fit 500..999. Defaults for packs
 101..105 use bases 500, 600, 700, 800, 900. The actual category count also has to fit.
@@ -168,7 +168,7 @@ On Windows, the voice list contains installed desktop SAPI voices (not all
 OneCore/Narrator voices are necessarily exposed through SAPI). Choose a Polish
 voice for Polish questions. Generating WAV neither calls a cloud service nor
 requires an API key. Changing a question later does not regenerate its speech;
-use **Generuj głos** again. Undo detaches a generated WAV but keeps the saved file.
+use **Generate speech** again. Undo detaches a generated WAV but keeps the saved file.
 
 `--demo` opens authored sample questions. `--open <file>` opens a library.
 `--inspect <file>` runs a headless importer and reports counts/languages/errors;
