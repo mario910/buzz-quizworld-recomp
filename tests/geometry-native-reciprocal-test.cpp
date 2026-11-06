@@ -15,6 +15,7 @@ int main(int argc, char** argv) {
     assert(argc == 2); buzz_test_enter_rtz();
     auto c = std::make_unique<spu_context>();
     auto data = std::make_unique<GeometryHostInputData>();
+    auto reference_data = std::make_unique<GeometryHostInputData>();
     auto skin = std::make_unique<GeometryHostSkinWorkspace>();
     auto a = std::make_unique<GeometryHostClipData>(), b = std::make_unique<GeometryHostClipData>();
     auto ia = std::make_unique<GeometryHostIndexData>(), ib = std::make_unique<GeometryHostIndexData>();
@@ -31,9 +32,15 @@ int main(int argc, char** argv) {
         assert(gzread(f,c->ls,SPU_LS_SIZE)==SPU_LS_SIZE); gzclose(f); ++jobs;
         GeometryJobEntry e; GeometryHostInputRecipe recipe; GeometryHostClipParameters params;
         assert(read_geometry_job_entry(*c,e));
-        if (!prepare_geometry_host_inputs(*c,e,recipe,*data) ||
-            !skin_geometry_host_inputs(*c,e,recipe,*data,*skin) ||
-            !read_geometry_host_clip_parameters(*c,e,params)) continue;
+        if (!prepare_geometry_host_inputs(*c,e,recipe,*data)) continue;
+        *reference_data=*data;
+        const bool reference_skin=skin_geometry_host_inputs_impl<false>(*c,e,recipe,*reference_data,*skin);
+        const bool native_skin=skin_geometry_host_inputs_impl<true>(*c,e,recipe,*data,*skin);
+        assert(reference_skin==native_skin);
+        if(!native_skin)continue;
+        assert(!memcmp(data->block.data(),reference_data->block.data(),
+            recipe.fields*recipe.blocks_per_field*sizeof(GeometryHostSoA8)));
+        if(!read_geometry_host_clip_parameters(*c,e,params))continue;
         unsigned position=16;
         for (unsigned n=0;n<recipe.fields;++n) if(recipe.field[n].semantic==1) position=n;
         if(position==16 || (e.config[0]&16)) continue;

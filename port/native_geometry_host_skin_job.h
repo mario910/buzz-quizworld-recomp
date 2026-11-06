@@ -4,6 +4,7 @@
 #pragma once
 #include "native_geometry_host_input_job.h"
 #include "native_geometry_bounded_position.h"
+#include <type_traits>
 
 namespace buzz {
 struct GeometryHostSkinRecipe {
@@ -111,22 +112,43 @@ inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
     value.component[2] = _mm256_and_si256(d, mask);
 }
 
+template<bool Bounded = false>
 inline void transform_geometry_host_weighted_value(GeometryHostSoA8& value,
     const v8* blended, bool point, v8 mask)
 {
+    if constexpr (Bounded) {
+        v8 largest=_mm256_setzero_si256();
+        for(unsigned axis=0;axis<3;++axis) {
+            const v8 magnitude=_mm256_and_si256(value.component[axis],v8_set(0x7fffffff));
+#if defined(__aarch64__)
+            largest={vmaxq_u32(largest.lo,magnitude.lo),vmaxq_u32(largest.hi,magnitude.hi)};
+#else
+            largest=_mm256_max_epi32(largest,magnitude);
+#endif
+        }
+        if(_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpgt_epi32(largest,v8_set(0x4e800000))))) {
+            transform_geometry_host_weighted_value<false>(value,blended,point,mask);return;
+        }
+    }
+    // Bounded callers proved each palette coefficient <= 2^30. Four byte
+    // weights <= 1 give blended coefficients <= 2^32; input <= 2^30 keeps
+    // every transform intermediate below 2^65, within ordinary FP range.
+    auto fm=[](v8 a,v8 b) { if constexpr(Bounded)return geometry_bounded_mul(a,b);else return v8_fm(a,b); };
+    auto fma=[](v8 a,v8 b,v8 c) { if constexpr(Bounded)return geometry_bounded_fma(a,b,c);else return v8_fma(a,b,c); };
     const v8 x = value.component[0], y = value.component[1], z = value.component[2];
-    v8 a = point ? v8_fma(x, blended[0], blended[3]) : v8_fm(x, blended[0]);
-    v8 b = point ? v8_fma(y, blended[5], blended[7]) : v8_fm(y, blended[5]);
-    v8 d = point ? v8_fma(z, blended[10], blended[11]) : v8_fm(z, blended[10]);
-    a = v8_fma(y, blended[1], a); a = v8_fma(z, blended[2], a);
-    b = v8_fma(z, blended[6], b); b = v8_fma(x, blended[4], b);
-    d = v8_fma(x, blended[8], d); d = v8_fma(y, blended[9], d);
+    v8 a = point ? fma(x, blended[0], blended[3]) : fm(x, blended[0]);
+    v8 b = point ? fma(y, blended[5], blended[7]) : fm(y, blended[5]);
+    v8 d = point ? fma(z, blended[10], blended[11]) : fm(z, blended[10]);
+    a = fma(y, blended[1], a); a = fma(z, blended[2], a);
+    b = fma(z, blended[6], b); b = fma(x, blended[4], b);
+    d = fma(x, blended[8], d); d = fma(y, blended[9], d);
     value.component[0] = _mm256_and_si256(a, mask);
     value.component[1] = _mm256_and_si256(b, mask);
     value.component[2] = _mm256_and_si256(d, mask);
 }
 
-inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
+template<bool Bounded>
+inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
     GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
 {
@@ -154,9 +176,14 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
         data.ready = true; if (reason) *reason = nullptr; return true;
     }
     if (!recipe.active) { data.ready = true; return true; }
+    uint32_t largest_palette=0;
     for (unsigned matrix = 0; matrix < recipe.matrices; ++matrix)
-        for (unsigned coefficient = 0; coefficient < 12; ++coefficient)
-            workspace.coefficient[coefficient][matrix] = geometry_job_be32(c.ls + recipe.palette + matrix * 48 + coefficient * 4);
+        for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
+            const auto word=geometry_job_be32(c.ls + recipe.palette + matrix * 48 + coefficient * 4);
+            workspace.coefficient[coefficient][matrix]=word;
+            if constexpr(Bounded) if((word&0x7fffffff)>largest_palette)largest_palette=word&0x7fffffff;
+        }
+    const bool bounded_palette=Bounded && largest_palette<=0x4e800000;
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
         alignas(32) uint32_t indices[4][8]{}, weights[4][8]{};
@@ -171,26 +198,48 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
             if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(index[influence], v8_set(recipe.matrices - 1)))) {
                 if (reason) *reason = "host skin palette index"; return false;
             }
-            factor[influence] = v8_fm(_mm256_castps_si256(_mm256_cvtepi32_ps(
-                _mm256_load_si256(reinterpret_cast<const v8*>(weights[influence])))), v8_set(0x3b808080));
+            const v8 integer_weight=_mm256_castps_si256(_mm256_cvtepi32_ps(
+                _mm256_load_si256(reinterpret_cast<const v8*>(weights[influence]))));
+            // Staged weights are uint8, so this conversion is always finite.
+            factor[influence] = Bounded ? geometry_bounded_mul(integer_weight,v8_set(0x3b808080))
+                                        : v8_fm(integer_weight,v8_set(0x3b808080));
             contributes[influence] = _mm256_movemask_ps(_mm256_castsi256_ps(v8_nonzero(factor[influence]))) != 0;
         }
         v8 blended[12];
+        auto run=[&](auto tag) {
+        constexpr bool Fast=decltype(tag)::value;
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
             const auto* source = reinterpret_cast<const int*>(workspace.coefficient[coefficient]);
             // Validate every index above even for zero weights. A wholly zero
             // influence has exact SPU product +0; FMA(+0, x, blended) preserves
             // the already canonical SPU accumulator, including extended x.
             blended[coefficient] = contributes[0]
-                ? v8_fm(factor[0], _mm256_i32gather_epi32(source, index[0], 4)) : _mm256_setzero_si256();
+                ? (Fast ? geometry_bounded_mul(factor[0], _mm256_i32gather_epi32(source, index[0], 4))
+                        : v8_fm(factor[0], _mm256_i32gather_epi32(source, index[0], 4))) : _mm256_setzero_si256();
             for (unsigned influence = 1; influence < 4; ++influence) if (contributes[influence])
-                blended[coefficient] = v8_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient]);
+                blended[coefficient] = Fast
+                    ? geometry_bounded_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient])
+                    : v8_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient]);
         }
         const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
-        transform_geometry_host_weighted_value(data.at(input, recipe.field[0], first / 8),blended,true,mask);
+        transform_geometry_host_weighted_value<Fast>(data.at(input, recipe.field[0], first / 8),blended,true,mask);
         for (unsigned semantic = 1; semantic < 4; ++semantic) if (recipe.field[semantic] != 16)
-            transform_geometry_host_weighted_value(data.at(input, recipe.field[semantic], first / 8),blended,false,mask);
+            transform_geometry_host_weighted_value<Fast>(data.at(input, recipe.field[semantic], first / 8),blended,false,mask);
+        };
+        if constexpr(Bounded) {
+            if(bounded_palette)run(std::true_type{});else run(std::false_type{});
+        } else run(std::false_type{});
     }
     data.ready = true; if (reason) *reason = nullptr; return true;
+}
+inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
+    const GeometryHostInputRecipe& input, GeometryHostInputData& data,
+    GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
+{
+#if defined(BUZZ_GEOMETRY_BOUNDED_SKIN) && BUZZ_GEOMETRY_BOUNDED_SKIN
+    return skin_geometry_host_inputs_impl<true>(c,e,input,data,workspace,reason);
+#else
+    return skin_geometry_host_inputs_impl<false>(c,e,input,data,workspace,reason);
+#endif
 }
 } // namespace buzz
