@@ -1,4 +1,5 @@
 """Pinned native geometry adapters; derived reference code stays private."""
+import argparse
 import hashlib
 import os
 from pathlib import Path
@@ -100,42 +101,49 @@ def constant_declarations(values=UNIT24):
 
 def constants_guard(name="unit24", values=UNIT24):
     guard = f"static int buzz_{name}_constants_match(const spu_context* ctx) {{\n" + constant_declarations(values) + "\n"
-    guard += "    __m128i mismatch = _mm_setzero_si128();\n"
+    guard += "#if defined(__aarch64__)\n    uint32x4_t mismatch = vdupq_n_u32(0);\n"
+    guard += "\n".join(f"    mismatch = vorrq_u32(mismatch, veorq_u32(vld1q_u32(ctx->gpr[{r}]._u32), vld1q_u32(constant{r}._u32)));" for r in values)
+    guard += "\n    return vmaxvq_u32(mismatch) == 0;\n#else\n    __m128i mismatch = _mm_setzero_si128();\n"
     guard += "\n".join(f"    mismatch = _mm_or_si128(mismatch, _mm_xor_si128(_mm_loadu_si128((const __m128i*)&ctx->gpr[{r}]), _mm_loadu_si128((const __m128i*)&constant{r})));" for r in values)
-    return guard + "\n    return _mm_testz_si128(mismatch, mismatch);\n}\n"
+    return guard + "\n    return _mm_testz_si128(mismatch, mismatch);\n#endif\n}\n"
 
 
 def main():
+    global DEST
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--arm64", action="store_true")
+    arm64 = parser.parse_args().arm64
+    if arm64:
+        DEST = DEST.with_name("arm64")
     raw = (SOURCE / "spu_recomp.c").read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     if digest not in PINS:
         raise SystemExit("Unreviewed phase-2 lift; audit before adding a pin")
-    subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-stagef.py")], check=True)
-    source = (ROOT / "analysis/stagef-geometry/spu_recomp.c").read_text()
+    stagef_generator = ROOT / "tools/codegen/generate-geometry-stagef.py"
+    subprocess.run([sys.executable, str(stagef_generator), *(["--arm64"] if arm64 else [])], check=True)
+    stagef_dir = "stagef-geometry-arm64" if arm64 else "stagef-geometry"
+    source = (ROOT / "analysis" / stagef_dir / "spu_recomp.c").read_text()
     support = '\n'.join(port_include(name) for name in ("native_geometry_shuffle.h", "native_geometry_ls.h"))
     support += '\nextern void buzz_geometry_run(spu_context*, void (*)(spu_context*), int (*)(spu_context*), unsigned);\n'
     support += 'extern int buzz_geometry_debug;\nextern unsigned buzz_geometry_active;\n'
-    support += '#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015\n'
-    support += constants_guard()
-    support += port_include("native_geometry_unit24.h") + "\n"
-    support += constants_guard("skin", SKIN)
-    support += port_include("native_geometry_skin.h") + "\n"
-    support += constants_guard("half", HALF)
-    support += port_include("native_geometry_half.h") + "\n"
-    support += constants_guard("dehalf", DEHALF)
-    support += port_include("native_geometry_half_decode.h") + "\n"
-    support += constants_guard("pointers", POINTERS)
-    support += port_include("native_geometry_pointers.h") + "\n"
-    support += port_include("native_geometry_fill.h") + "\n"
-    support += constants_guard("float3", FLOAT3)
-    support += port_include("native_geometry_float3.h") + "\n"
-    support += constants_guard("emit", EMIT)
-    support += port_include("native_geometry_emit.h") + "\n"
-    support += constants_guard("triangles", TRIANGLES)
-    support += port_include("native_geometry_triangles.h") + "\n"
-    support += port_include("native_geometry_indices.h") + "\n"
-    support += constants_guard("compact", COMPACT)
-    support += port_include("native_geometry_compact.h") + "\n"
+    kernels = (
+        (0, "9148", "unit24", UNIT24), (1, "B880", "skin", SKIN),
+        (2, "4AB0", "half", HALF), (5, "CAD8", "half_decode", DEHALF),
+        (10, "0988", "pointers", POINTERS), (12, "28F0", "fill", None),
+        (8, "97A8", "float3", FLOAT3), (9, "46FC", "emit", EMIT),
+        (3, "7A90", "triangles", TRIANGLES), (6, "78A8", "indices", None),
+        (4, "5008", "compact", COMPACT),
+    )
+    mask = sum(1 << bit for bit, _, _, _ in kernels)
+    support += f'#define BUZZ_GEOMETRY_IMPLEMENTED_MASK {mask}\n'
+    if arm64:
+        support += port_include("spu_neon_rtz.h") + "\n"
+    for _, _, header, constants in kernels:
+        if header == "unit24":
+            support += constants_guard()
+        elif constants is not None:
+            support += constants_guard("dehalf" if header == "half_decode" else header, constants)
+        support += port_include(f"native_geometry_{header}.h") + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
     bodies = {}
     for pc in ("9148", "92A0", "B880", "B934", "B940", "4AB0", "CAD8", "CB78", "0988", "09E0", "28F0", "97A8", "46FC", "4750", "4808", "47F0", "7A90", "78A8", "5008", "51E0", "50C8", "51C8"):
@@ -219,6 +227,9 @@ def main():
     DEST.mkdir(parents=True, exist_ok=True)
     (DEST / "spu_recomp.c").write_text(source)
     (DEST / "spu_recomp.h").write_bytes((SOURCE / "spu_recomp.h").read_bytes())
+    if arm64:
+        print(f"Generated ARM64 geometry kernels -> {DEST}")
+        return
     seed = "static void unit24_seed_constants(spu_context* ctx) {\n" + constant_declarations() + "\n"
     seed += "\n".join(f"    ctx->gpr[{r}] = constant{r};" for r in UNIT24) + "\n}\n"
     test_tail = "buzz_job_6eba_spu_func_000092A0_reference"

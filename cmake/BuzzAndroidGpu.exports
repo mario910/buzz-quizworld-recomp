@@ -1,0 +1,4 @@
+{
+  global: vkGetInstanceProcAddr; buzz_android_gpu_ready; buzz_android_gpu_device;
+  local: *;
+};

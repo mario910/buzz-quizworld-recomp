@@ -4,7 +4,7 @@
 #include "../port/native_geometry_host_vertex_job.h"
 #include "../port/native_geometry_host_clip_job.h"
 #include "../port/native_geometry_host_cull_job.h"
-#include <windows.h>
+#include "geometry-test-memory.h"
 #include <map>
 #include <memory>
 #include <string>
@@ -130,9 +130,12 @@ static void compare_vertex_output(const spu_context& entry,spu_context& referenc
 }
 static void report_vertex_output()
 {
-    assert(checked_vertex_rejects && vertex_jobs==5801 && vertex_bytes==20705968 && vertex_padding==22372 &&
-        vertex_padded_jobs==2190 && vertex_weighted==240 && vertex_object==5561 && vertex_fallback.size()==2 &&
-        vertex_fallback["host unsupported output storage"]==1106 && vertex_fallback["host vertex padding palette index"]==260);
+    // Counts revalidated against both AVX2 and NEON after the additional output codecs.
+    fprintf(stderr,"vertex totals: jobs=%u bytes=%llu padding=%llu padded=%u weighted=%u object=%u rejects=%zu\n",vertex_jobs,(unsigned long long)vertex_bytes,(unsigned long long)vertex_padding,vertex_padded_jobs,vertex_weighted,vertex_object,vertex_fallback.size());
+    for(const auto& item:vertex_fallback)fprintf(stderr,"reject %s=%u\n",item.first.c_str(),item.second);
+    assert(checked_vertex_rejects && vertex_jobs==6535 && vertex_bytes==30927600 && vertex_padding==24168 &&
+        vertex_padded_jobs==2416 && vertex_weighted==657 && vertex_object==5878 && vertex_fallback.size()==1 &&
+        vertex_fallback["host vertex padding palette index"]==632);
     printf("PASS direct host vertices: %u real jobs/%llu bytes/%llu alignment bytes/%u padded jobs; %u weighted/%u object; guarded ends, prefix canaries and unchanged short-span rejects\n",
         vertex_jobs,static_cast<unsigned long long>(vertex_bytes),static_cast<unsigned long long>(vertex_padding),vertex_padded_jobs,vertex_weighted,vertex_object);
     for(const auto& [stride,count]:vertex_strides)printf("Observed final vertex stride%u:%u jobs\n",stride,count);

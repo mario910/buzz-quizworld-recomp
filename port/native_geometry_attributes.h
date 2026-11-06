@@ -2,7 +2,11 @@
  * Descriptor codecs remain explicit original callees until converted. */
 #pragma once
 #include "native_geometry_commands.h"
+#if defined(__aarch64__)
+#include "geometry_neon_vectors.h"
+#else
 #include <immintrin.h>
+#endif
 
 namespace buzz {
 struct GeometryRawStream {

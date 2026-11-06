@@ -1,0 +1,56 @@
+{
+  "functions": [
+    {
+      "start": "0x10000",
+      "end": "0x10020",
+      "toc": "0x11180",
+      "opd": "0x11000"
+    },
+    {
+      "start": "0x10020",
+      "end": "0x10060",
+      "toc": "0x11180",
+      "opd": "0x11008"
+    }
+  ],
+  "image": [
+    {
+      "vaddr": "0x10000",
+      "filesz": "0x60",
+      "memsz": "0x80",
+      "flags": 5,
+      "file_offset": "0x200"
+    },
+    {
+      "vaddr": "0x11000",
+      "filesz": "0x200",
+      "memsz": "0x200",
+      "flags": 6,
+      "file_offset": "0x300"
+    }
+  ],
+  "imports": [
+    {
+      "library": "ownedLibrary",
+      "nid": "0x12345678",
+      "stub": "0x10000"
+    },
+    {
+      "library": "ownedLibrary",
+      "nid": "0x9abcdef0",
+      "stub": "0x10020"
+    }
+  ],
+  "loader": {
+    "entry_opd": "0x11000",
+    "entry_code": "0x10000",
+    "entry_toc": "0x11180",
+    "module_toc": "0x11180",
+    "opd_base": "0x11000",
+    "opd_size": "0x10",
+    "opd_count": 2,
+    "function_count": 2,
+    "e_type": 2,
+    "load_segments": 2
+  }
+}

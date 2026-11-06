@@ -3,6 +3,7 @@
  * Only logical vertices are handled here; publication tails are separate. */
 #pragma once
 #include "native_geometry_host_input_job.h"
+#include "native_geometry_bounded_position.h"
 
 namespace buzz {
 struct GeometryHostSkinRecipe {
@@ -91,14 +92,14 @@ inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
     const v8* matrix, bool direction, v8 mask)
 {
     const v8 x = value.component[0], y = value.component[1], z = value.component[2], w = value.component[3];
-    // Preserve each coordinate's cyclic order, including zero
-    // translation FMAs for directions. They affect SPU rounding.
-    const v8 zero = _mm256_setzero_si256();
+    // Preserve each coordinate's cyclic arithmetic order. Every intermediate
+    // below is already a canonical SPU result: FMA(w,+0,acc) for a direction
+    // is exactly acc, even for extended w. Raw inputs are never simplified.
     v8 a = v8_fm(x, matrix[0]); a = v8_fma(y, matrix[1], a); a = v8_fma(z, matrix[2], a);
-    a = v8_fma(w, direction ? zero : matrix[3], a);
+    if (!direction) a = v8_fma(w, matrix[3], a);
     v8 b = v8_fm(y, matrix[5]); b = v8_fma(z, matrix[6], b);
-    b = v8_fma(w, direction ? zero : matrix[7], b); b = v8_fma(x, matrix[4], b);
-    v8 d = v8_fm(z, matrix[10]); d = v8_fma(w, direction ? zero : matrix[11], d);
+    if (!direction) b = v8_fma(w, matrix[7], b); b = v8_fma(x, matrix[4], b);
+    v8 d = v8_fm(z, matrix[10]); if (!direction) d = v8_fma(w, matrix[11], d);
     d = v8_fma(x, matrix[8], d); d = v8_fma(y, matrix[9], d);
     if (direction) {
         v8 length = v8_fm(a, a); length = v8_fma(b, b, length); length = v8_fma(d, d, length);
@@ -139,12 +140,14 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
             workspace.object[coefficient] = geometry_job_be32(c.ls + recipe.palette + coefficient * 4);
             matrix[coefficient] = v8_set(workspace.object[coefficient]);
         }
+        const bool bounded_object=geometry_object_matrix_bounded(workspace.object);
         for (unsigned first = 0; first < input.vertices; first += 8) {
             const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
             const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
             for (unsigned semantic = 0; semantic < 3; ++semantic) {
                 if (recipe.field[semantic] == 16 || (semantic && e.position_only())) continue;
                 auto& value = data.at(input, recipe.field[semantic], first / 8);
+                if (semantic==0 && bounded_object && transform_geometry_bounded_position(value,matrix,mask)) continue;
                 transform_geometry_host_object_value(value,matrix,semantic!=0,mask);
             }
         }
@@ -162,6 +165,7 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
             weights[influence][lane] = at[0]; indices[influence][lane] = at[1];
         }
         v8 index[4], factor[4];
+        bool contributes[4];
         for (unsigned influence = 0; influence < 4; ++influence) {
             index[influence] = _mm256_load_si256(reinterpret_cast<const v8*>(indices[influence]));
             if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(index[influence], v8_set(recipe.matrices - 1)))) {
@@ -169,12 +173,17 @@ inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEnt
             }
             factor[influence] = v8_fm(_mm256_castps_si256(_mm256_cvtepi32_ps(
                 _mm256_load_si256(reinterpret_cast<const v8*>(weights[influence])))), v8_set(0x3b808080));
+            contributes[influence] = _mm256_movemask_ps(_mm256_castsi256_ps(v8_nonzero(factor[influence]))) != 0;
         }
         v8 blended[12];
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
             const auto* source = reinterpret_cast<const int*>(workspace.coefficient[coefficient]);
-            blended[coefficient] = v8_fm(factor[0], _mm256_i32gather_epi32(source, index[0], 4));
-            for (unsigned influence = 1; influence < 4; ++influence)
+            // Validate every index above even for zero weights. A wholly zero
+            // influence has exact SPU product +0; FMA(+0, x, blended) preserves
+            // the already canonical SPU accumulator, including extended x.
+            blended[coefficient] = contributes[0]
+                ? v8_fm(factor[0], _mm256_i32gather_epi32(source, index[0], 4)) : _mm256_setzero_si256();
+            for (unsigned influence = 1; influence < 4; ++influence) if (contributes[influence])
                 blended[coefficient] = v8_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient]);
         }
         const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));

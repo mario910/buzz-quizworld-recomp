@@ -3,7 +3,15 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "native_geometry_job.h"
 #include "native_geometry_job_call.h"
+#if defined(BUZZ_GEOMETRY_HOST_NEON)
+#include "spu_neon_rtz.h"
+#endif
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+#include "spu_neon_rtz.h"
+#endif
 #include "native_geometry_pipeline.h"
+#if !defined(BUZZ_GEOMETRY_LS_DRIVER) || defined(BUZZ_GEOMETRY_HOST_NEON)
+#include <cstdio>
 #include "native_geometry_commands.h"
 #include "native_geometry_command_publish.h"
 #include "native_geometry_position_commands.h"
@@ -57,14 +65,15 @@
 #include "native_function_check.h"
 #include <array>
 #include <atomic>
-#include <cstdio>
 #include <memory>
+#endif
 
 namespace {
-thread_local spu_context* native_pipeline_context = nullptr;
-inline bool check_job_stages() { return buzz_geometry_job_mode()==2 && buzz_geometry_job_debug_stages(); }
 thread_local const spu_context* prepared_job_owner=nullptr;
 thread_local buzz::GeometryJobSetup prepared_job{};
+#if !defined(BUZZ_GEOMETRY_LS_DRIVER) || defined(BUZZ_GEOMETRY_HOST_NEON)
+thread_local spu_context* native_pipeline_context = nullptr;
+inline bool check_job_stages() { return buzz_geometry_job_mode()==2 && buzz_geometry_job_debug_stages(); }
 thread_local buzz::GeometryHostOutputRecipe prepared_host_output{};
 // Only workers entering the experimental host path allocate its storage.
 thread_local std::unique_ptr<buzz::GeometryHostJobWorkspace> host_job_workspace;
@@ -132,6 +141,11 @@ void run_ring_reference(spu_context* ctx)
 }
 }
 
+#endif
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+}
+#endif
+#if !defined(BUZZ_GEOMETRY_LS_DRIVER) || defined(BUZZ_GEOMETRY_HOST_NEON)
 extern "C" void buzz_geometry_job_builtin_input(spu_context* ctx,buzz_geometry_job_fn fallback,buzz_geometry_job_fn reference,buzz_geometry_job_fn finish,unsigned format)
 {
     if(format<1 || format>5)buzz_geometry_job_native_fail(ctx,"unknown builtin input format");
@@ -2147,9 +2161,14 @@ extern "C" void buzz_geometry_job_decode_descriptors(spu_context* ctx,buzz_geome
     SPU_RET(ctx);
 }
 
+#endif
 extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)
 {
     prepared_job_owner=nullptr;
+    const char* reason=nullptr;
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+    const bool supported=buzz::read_geometry_job_setup(*ctx,prepared_job,&reason,true);
+#else
     // Owner lifetime is granted by the controller, not by an arbitrary prior
     // eligibility query. Before mutation, prove both input control frames.
     const bool host_pipeline=buzz_geometry_job_host_pipeline_enabled()!=0;
@@ -2157,12 +2176,12 @@ extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)
     // group declines the entire job before preparation or entry mutation.
     if (!buzz_geometry_job_legacy_enabled() && (!host_pipeline ||
         !buzz_geometry_job_publication_enabled() || !buzz_geometry_job_commands_enabled())) return 0;
-    const char* reason=nullptr;
     bool supported=buzz::read_geometry_job_setup(*ctx,prepared_job,&reason,!host_pipeline);
     if(supported && host_pipeline)
         supported=buzz::prepare_geometry_host_job(*ctx,prepared_job.entry,worker_host_job(),&reason);
     else if(supported && buzz_geometry_host_output_enabled())
         supported=buzz::read_geometry_host_output_recipe(*ctx,prepared_job.entry,prepared_host_output,&reason);
+#endif
     if(!supported && buzz_geometry_fallback_reasons_enabled())buzz_geometry_job_fallback_reason(reason);
     if(supported && buzz_geometry_job_owns_admission(ctx))prepared_job_owner=ctx;
     return supported;
@@ -2172,10 +2191,14 @@ extern "C" void buzz_geometry_job_native_start(spu_context* ctx, const buzz_geom
 {
     buzz::GeometryJobSetup setup;
     buzz::GeometryContextState state;
-    buzz::GeometryHostOutputRecipe host_output;
     const char* reason = nullptr;
     const bool reuse=prepared_job_owner==ctx && buzz_geometry_job_owns_admission(ctx);
     prepared_job_owner=nullptr;
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+    if(reuse)setup=prepared_job;
+    else if(!buzz::read_geometry_job_setup(*ctx,setup,&reason,true))buzz_geometry_job_native_fail(ctx,reason);
+#else
+    buzz::GeometryHostOutputRecipe host_output;
     const bool host_pipeline=buzz_geometry_job_host_pipeline_enabled()!=0;
     const bool host=!host_pipeline && buzz_geometry_host_output_enabled()!=0;
     if(reuse){setup=prepared_job;if(host)host_output=prepared_host_output;}
@@ -2186,13 +2209,19 @@ extern "C" void buzz_geometry_job_native_start(spu_context* ctx, const buzz_geom
         if(host && !buzz::read_geometry_host_output_recipe(*ctx,setup.entry,host_output,&reason))
             buzz_geometry_job_native_fail(ctx,reason);
     }
+#endif
     buzz::commit_geometry_job_setup(*ctx,setup);
     buzz::materialize_geometry_job_initial_call(*ctx, setup);
     if (!buzz::initialize_geometry_context(*ctx, setup.initialization, state, &reason))
         buzz_geometry_job_native_fail(ctx, reason);
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+    buzz::GeometryPipeline pipeline(*ctx, *functions, setup);
+    pipeline.run();
+#else
     NativePipelineScope scope(ctx);
     buzz::GeometryPipeline pipeline(*ctx, *functions, setup, host?&host_output:nullptr,host_pipeline?&worker_host_job():nullptr);
     pipeline.run();
     if(host_pipeline)buzz_geometry_job_host_pipeline_result();
+#endif
     SPU_RET(ctx);
 }

@@ -1,6 +1,9 @@
 /* Quantized output: full state, dispatcher boundary, FP edges and rejection. */
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../ps3recomp/runtime/spu/spu_helpers.h"
+#if defined(__aarch64__)
+#include "../port/spu_arm_fp_state.h"
+#endif
 #include "../port/native_function_check.h"
 #include <cassert>
 #include <chrono>
@@ -67,7 +70,12 @@ static void compare(spu_context *seed, bool native)
 }
 int main(int argc, char **argv)
 {
+#if defined(__aarch64__)
+    const auto previous = buzz_arm_fp_save();
+    buzz_arm_fp_enter_rtz(previous);
+#else
     _mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
+#endif
     auto *seed = new spu_context{};
     seed->ls = seed->ls_store;
     const uint32_t edges[] = {0,          0x80000000, 1,          0x007fffff, 0x00800000, 0x3f800000,

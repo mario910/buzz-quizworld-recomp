@@ -19,7 +19,11 @@ struct Counters { std::atomic<unsigned long long> native{0}, fallback{0}, checke
 int mode = 1;
 // Bits 0/5/8/9 passed both scene reversals. Bits 1/3/4/8 also save pool/process
 // cycles in both CPU reversal pairs; all correctness/render gates passed.
+#if defined(BUZZ_GEOMETRY_ARM_NEON)
+unsigned kernels = available;
+#else
 unsigned kernels = 827u & available;
+#endif
 
 struct Init {
     Init() {

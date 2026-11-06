@@ -3,7 +3,7 @@
 #define NOMINMAX
 #include "../port/native_geometry_host_streams.h"
 #include "../port/native_geometry_host_unit_vectors.h"
-#include <windows.h>
+#include "geometry-test-memory.h"
 #include <cassert>
 #include <cstdio>
 #include <initializer_list>
@@ -14,7 +14,9 @@ static unsigned random_word(unsigned& state)
 }
 int main()
 {
+#ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
     SYSTEM_INFO info; GetSystemInfo(&info); const unsigned page = info.dwPageSize;
     auto* allocation = static_cast<uint8_t*>(VirtualAlloc(nullptr, page * 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
     assert(allocation); DWORD previous;
@@ -43,10 +45,12 @@ int main()
                 }
                 ++cases;
             }
+    for (unsigned trial = 0; trial < 64; ++trial) for (unsigned alignment = 0; alignment < 16; ++alignment)
     for (unsigned count = 0; count <= 8; ++count) {
-        auto* source = allocation + page - count * 12; unsigned expected[3][8]{};
+        auto* source = allocation + page - count * 12 - alignment; unsigned expected[3][8]{};
         for (unsigned vertex = 0; vertex < count; ++vertex) for (unsigned component = 0; component < 3; ++component) {
-            const unsigned word = special[(vertex * 3 + component) % 16]; expected[component][vertex] = word;
+            const unsigned word = trial < 16 ? special[(trial + vertex * 3 + component) % 16] : random_word(state);
+            expected[component][vertex] = word;
             auto* at = source + vertex * 12 + component * 4;
             at[0] = uint8_t(word >> 24); at[1] = uint8_t(word >> 16); at[2] = uint8_t(word >> 8); at[3] = uint8_t(word);
         }

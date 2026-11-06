@@ -24,10 +24,15 @@ _sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
 from pathlib import Path
 import re
 import hashlib
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--arm64", action="store_true")
+arm64 = parser.parse_args().arm64
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "port/spu/buzz_job_6eba"
-DEST = ROOT / "analysis/stagef-geometry"
+DEST = ROOT / "analysis" / ("stagef-geometry-arm64" if arm64 else "stagef-geometry")
 PREFIX = "buzz_job_6eba_spu_func_0000"
 # (entry pc, native function, kernel id) -- the id is a bit in BUZZ_STAGEF_KERNELS
 KERNELS = (("6338", "buzz_stagef_native_loop", 0),
@@ -43,13 +48,75 @@ DISC100 = {"5ae9232d4f2d47004b687251b479b4515c1f2ea46e9f868332e3305a4a13434e",
 if digest not in DISC100 | {"7727abc0b151a75b9d480102192f2aac6b623da117d23e20662b8b7e02b3bd82"}:
     raise SystemExit("Unreviewed geometry image; do not infer the native ABI from addresses")
 disc100 = digest in DISC100
+if arm64 and not disc100:
+    raise SystemExit("ARM64 Stage F requires the reviewed EU 1.00 lift")
+
+
+def localize_arm64_block(text, pc):
+    """Keep SPU registers in host locals within a block, including local back edges."""
+    name = PREFIX + pc
+    match = re.search(rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}", text)
+    if not match:
+        raise SystemExit(f"Missing ARM64 Stage F block {pc}")
+    body = match[1]
+    reference_body = body
+    fused = pc == "6EE8"
+    prologue = ""
+    if fused:
+        # The two instructions at 6EE0 only move registers. Keep their result
+        # local on the back edge instead of spilling/reloading the entire bank.
+        back = re.search(rf"(?ms)^void {PREFIX}6EE0\(spu_context\* ctx\) \{{(.*?)^\}}", text)
+        expected = ("ctx->gpr[54] = spu_ori(ctx->gpr[39], 0);",
+                    "ctx->gpr[32] = spu_shlqbyi(ctx->gpr[35], 0);")
+        if not back or any(line not in back[1] for line in expected) or len(re.findall(r"ctx->gpr", back[1])) != 4:
+            raise SystemExit("Geometry back edge 6EE0 changed; re-audit before fusing")
+        branch = f"if (ctx->gpr[101]._u32[0] != 0) {{ ctx->pc = 0x6EE0; g_spu_trampoline_fn = {PREFIX}6EE0; return; }}"
+        if body.count(branch) != 1:
+            raise SystemExit("Expected one geometry-loop back edge")
+        # Stop at a finite quantum and use ordinary dispatch when hooks, a
+        # return boundary or interrupts make internal boundaries observable.
+        prologue = ("    unsigned fused_pairs = 0;\n"
+                    "    const unsigned fusion_budget = buzz_spu_pure_loop_budget(ctx, 0x6EE0, 0x6EE8);\n")
+        body = "\nloc_00006EE8:\n" + body
+        body = body.replace(branch,
+            "if (ctx->gpr[101]._u32[0] != 0 && fusion_budget && fused_pairs + 1 < fusion_budget) {\n"
+            "            ctx->gpr[54] = ctx->gpr[39]; ctx->gpr[32] = ctx->gpr[35];\n"
+            "            ++fused_pairs; goto loc_00006EE8;\n        }\n        " + branch)
+    if set(re.findall(r"ctx->(\w+)", body)) - {"gpr", "pc"} or re.search(
+            r"\b(?:spu_(?:wrch|rdch|stop|mfc|halt|drain|indirect)\w*|SPU_(?!RET\b)\w+)\(", body):
+        raise SystemExit(f"Unexpected side effect in ARM64 Stage F block {pc}")
+    registers = sorted(set(map(int, re.findall(r"ctx->gpr\[(\d+)\]", body))))
+    written = sorted(set(map(int, re.findall(r"ctx->gpr\[(\d+)\] =", body))))
+    if 0 in written:
+        raise SystemExit(f"ARM64 Stage F block {pc} writes the return address")
+    declarations = "\n".join(f"    u128 r{reg} = ctx->gpr[{reg}];" for reg in registers)
+    flush = " ".join(f"ctx->gpr[{reg}] = r{reg};" for reg in written)
+    local = re.sub(r"ctx->gpr\[(\d+)\]", r"r\1", body)
+    local = local.replace("spu_ls_read128(ctx,", "buzz_geometry_ls_read(ls,")
+    local = local.replace("spu_ls_write128(ctx,", "buzz_geometry_ls_write(ls,")
+    local = re.sub(r"\b(return;|SPU_RET\(ctx\);)", lambda exit: f"{flush} {exit[0]}", local)
+    if fused:
+        # Flush accounting only on a real dispatch exit, after register state
+        # has been published for observers at the next ordinary boundary.
+        local = local.replace("return;", "buzz_spu_pure_loop_hops(ctx, 0x6EE0, 0x6EE8, fused_pairs); return;")
+    wrapper = (
+        f"static void {name}_reference(spu_context* ctx) {{{reference_body}}}\n"
+        f"void {name}(spu_context* ctx) {{\n"
+        f"    if (buzz_stagef_mode != 1 || !buzz_stagef_arm_admit(ctx)) {{ {name}_reference(ctx); return; }}\n"
+        f"    uint8_t* ls = ctx->ls;\n{prologue}{declarations}\n{local}}}"
+    )
+    return text[:match.start()] + wrapper + text[match.end():]
+
+
 if disc100:
     # The vertex algorithm is shared; its input register allocation is mapped
     # explicitly in the native header. Cull stays reference until reviewed.
     KERNELS = (("63E0", "buzz_stagef_native_loop", 0),
                ("C518", "buzz_stagef_native_xform", 1),
                ("2C00", "buzz_stagef_native_normalize", 2))
-header = "native_stagef_loop.h"  # resolved by the game target's port/ include path
+if arm64:
+    KERNELS = tuple(kernel for kernel in KERNELS if kernel[2] in (1, 2))
+header = "native_stagef_neon.h" if arm64 else "native_stagef_loop.h"
 included = False
 for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
     name = PREFIX + pc
@@ -78,7 +145,14 @@ for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
     source = (source[:match.start()] + f"void {name}_reference(spu_context* ctx) {{"
               + body + "\n}\n" + wrapper + source[body_end + 2:])
 
-for pc in (("6E08",) if disc100 else ("6D28", "6888", "8FD4", "82B8")):
+if arm64:
+    source = source.replace('#include "native_stagef_neon.h"',
+                            '#include "native_stagef_neon.h"\n#include "spu_pure_loop.h"', 1)
+    # Fall back to the original boundaries when interrupts or hooks are armed.
+    for pc in ("6490", "6EE8"):
+        source = localize_arm64_block(source, pc)
+
+for pc in (() if arm64 else ("6E08",) if disc100 else ("6D28", "6888", "8FD4", "82B8")):
     probe = PREFIX + pc
     m = re.search(rf"(?m)^void {probe}\(spu_context\* ctx\) \{{", source)
     if not m:

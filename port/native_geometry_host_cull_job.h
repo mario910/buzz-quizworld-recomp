@@ -4,6 +4,9 @@
 #pragma once
 #include "native_geometry_host_clip_job.h"
 #include "native_geometry_host_index_job.h"
+#ifndef BUZZ_GEOMETRY_CULL_COMPACT
+#define BUZZ_GEOMETRY_CULL_COMPACT 0
+#endif
 
 namespace buzz {
 struct GeometryHostCullParameters { unsigned mode = 1; uint32_t winding = 0; };
@@ -45,15 +48,25 @@ inline bool read_geometry_host_cull_parameters(const spu_context& c, const Geome
         {0xdaa0,{0x18191a1b,0x1c1d1e1f,0x00010203,0x04050607}}};
     for (const auto& table : tables) for (unsigned lane = 0; lane < 4; ++lane)
         if (geometry_job_be32(c.ls + table.at + lane * 4) != table.word[lane]) return reject("host cull codec definition");
-    for (unsigned mask = 0; mask < 16; ++mask) {
-        uint8_t selected[32]; memset(selected,128,sizeof selected); unsigned bytes = 0;
-        for (unsigned triangle = 0; triangle < 4; ++triangle) if (!(mask & (8 >> triangle)))
-            for (unsigned byte = 0; byte < 6; ++byte) selected[bytes++] = uint8_t(triangle * 6 + byte);
-        if (memcmp(c.ls + 0xdaf0 + mask * 16,selected,16) || memcmp(c.ls + 0xdbf0 + mask * 16,selected + 16,16))
-            return reject("host cull compaction definition");
-        for (unsigned byte = 0; byte < 16; ++byte)
-            if (c.ls[0xdcf0 + mask * 16 + byte] != 16 - mask + byte) return reject("host cull alignment definition");
-    }
+    // The expected codec is immutable; guest bytes are still checked on EVERY
+    // job. Build the reference once at compile time, not in each worker call.
+    static constexpr auto compaction = [] {
+        std::array<uint8_t, 768> expected{};
+        for (unsigned mask = 0; mask < 16; ++mask) {
+            uint8_t selected[32]{}; for (auto& byte : selected) byte = 128;
+            unsigned bytes = 0;
+            for (unsigned triangle = 0; triangle < 4; ++triangle) if (!(mask & (8 >> triangle)))
+                for (unsigned byte = 0; byte < 6; ++byte) selected[bytes++] = uint8_t(triangle * 6 + byte);
+            for (unsigned byte = 0; byte < 16; ++byte) {
+                expected[mask * 16 + byte] = selected[byte];
+                expected[256 + mask * 16 + byte] = selected[16 + byte];
+                expected[512 + mask * 16 + byte] = uint8_t(16 - mask + byte);
+            }
+        }
+        return expected;
+    }();
+    if (memcmp(c.ls + 0xdaf0, compaction.data(), 512)) return reject("host cull compaction definition");
+    if (memcmp(c.ls + 0xdcf0, compaction.data() + 512, 256)) return reject("host cull alignment definition");
     output = params; if (reason) *reason = nullptr; return true;
 }
 
@@ -67,35 +80,92 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
         indices.maximum_index >= clips.vertices) return reject("host cull source readiness/range");
     GeometryHostCullParameters params;
     if (!read_geometry_host_cull_parameters(c,e,params,reason)) return false;
+#if BUZZ_GEOMETRY_CULL_COMPACT
+    static constexpr auto compact = [] {
+        std::array<std::array<uint8_t,16>,256> table{};
+        for (unsigned mask = 0; mask < 256; ++mask) {
+            auto& row = table[mask]; for (auto& byte : row) byte = 128;
+            unsigned out = 0;
+            for (unsigned lane = 0; lane < 8; ++lane) if (mask & (1u << lane)) {
+                row[out++] = uint8_t(lane * 2); row[out++] = uint8_t(lane * 2 + 1);
+            }
+        }
+        return table;
+    }();
+#endif
     unsigned kept = 0, maximum = 0, final_group_kept = 0;
+#if BUZZ_GEOMETRY_CULL_COMPACT
+    __m128i maximum_lanes = _mm_setzero_si128();
+#endif
     for (unsigned first = 0; first < indices.triangles; first += 8) {
         const unsigned active = indices.triangles - first < 8 ? indices.triangles - first : 8;
         v8 index[3], x[3], y[3], flags[3], packed[3];
+#if BUZZ_GEOMETRY_CULL_COMPACT
+        __m128i source[3];
+#else
         alignas(32) uint32_t values[3][8];
+#endif
         for (unsigned corner = 0; corner < 3; ++corner) {
+#if BUZZ_GEOMETRY_CULL_COMPACT
+            source[corner] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(indices.component[corner] + first));
+            index[corner] = _mm256_cvtepu16_epi32(source[corner]);
+#else
             index[corner] = _mm256_cvtepu16_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(indices.component[corner] + first)));
-            _mm256_store_si256(reinterpret_cast<v8*>(values[corner]),index[corner]);
+#endif
+            flags[corner] = _mm256_i32gather_epi32(reinterpret_cast<const int*>(clips.component[2]),index[corner],4);
+        }
+        const v8 common = v8_nonzero(_mm256_and_si256(_mm256_and_si256(flags[0],flags[1]),flags[2]));
+        const unsigned live_mask = (1u << active) - 1;
+        // Entire batches outside a common clip plane need no packed XY or
+        // position gathers. Inspect only active lanes in a partial batch.
+        if ((unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(common))) & live_mask) == live_mask) {
+            if (first + 8 >= indices.triangles) final_group_kept = 0;
+            continue;
+        }
+        for (unsigned corner = 0; corner < 3; ++corner)
+            packed[corner] = _mm256_i32gather_epi32(reinterpret_cast<const int*>(clips.component[3]),index[corner],4);
+        const v8 same = _mm256_and_si256(_mm256_cmpeq_epi16(packed[0],packed[1]),_mm256_cmpeq_epi16(packed[0],packed[2]));
+        const v8 early_drop = _mm256_or_si256(common, v8_nonzero(same));
+        if ((unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(early_drop))) & live_mask) == live_mask) {
+            if (first + 8 >= indices.triangles) final_group_kept = 0;
+            continue;
+        }
+        for (unsigned corner = 0; corner < 3; ++corner) {
             x[corner] = _mm256_i32gather_epi32(reinterpret_cast<const int*>(clips.component[0]),index[corner],4);
             y[corner] = _mm256_i32gather_epi32(reinterpret_cast<const int*>(clips.component[1]),index[corner],4);
-            flags[corner] = _mm256_i32gather_epi32(reinterpret_cast<const int*>(clips.component[2]),index[corner],4);
-            packed[corner] = _mm256_i32gather_epi32(reinterpret_cast<const int*>(clips.component[3]),index[corner],4);
         }
         const v8 area = v8_fs(v8_fm(v8_fs(x[1],x[0]),v8_fs(y[2],y[0])),v8_fm(v8_fs(y[1],y[0]),v8_fs(x[2],x[0])));
-        const v8 same = _mm256_and_si256(_mm256_cmpeq_epi16(packed[0],packed[1]),_mm256_cmpeq_epi16(packed[0],packed[2]));
-        const v8 zero = _mm256_or_si256(v8_fcmeq(area,_mm256_setzero_si256()),v8_nonzero(same));
-        const v8 common = v8_nonzero(_mm256_and_si256(_mm256_and_si256(flags[0],flags[1]),flags[2]));
-        const v8 back = _mm256_and_si256(_mm256_and_si256(v8_fcgt(_mm256_xor_si256(area,v8_set(params.winding)),_mm256_setzero_si256()),
-            v8_clgt(v8_set(0x80000000),_mm256_or_si256(_mm256_or_si256(flags[0],flags[1]),flags[2]))),
-            _mm256_srai_epi32(_mm256_and_si256(_mm256_and_si256(packed[0],packed[1]),packed[2]),31));
+        v8 back = _mm256_setzero_si256();
+        if (params.mode != 1)
+            back = _mm256_and_si256(_mm256_and_si256(v8_fcgt(_mm256_xor_si256(area,v8_set(params.winding)),_mm256_setzero_si256()),
+                v8_clgt(v8_set(0x80000000),_mm256_or_si256(_mm256_or_si256(flags[0],flags[1]),flags[2]))),
+                _mm256_srai_epi32(_mm256_and_si256(_mm256_and_si256(packed[0],packed[1]),packed[2]),31));
         // The original FNMS uses boolean float masks. Its low-bit truth
         // table is exactly common || (back && enabled), including -MAX.
-        const v8 drop = _mm256_or_si256(zero,_mm256_or_si256(common,_mm256_and_si256(back,v8_set(params.mode == 1 ? 0 : -1))));
+        const v8 drop = _mm256_or_si256(early_drop, _mm256_or_si256(v8_fcmeq(area,_mm256_setzero_si256()), back));
         const unsigned mask = unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(drop)));
+#if !BUZZ_GEOMETRY_CULL_COMPACT
+        for (unsigned corner = 0; corner < 3; ++corner)
+            _mm256_store_si256(reinterpret_cast<v8*>(values[corner]),index[corner]);
+#endif
         if (first + 8 >= indices.triangles) {
             const unsigned last = (active - 1) & ~3u;
             const unsigned live = (1u << (active - last)) - 1;
             final_group_kept = unsigned(_mm_popcnt_u32((~(mask >> last)) & live));
         }
+#if BUZZ_GEOMETRY_CULL_COMPACT
+        const unsigned selected = ~mask & live_mask;
+        if (!selected) continue;
+        const __m128i shuffle = _mm_loadu_si128(reinterpret_cast<const __m128i*>(compact[selected].data()));
+        // Inputs are already loaded and kept <= first. Padded capacity makes
+        // every eight-lane store safe without overwriting an unread group.
+        for (unsigned corner = 0; corner < 3; ++corner) {
+            const __m128i values = _mm_shuffle_epi8(source[corner], shuffle);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(indices.component[corner] + kept), values);
+            maximum_lanes = _mm_max_epu16(maximum_lanes, values);
+        }
+        kept += unsigned(_mm_popcnt_u32(selected));
+#else
         for (unsigned lane = 0; lane < active; ++lane) if (!(mask & (1u << lane))) {
             for (unsigned corner = 0; corner < 3; ++corner) {
                 const unsigned value = values[corner][lane]; indices.component[corner][kept] = uint16_t(value);
@@ -103,7 +173,12 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
             }
             ++kept;
         }
+#endif
     }
+#if BUZZ_GEOMETRY_CULL_COMPACT
+    uint16_t maxima[8]; _mm_storeu_si128(reinterpret_cast<__m128i*>(maxima), maximum_lanes);
+    for (unsigned value : maxima) maximum = value > maximum ? value : maximum;
+#endif
     for (unsigned triangle = kept; triangle < ((kept + 7) & ~7u); ++triangle)
         for (auto& component : indices.component) component[triangle] = 0;
     indices.triangles = kept; indices.maximum_index = maximum;

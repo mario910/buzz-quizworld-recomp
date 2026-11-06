@@ -13,6 +13,7 @@
 #include "spu_context.h"
 #include "native_function_check.h"
 
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -45,7 +46,7 @@ namespace {
 
 std::string g_dump_dir, g_probe_dir;
 long g_dump_max = 8;
-volatile long g_dumped = 0;
+std::atomic<long> g_dumped = 0;
 /* Leaf kernels (generate-geometry-stagef.py KERNELS): 0 vertex loop 0x6338,
  * 1 matrix x float4 array 0xC3A0, 2 normalize 0x2C10. BUZZ_STAGEF_KERNELS is
  * a bit mask (default all) of the ones BUZZ_STAGEF applies to; the others
@@ -53,10 +54,10 @@ volatile long g_dumped = 0;
 constexpr int kKernels = 4;   /* 3: image 39 0x05D0 (generate-image39-kernels.py) */
 const char* const kKernelNames[kKernels] = {"vertex 6338", "xform C3A0", "normalize 2C10", "img39 05D0"};
 unsigned g_kernel_mask = ~0u;
-volatile long g_compared[kKernels], g_mismatched[kKernels], g_native[kKernels], g_fallback[kKernels];
-volatile long g_reasons[4];
-volatile long g_restored = 0;
-volatile long g_full_compared[kKernels], g_full_mismatched[kKernels];
+std::atomic<long> g_compared[kKernels], g_mismatched[kKernels], g_native[kKernels], g_fallback[kKernels];
+std::atomic<long> g_reasons[4];
+std::atomic<long> g_restored = 0;
+std::atomic<long> g_full_compared[kKernels], g_full_mismatched[kKernels];
 bool g_function_check = false, g_function_strict = false;
 
 struct StageFInit {
@@ -110,7 +111,7 @@ void release(spu_context* copy)
 
 void dump(const spu_context* before, const spu_context* after, int kernel)
 {
-    long n = InterlockedIncrement(&g_dumped);
+    long n = (++g_dumped);
     if (n > g_dump_max || g_dump_dir.empty()) return;
     char name[64];
     snprintf(name, sizeof name, "/stagef_k%d_%03ld.bin", kernel, n - 1);
@@ -125,7 +126,7 @@ void dump(const spu_context* before, const spu_context* after, int kernel)
 
 void compare(const spu_context* reference, const spu_context* native, int kernel)
 {
-    InterlockedIncrement(&g_compared[kernel]);
+    (++g_compared[kernel]);
     unsigned ls_diff = 0, first = 0;
     for (uint32_t i = SPU_LS_SIZE; i-- > 0;)
         if (reference->ls[i] != native->ls[i]) { ls_diff++; first = i; }
@@ -136,7 +137,7 @@ void compare(const spu_context* reference, const spu_context* native, int kernel
         if ((r < 2 || r >= 80) && memcmp(&reference->gpr[r], &native->gpr[r], 16))
             (r < 64 ? regs : regs_high) |= 1ull << (r & 63);
     if (!ls_diff && !regs && !regs_high && reference->pc == native->pc) return;
-    if (InterlockedIncrement(&g_mismatched[kernel]) <= 16)
+    if ((++g_mismatched[kernel]) <= 16)
         fprintf(stderr, "[stagef] MISMATCH %s: %u LS bytes (first %05X), registers %016llX:%016llX,"
                         " pc %05X/%05X\n", kKernelNames[kernel], ls_diff, first, (unsigned long long)regs_high,
                 (unsigned long long)regs, reference->pc, native->pc);
@@ -154,11 +155,11 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
     auto run_native = [native](spu_context* c) { return native(c) != 0; };
     if (buzz_stagef_mode == 1) {
         if (run_native(ctx)) {
-            InterlockedIncrement(&g_native[kernel]);
+            (++g_native[kernel]);
             return;
         }
-        InterlockedIncrement(&g_fallback[kernel]);
-        InterlockedIncrement(&g_reasons[buzz_stagef_last_fallback() & 3]);
+        (++g_fallback[kernel]);
+        (++g_reasons[buzz_stagef_last_fallback() & 3]);
         run_reference(ctx, reference);
         return;
     }
@@ -169,9 +170,9 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
             compare(&ref, &nat, kernel);
             if (g_function_check) {
                 auto d = buzz::compare_function_state(ref, nat);
-                InterlockedIncrement(&g_full_compared[kernel]);
+                (++g_full_compared[kernel]);
                 if (!d.exact() || !same_continuation) {
-                    if (InterlockedIncrement(&g_full_mismatched[kernel]) <= 2)
+                    if ((++g_full_mismatched[kernel]) <= 2)
                         fprintf(stderr, "[function-check] k%d full-state DIFF: r%d byte %d (%u register bytes),"
                             " LS %05X (%u bytes), state=%s continuation=%s\n", kernel,
                             d.first_register, d.first_register_byte, d.register_bytes,
@@ -181,7 +182,7 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
             }
             if (g_compared[kernel] % 50000 == 0) buzz_stagef_report();
         });
-        if (!handled) InterlockedIncrement(&g_fallback[kernel]);
+        if (!handled) (++g_fallback[kernel]);
         return;
     }
     if (buzz_stagef_mode == 3) {
@@ -234,7 +235,7 @@ static bool culltest(spu_context* ctx, unsigned pc)
     const uint32_t end = (t_cull_base + 6u * ctx->gpr[51]._u32[0] + 15u) & ~15u;
     for (uint32_t i = 0; i < SPU_LS_SIZE; i++)
         if (i >= end && ctx->ls[i] != t_cull_before[i]) {
-            InterlockedIncrement(&g_restored);
+            (++g_restored);
             ctx->ls[i] = t_cull_before[i];
         }
     t_cull_base = 0;
@@ -272,7 +273,7 @@ void buzz_stagef_probe(spu_context* ctx, unsigned pc)
  * (the loop only trampolines between its own blocks). The contract compared
  * is r51 (kept count) and the index bytes up to the 16-byte boundary after
  * the last kept triangle; the trampoline is left at 0x6888 either way. */
-static volatile long g_cull_native = 0, g_cull_fallback = 0, g_cull_compared = 0, g_cull_mismatched = 0;
+static std::atomic<long> g_cull_native = 0, g_cull_fallback = 0, g_cull_compared = 0, g_cull_mismatched = 0;
 
 static void run_reference_until(spu_context* ctx, void (*reference)(spu_context*),
                                 void (*exit_fn)(spu_context*))
@@ -289,8 +290,8 @@ void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
                           int (*native)(spu_context*), void (*exit_fn)(spu_context*), unsigned base_reg, unsigned kept_reg)
 {
     if (buzz_stagef_mode == 1) {
-        if (native(ctx)) { InterlockedIncrement(&g_cull_native); return; }
-        InterlockedIncrement(&g_cull_fallback);
+        if (native(ctx)) { (++g_cull_native); return; }
+        (++g_cull_fallback);
         reference(ctx);
         return;
     }
@@ -299,14 +300,14 @@ void buzz_stagef_cull_run(spu_context* ctx, void (*reference)(spu_context*),
     const uint32_t base = ctx->gpr[base_reg]._u32[0];
     run_reference_until(ctx, reference, exit_fn);
     void (*after)(spu_context*) = g_spu_trampoline_fn;
-    if (!native(copy)) { InterlockedIncrement(&g_cull_fallback); release(copy); return; }
+    if (!native(copy)) { (++g_cull_fallback); release(copy); return; }
     g_spu_trampoline_fn = after;   /* keep the reference's continuation */
-    if (InterlockedIncrement(&g_cull_compared) % 50000 == 0) buzz_stagef_report();
+    if ((++g_cull_compared) % 50000 == 0) buzz_stagef_report();
     const uint32_t kept = ctx->gpr[kept_reg]._u32[0];
     const uint32_t end = (base + 6u * kept + 15u) & ~15u;
     bool same = !memcmp(&ctx->gpr[kept_reg], &copy->gpr[kept_reg], 16) && ctx->pc == copy->pc;
     for (uint32_t a = base; a < end && same; a++) same = ctx->ls[a & 0x3FFFF] == copy->ls[a & 0x3FFFF];
-    if (!same && InterlockedIncrement(&g_cull_mismatched) <= 16) {
+    if (!same && (++g_cull_mismatched) <= 16) {
         uint32_t first = base;
         while (first < end && ctx->ls[first & 0x3FFFF] == copy->ls[first & 0x3FFFF]) first++;
         fprintf(stderr, "[stagef] CULL MISMATCH: kept %u/%u, first byte %05X of %05X-%05X\n",
@@ -321,18 +322,18 @@ extern "C" void buzz_stagef_report(void)
     if (g_function_check)
         for (int k = 0; k < kKernels; ++k)
             fprintf(stderr, "[function-check] k%d full-state compared=%ld mismatched=%ld\n",
-                    k, g_full_compared[k], g_full_mismatched[k]);
-    if (g_restored) fprintf(stderr, "[stagef] culltest: restored %ld junk bytes\n", g_restored);
+                    k, g_full_compared[k].load(), g_full_mismatched[k].load());
+    if (g_restored.load()) fprintf(stderr, "[stagef] culltest: restored %ld junk bytes\n", g_restored.load());
     if (buzz_stagef_mode)
         fprintf(stderr, "[stagef] cull: native %ld, fallback %ld, compared %ld, mismatched %ld\n",
-                g_cull_native, g_cull_fallback, g_cull_compared, g_cull_mismatched);
+                g_cull_native.load(), g_cull_fallback.load(), g_cull_compared.load(), g_cull_mismatched.load());
     if (buzz_stagef_mode)
         for (int k = 0; k < kKernels; k++)
             fprintf(stderr, "[stagef] %s: native %ld, fallback %ld, compared %ld, mismatched %ld\n",
-                    kKernelNames[k], g_native[k], g_fallback[k], g_compared[k], g_mismatched[k]);
+                    kKernelNames[k], g_native[k].load(), g_fallback[k].load(), g_compared[k].load(), g_mismatched[k].load());
     if (buzz_stagef_mode)
         fprintf(stderr, "[stagef] vertex fallback reasons: count %ld, empty %ld, overlap %ld\n",
-                g_reasons[1], g_reasons[2], g_reasons[3]);
+                g_reasons[1].load(), g_reasons[2].load(), g_reasons[3].load());
 }
 
 extern "C" int buzz_stagef_check_failures(void)

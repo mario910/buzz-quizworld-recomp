@@ -12,7 +12,11 @@
  * Vectors hold host-order 32-bit words: lane k == SPU word k of a quadword,
  * lanes 4..7 == the next quadword (the next group of four).
  */
+#if defined(__aarch64__)
+#include "geometry_neon_vectors.h"
+#else
 #include <immintrin.h>
+#endif
 
 typedef __m256i v8;
 
@@ -41,6 +45,11 @@ static inline v8 v8_finish(__m256 value, v8 a, v8 b, v8 c, int op)
     const v8 mag = _mm256_and_si256(bits, v8_set(0x7fffffff));
     const v8 valid = _mm256_cmpgt_epi32(v8_set(0x7f7fffff), mag);
     bits = _mm256_andnot_si256(_mm256_cmpeq_epi32(_mm256_slli_epi32(bits, 1), _mm256_setzero_si256()), bits);
+#if defined(__aarch64__)
+    // The common path only needs ALL lanes valid, not eight scalar mask bits.
+    // Form a lane mask only for the exact, uncommon repair below.
+    if (vminvq_u32(vandq_u32(valid.lo, valid.hi)) == UINT32_MAX) return bits;
+#endif
     const int mask = _mm256_movemask_ps(_mm256_castsi256_ps(valid));
     return mask == 0xFF ? bits : v8_fix(bits, mask, a, b, c, op);
 }
@@ -87,6 +96,29 @@ static inline v8 v8_fnms_masks(v8 a, v8 b, v8 c)
     return _mm256_permutevar8x32_epi32(table, idx);
 }
 
+/* Exact 32-word lookup; indices are admitted in [0,31] by the caller. */
+static inline v8 v8_lookup32(const uint32_t* table, v8 index)
+{
+#if defined(__aarch64__)
+    const auto* bytes = reinterpret_cast<const uint8_t*>(table);
+    const uint8x16x4_t low = {{vld1q_u8(bytes),vld1q_u8(bytes+16),vld1q_u8(bytes+32),vld1q_u8(bytes+48)}};
+    const uint8x16x4_t high = {{vld1q_u8(bytes+64),vld1q_u8(bytes+80),vld1q_u8(bytes+96),vld1q_u8(bytes+112)}};
+    auto lookup = [&](uint32x4_t words) {
+        const auto offsets = vreinterpretq_u8_u32(vaddq_u32(vmulq_u32(words,vdupq_n_u32(0x04040404)),vdupq_n_u32(0x03020100)));
+        return vreinterpretq_u32_u8(vorrq_u8(vqtbl4q_u8(low,offsets),vqtbl4q_u8(high,vsubq_u8(offsets,vdupq_n_u8(64)))));
+    };
+    return {lookup(index.lo),lookup(index.hi)};
+#else
+    // This header is also included by the C stage-F translation unit on PC.
+    const v8 a = _mm256_permutevar8x32_epi32(_mm256_loadu_si256((const v8*)table),index);
+    const v8 b = _mm256_permutevar8x32_epi32(_mm256_loadu_si256((const v8*)(table+8)),index);
+    const v8 c = _mm256_permutevar8x32_epi32(_mm256_loadu_si256((const v8*)(table+16)),index);
+    const v8 d = _mm256_permutevar8x32_epi32(_mm256_loadu_si256((const v8*)(table+24)),index);
+    const v8 bit8 = _mm256_srai_epi32(_mm256_slli_epi32(index,28),31);
+    const v8 bit16 = _mm256_srai_epi32(_mm256_slli_epi32(index,27),31);
+    return _mm256_blendv_epi8(_mm256_blendv_epi8(a,b,bit8),_mm256_blendv_epi8(c,d,bit8),bit16);
+#endif
+}
 /* frest: biased exponent 253-e (0 for e >= 253, 255 for e == 0), table fraction */
 static inline v8 v8_frest(v8 a)
 {
@@ -95,7 +127,7 @@ static inline v8 v8_frest(v8 a)
     rexp = _mm256_andnot_si256(_mm256_cmpgt_epi32(e, v8_set(252)), rexp);          /* e >= 253 -> 0 */
     rexp = _mm256_blendv_epi8(rexp, v8_set(255), _mm256_cmpeq_epi32(e, _mm256_setzero_si256()));
     const v8 idx = _mm256_and_si256(_mm256_srli_epi32(a, 18), v8_set(0x1F));
-    const v8 frac = _mm256_and_si256(_mm256_i32gather_epi32((const int*)spu_frest_fraction_lut, idx, 4),
+    const v8 frac = _mm256_and_si256(v8_lookup32(spu_frest_fraction_lut, idx),
                                      v8_set(0x7FFFFF));
     return _mm256_or_si256(_mm256_or_si256(_mm256_and_si256(a, v8_set(0x80000000u)), _mm256_slli_epi32(rexp, 23)),
                            frac);

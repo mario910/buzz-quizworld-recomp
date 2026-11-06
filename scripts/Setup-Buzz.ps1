@@ -1,5 +1,5 @@
 # Prepare tools only; never downloads, decrypts or modifies game/firmware files.
-param([string]$Python = 'python', [switch]$SkipInstall)
+param([string]$Python = 'python', [switch]$SkipInstall, [switch]$BuildOnly)
 $projectRoot = (Split-Path -Parent $PSScriptRoot)
 
 $ErrorActionPreference = 'Stop'
@@ -16,12 +16,15 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
     & $Python -m venv (Join-Path $root 'toolenv')
     if ($LASTEXITCODE) { throw 'Could not create the local Python environment.' }
 }
-& $venvPython -c 'import sys, tkinter; assert sys.version_info >= (3,11), "Python 3.11+ required"'
-if ($LASTEXITCODE) { throw 'The local Python needs Python 3.11+ and Tcl/Tk. Repair it before continuing.' }
+$pythonCheck = 'import sys; assert sys.version_info >= (3,11), "Python 3.11+ required"'
+if (-not $BuildOnly) { $pythonCheck += '; import tkinter' }
+& $venvPython -c $pythonCheck
+if ($LASTEXITCODE) { throw 'Repair the local Python environment. Python 3.11+ is required, with Tcl/Tk for legacy setup.' }
 if (-not $SkipInstall) {
     & $venvPython -m pip install -r (Join-Path $root 'requirements.txt')
     if ($LASTEXITCODE) { throw 'Tool dependency installation failed.' }
 }
+if ($BuildOnly) { return }
 $pathsFile = Join-Path $root 'buzz-paths.json'
 if (-not (Test-Path -LiteralPath $pathsFile)) {
     Copy-Item -LiteralPath (Join-Path $root 'config/buzz-paths.example.json') -Destination $pathsFile

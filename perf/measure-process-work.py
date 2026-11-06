@@ -18,6 +18,7 @@ import sys
 import time
 
 SYMBOLS = ("g_render_perf_epoch", "g_render_perf_serial")
+RSX_THREAD = "RSX worker (FIFO + renderer)"
 
 
 def sha256(path):
@@ -57,7 +58,7 @@ def pool_key(thread):
     return thread["tid"], thread["created_100ns"]
 
 
-def summarize(start, end, expected_lanes=4):
+def summarize(start, end, expected_lanes=4, include_rsx=False, all_threads=False):
     if end["elapsed_ns"] <= start["elapsed_ns"]:
         raise ValueError("CPU window does not advance")
     lower = end["frames_before"] - start["frames_after"]
@@ -92,7 +93,38 @@ def summarize(start, end, expected_lanes=4):
     lane_results = [dict(name=before[key]["name"], tid=key[0], **delta(before[key], after[key])) for key in before]
     pooled = {field: sum(t[field] for t in lane_results) for field in ("cycles", "cpu_ns")}
     pooled.update(cycles_per_frame=pooled["cycles"]/frames, cpu_ms_per_frame=pooled["cpu_ns"]/1e6/frames)
-    return dict(frames=frames, frames_lower=lower, frames_upper=upper,
+    extra = {}
+    if include_rsx:
+        rsx_before = [t for t in start["threads"] if t["name"] == RSX_THREAD]
+        rsx_after = [t for t in end["threads"] if t["name"] == RSX_THREAD]
+        if len(rsx_before) != 1 or len(rsx_after) != 1:
+            raise ValueError("Need one persistent named RSX thread")
+        if pool_key(rsx_before[0]) != pool_key(rsx_after[0]) or any(
+                t.get("exited_100ns", 0) for t in rsx_before + rsx_after):
+            raise ValueError("RSX thread identity changed or exited inside CPU window")
+        extra["rsx"] = delta(rsx_before[0], rsx_after[0])
+    if all_threads:
+        indexed = []
+        for snapshot in (start, end):
+            entries = {pool_key(t): t for t in snapshot["threads"]}
+            if len(entries) != len(snapshot["threads"]):
+                raise ValueError("Duplicate captured thread identity")
+            indexed.append(entries)
+        captured = []
+        for key in indexed[0].keys() & indexed[1].keys():
+            a, b = indexed[0][key], indexed[1][key]
+            if a.get("exited_100ns", 0) or b.get("exited_100ns", 0):
+                continue
+            captured.append(dict(tid=key[0], created_100ns=key[1], name=b["name"], **delta(a, b)))
+        captured.sort(key=lambda t: t["cpu_ns"], reverse=True)
+        total = delta(start["process"], end["process"])
+        extra["captured_threads"] = captured
+        extra["uncaptured"] = {field: total[field] - sum(t[field] for t in captured)
+                               for field in ("cpu_ns", "cycles")}
+        extra["thread_coverage"] = (
+            "Persistent handles discovered before the window only. Late-created or exited threads "
+            "are excluded; process totals remain authoritative. Endpoint queries are not atomic.")
+    return dict(**extra, frames=frames, frames_lower=lower, frames_upper=upper,
                 elapsed_seconds=(end["elapsed_ns"]-start["elapsed_ns"])/1e9,
                 process=delta(start["process"], end["process"]), pool=pooled, lanes=lane_results)
 
@@ -227,10 +259,11 @@ class NativeProcess:
         return dict(elapsed_ns=(before+after)//2-epoch, query_span_ns=after-before,
                     frames_before=frames_before, frames_after=frames_after, process=process, threads=threads)
 
-    def discover_pool(self):
+    def discover_pool(self, include_rsx=False):
         self.discover()
         for tid, handle in list(self.handles.items()):
-            if not re.fullmatch(r"SPURS pool lane \d+", self.thread_name(handle)):
+            name = self.thread_name(handle)
+            if not re.fullmatch(r"SPURS pool lane \d+", name) and not (include_rsx and name == RSX_THREAD):
                 self.k.CloseHandle(handle)
                 del self.handles[tid]
 
@@ -266,6 +299,8 @@ def main():
     measure.add_argument("--pid", type=int, required=True); measure.add_argument("--exe", type=Path, required=True)
     measure.add_argument("--binding", type=Path, required=True); measure.add_argument("--output", type=Path, required=True)
     measure.add_argument("--start", type=float, required=True); measure.add_argument("--end", type=float, required=True)
+    measure.add_argument("--include-rsx", action="store_true", help="Also measure the named FIFO/renderer thread")
+    measure.add_argument("--all-threads", action="store_true", help="Retain all owned handles before the window; report persistent thread costs and uncaptured process work")
     args = parser.parse_args()
     if args.command == "bind":
         write_new(args.output, make_binding(args.exe, args.map)); return
@@ -291,7 +326,10 @@ def main():
         if target.now() > epoch + args.start*1e9:
             raise ValueError("Attached after the requested CPU window began")
         target.wait_until(epoch + int((args.start-1)*1e9))
-        target.discover_pool()
+        if args.all_threads:
+            target.discover()
+        else:
+            target.discover_pool(args.include_rsx)
         snapshots = []
         for seconds in (args.start, args.end):
             target.wait_until(epoch + int(seconds*1e9))
@@ -302,8 +340,11 @@ def main():
             snapshots.append(snapshot)
         result = dict(status="complete", pid=args.pid, exe_sha256=binding["exe_sha256"],
                       binding_sha256=sha256(args.binding), window_seconds=[args.start, args.end],
-                      method="OS CPU/cycle counters, pre-discovered pool handles, no suspension; map-bound renderer epoch/serial",
-                      snapshots=snapshots, **summarize(*snapshots))
+                      method="OS CPU/cycle counters, pre-discovered named handles, no suspension; map-bound renderer epoch/serial",
+                      includes_rsx=args.include_rsx,
+                      includes_all_threads=args.all_threads,
+                      snapshots=snapshots, **summarize(*snapshots, include_rsx=args.include_rsx,
+                                                      all_threads=args.all_threads))
         write_new(args.output, result)
     finally:
         target.close()

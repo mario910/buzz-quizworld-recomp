@@ -1,5 +1,23 @@
 /* CAD8/CB78: decode remaining halfword columns, retaining the original last one. */
 #pragma once
+#if defined(__aarch64__)
+#include "native_geometry_ls.h"
+
+static inline u128 buzz_dehalf_neon(const uint8_t* memory, unsigned address)
+{
+    const uint8x8_t bytes = vrev16_u8(vld1_u8(memory + address));
+    const uint16x4_t halves = vreinterpret_u16_u8(bytes);
+    const uint32x4_t input = vorrq_u32(vshll_n_u16(halves, 16),
+                                      vdupq_n_u32(memory[address & ~15u]*0x101u));
+    const uint32x4_t shifted = vreinterpretq_u32_s32(vshrq_n_s32(vreinterpretq_s32_u32(input), 3));
+    const uint32x4_t magnitude = vandq_u32(input, vdupq_n_u32(0x7fffffff));
+    const uint32x4_t decoded = vaddq_u32(vbicq_u32(shifted, vdupq_n_u32(0x70000000)),
+        vandq_u32(vcgtq_u32(magnitude, vdupq_n_u32(0)), vdupq_n_u32(0x38000000)));
+    u128 result;
+    memcpy(&result, &decoded, sizeof(result));
+    return result;
+}
+#else
 #include "native_stagef_avx2.h"
 
 static inline v8 buzz_dehalf_pair(const uint8_t* memory, unsigned first, unsigned second)
@@ -19,6 +37,7 @@ static inline v8 buzz_dehalf_pair(const uint8_t* memory, unsigned first, unsigne
     return _mm256_add_epi32(_mm256_andnot_si256(v8_set(0x70000000), _mm256_srai_epi32(input, 3)),
         _mm256_and_si256(_mm256_cmpgt_epi32(magnitude, v8_set(0)), v8_set(0x38000000)));
 }
+#endif
 
 static inline int buzz_dehalf_native(spu_context* ctx, void (*last_column)(spu_context*))
 {
@@ -61,12 +80,18 @@ static inline int buzz_dehalf_native(spu_context* ctx, void (*last_column)(spu_c
     for (unsigned col = column; col < column + remaining - 1; ++col) {
         for (unsigned group = 0; group < groups; ++group) {
             const unsigned index = col*stride + attribute + group*input_step;
+#if defined(__aarch64__)
+            u128 values[4];
+            for (unsigned j = 0; j < 4; ++j)
+                values[j] = buzz_dehalf_neon(ctx->ls, ctx->gpr[7 + 2*j]._u32[0] + index);
+#else
             const v8 first_pair = buzz_dehalf_pair(ctx->ls, ctx->gpr[7]._u32[0] + index, ctx->gpr[9]._u32[0] + index);
             const v8 second_pair = buzz_dehalf_pair(ctx->ls, ctx->gpr[11]._u32[0] + index, ctx->gpr[13]._u32[0] + index);
             const __m128i a = _mm256_castsi256_si128(first_pair), b = _mm256_extracti128_si256(first_pair, 1);
             const __m128i c = _mm256_castsi256_si128(second_pair), d = _mm256_extracti128_si256(second_pair, 1);
             u128 values[4]; memcpy(&values[0], &a, 16); memcpy(&values[1], &b, 16);
             memcpy(&values[2], &c, 16); memcpy(&values[3], &d, 16);
+#endif
             const unsigned order[4] = {1, 2, 0, 3};
             for (unsigned n = 0; n < 4; ++n) {
                 const unsigned j = order[n];

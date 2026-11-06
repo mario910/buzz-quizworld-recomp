@@ -23,7 +23,9 @@ static void drain(spu_context* ctx, uint32_t stop)
 }
 int main()
 {
+#ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
     auto fixture = std::make_unique<unsigned char[]>(2048 + SPU_LS_SIZE);
     auto* file = fopen("analysis/native-geometry/phase3/test-half-stream-fixture.bin", "rb");
     assert(file && fread(fixture.get(), 2048 + SPU_LS_SIZE, 1, file) == 1 && fgetc(file) == EOF); fclose(file);

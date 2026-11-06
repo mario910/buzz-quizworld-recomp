@@ -32,6 +32,22 @@ inline GeometryHostSoA8 decode_geometry_host_halves8(const GeometryHostSoA8& hal
 inline GeometryHostSoA8 decode_geometry_host_half_stream8(const uint8_t* arena,
     unsigned field_offset, unsigned stride, unsigned components, unsigned vertices)
 {
+    if (vertices == 8 && (components == 2 || components == 4)) {
+        // Each admitted field contains two or four complete half words. Read
+        // pairs together, retaining the original aligned-prefix provenance.
+        const v8 offsets = _mm256_mullo_epi32(_mm256_setr_epi32(0,1,2,3,4,5,6,7),v8_set(stride));
+        const v8 first = v8_bswap(_mm256_i32gather_epi32(reinterpret_cast<const int*>(arena+field_offset),offsets,1));
+        GeometryHostSoA8 halves{{_mm256_srli_epi32(first,16),_mm256_and_si256(first,v8_set(65535)),
+            _mm256_setzero_si256(),_mm256_setzero_si256()}};
+        if (components == 4) {
+            const v8 second = v8_bswap(_mm256_i32gather_epi32(reinterpret_cast<const int*>(arena+field_offset+4),offsets,1));
+            halves.component[2] = _mm256_srli_epi32(second,16);
+            halves.component[3] = _mm256_and_si256(second,v8_set(65535));
+        }
+        alignas(32) uint32_t prefixes[8];
+        for (unsigned lane=0;lane<8;++lane) prefixes[lane]=arena[(field_offset+lane*stride)&~15u];
+        return decode_geometry_host_halves8(halves,_mm256_load_si256(reinterpret_cast<const v8*>(prefixes)),components);
+    }
     alignas(32) uint32_t halves[4][8]{}, prefixes[8]{};
     for (unsigned vertex = 0; vertex < vertices; ++vertex) {
         const unsigned at = field_offset + vertex * stride;
@@ -61,6 +77,37 @@ inline GeometryHostSoA8 decode_geometry_host_floats8(const uint8_t* source,
 }
 inline GeometryHostSoA8 decode_geometry_host_positions8(const uint8_t* source, unsigned vertices)
 {
+    if (vertices == 8) {
+        // A full position block is exactly 96 bytes. Deinterleave contiguous
+        // loads instead of gathering 24 separate words. Tails retain masked
+        // gathers so the last admitted byte is never overread.
+        GeometryHostSoA8 output;
+#if defined(__aarch64__)
+        const auto lo = vld3q_u32(reinterpret_cast<const uint32_t*>(source));
+        const auto hi = vld3q_u32(reinterpret_cast<const uint32_t*>(source + 48));
+        for (unsigned component = 0; component < 3; ++component)
+            output.component[component] = v8_bswap({lo.val[component],hi.val[component]});
+#else
+        const v8 a = _mm256_loadu_si256(reinterpret_cast<const v8*>(source));
+        const v8 b = _mm256_loadu_si256(reinterpret_cast<const v8*>(source + 32));
+        const v8 c = _mm256_loadu_si256(reinterpret_cast<const v8*>(source + 64));
+        auto select = [](v8 value, v8 order) { return _mm256_permutevar8x32_epi32(value,order); };
+        output.component[0] = v8_bswap(_mm256_blend_epi32(_mm256_blend_epi32(
+            select(a,_mm256_setr_epi32(0,3,6,0,0,0,0,0)),
+            select(b,_mm256_setr_epi32(0,0,0,1,4,7,0,0)),0x38),
+            select(c,_mm256_setr_epi32(0,0,0,0,0,0,2,5)),0xc0));
+        output.component[1] = v8_bswap(_mm256_blend_epi32(_mm256_blend_epi32(
+            select(a,_mm256_setr_epi32(1,4,7,0,0,0,0,0)),
+            select(b,_mm256_setr_epi32(0,0,0,2,5,0,0,0)),0x18),
+            select(c,_mm256_setr_epi32(0,0,0,0,0,0,3,6)),0xe0));
+        output.component[2] = v8_bswap(_mm256_blend_epi32(_mm256_blend_epi32(
+            select(a,_mm256_setr_epi32(2,5,0,0,0,0,0,0)),
+            select(b,_mm256_setr_epi32(0,0,0,3,6,0,0,0)),0x1c),
+            select(c,_mm256_setr_epi32(0,0,0,0,0,1,4,7)),0xe0));
+#endif
+        output.component[3] = v8_set(0x3f800000);
+        return output;
+    }
     auto output = decode_geometry_host_floats8(source, 12, 3, vertices);
     output.component[3] = v8_set(0x3f800000);
     return output;

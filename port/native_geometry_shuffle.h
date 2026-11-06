@@ -2,6 +2,33 @@
 /* Reuse selector decoding when a pure geometry kernel never changes its mask.
  * This handles ALL 256 selectors, including zero/FF/80 constants. No assumed
  * transpose mask, floating-point shortcut or change to register byte order. */
+#if defined(__aarch64__)
+#include <arm_neon.h>
+typedef struct { uint8x16_t index, special; } BuzzGeometryShuffle;
+static inline BuzzGeometryShuffle buzz_geometry_shuffle_prepare(u128 control)
+{
+    uint8x16_t c;
+    memcpy(&c, &control, sizeof(c));
+    const uint8x16_t constants = vcgeq_u8(c, vdupq_n_u8(0xc0));
+    const uint8x16_t high = vcgeq_u8(c, vdupq_n_u8(0x80));
+    const uint8x16_t top = vcgeq_u8(c, vdupq_n_u8(0xe0));
+    const BuzzGeometryShuffle plan = {
+        vorrq_u8(veorq_u8(vandq_u8(c, vdupq_n_u8(31)), vdupq_n_u8(3)), high),
+        vbslq_u8(top, vdupq_n_u8(0x80), constants)
+    };
+    return plan;
+}
+static inline u128 buzz_geometry_shuffle_apply(u128 a, u128 b, BuzzGeometryShuffle plan)
+{
+    uint8x16x2_t table;
+    memcpy(&table.val[0], &a, sizeof(a));
+    memcpy(&table.val[1], &b, sizeof(b));
+    const uint8x16_t result = vorrq_u8(vqtbl2q_u8(table, plan.index), plan.special);
+    u128 out;
+    memcpy(&out, &result, sizeof(out));
+    return out;
+}
+#else
 #include <immintrin.h>
 typedef struct { __m128i a,b,special; } BuzzGeometryShuffle;
 static inline BuzzGeometryShuffle buzz_geometry_shuffle_prepare(u128 control)
@@ -24,3 +51,4 @@ static inline u128 buzz_geometry_shuffle_apply(u128 a,u128 b,BuzzGeometryShuffle
     __m128i r=_mm_or_si128(_mm_or_si128(_mm_shuffle_epi8(x,p.a),_mm_shuffle_epi8(y,p.b)),p.special);
     u128 out;memcpy(&out,&r,16);return out;
 }
+#endif

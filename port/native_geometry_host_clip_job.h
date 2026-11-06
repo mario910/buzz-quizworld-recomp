@@ -85,20 +85,57 @@ inline bool read_geometry_host_clip_parameters(const spu_context& c, const Geome
     output = params; if (reason) *reason = nullptr; return true;
 }
 
-inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
+// Delay only exceptional-result repair until the end of this pure projection.
+// The normal path keeps RZ/FZ arithmetic, operation order and signed-zero
+// canonicalization after every operation. If ANY intermediate needs repair,
+// discard the entire speculative block and execute the original exact path.
+// No LS writes, stores to output, or guest-visible effects occur before this.
+template<bool Deferred> struct GeometryClipArithmetic {
+    v8 largest = _mm256_setzero_si256();
+    inline __attribute__((always_inline)) v8 finish(__m256 value, v8 a, v8 b, v8 c, int op) {
+        if constexpr (!Deferred) return v8_finish(value,a,b,c,op);
+        const v8 bits = _mm256_castps_si256(value);
+        const v8 magnitude = _mm256_and_si256(bits,v8_set(0x7fffffff));
+#if defined(__aarch64__)
+        largest = {vmaxq_u32(largest.lo,magnitude.lo),vmaxq_u32(largest.hi,magnitude.hi)};
+#else
+        largest = _mm256_max_epi32(largest,magnitude);
+#endif
+        return _mm256_andnot_si256(_mm256_cmpeq_epi32(magnitude,_mm256_setzero_si256()),bits);
+    }
+    inline __attribute__((always_inline)) v8 fma(v8 a,v8 b,v8 c) {
+        return finish(_mm256_fmadd_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b),_mm256_castsi256_ps(c)),a,b,c,2);
+    }
+    inline __attribute__((always_inline)) v8 fm(v8 a,v8 b) {
+        return finish(_mm256_mul_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b)),a,b,a,1);
+    }
+    inline __attribute__((always_inline)) v8 fnms(v8 a,v8 b,v8 c) {
+        return fma(_mm256_xor_si256(a,v8_set(0x80000000)),b,c);
+    }
+    inline __attribute__((always_inline)) bool valid() const {
+#if defined(__aarch64__)
+        return vmaxvq_u32(vmaxq_u32(largest.lo,largest.hi)) < 0x7f7fffff;
+#else
+        return _mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpgt_epi32(v8_set(0x7f7fffff),largest))) == 255;
+#endif
+    }
+};
+template<bool Deferred>
+inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     const GeometryHostClipParameters& params, const GeometryHostSoA8& position)
 {
-    auto row = [&](unsigned axis) {
-        v8 value = v8_fma(position.component[0], v8_set(params.row[axis][0]), v8_set(params.row[axis][3]));
-        value = v8_fma(position.component[1], v8_set(params.row[axis][1]), value);
-        return v8_fma(position.component[2], v8_set(params.row[axis][2]), value);
+    GeometryClipArithmetic<Deferred> fp;
+    auto row = [&](unsigned axis) __attribute__((always_inline)) {
+        v8 value = fp.fma(position.component[0], v8_set(params.row[axis][0]), v8_set(params.row[axis][3]));
+        value = fp.fma(position.component[1], v8_set(params.row[axis][1]), value);
+        return fp.fma(position.component[2], v8_set(params.row[axis][2]), value);
     };
     const v8 w = row(3), sign = _mm256_and_si256(w, v8_set(0x80000000));
     const v8 estimate = v8_fi(w, v8_frest(w));
-    const v8 reciprocal = v8_fma(v8_fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
-    const v8 x = _mm256_xor_si256(sign, v8_fm(row(0), reciprocal));
-    const v8 y = _mm256_xor_si256(sign, v8_fm(row(1), reciprocal));
-    const v8 z = _mm256_xor_si256(sign, v8_fm(row(2), reciprocal));
+    const v8 reciprocal = fp.fma(fp.fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
+    const v8 x = _mm256_xor_si256(sign, fp.fm(row(0), reciprocal));
+    const v8 y = _mm256_xor_si256(sign, fp.fm(row(1), reciprocal));
+    const v8 z = _mm256_xor_si256(sign, fp.fm(row(2), reciprocal));
     v8 flags = _mm256_and_si256(v8_fcgt(v8_set(params.minimum[2]), z), v8_set(0x80));
     flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(v8_set(params.minimum[0]), x), v8_set(0x40)));
     flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(v8_set(params.minimum[1]), y), v8_set(0x20)));
@@ -110,7 +147,19 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
     v8 packed = _mm256_or_si256(_mm256_slli_epi32(cx, 16), _mm256_and_si256(cy, v8_set(65535)));
     packed = _mm256_or_si256(_mm256_and_si256(packed, v8_set(0x7fffffff)),
         _mm256_and_si256(v8_fcgt(w, _mm256_setzero_si256()), v8_set(0x80000000)));
+    if constexpr (Deferred) {
+        if (!fp.valid()) return geometry_host_clip8_impl<false>(params,position);
+    }
     return {{x,y,_mm256_slli_epi32(flags,24),packed}};
+}
+inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
+    const GeometryHostClipParameters& params, const GeometryHostSoA8& position)
+{
+#if defined(BUZZ_GEOMETRY_DEFERRED_CLIP) && BUZZ_GEOMETRY_DEFERRED_CLIP
+    return geometry_host_clip8_impl<true>(params,position);
+#else
+    return geometry_host_clip8_impl<false>(params,position);
+#endif
 }
 inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, const GeometryHostInputData& data,

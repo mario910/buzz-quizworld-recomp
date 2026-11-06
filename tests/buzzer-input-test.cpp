@@ -14,6 +14,11 @@ int main(){
     router.release(keyboard,true);
     assert(router.sample(1000)==bits(7,31)); // another provider still holds it
     router.release(gamepad0,true);assert(router.sample(1000)==0);
+    router.state(touchscreen,bits(2,31),1001);
+    router.state(remote0,bits(2,1),1001);
+    router.release(touchscreen,true);
+    assert(router.sample(2000)==bits(2,1));
+    router.release(remote0,true);assert(!router.sample(2000));
     for(unsigned player=0;player<8;++player)for(unsigned button=0;button<5;++button){
         Router r(10);const auto mask=bits(player,uint8_t(1u<<button));
         r.state(remote0,mask,0);assert(r.sample(0)==mask);

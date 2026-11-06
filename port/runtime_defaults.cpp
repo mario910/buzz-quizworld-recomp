@@ -10,12 +10,48 @@ namespace {
 struct Default { const char* name; const char* value; };
 constexpr Default defaults[] = {
 #define X(name, value) {#name, value},
+#if defined(BUZZ_STANDALONE) && !BUZZ_RUNTIME_DEFAULTS
+#define BUZZ_COMMON_DEFAULTS_ONLY
+#endif
 #include "runtime_defaults.inc"
+#if defined(BUZZ_SPURS_IDLE_SPIN_US) && BUZZ_SPURS_IDLE_SPIN_US >= 0
+#define BUZZ_SPURS_STRINGIFY_IMPL(value) #value
+#define BUZZ_SPURS_STRINGIFY(value) BUZZ_SPURS_STRINGIFY_IMPL(value)
+// Install before the SDK caches its options. Explicit environment overrides
+// still win independently for workers and the command-chain waiter.
+X(SPURS_POOL_SPIN_US, BUZZ_SPURS_STRINGIFY(BUZZ_SPURS_IDLE_SPIN_US))
+X(SPURS_JTS_SPIN_US, BUZZ_SPURS_STRINGIFY(BUZZ_SPURS_IDLE_SPIN_US))
+#undef BUZZ_SPURS_STRINGIFY
+#undef BUZZ_SPURS_STRINGIFY_IMPL
+#endif
+#ifdef BUZZ_STANDALONE
+X(PS3_TITLE, "Buzz! Quiz World")
+X(PAD_NO_KEYBOARD, "1")
+X(BUZZ_OFFLINE, "1")
+X(BUZZ_HIDE_PSN_STORE, "1")
+X(RSX_SHADER_CACHE_DIR, "shader-cache")
+#ifdef BUZZ_ANDROID_IMAGE39_NEON
+X(SPURS_NATIVE_IMAGE39_FP, "1")
+#endif
+#ifdef BUZZ_GEOMETRY_ARM_NEON
+X(BUZZ_STAGEF, "1")
+X(BUZZ_STAGEF_KERNELS, "6")
+#endif
+#ifdef BUZZ_GEOMETRY_LS_DRIVER
+X(BUZZ_GEOMETRY_JOB, "1")
+X(BUZZ_GEOMETRY_JOB_LAYOUT, "1")
+X(BUZZ_GEOMETRY_JOB_PUBLISH, "1")
+X(BUZZ_GEOMETRY_JOB_VERTEX, "1")
+#endif
+#if BUZZ_DISC_COMPLETION && !BUZZ_RUNTIME_DEFAULTS
+X(BUZZ_NATIVE_COMPLETION, "2")
+#endif
+#endif
 #undef X
 };
 
 int install_defaults() {
-#if BUZZ_RUNTIME_DEFAULTS
+#if BUZZ_RUNTIME_DEFAULTS || defined(BUZZ_STANDALONE)
     for (const auto& option : defaults) {
         if (std::getenv(option.name)) continue;
 #ifdef _WIN32

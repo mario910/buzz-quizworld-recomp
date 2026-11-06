@@ -9,13 +9,12 @@ from pathlib import Path as _Path
 import sys as _sys
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
 from pathlib import Path
+import argparse
 import hashlib
 import re
 import shutil
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "port/spu/buzz_job_14b4"
-OUT = ROOT / "analysis/native-image36"
 NAME = "buzz_job_14b4_spu_func_000006D8"
 PIN = "7b435dbe9136d2ca0786fea35783f0c0fed1955b11df562496cdd0d8d5bf360c"
 DISC_PIN = "f193509244fecb411b85adb97af264278f6eae17c3e991a90c9cd6cd800b1794"
@@ -43,7 +42,12 @@ def extract(source, name=NAME, loop_pc="000006D8"):
 
 
 def main():
-    raw = (SOURCE / "spu_recomp.c").read_bytes()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--workspace", type=Path, default=ROOT, help="Checkout or prepared workspace with the SPU lift")
+    workspace = parser.parse_args().workspace
+    source_dir = workspace / "port/spu/buzz_job_14b4"
+    out = workspace / "analysis/native-image36"
+    raw = (source_dir / "spu_recomp.c").read_bytes()
     source_hash = hashlib.sha256(raw).hexdigest()
     if source_hash not in LEAVES:
         raise SystemExit("Image36 lift changed: re-audit before generating")
@@ -68,14 +72,15 @@ void {name}(spu_context* ctx) {{
             + body + "\n}\n" + wrapper + source[end + 2:])
     includes = "".join(line + "\n" for line in source.splitlines() if line.startswith("#include"))
     exact = "".join(f"#define spu_{op} spu_{op}_ref\n" for op in ("fa", "fs", "fm", "fma", "fms", "fnms"))
-    OUT.mkdir(parents=True, exist_ok=True)
+    neon = '#ifdef BUZZ_IMAGE36_NEON\n#include "spu_neon_rtz.h"\n#endif\n'
+    out.mkdir(parents=True, exist_ok=True)
     for filename, text in (("spu_recomp.c", lift),
-                           ("kernel_06d8.c", includes + "\nvoid buzz_image36_06d8_native(spu_context* ctx) {" + core + "}\n"),
+                           ("kernel_06d8.c", includes + neon + "\nvoid buzz_image36_06d8_native(spu_context* ctx) {" + core + "}\n"),
                            ("reference_06d8.c", includes + "\nvoid buzz_image36_06d8_reference(spu_context* ctx) {" + core + "}\n"),
                            ("oracle_06d8.c", includes + exact + "\nvoid buzz_image36_06d8_oracle(spu_context* ctx) {" + core + "}\n")):
-        (OUT / filename).write_text(text, encoding="utf-8", newline="\n")
-    shutil.copyfile(SOURCE / "spu_recomp.h", OUT / "spu_recomp.h")
-    print(f"Image36: profile-bound leaf 0x{int(pc,16):04X}, shared checked native RTZ -> {OUT}")
+        (out / filename).write_text(text, encoding="utf-8", newline="\n")
+    shutil.copyfile(source_dir / "spu_recomp.h", out / "spu_recomp.h")
+    print(f"Image36: profile-bound leaf 0x{int(pc,16):04X}, shared checked native RTZ -> {out}")
 
 
 if __name__ == "__main__":

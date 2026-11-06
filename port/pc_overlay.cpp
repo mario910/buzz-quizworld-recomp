@@ -15,18 +15,25 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#if defined(_WIN32) || (defined(__linux__) && defined(BUZZ_EXPERIMENTAL_VULKAN))
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <Xinput.h>
 #include <d3d12.h>
-#include <imgui.h>
 #include <imgui_impl_win32.h>
 #include <imgui_impl_dx12.h>
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,UINT,WPARAM,LPARAM);
+#else
+#include "buzzer_sdl.h"
+#include <SDL.h>
+#include <imgui_impl_sdl2.h>
+#endif
+#include <imgui.h>
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
 #include <imgui_impl_vulkan.h>
 #endif
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND,UINT,WPARAM,LPARAM);
 // The in-game XMB sends MENU_OPEN, DRAWING_BEGIN on opening and DRAWING_END,
 // MENU_CLOSE on closing, to every registered sysutil callback. Buzz handles
 // only DRAWING_BEGIN/END (it pauses); the menu pair is sent as hardware would.
@@ -40,14 +47,23 @@ buzz_pc::Preferences preferences;
 buzz_input::Config input;
 buzz_phone::Status phone_status;
 std::string status;
+uint64_t menu_ticks(){
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 ImGuiStyle base_style; // menu style at scale 1
 float ui_scale=0;
 ImGuiContext* context=nullptr;
+#ifdef _WIN32
 ID3D12DescriptorHeap* descriptors=nullptr;
 std::array<bool,64> used{};
 UINT descriptor_size=0;
 HWND window=nullptr;
-bool initialized=false,failed=false,win32_initialized=false,dx12_initialized=false,vulkan_initialized=false;
+bool dx12_initialized=false;
+#else
+SDL_Window* window=nullptr;
+#endif
+bool initialized=false,failed=false,platform_initialized=false,vulkan_initialized=false;
 unsigned overlay_api=PS3_HOST_OVERLAY_D3D12;
 bool pause_guest=true;
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
@@ -58,21 +74,39 @@ constexpr bool host_pause=false;
 #endif
 buzz_pc::MenuPadNavigation pad_navigation;
 bool test_mode=false,pause_test=false,frame_limit_test=false;
-ULONGLONG test_delay_ms=0;
+uint64_t test_delay_ms=0;
 bool menu_ui_enabled=true;
 unsigned test_stage=0;
-ULONGLONG first_frame=0;
+uint64_t first_frame=0;
+int binding_target=0, binding_button=-1;
+bool binding_pad_neutral=false;
+constexpr const char* binding_colors[]={"RED","YELLOW","GREEN","ORANGE","BLUE"};
+
+bool binding_pad(){return binding_target>=int(input.players);}
+unsigned binding_pad_slot(){return unsigned(binding_target-int(input.players));}
 
 void capture(){buzz_input_capture(menu.open());}
 void release_resources() {
+#ifdef _WIN32
     if(dx12_initialized){ImGui_ImplDX12_Shutdown();dx12_initialized=false;}
+#endif
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
     if(vulkan_initialized){ImGui_ImplVulkan_Shutdown();vulkan_initialized=false;}
 #endif
-    if(win32_initialized){ImGui_ImplWin32_Shutdown();win32_initialized=false;}
+    if(platform_initialized){
+#ifdef _WIN32
+        ImGui_ImplWin32_Shutdown();
+#else
+        ImGui_ImplSDL2_Shutdown();
+#endif
+        platform_initialized=false;
+    }
     if(context){ImGui::DestroyContext(context);context=nullptr;}
+#ifdef _WIN32
     if(descriptors){descriptors->Release();descriptors=nullptr;}
-    used.fill(false);initialized=false;
+    used.fill(false);
+#endif
+    initialized=false;
 }
 void pause_events(bool open) {
     if(!pause_guest)return;
@@ -87,6 +121,13 @@ void opened() {
     pause_events(true);
 }
 void navigate(buzz_pc::MenuAction action) {
+    if(binding_button>=0) {
+        if(action==buzz_pc::MenuAction::back||action==buzz_pc::MenuAction::toggle) {
+            binding_button=-1;
+            status="Binding cancelled.";
+        }
+        return;
+    }
     const bool before=menu.open();menu.navigate(action);
     if(menu.open()&&!before)opened();
     if(before&&!menu.open()) {
@@ -111,6 +152,18 @@ bool apply_input() {
     else status="Controller mapping applied. Choose Save to keep it.";
     return true;
 }
+template<typename Code>
+void assign_binding(std::array<Code,5>& mapping,Code code) {
+    auto& selected=mapping[unsigned(binding_button)];
+    const auto previous=mapping;
+    if(code) {
+        const auto existing=std::find(mapping.begin(),mapping.end(),code);
+        if(existing!=mapping.end())*existing=selected;
+    }
+    selected=code;
+    binding_button=-1;
+    if(!apply_input())mapping=previous;
+}
 void save_all() {
     auto change=buzz_pc_apply_preferences(preferences,true);
     if(!change.accepted){status=change.error;return;}
@@ -123,12 +176,17 @@ void save_all() {
 void act(buzz_pc::MenuAction action) {
     using buzz_pc::MenuAction;using buzz_pc::MenuPage;
     if(action==MenuAction::toggle||action==MenuAction::back||action==MenuAction::up||action==MenuAction::down){navigate(action);return;}
-    if(!menu.open())return;
+    if(!menu.open()||binding_button>=0)return;
     const int row=menu.selection(),direction=action==MenuAction::left?-1:1;
     const bool accept=action==MenuAction::accept;
     if(menu.page()==MenuPage::quit_confirm) {
         if(!accept)return;
-        if(row==0)menu.show(MenuPage::settings);else PostMessageW(window,WM_CLOSE,0,0);
+        if(row==0)menu.show(MenuPage::settings);
+#ifdef _WIN32
+        else PostMessageW(window,WM_CLOSE,0,0);
+#else
+        else {SDL_Event quit{};quit.type=SDL_QUIT;SDL_PushEvent(&quit);}
+#endif
         return;
     }
     if(menu.page()==MenuPage::phones) {
@@ -139,6 +197,26 @@ void act(buzz_pc::MenuAction action) {
         else if(row>=4&&row<=11&&accept)buzz_phone::host().kick(unsigned(row-4));
         else if(row==12&&accept)save_all();
         else if(row==13&&accept)menu.show(MenuPage::settings);
+        return;
+    }
+    if(menu.page()==MenuPage::bindings) {
+        if(row==0) {
+            const int count=int(input.players)+4;
+            binding_target=(binding_target+direction+count)%count;
+        } else if(row<=5&&accept) {
+            if(binding_pad()&&input.pad_player[binding_pad_slot()]<0) {
+                status="Assign this controller to a player first.";
+                return;
+            }
+            binding_button=row-1;
+            binding_pad_neutral=false;
+            status=binding_pad()?"Release the controller buttons, then press the desired button. Escape cancels."
+                                :"Press a key. Backspace clears the binding. Escape cancels.";
+        } else if(row==6&&accept) {
+            save_all();
+        } else if(row==7&&accept) {
+            menu.show(MenuPage::controllers);
+        }
         return;
     }
     if(menu.page()==MenuPage::settings) {
@@ -158,6 +236,9 @@ void act(buzz_pc::MenuAction action) {
                 status="FSR 1 sharpens when the window is larger than the internal resolution.";
         }
         else if(row==row_sharpness&&!accept){preferences.fsr_sharpness=unsigned(std::clamp(int(preferences.fsr_sharpness)+direction*10,0,100));apply_live();}
+        else if(row==row_texture_replace){preferences.texture_replace=!preferences.texture_replace;apply_live();}
+        else if(row==row_texture_dump){preferences.texture_dump=!preferences.texture_dump;apply_live();}
+        else if(row==row_texture_auto){preferences.texture_auto_upscale=!preferences.texture_auto_upscale;apply_live();}
         else if(row==row_offline){preferences.offline=!preferences.offline;apply_live();}
         else if(row==row_controllers&&accept)menu.show(MenuPage::controllers);
         else if(row==row_phones&&accept)menu.show(MenuPage::phones);
@@ -174,25 +255,48 @@ void act(buzz_pc::MenuAction action) {
             input.pad_player[slot]=next;apply_input();
         }else if(row==6&&!accept){input.pulse_ms=unsigned(std::clamp(int(input.pulse_ms)+direction*10,10,5000));apply_input();}
         else if(row==7){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
-        else if(row==8&&accept)save_all();
-        else if(row==9&&accept)menu.show(MenuPage::settings);
+        else if(row==8){input.background_gamepads=!input.background_gamepads;apply_input();}
+        else if(row==9&&accept){binding_target=0;menu.show(MenuPage::bindings);}
+        else if(row==10&&accept)save_all();
+        else if(row==11&&accept)menu.show(MenuPage::settings);
     }
 }
+// Key values are the portable saved binding codes (Win32 VK numbers).
+void key_down(unsigned key,bool repeated){
+    using buzz_pc::MenuAction;
+    if(key==27){if(!repeated)navigate(MenuAction::toggle);return;}
+    if(binding_button>=0){
+        if(!repeated&&!binding_pad()&&key>0&&key<=255)
+            assign_binding(input.keys[unsigned(binding_target)],key==8?0u:key);
+        return;
+    }
+    if(key==38)act(MenuAction::up);else if(key==40)act(MenuAction::down);
+    else if(key==37)act(MenuAction::left);else if(key==39)act(MenuAction::right);
+    else if(!repeated&&(key==13||key==32))act(MenuAction::accept);
+    else if(!repeated&&key==8)act(MenuAction::back);
+}
 int message(void* handle,unsigned msg,uintptr_t wp,intptr_t lp) {
+#ifdef _WIN32
     buzz_hid_host_message(handle,msg,wp,lp);
     if(!menu_ui_enabled||failed)return 0;
-    using buzz_pc::MenuAction;
-    if(msg==WM_KEYDOWN&&wp==VK_ESCAPE) {if(!(lp&(1ll<<30)))navigate(MenuAction::toggle);return 1;}
+    if(msg==WM_KEYDOWN&&wp==VK_ESCAPE){key_down(unsigned(wp),lp&(1ll<<30));return 1;}
     if(!menu.open())return 0;
     if(msg==WM_KILLFOCUS){pad_navigation.reset();if(context)ImGui::GetIO().ClearInputKeys();}
     if(context)ImGui_ImplWin32_WndProcHandler(static_cast<HWND>(handle),msg,WPARAM(wp),LPARAM(lp));
-    if(msg==WM_KEYDOWN) {
-        if(wp==VK_UP)act(MenuAction::up);else if(wp==VK_DOWN)act(MenuAction::down);
-        else if(wp==VK_LEFT)act(MenuAction::left);else if(wp==VK_RIGHT)act(MenuAction::right);
-        else if((wp==VK_RETURN||wp==VK_SPACE)&&!(lp&(1ll<<30)))act(MenuAction::accept);else if(wp==VK_BACK&&!(lp&(1ll<<30)))act(MenuAction::back);
-    }
+    if(msg==WM_KEYDOWN||(msg==WM_SYSKEYDOWN&&binding_button>=0))key_down(unsigned(wp),lp&(1ll<<30));
     return msg==WM_KEYDOWN||msg==WM_KEYUP||msg==WM_CHAR||msg==WM_LBUTTONDOWN||msg==WM_LBUTTONUP||msg==WM_RBUTTONDOWN||msg==WM_RBUTTONUP||msg==WM_MOUSEWHEEL||msg==WM_MOUSEMOVE;
+#else
+    (void)handle;(void)msg;(void)wp;
+    const auto& event=*reinterpret_cast<const SDL_Event*>(lp);
+    if(!menu_ui_enabled||failed)return 0;
+    if(event.type==SDL_KEYDOWN&&event.key.keysym.sym==SDLK_ESCAPE){key_down(27,event.key.repeat);return 1;}
+    if(!menu.open())return 0;
+    if(context)ImGui_ImplSDL2_ProcessEvent(&event);
+    if(event.type==SDL_KEYDOWN)key_down(buzz_sdl_key_code(event.key.keysym.sym),event.key.repeat);
+    return event.type==SDL_KEYDOWN||event.type==SDL_KEYUP;
+#endif
 }
+#ifdef _WIN32
 void alloc_descriptor(ImGui_ImplDX12_InitInfo*,D3D12_CPU_DESCRIPTOR_HANDLE* cpu,D3D12_GPU_DESCRIPTOR_HANDLE* gpu) {
     for(unsigned i=0;i<used.size();++i)if(!used[i]) {
         used[i]=true;*cpu=descriptors->GetCPUDescriptorHandleForHeapStart();cpu->ptr+=SIZE_T(i)*descriptor_size;
@@ -204,6 +308,7 @@ void free_descriptor(ImGui_ImplDX12_InitInfo*,D3D12_CPU_DESCRIPTOR_HANDLE cpu,D3
     const auto first=descriptors->GetCPUDescriptorHandleForHeapStart();const auto slot=(cpu.ptr-first.ptr)/descriptor_size;
     if(slot<used.size())used[slot]=false;
 }
+#endif
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
 PFN_vkVoidFunction vulkan_function(const char* name,void* user) {
     auto vulkan=static_cast<const ps3_host_overlay_vulkan*>(user);
@@ -226,44 +331,71 @@ bool init_vulkan(const ps3_host_overlay_frame& frame) {
 }
 #endif
 bool init(const ps3_host_overlay_frame& frame) {
-    window=static_cast<HWND>(frame.window);overlay_api=frame.api;
+    window=static_cast<decltype(window)>(frame.window);overlay_api=frame.api;
+#ifdef _WIN32
     if(frame.api==PS3_HOST_OVERLAY_D3D12) {
         auto device=static_cast<ID3D12Device*>(frame.device);
         D3D12_DESCRIPTOR_HEAP_DESC desc{};desc.Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;desc.NumDescriptors=UINT(used.size());desc.Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
         if(FAILED(device->CreateDescriptorHeap(&desc,IID_PPV_ARGS(&descriptors))))return false;
         descriptor_size=device->GetDescriptorHandleIncrementSize(desc.Type);
     }
+#endif
 #ifndef BUZZ_EXPERIMENTAL_VULKAN
     else return false;
 #else
-    else if(frame.api!=PS3_HOST_OVERLAY_VULKAN||!frame.vulkan)return false;
+#ifdef _WIN32
+    else
+#endif
+    if(frame.api!=PS3_HOST_OVERLAY_VULKAN||!frame.vulkan)return false;
 #endif
     IMGUI_CHECKVERSION();context=ImGui::CreateContext();auto& io=ImGui::GetIO();io.IniFilename=nullptr;
     io.ConfigFlags|=ImGuiConfigFlags_NoMouseCursorChange; // never change the RDP user's cursor
     ImGui::StyleColorsDark();auto& style=ImGui::GetStyle();style.FrameRounding=9;style.WindowRounding=14;
     style.FramePadding=ImVec2(16,9);style.ItemSpacing=ImVec2(12,9);style.WindowPadding=ImVec2(26,22);style.FontSizeBase=22;
     base_style=style;ui_scale=0;
+#ifdef _WIN32
     const char* font="C:/Windows/Fonts/segoeui.ttf";
+#else
+    const char* font="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+#endif
     if(std::filesystem::is_regular_file(font))io.Fonts->AddFontFromFileTTF(font,22);
+#ifdef _WIN32
     if(!ImGui_ImplWin32_Init(window))return false;
-    win32_initialized=true;
+#else
+    if(!ImGui_ImplSDL2_InitForVulkan(window))return false;
+#endif
+    platform_initialized=true;
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
     if(frame.api==PS3_HOST_OVERLAY_VULKAN) {
         if(!init_vulkan(frame))return false;
         initialized=true;fprintf(stderr,"[pc-menu] Vulkan overlay initialized\n");return true;
     }
 #endif
+#ifdef _WIN32
     ImGui_ImplDX12_InitInfo info{};info.Device=static_cast<ID3D12Device*>(frame.device);info.CommandQueue=static_cast<ID3D12CommandQueue*>(frame.queue);
     info.NumFramesInFlight=int(frame.frames_in_flight);info.RTVFormat=DXGI_FORMAT(frame.format);info.DSVFormat=DXGI_FORMAT_UNKNOWN;
     info.SrvDescriptorHeap=descriptors;info.SrvDescriptorAllocFn=alloc_descriptor;info.SrvDescriptorFreeFn=free_descriptor;
     if(!ImGui_ImplDX12_Init(&info))return false;
     dx12_initialized=true;
     initialized=true;fprintf(stderr,"[pc-menu] D3D12 overlay initialized\n");return true;
+#else
+    return false;
+#endif
 }
 void controller() {
     using buzz_pc::MenuAction;
     if(buzz_input_take_menu_request())navigate(MenuAction::toggle);
     if(!menu.open()){pad_navigation.reset();return;}
+    if(binding_button>=0&&binding_pad()) {
+        const uint16_t buttons=buzz_input_host_pad_buttons(binding_pad_slot());
+        if(!buttons)binding_pad_neutral=true;
+        if(binding_pad_neutral&&buttons&&buttons!=0x10&&buzz_input::pad_button_name(buttons))
+            assign_binding(input.pad_buttons[binding_pad_slot()],buttons);
+        // Track raw buttons while capturing so the newly assigned press never
+        // navigates the menu when capture ends.
+        pad_navigation.sample(buttons,menu_ticks());
+        return;
+    }
     uint16_t buttons=0;for(unsigned i=0;i<4;++i)buttons|=buzz_input_host_pad_buttons(i);
     const auto physical=buzz_input_host_physical_buttons();
     // Physical handsets have no START. Open with Escape, then use the familiar
@@ -272,7 +404,7 @@ void controller() {
     if(physical&1)buttons|=0x200;
     if(physical&16)buttons|=1;if(physical&8)buttons|=2;
     if(physical&2)buttons|=4;if(physical&4)buttons|=8;
-    const auto pressed=pad_navigation.sample(buttons,GetTickCount64());
+    const auto pressed=pad_navigation.sample(buttons,menu_ticks());
     if(pressed&1)act(MenuAction::up);if(pressed&2)act(MenuAction::down);if(pressed&4)act(MenuAction::left);if(pressed&8)act(MenuAction::right);
     if(pressed&(0x1000|0x200))act(MenuAction::accept); // A or R1/RB
     if(pressed&0x2000)act(MenuAction::back);
@@ -290,6 +422,23 @@ std::string row_label(int row) {
         const auto player=unsigned(row-4);const auto& seat=phone_status.seats[player];
         if(player>=buzz_input_players())return "P"+std::to_string(player+1)+": unavailable (4-slot mode)";
         return "P"+std::to_string(player+1)+": "+(seat.reserved?seat.name+(seat.online?" [online]":" [away]")+" - REMOVE":"available");
+    }
+    if(menu.page()==MenuPage::bindings) {
+        if(row==0)return binding_pad()?"EDIT PAD "+std::to_string(binding_pad_slot()+1)
+                                     :"EDIT KEYBOARD PLAYER "+std::to_string(binding_target+1);
+        if(row==6)return "SAVE CONTROLLER SETTINGS";
+        if(row==7)return "BACK";
+        const auto color=unsigned(row-1);
+        std::string value;
+        if(binding_pad())value=buzz_input::pad_button_name(input.pad_buttons[binding_pad_slot()][color]);
+        else {
+            const auto key=input.keys[unsigned(binding_target)][color];
+            if(!key)value="NONE";
+            else if(key==32)value="SPACE";
+            else if((key>='A'&&key<='Z')||(key>='0'&&key<='9'))value=char(key);
+            else value="KEY "+std::to_string(key);
+        }
+        return std::string(binding_colors[color])+": "+(binding_button==int(color)?"WAITING FOR INPUT":value);
     }
     if(menu.page()==MenuPage::settings) {
         using namespace buzz_pc;
@@ -313,16 +462,21 @@ std::string row_label(int row) {
             }
             case row_upscaler:return std::string("UPSCALING FILTER    ")+(preferences.upscaler==Upscaler::fsr1?"AMD FSR 1":"BILINEAR");
             case row_sharpness:return "FSR SHARPNESS                         "+std::to_string(preferences.fsr_sharpness)+"%";
+            case row_texture_replace:return std::string("REPLACE TEXTURES [restart]  ")+(preferences.texture_replace?"ON":"OFF");
+            case row_texture_dump:return std::string("DUMP TEXTURES [restart]  ")+(preferences.texture_dump?"ON":"OFF");
+            case row_texture_auto:return std::string("AUTO TEXTURE UPSCALING [restart]  ")+(preferences.texture_auto_upscale?"ON":"OFF");
             case row_offline:return std::string("OFFLINE MODE [restart]              ")+(preferences.offline?"ON":"OFF");
             case row_controllers:return "CONTROLLERS  >";case row_phones:return "PHONE BUZZERS  >";case row_save:return "SAVE SETTINGS";case row_return:return "RETURN TO GAME";default:return "QUIT GAME...";
         }
     }
     switch(row) {
-        case 0:return std::string("XINPUT CONTROLLERS                   ")+(input.gamepads?"ON":"OFF");
+        case 0:return std::string("GAME CONTROLLERS                   ")+(input.gamepads?"ON":"OFF");
         case 1:return "USE R1 + D-PAD PRESET";
         case 6:return "TAP RETENTION                             "+std::to_string(input.pulse_ms)+" ms";
         case 7:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
-        case 8:return "SAVE CONTROLLER SETTINGS";case 9:return "BACK";
+        case 8:return std::string("BACKGROUND GAMEPADS  ")+(input.background_gamepads?"ON":"OFF");
+        case 9:return "KEYBOARD AND PAD BINDINGS  >";
+        case 10:return "SAVE CONTROLLER SETTINGS";case 11:return "BACK";
         default:{unsigned slot=unsigned(row-2);return "PAD "+std::to_string(slot+1)+(buzz_input_host_pad_connected(slot)?" [connected]":" [not connected]")+"  >  "+(input.pad_player[slot]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[slot]+1));}
     }
 }
@@ -383,7 +537,7 @@ void draw_menu() {
     ImGui::GetWindowDrawList()->AddRectFilledMultiColor(p,ImVec2(p.x+available.x,p.y+64*ui),IM_COL32(145,20,255,255),IM_COL32(75,35,180,255),IM_COL32(45,30,120,255),IM_COL32(100,30,210,255));
     const bool phones=menu.page()==buzz_pc::MenuPage::phones;
     if(phones)phone_status=buzz_phone::host().status();
-    ImGui::SetCursorScreenPos(ImVec2(p.x+18*ui,p.y+14*ui));ImGui::TextUnformatted(phones?"BUZZ!  /  PHONE BUZZERS":menu.page()==buzz_pc::MenuPage::controllers?"BUZZ!  /  CONTROLLERS":"BUZZ!  /  PC SETTINGS");
+    ImGui::SetCursorScreenPos(ImVec2(p.x+18*ui,p.y+14*ui));ImGui::TextUnformatted(phones?"BUZZ!  /  PHONE BUZZERS":menu.page()==buzz_pc::MenuPage::controllers?"BUZZ!  /  CONTROLLERS":menu.page()==buzz_pc::MenuPage::bindings?"BUZZ!  /  BINDINGS":"BUZZ!  /  PC SETTINGS");
     ImGui::SetCursorScreenPos(ImVec2(p.x,p.y+78*ui));
     if(menu.page()==buzz_pc::MenuPage::controllers) {
         const unsigned receivers=unsigned(buzz_input_physical_connected(0))+unsigned(buzz_input_physical_connected(1));
@@ -408,7 +562,8 @@ void draw_menu() {
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,ImVec4(.67f,.28f,.96f,1));
         auto label=row_label(row);
         const bool adjustable=(menu.page()==buzz_pc::MenuPage::settings&&(row==buzz_pc::row_volume||row==buzz_pc::row_window_size||row==buzz_pc::row_render_scale||row==buzz_pc::row_sharpness))||
-            (menu.page()==buzz_pc::MenuPage::controllers&&row==6)||(phones&&row==1);
+            (menu.page()==buzz_pc::MenuPage::controllers&&row==6)||
+            (menu.page()==buzz_pc::MenuPage::bindings&&row==0)||(phones&&row==1);
         const float adjust_width=44*ui,space=ImGui::GetStyle().ItemSpacing.x;
         if(adjustable){
             if(ImGui::Button("-",ImVec2(adjust_width,row_height))){menu.select(row);act(buzz_pc::MenuAction::left);}
@@ -434,7 +589,7 @@ void draw_menu() {
 void test_actions() {
     // Explicit test mode only; this is internal menu input, never desktop input.
     if(!test_mode)return;
-    const auto now=GetTickCount64();if(!first_frame)first_frame=now;
+    const auto now=menu_ticks();if(!first_frame)first_frame=now;
     if(now-first_frame<test_delay_ms)return;
     const auto elapsed=now-first_frame-test_delay_ms;
     if(frame_limit_test) {
@@ -453,38 +608,45 @@ void test_actions() {
     if(pause_test) {
         // Hold the menu over gameplay: the game should pause behind it.
         if(test_stage==0){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
-        if(test_stage==1&&elapsed>=8000){message(window,WM_KEYDOWN,VK_ESCAPE,0);++test_stage;fprintf(stderr,"[pc-menu] test: pause hold completed\n");}
+        if(test_stage==1&&elapsed>=8000){key_down(27,false);++test_stage;fprintf(stderr,"[pc-menu] test: pause hold completed\n");}
         return;
     }
     if(test_stage==0&&elapsed>=2500){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
     if(test_stage==1&&elapsed>=3500){menu.select(0);act(buzz_pc::MenuAction::left);++test_stage;}
     if(test_stage==2&&elapsed>=4500){menu.select(buzz_pc::row_frame_lock);act(buzz_pc::MenuAction::accept);++test_stage;}
     if(test_stage==3&&elapsed>=5500){input.pulse_ms=260;save_all();++test_stage;}
-    if(test_stage==4&&elapsed>=9000){message(window,WM_KEYDOWN,VK_ESCAPE,0);++test_stage;}
-    if(test_stage==5&&elapsed>=9500){message(window,WM_KEYDOWN,VK_ESCAPE,0);++test_stage;}
+    if(test_stage==4&&elapsed>=9000){key_down(27,false);++test_stage;}
+    if(test_stage==5&&elapsed>=9500){key_down(27,false);++test_stage;}
     if(test_stage==6&&elapsed>=10500){menu.select(buzz_pc::row_controllers);act(buzz_pc::MenuAction::accept);++test_stage;}
-    if(test_stage==7&&elapsed>=11500){menu.select(9);++test_stage;fprintf(stderr,"[pc-menu] test: controllers page, last row selected\n");}
-    if(test_stage==8&&elapsed>=13000){message(window,WM_KEYDOWN,VK_BACK,0);message(window,WM_KEYDOWN,VK_ESCAPE,0);++test_stage;fprintf(stderr,"[pc-menu] test: keyboard close/reopen and controller page completed\n");}
+    if(test_stage==7&&elapsed>=11500){menu.select(menu.rows()-1);++test_stage;fprintf(stderr,"[pc-menu] test: controllers page, last row selected\n");}
+    if(test_stage==8&&elapsed>=13000){key_down(8,false);key_down(27,false);++test_stage;fprintf(stderr,"[pc-menu] test: keyboard close/reopen and controller page completed\n");}
 }
 void draw(const ps3_host_overlay_frame* frame) {
-    if(failed)return;window=static_cast<HWND>(frame->window);
+    if(failed)return;window=static_cast<decltype(window)>(frame->window);
     test_actions();controller();if(!menu.open())return;
     if(!initialized&&!init(*frame)){release_resources();failed=true;menu.close();pause_events(false);capture();buzz_input_enable_menu(false);fprintf(stderr,"[pc-menu] overlay init FAILED\n");return;}
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
     if(frame->api==PS3_HOST_OVERLAY_VULKAN) {
-        ImGui_ImplVulkan_NewFrame();ImGui_ImplWin32_NewFrame();
+        ImGui_ImplVulkan_NewFrame();
+#ifdef _WIN32
+        ImGui_ImplWin32_NewFrame();
+#else
+        ImGui_ImplSDL2_NewFrame();
+#endif
         auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
         ImGui::NewFrame();draw_menu();ImGui::Render();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),static_cast<VkCommandBuffer>(frame->commands));
         return;
     }
 #endif
+#ifdef _WIN32
     ImGui_ImplDX12_NewFrame();ImGui_ImplWin32_NewFrame();
     auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
     ImGui::NewFrame();draw_menu();ImGui::Render();
     auto commands=static_cast<ID3D12GraphicsCommandList*>(frame->commands);
     commands->SetDescriptorHeaps(1,&descriptors);D3D12_CPU_DESCRIPTOR_HANDLE rtv{frame->rtv};commands->OMSetRenderTargets(1,&rtv,FALSE,nullptr);
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),commands);
+#endif
 }
 void shutdown() {
     buzz_phone::host().stop();

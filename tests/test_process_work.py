@@ -13,6 +13,28 @@ spec.loader.exec_module(work)
 
 
 class ProcessWorkTests(unittest.TestCase):
+    def test_all_threads_exposes_work_outside_pool_without_counting_reused_tids(self):
+        start, end = self.snapshots()
+        start["threads"].append(dict(tid=80, created_100ns=180, name="PPU worker", cycles=50, cpu_ns=50))
+        end["threads"].append(dict(tid=80, created_100ns=180, name="PPU worker", cycles=2_000_050, cpu_ns=1_000_000_050))
+        start["threads"].append(dict(tid=81, created_100ns=181, name="transient", cycles=1, cpu_ns=1))
+        end["threads"].append(dict(tid=81, created_100ns=182, name="replacement", cycles=9999, cpu_ns=9999))
+        result = work.summarize(start, end, all_threads=True)
+        self.assertEqual(len(result["captured_threads"]), 5)
+        self.assertEqual(result["captured_threads"][0]["name"], "PPU worker")
+        self.assertEqual(result["uncaptured"], dict(cpu_ns=1_000_000_000, cycles=2_000_000))
+        self.assertNotIn("captured_threads", work.summarize(start, end))
+
+    def test_all_threads_excludes_exits_and_rejects_counter_resets(self):
+        start, end = self.snapshots()
+        a = dict(tid=80, created_100ns=180, name="transient", cycles=50, cpu_ns=50)
+        start["threads"].append(a.copy())
+        end["threads"].append(dict(a, exited_100ns=300, cycles=100, cpu_ns=100))
+        self.assertEqual(len(work.summarize(start, end, all_threads=True)["captured_threads"]), 4)
+        end["threads"][-1].update(exited_100ns=0, cycles=49)
+        with self.assertRaisesRegex(ValueError, "counter reset"):
+            work.summarize(start, end, all_threads=True)
+
     def snapshots(self):
         start = dict(elapsed_ns=40_000_000_000, frames_before=1000, frames_after=1000,
                      process=dict(created_100ns=1, cycles=10_000, cpu_ns=20_000_000), threads=[])
@@ -41,6 +63,31 @@ class ProcessWorkTests(unittest.TestCase):
         end["threads"][0]["created_100ns"] += 1
         with self.assertRaisesRegex(ValueError, "identities changed"):
             work.summarize(start, end)
+
+    def test_rsx_is_opt_in_and_separate_from_pool(self):
+        start, end = self.snapshots()
+        start["threads"].append(dict(tid=50, created_100ns=150, name=work.RSX_THREAD, cycles=10, cpu_ns=100))
+        end["threads"].append(dict(tid=50, created_100ns=150, name=work.RSX_THREAD, cycles=6_000_010, cpu_ns=2_000_000_100))
+        self.assertNotIn("rsx", work.summarize(start, end))
+        result = work.summarize(start, end, include_rsx=True)
+        self.assertEqual(result["rsx"]["cycles_per_frame"], 3000)
+        self.assertEqual(result["rsx"]["cpu_ms_per_frame"], 1)
+        self.assertEqual(result["pool"]["cycles_per_frame"], 2000)
+
+    def test_rsx_missing_duplicate_exited_or_reused_tid_is_rejected(self):
+        for failure in ("missing", "duplicate", "exited", "reused", "counter_reset"):
+            with self.subTest(failure=failure):
+                start, end = self.snapshots()
+                thread = dict(tid=50, created_100ns=150, name=work.RSX_THREAD, cycles=100, cpu_ns=100)
+                start["threads"].append(thread.copy())
+                end["threads"].append(thread.copy())
+                if failure == "missing": end["threads"].pop()
+                elif failure == "duplicate": end["threads"].append(thread.copy())
+                elif failure == "exited": end["threads"][-1]["exited_100ns"] = 1
+                elif failure == "reused": end["threads"][-1]["created_100ns"] += 1
+                else: end["threads"][-1]["cycles"] = 0
+                with self.assertRaises(ValueError):
+                    work.summarize(start, end, include_rsx=True)
 
     def test_exited_or_duplicated_pool_threads_are_rejected(self):
         start, end = self.snapshots()

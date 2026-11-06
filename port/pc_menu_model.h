@@ -4,7 +4,7 @@
 #include "pc_settings.h"
 namespace buzz_pc {
 enum class MenuAction {toggle,up,down,left,right,accept,back};
-enum class MenuPage {settings,controllers,quit_confirm,phones};
+enum class MenuPage {settings,controllers,quit_confirm,phones,bindings};
 // Raw XInput-style bits only, with no OS polling: shared by the host menu and
 // synthetic tests. START is intercepted before gameplay by the input adapter.
 class MenuPadNavigation {
@@ -24,8 +24,8 @@ public:
 };
 // Settings page rows. Display (window/swapchain) size and the internal
 // render resolution are separate rows: one is live, one needs a restart.
-enum SettingsRow {row_volume,row_frame_lock,row_display_mode,row_window_size,row_render_scale,row_upscaler,row_sharpness,row_offline,
-    row_controllers,row_phones,row_save,row_return,row_quit};
+enum SettingsRow {row_volume,row_frame_lock,row_display_mode,row_window_size,row_render_scale,row_upscaler,row_sharpness,row_texture_replace,row_texture_dump,row_texture_auto,row_offline,
+    row_controllers,row_phones,row_save,row_return,row_quit,row_settings_count};
 // Cycle a window size through Default (0x0), the presets and, when the
 // current size is none of those, that custom size kept in its place.
 inline Size next_window_size(Size current,int direction){
@@ -55,7 +55,7 @@ public:
     bool open()const{return opened_;}
     MenuPage page()const{return page_;}
     int selection()const{return selection_;}
-    int rows()const{return page_==MenuPage::settings?13:page_==MenuPage::controllers?10:page_==MenuPage::phones?14:2;}
+    int rows()const{return page_==MenuPage::settings?row_settings_count:page_==MenuPage::controllers?12:page_==MenuPage::phones?14:page_==MenuPage::bindings?8:2;}
     void select(int row){selection_=std::clamp(row,0,rows()-1);}
     void show(MenuPage page){page_=page;selection_=0;}
     void close(){opened_=false;show(MenuPage::settings);}
@@ -64,7 +64,7 @@ public:
         if(!opened_)return;
         if(a==MenuAction::up)selection_=(selection_+rows()-1)%rows();
         if(a==MenuAction::down)selection_=(selection_+1)%rows();
-        if(a==MenuAction::back){if(page_==MenuPage::settings)close();else show(MenuPage::settings);}
+        if(a==MenuAction::back){if(page_==MenuPage::settings)close();else show(page_==MenuPage::bindings?MenuPage::controllers:MenuPage::settings);}
     }
 };
 }

@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import platform
 from pathlib import Path
 import shutil
 import stat
@@ -333,14 +334,77 @@ def copy_sources(project, destination):
             shutil.copy2(original, dest)
 
 
-def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_rebuilt=False):
+def publish_distribution(project, workspace, paths, exe, log, cancel):
+    """Publish a self-contained local copy only after all files have been staged."""
+    dist = project / "dist"
+    if os.path.lexists(dist):
+        raise ValueError(f"Move the existing distribution before preparing another: {dist}")
+    staging = project / (".dist-" + uuid.uuid4().hex)
+    staging.mkdir()
+    runtime = staging / "runtime"
+
+    def copy_file(source, target):
+        check_cancel(cancel)
+        reject_links(source.parent, [source.name])
+        return shutil.copy2(source, target)
+
+    def reject_links(directory, names):
+        for name in names:
+            path = Path(directory) / name
+            info = path.lstat()
+            flags = getattr(info, "st_file_attributes", 0)
+            if stat.S_ISLNK(info.st_mode) or flags & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                raise ValueError(f"Distribution input contains a link: {path}")
+        return []
+
+    def copy_tree(source, target):
+        if staging.resolve().is_relative_to(source.resolve()):
+            raise ValueError("The output folder cannot be inside an input tree.")
+        reject_links(source.parent, [source.name])
+        shutil.copytree(source, target, ignore=reject_links,
+                        copy_function=lambda a, b: copy_file(Path(a), b))
+
+    try:
+        log("=== assemble portable dist ===")
+        runtime.mkdir()
+        copy_file(exe, staging / exe.name)
+        for dll in exe.parent.glob("*.dll"):
+            copy_file(dll, staging / dll.name)
+        copy_file(Path(paths["eboot_elf"]), runtime / "EBOOT.elf")
+        disc = Path(paths["game_root"])
+        copy_tree(disc / "PS3_GAME", runtime / "disc/PS3_GAME")
+        if (disc / "PS3_DISC.SFB").is_file():
+            copy_file(disc / "PS3_DISC.SFB", runtime / "disc/PS3_DISC.SFB")
+        copy_tree(Path(paths["dev_flash"]), runtime / "dev_flash")
+        for name in ("dev_hdd0", "textures"):
+            source = workspace / "runtime" / name
+            if source.is_dir():
+                copy_tree(source, runtime / name)
+        check_cancel(cancel)
+        # A concurrently published nonempty dist cannot be replaced by rename.
+        staging.rename(dist)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+    log(f"Ready: {dist / exe.name}")
+    return dist
+
+
+def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_rebuilt=False, standalone=False):
     inputs.validate()
     project = Path(project).resolve()
+    linux = sys.platform == "linux"
+    if build and standalone and (not (linux or os.name == "nt") or platform.machine().lower() not in {"amd64", "x86_64"}):
+        raise ValueError("Standalone preparation requires Windows or Linux x64.")
+    if standalone and os.path.lexists(project / "dist"):
+        raise ValueError("Move the existing dist folder before preparing another copy.")
     sessions = project / "runtime/setup/sessions"
     sessions.mkdir(parents=True, exist_ok=True)
     session = Path(resume).resolve() if resume else sessions / uuid.uuid4().hex
     if session.parent != sessions.resolve() or session.is_symlink():
         raise ValueError("Resume path must be one of this project's own setup sessions.")
+    if build and linux and not standalone:
+        raise ValueError("Use --dist to build on Linux.")
     session.mkdir(exist_ok=True)
     reject_links_below(sessions, session)
     lock = session / "running.lock"
@@ -426,23 +490,37 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         workspace = session / "workspace"
         reject_links_below(session, workspace)
         vswhere = Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"
-        if not vswhere.is_file():
+        if not linux and not vswhere.is_file():
             raise ValueError("Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK, then resume. "
                              "The wizard does not silently install system-wide/admin components.")
         stage("snapshot sources", lambda: copy_sources(project, workspace))
         if profile.adapter_family == "quizworld-102-verified":
             stage("stage update content", lambda: stage_update_content(executable.parent / "Patched", workspace, cancel, log))
         model.atomic_text(workspace / "buzz-paths.json", json.dumps(state["paths"], indent=2))
-        env = dict(os.environ, BUZZ_TOOL_ENV=str(project / "toolenv"))
-        powershell = shutil.which("powershell.exe")
-        if not powershell:
-            raise ValueError("Windows PowerShell is required by the current Windows build.")
-        def ps(script, *arguments):
-            process([powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", workspace / script, *arguments],
-                    workspace, log, cancel, env=env, timeout=7200)
-        stage("generate translations", lambda: ps("scripts/generate.ps1", "-Jobs", str(inputs.jobs)))
-        stage("build native game", lambda: ps("scripts/Build-Buzz.ps1", "-SkipGeneration", "-Jobs", str(inputs.jobs)))
-        exe = workspace / "build-windows/BuzzQuizWorldRecomp.exe"
+        if linux:
+            def linux_build(stage_name):
+                process([sys.executable, workspace / "tools/build-linux.py", stage_name, "--jobs", str(inputs.jobs)],
+                        workspace, log, cancel, timeout=7200)
+            stage("generate Linux translations", lambda: linux_build("generate"))
+            stage("build standalone Linux Vulkan game", lambda: linux_build("build"))
+            exe = workspace / "build-vulkan-linux/BuzzQuizWorldRecomp"
+        else:
+            env = dict(os.environ, BUZZ_TOOL_ENV=os.environ.get("BUZZ_TOOL_ENV") or str(project / "toolenv"))
+            powershell = shutil.which("powershell.exe")
+            if not powershell:
+                raise ValueError("Windows PowerShell is required by the current Windows build.")
+            def ps(script, *arguments):
+                process([powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", workspace / script, *arguments],
+                        workspace, log, cancel, env=env, timeout=7200)
+            stage("generate translations", lambda: ps("scripts/generate.ps1", "-Jobs", str(inputs.jobs)))
+            if standalone:
+                stage("build standalone Vulkan game", lambda: ps(
+                    "scripts/Build-Buzz.ps1", "-SkipGeneration", "-Standalone", "-Renderer", "Vulkan",
+                    "-Jobs", str(inputs.jobs)))
+                exe = workspace / "build-vulkan-windows/BuzzQuizWorldRecomp.exe"
+            else:
+                stage("build native game", lambda: ps("scripts/Build-Buzz.ps1", "-SkipGeneration", "-Jobs", str(inputs.jobs)))
+                exe = workspace / "build-windows/BuzzQuizWorldRecomp.exe"
         result = fingerprint(exe)
         if state.get("built_exe") and state["built_exe"] != result:
             if not accept_rebuilt:
@@ -459,6 +537,13 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
             # Shared download cache: later sessions reuse the verified archive.
             stage("install texture upscaler", lambda: upscaler_install.install(
                 workspace / "runtime", log, cancel, cache=project / "runtime/setup/downloads"))
+        if standalone:
+            manifest = json.loads((exe.parent / "game-build.json").read_text(encoding="utf-8-sig"))
+            if (manifest.get("renderer") != "vulkan" or manifest.get("elf_sha256") != profile.elf_sha256 or
+                    manifest.get("exe_sha256") != result["sha256"] or not manifest.get("standalone")):
+                raise ValueError("The executable does not match the standalone Vulkan build manifest.")
+            publish_distribution(project, workspace, state["paths"], exe, log, cancel)
+            return session, state
         model.atomic_text(project / "runtime/setup/last-ready.json", json.dumps({"session": str(session), "workspace": str(workspace)}, indent=2))
         log("Ready. Use Play to open this build's controller/game launcher.")
         return session, state

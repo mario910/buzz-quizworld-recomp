@@ -321,14 +321,22 @@ static int raw_output_option(const char* name, int maximum_value = 1, int fallba
 }
 extern "C" int buzz_geometry_job_legacy_enabled()
 {
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+    return 1;
+#else
     static OptionCache enabled;
     return enabled.get([] { return raw_output_option("BUZZ_GEOMETRY_JOB_LEGACY"); });
+#endif
 }
 static int host_pipeline_group()
 {
+#if defined(BUZZ_GEOMETRY_LS_DRIVER) && !defined(BUZZ_GEOMETRY_HOST_NEON)
+    return 0;
+#else
     static OptionCache enabled;
     return enabled.get([] { return raw_output_option("BUZZ_GEOMETRY_JOB_HOST_PIPELINE", 1,
         BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE && !buzz_geometry_job_legacy_enabled()); });
+#endif
 }
 extern "C" int buzz_geometry_job_publication_enabled()
 {

@@ -72,7 +72,9 @@ inline bool prepare_geometry_host_vertex_tail(const spu_context& c, const Geomet
     if (skin.object) {
         v8 matrix[12]; for (unsigned coefficient=0;coefficient<12;++coefficient)
             matrix[coefficient] = v8_set(workspace.object[coefficient]);
-        transform_geometry_host_object_value(value,matrix,false,mask);
+        if (!geometry_object_matrix_bounded(workspace.object) ||
+            !transform_geometry_bounded_position(value,matrix,mask))
+            transform_geometry_host_object_value(value,matrix,false,mask);
     } else if (skin.active) {
         const uint64_t weights = uint64_t(skin.weights)+uint64_t(e.vertices)*8;
         if (!skin.matrices || skin.matrices > 256 || weights < e.io_lsa || weights+8 > io_end)

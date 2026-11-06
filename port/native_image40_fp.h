@@ -2,7 +2,16 @@
 #define BUZZ_NATIVE_IMAGE40_FP_H
 /* Include AFTER the original helpers, in an audited single-precision TU. The owner sets RTZ,
  * FTZ and DAZ only in modes 1/2, and restores them even after a guest HALT. */
+#if defined(__aarch64__)
+#define BUZZ_NEON_RTZ_NO_REMAP
+#include "spu_neon_rtz.h"
+#undef BUZZ_NEON_RTZ_NO_REMAP
+#define spu_native_rtz_fa buzz_neon_add
+#define spu_native_rtz_fm buzz_neon_mul
+#define spu_native_rtz_fma buzz_neon_fused
+#else
 #include "spu_native_rtz.h"
+#endif
 #include "spu_native_extra_fp.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,9 @@
 # Native PC launcher
 
+For a game prepared with BuzzPrepare, open `dist/BuzzQuizWorldRecomp.exe`
+and use the in-game PC menu. The launcher described here is for developer builds.
+
+
 The player-facing launcher is **C++17 + SDL3 + Dear ImGui**. It starts an already
 prepared game directly through SDL's process API. Playing needs no Python,
 virtual environment, PowerShell, compiler, or automatic downloads.
@@ -123,7 +127,8 @@ Player labels do not rename in-game profiles. Eight logical handsets do not
 imply eight physical gamepads or force eight contestants into the selected mode.
 Windows mappings intentionally retain the game's **four XInput slots**; SDL
 HID devices that the game's current adapter cannot consume are not advertised
-as working controllers. Linux SDL input preview is not yet a game input adapter.
+as working controllers. The standalone Linux game uses its own SDL input adapter
+and stores its bindings through the in-game menu.
 
 ## Settings and process isolation
 

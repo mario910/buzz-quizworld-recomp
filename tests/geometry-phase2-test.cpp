@@ -2,6 +2,9 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../ps3recomp/runtime/spu/spu_helpers.h"
 #include "../port/native_function_check.h"
+#if defined(__aarch64__)
+#include "../port/spu_arm_fp_state.h"
+#endif
 #include "../port/native_geometry_shuffle.h"
 #include "../port/native_geometry_ls.h"
 #include <cassert>
@@ -44,7 +47,11 @@ static void compare(spu_context* ref, spu_context* nat)
 
 int main(int argc, char** argv)
 {
+#if defined(__aarch64__)
+    buzz_arm_fp_enter_rtz(buzz_arm_fp_save());
+#else
     _mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
+#endif
     auto* seed = new spu_context{};
     seed->ls = seed->ls_store;
     for (unsigned n = 0; n < 400; ++n) {

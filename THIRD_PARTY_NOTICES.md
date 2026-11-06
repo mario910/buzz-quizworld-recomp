@@ -13,6 +13,8 @@ either, or the following separately licensed components.
 | stb_image, Sean Barrett and contributors | license text inside `ps3recomp/libs/codec/stb_image.h` (MIT or public domain) | SDK image decoding |
 | stb_truetype, Sean Barrett and contributors | license text inside `ps3recomp/libs/font/stb_truetype.h` (MIT or public domain) | SDK font support |
 | pycdlib, Chris Lalancette and contributors | LGPL-2.1-only; [upstream license](https://github.com/clalancette/pycdlib/blob/master/COPYING), also installed with the pip distribution | ISO/Joliet/UDF import tool, not vendored source |
+| [SDL2](https://github.com/libsdl-org/SDL/tree/release-2.32.10), SDL contributors | zlib; see the SDL source's `LICENSE.txt` | Android activity and native input, window and audio runtime |
+| [libucontext](https://github.com/kaniini/libucontext/tree/49e671dd52ff6791295d8161ad3b6da7dc5f6f9d), Ariadne Conill and contributors | ISC; see the pinned source's `LICENSE` | Android ARM64 fiber context switching |
 | SDL3, SDL contributors | zlib; pinned source `LICENSE.txt`, installed as `licenses/SDL3.txt` | Native launcher window, input, dialogs and direct process API; statically linked |
 | Dear ImGui, Omar Cornut and contributors | MIT; pinned source `LICENSE.txt`, installed as `licenses/ImGui.txt` | Native launcher UI |
 | JSON for Modern C++, Niels Lohmann and contributors | MIT; pinned source `LICENSE.MIT`, installed as `licenses/nlohmann-json.txt` | Native launcher settings/manifest parsing |
@@ -67,3 +69,11 @@ rights associated with those inputs or the generated output.
 Buzz!, PlayStation and other product names belong to their respective owners.
 This is an unofficial project, not endorsed by Sony, Relentless Software or
 the ps3recomp upstream maintainers.
+
+Android custom GPU loading uses [libadrenotools](https://github.com/bylaws/libadrenotools)
+at `8fae8ce254dfc1344527e05301e43f37dea2df80`, including its pinned
+liblinkernsbypass submodule (`aa3975893d83ef1bc84c321ec60c65fbf1287887`).
+Both use the BSD 2-Clause license, copyright (c) 2021 Billy Laws.
+Their complete license is included in the Android application's assets as
+`licenses/libadrenotools.txt`. Imported GPU drivers are separate packages
+and retain their respective licenses.

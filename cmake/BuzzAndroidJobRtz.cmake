@@ -1,0 +1,23 @@
+# Preserve the SDK's job selection and HALT handling. Adapt only its FP scope
+# on the Android build, leaving the pinned SDK checkout and desktop TU intact.
+set(sdk_job "${spurs_job_source}")
+set(spurs_job_source "${CMAKE_CURRENT_BINARY_DIR}/android_spurs_job.c")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${sdk_job}")
+file(READ "${sdk_job}" job_text)
+foreach(anchor IN ITEMS "#include <immintrin.h>" "unsigned saved_mxcsr = _mm_getcsr();" "_mm_setcsr(saved_mxcsr);")
+    string(FIND "${job_text}" "${anchor}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "Android SPURS FP adapter no longer matches the SDK")
+    endif()
+endforeach()
+string(REPLACE "#include <immintrin.h>" "#include \"spu_arm_fp_state.h\"" job_text "${job_text}")
+string(REPLACE "unsigned saved_mxcsr = _mm_getcsr();" "buzz_arm_fp_state saved_fp = buzz_arm_fp_save();" job_text "${job_text}")
+string(REPLACE "_mm_setcsr((saved_mxcsr & ~0x6000u) | 0x6000u | 0x8040u | 0x1f80u);" "buzz_arm_fp_enter_rtz(saved_fp);" job_text "${job_text}")
+string(REPLACE "_mm_setcsr(saved_mxcsr);" "buzz_arm_fp_restore(saved_fp);" job_text "${job_text}")
+file(CONFIGURE OUTPUT "${spurs_job_source}" CONTENT "${job_text}" @ONLY)
+get_target_property(sdk_sources ps3recomp_runtime SOURCES)
+list(REMOVE_ITEM sdk_sources "${sdk_job}")
+set_property(TARGET ps3recomp_runtime PROPERTY SOURCES "${sdk_sources}")
+target_sources(ps3recomp_runtime PRIVATE "${spurs_job_source}")
+set_source_files_properties("${spurs_job_source}" TARGET_DIRECTORY ps3recomp_runtime PROPERTIES
+    INCLUDE_DIRECTORIES "${PS3RECOMP_DIR}/runtime/spu;${CMAKE_CURRENT_SOURCE_DIR}")

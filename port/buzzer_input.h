@@ -5,10 +5,10 @@
 #include <string>
 
 namespace buzz_input {
-constexpr unsigned max_players=8, button_count=5, provider_count=16;
+constexpr unsigned max_players=8, button_count=5, provider_count=17;
 constexpr uint64_t valid_mask=(uint64_t{1}<<40)-1;
 enum Button : unsigned { red, yellow, green, orange, blue };
-enum Provider : unsigned { keyboard=0, gamepad0=1, script=5, remote0=6, physical0=14 };
+enum Provider : unsigned { keyboard=0, gamepad0=1, script=5, remote0=6, physical0=14, touchscreen=16 };
 constexpr uint64_t bits(unsigned player, uint8_t buttons) {
     return player<max_players ? uint64_t(buttons&31u)<<(player*5) : 0;
 }
@@ -92,3 +92,4 @@ bool buzz_input_physical_connected(unsigned receiver);
 uint8_t buzz_input_host_physical_buttons(); // OR of handsets, focused menu navigation only
 // Independent remote source per player; expiry/kick drops retained pulses too.
 void buzz_input_remote(unsigned player,uint8_t held,uint8_t pressed,bool disconnected);
+void buzz_input_touch(unsigned player,uint8_t held,bool cancel);

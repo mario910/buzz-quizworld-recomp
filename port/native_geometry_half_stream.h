@@ -49,12 +49,12 @@ inline bool read_geometry_half_stream(const spu_context& ctx,GeometryHalfStream&
             const uint64_t begin=uint64_t(ctx.gpr[bases[row]]._u32[0])+c.offset;
             const uint64_t end=begin+uint64_t(c.groups)*p.input_step+32;
             if(begin<0xe680 || end>SPU_LS_SIZE)return reject("source lookahead bounds");
-            input_begin=std::min(input_begin,begin&~15ull);input_end=std::max(input_end,end);
+            input_begin=std::min(input_begin,begin&~uint64_t{15});input_end=std::max(input_end,end);
             const uint64_t destination=uint64_t(ctx.gpr[41]._u32[row])+column*16;
             const uint64_t last=destination+uint64_t(c.groups-1)*p.output_step;
             if(last>INT32_MAX)return reject("output cursor bounds");
             if(destination<=p.limit){
-                const uint64_t physical=destination&~15ull,last_end=(std::min(last,uint64_t(p.limit))&~15ull)+16;
+                const uint64_t physical=destination&~uint64_t{15},last_end=(std::min(last,uint64_t(p.limit))&~uint64_t{15})+16;
                 output_begin=std::min(output_begin,physical);output_end=std::max(output_end,last_end);
                 if(physical<stack+0x80 && stack<last_end)return reject("destination/stack metadata alias");
             }

@@ -4,10 +4,16 @@
  * watch/probe modes and any LS not owned by the private spu_context. No DMA,
  * channels, callbacks or ownership changes occur inside these kernels.
  * Addresses still wrap to 256 KiB and align DOWN to a whole quadword. */
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 static inline __attribute__((always_inline)) u128 buzz_geometry_ls_read(const uint8_t* memory,uint32_t address)
 {
     u128 result;address&=SPU_LS_MASK&~15u;
-#if defined(__SSSE3__)
+#if defined(__aarch64__)
+    const uint8x16_t v = vrev32q_u8(vld1q_u8(memory + address));
+    memcpy(&result, &v, sizeof(v));
+#elif defined(__SSSE3__)
     const __m128i order=_mm_setr_epi8(3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12);
     __m128i v=_mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)(memory+address)),order);
     memcpy(&result,&v,16);
@@ -19,7 +25,11 @@ static inline __attribute__((always_inline)) u128 buzz_geometry_ls_read(const ui
 static inline __attribute__((always_inline)) void buzz_geometry_ls_write(uint8_t* memory,uint32_t address,u128 value)
 {
     address&=SPU_LS_MASK&~15u;
-#if defined(__SSSE3__)
+#if defined(__aarch64__)
+    uint8x16_t v;
+    memcpy(&v, &value, sizeof(v));
+    vst1q_u8(memory + address, vrev32q_u8(v));
+#elif defined(__SSSE3__)
     const __m128i order=_mm_setr_epi8(3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12);
     __m128i v;memcpy(&v,&value,16);_mm_storeu_si128((__m128i*)(memory+address),_mm_shuffle_epi8(v,order));
 #else

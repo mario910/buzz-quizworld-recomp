@@ -7,6 +7,7 @@ Git history rather than maintained alongside the reference documentation.
 ## Using the port
 
 - [Preparation and game import](game-import.md)
+- [Android ARM64 build, staging and Turnip](../android/README.md)
 - [Native PC launcher, display and textures](pc-launcher.md)
 - [Input and offline mode](input-and-offline.md)
 - [Phone buzzers](phone-buzzers.md) and [physical receivers](physical-buzzers.md)
@@ -17,6 +18,7 @@ Git history rather than maintained alongside the reference documentation.
 - [Developer commands and repository layout](development.md)
 - [Native jobs: geometry, animation and fallback](native-jobs.md)
 - [Runtime defaults and overrides](runtime-defaults.md)
+- [All optimization switches, defaults and tested profiles](optimization-status.md)
 - [Renderer architecture and diagnostics](renderer.md)
 - [Frame pacing](frame-pacing.md)
 - [Profiling and validation](performance.md)

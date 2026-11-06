@@ -1,0 +1,16 @@
+name: Optimization catalog
+on:
+  push:
+    paths: ['docs/optimization-status.md', 'tools/document-optimizations.py', 'port/CMakeLists.txt', 'port/runtime_defaults.inc', 'cmake/**', 'android/app/build.gradle', 'android/profiles/**', '.github/workflows/optimization-catalog.yml']
+  pull_request:
+    paths: ['docs/optimization-status.md', 'tools/document-optimizations.py', 'port/CMakeLists.txt', 'port/runtime_defaults.inc', 'cmake/**', 'android/app/build.gradle', 'android/profiles/**', '.github/workflows/optimization-catalog.yml']
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tools/document-optimizations.py --check

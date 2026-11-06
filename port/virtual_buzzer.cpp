@@ -65,7 +65,10 @@ const char* test_input_path=nullptr;
 buzz_usb::TestMailbox test_mailbox;
 uint64_t test_input_next_poll=0;
 
-uint64_t now_ms() { return GetTickCount64(); }
+uint64_t now_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 void result(ppu_context* c, uint32_t v) { c->gpr[3] = (uint64_t)(int64_t)(int32_t)v; }
 
 uint64_t callback(uint32_t opd, uint64_t a = 0, uint64_t b = 0, uint64_t d = 0)

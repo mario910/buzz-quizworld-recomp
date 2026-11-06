@@ -1,5 +1,30 @@
-/* 4AB0 float4 -> halfword stream: AVX2 prefix, exact final pipeline iteration. */
+/* 4AB0 float4 -> halfword stream: SIMD prefix, exact final pipeline iteration. */
 #pragma once
+#if defined(__aarch64__)
+#include "native_geometry_ls.h"
+
+static inline uint16x4_t buzz_half_pack4(u128 words)
+{
+    const uint32x4_t input = vld1q_u32(words._u32);
+    const uint32x4_t magnitude = vandq_u32(vshrq_n_u32(input, 16), vdupq_n_u32(0x7fff));
+    uint32x4_t bits = vandq_u32(vshrq_n_u32(vsubq_u32(input, vdupq_n_u32(0x38000000)), 13),
+                               vdupq_n_u32(0x7fff));
+    bits = vbslq_u32(vcgtq_u32(magnitude, vdupq_n_u32(0x477f)), vdupq_n_u32(0x7bff), bits);
+    bits = vorrq_u32(bits, vandq_u32(vshrq_n_u32(input, 16), vdupq_n_u32(0x8000)));
+    bits = vandq_u32(bits, vcgeq_u32(magnitude, vdupq_n_u32(0x3800)));
+    return vmovn_u32(bits);
+}
+
+static inline u128 buzz_half_load_pack(const uint8_t* ls, unsigned first, unsigned second)
+{
+    const uint16x8_t packed = vcombine_u16(buzz_half_pack4(buzz_geometry_ls_read(ls, first)),
+                                           buzz_half_pack4(buzz_geometry_ls_read(ls, second)));
+    const uint16x8_t reordered = vrev32q_u16(packed);
+    u128 result;
+    memcpy(&result, &reordered, sizeof(result));
+    return result;
+}
+#else
 #include "native_stagef_avx2.h"
 
 static inline u128 buzz_half_pack(v8 input)
@@ -14,6 +39,11 @@ static inline u128 buzz_half_pack(v8 input)
     packed = _mm_shuffle_epi8(packed, _mm_setr_epi8(2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
     u128 result; memcpy(&result, &packed, 16); return result;
 }
+static inline u128 buzz_half_load_pack(const uint8_t* ls, unsigned first, unsigned second)
+{
+    return buzz_half_pack(v8_ld2(ls, first, second));
+}
+#endif
 
 static inline int buzz_half_native(spu_context* ctx, void (*tail)(spu_context*))
 {
@@ -54,8 +84,8 @@ static inline int buzz_half_native(spu_context* ctx, void (*tail)(spu_context*))
         for (unsigned j = 0; j < 4; ++j)
             buzz_geometry_ls_write(ctx->ls, base + chosen._u32[j], buzz_geometry_shuffle_apply(ctx->gpr[registers[j]], old[j], mask));
         const unsigned input = ctx->gpr[22]._u32[0];
-        ctx->gpr[16] = buzz_half_pack(v8_ld2(ctx->ls, input, input + offsets[1]));
-        ctx->gpr[17] = buzz_half_pack(v8_ld2(ctx->ls, input + offsets[2], input + offsets[3]));
+        ctx->gpr[16] = buzz_half_load_pack(ctx->ls, input, input + offsets[1]);
+        ctx->gpr[17] = buzz_half_load_pack(ctx->ls, input + offsets[2], input + offsets[3]);
         ctx->gpr[21] = spu_rotqbyi(ctx->gpr[16], 8); ctx->gpr[20] = spu_rotqbyi(ctx->gpr[17], 8);
         ctx->gpr[22] = spu_a(ctx->gpr[22], ctx->gpr[29]); ctx->gpr[24] = spu_a(ctx->gpr[24], ctx->gpr[31]);
     }

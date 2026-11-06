@@ -4,12 +4,15 @@ $ErrorActionPreference='Stop'
 $expected=Get-Content -LiteralPath $PathsConfig -Raw -Encoding UTF8 | ConvertFrom-Json
 $global:buzzBridgeExpected=$expected
 $global:buzzBridgeStarted=$false
-$fixtureManifest=Join-Path (Split-Path -Parent $PSScriptRoot) 'build-windows\game-build.json'
+$fixtureManifests=@(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'build-windows\game-build.json'),
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'build-vulkan-windows\game-build.json')
+)
 function Test-Path {
     param([string]$LiteralPath)
     # This fixture checks UTF-8 argument transport with synthetic paths, not
     # executable identity. Never let an unrelated local build alter the fixture.
-    if($LiteralPath -eq $fixtureManifest){return $false}
+    if($LiteralPath -in $fixtureManifests){return $false}
     Microsoft.PowerShell.Management\Test-Path -LiteralPath $LiteralPath
 }
 function Start-Process {

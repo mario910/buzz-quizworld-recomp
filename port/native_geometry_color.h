@@ -50,15 +50,15 @@ inline bool read_geometry_color(const spu_context& ctx, GeometryColorStream& out
         for (unsigned row = 0; row < 4; ++row) {
             const uint64_t begin = uint64_t(ctx.gpr[bases[row]]._u32[0]) + c.offset;
             const uint64_t end = begin + uint64_t(c.groups) * p.input_step + 32;
-            input_begin = std::min(input_begin,begin & ~15ull); input_end = std::max(input_end,end);
+            input_begin = std::min(input_begin,begin & ~uint64_t{15}); input_end = std::max(input_end,end);
             const uint64_t destination = uint64_t(ctx.gpr[41]._u32[row]) + column * 16;
             const uint64_t last = destination + uint64_t(c.groups - 1) * p.output_step;
             if (last > INT32_MAX) return false;
             if (destination <= p.limit) {
                 // Generic descriptors bias the logical cursor by one byte;
                 // STQD still writes its enclosing aligned physical quad.
-                output_begin = std::min(output_begin,destination & ~15ull);
-                output_end = std::max(output_end,(std::min(last,uint64_t(p.limit)) & ~15ull) + 16);
+                output_begin = std::min(output_begin,destination & ~uint64_t{15});
+                output_end = std::max(output_end,(std::min(last,uint64_t(p.limit)) & ~uint64_t{15}) + 16);
             }
         }
         p.column[column]=c;

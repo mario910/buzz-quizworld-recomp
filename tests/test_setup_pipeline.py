@@ -54,6 +54,36 @@ class SetupTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_publish_distribution_is_local_and_keeps_existing_copy(self):
+        workspace = self.root / "workspace"
+        exe = workspace / "build/BuzzQuizWorldRecomp.exe"
+        game = self.root / "game"
+        flash = self.root / "dev_flash"
+        elf = self.root / "EBOOT.elf"
+        files = {exe: b"game exe", exe.with_name("vcruntime140.dll"): b"dll",
+                 game / "PS3_GAME/PARAM.SFO": sfo(), flash / "sys/external/test.sprx": b"firmware",
+                 elf: b"elf", workspace / "runtime/dev_hdd0/game/test.edat": b"update"}
+        for path, data in files.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        paths = {"game_root": str(game), "dev_flash": str(flash), "eboot_elf": str(elf)}
+        publish = lambda: pipeline.publish_distribution(self.root, workspace, paths, exe,
+                                                         self.logs.append, self.cancel)
+        self.cancel.set()
+        with self.assertRaises(pipeline.Cancelled):
+            publish()
+        self.assertFalse((self.root / "dist").exists())
+        self.assertEqual(list(self.root.glob(".dist-*")), [])
+
+        self.cancel.clear()
+        dist = publish()
+        self.assertEqual({str(path.relative_to(dist).as_posix()) for path in dist.rglob("*") if path.is_file()}, {
+            exe.name, "vcruntime140.dll", "runtime/EBOOT.elf", "runtime/disc/PS3_GAME/PARAM.SFO",
+            "runtime/dev_flash/sys/external/test.sprx", "runtime/dev_hdd0/game/test.edat"})
+        with self.assertRaisesRegex(ValueError, "existing distribution"):
+            publish()
+        self.assertEqual((dist / exe.name).read_bytes(), b"game exe")
+
     def test_update_content_staging_is_complete_and_does_not_copy_saves(self):
         source, workspace = self.root / "Patched", self.root / "workspace"
         source.mkdir()

@@ -1,4 +1,5 @@
 """Build the pinned whole-driver audit and native outer-driver adapter."""
+import argparse
 import hashlib
 from pathlib import Path
 import re
@@ -10,7 +11,7 @@ import sys;sys.path.insert(0,str(ROOT/'tools/codegen'));from geometry_fixture im
 DEST = ROOT / "analysis/native-geometry/phase3"
 SOURCE = ROOT / "port/spu/buzz_job_6eba/spu_recomp.c"
 PIN = "5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812"
-PARENT_PIN = "84de9d0c5b2788aa74f3e6756ed4e9ea03ada7bad8b047d272f50ec2f29bbe97"
+PARENT_PIN = "41eb8be576676d9a61bada2ecc3c45d5dc9ca2d8d5a83f98403473c3c73f7d29"
 
 
 def guard_custom_callbacks(source):
@@ -37,13 +38,78 @@ def guard_custom_callbacks(source):
     return source, counts
 
 
+def wrap_driver_io(source):
+    counts = {}
+    for old, new in (("spu_wrch", "buzz_geometry_job_wrch"),
+                     ("spu_rdch", "buzz_geometry_job_rdch"),
+                     ("spu_rchcnt", "buzz_geometry_job_rchcnt")):
+        source, counts[old] = re.subn(rf"\b{old}\(", new + "(", source)
+        if not counts[old]:
+            raise SystemExit(f"Missing channel sites: {old}")
+    source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
+    source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
+                            "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
+    source, callback_counts = guard_custom_callbacks(source)
+    counts.update(callback_counts)
+    return source, counts
+
+
+def wrap_driver(source):
+    name = "buzz_job_6eba_spu_func_00001C18"
+    # Retain the public library wrappers and their per-kernel switches. No
+    # original main-driver block is a continuation of the native path.
+    entries = (0xac68, 0xbf8, 0x9f8, 0xaea0, 0x6608, 0x2b80, 0x37c0,
+               0x2dc0, 0x54e8, 0x35f0, 0x12f0, 0x2e8, 0x32c8, 0x27a0)
+    library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in entries)
+    pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
+    matches = list(re.finditer(pattern, source))
+    if len(matches) != 1:
+        raise SystemExit("Expected one pinned whole-driver root")
+    source = re.sub(pattern, lambda m:
+                    f"static const buzz_geometry_job_functions {name}_library = {{{library}}};\n"
+                    f"static void {name}_native(spu_context* ctx) {{ "
+                    f"buzz_geometry_job_native_start(ctx, &{name}_library); }}\n"
+                    f"static void {name}_reference(spu_context* ctx) {{{m[1]}}}\n"
+                    f"void {name}(spu_context* ctx) {{ "
+                    f"buzz_geometry_job_run(ctx, {name}_reference, {name}_native, "
+                    f"buzz_geometry_job_native_eligible); }}", source, count=1)
+    support = '#include "native_geometry_job.h"\n'  # resolved by the game target's port/ include path
+    support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
+    support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
+    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 48\n"
+    return source, support
+
+
+def generate_arm64(parent_generator):
+    subprocess.run([sys.executable, str(parent_generator), "--arm64"], check=True)
+    parent = ROOT / "analysis/native-geometry/arm64"
+    source, counts = wrap_driver_io((parent / "spu_recomp.c").read_text())
+    source, support = wrap_driver(source)
+    support += "#define BUZZ_GEOMETRY_LS_DRIVER 1\n"
+    source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
+    dest = DEST.with_name("phase3-arm64")
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "spu_recomp.c").write_text(source)
+    (dest / "spu_recomp.h").write_bytes((parent / "spu_recomp.h").read_bytes())
+    print(f"ARM64 geometry driver -> {dest}; wrapped sites {counts}")
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--arm64", action="store_true")
+    parser.add_argument("--arm64-host", action="store_true")
+    options = parser.parse_args()
+    arm64 = options.arm64 or options.arm64_host
+    host_arm64 = options.arm64_host
     if hashlib.sha256(SOURCE.read_bytes()).hexdigest() != PIN:
         raise SystemExit("Unreviewed image-41 lift")
     parent_generator = ROOT / "tools/codegen/generate-geometry-phase2.py"
     if text_sha256(parent_generator) != PARENT_PIN:
         raise SystemExit("Unreviewed phase-2 adapter; audit before updating the parent pin")
-    subprocess.run([sys.executable, str(parent_generator)], check=True)
+    if arm64 and not host_arm64:
+        generate_arm64(parent_generator)
+        return
+    subprocess.run([sys.executable, str(parent_generator)] + (["--arm64"] if host_arm64 else []), check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-index-control-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-transform-control-test.py")], check=True)
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-float-output-test.py")], check=True)
@@ -60,7 +126,7 @@ def main():
     subprocess.run([sys.executable, str(ROOT / "tools/codegen/generate-geometry-input-control-test.py")], check=True)
     for name in ("builtin20", "builtin24", "builtin24-cmp", "builtin12", "builtin15"):
         subprocess.run([sys.executable, str(ROOT / f"tools/codegen/generate-geometry-{name}-input-test.py")], check=True)
-    parent = ROOT / "analysis/native-geometry/phase2"
+    parent = ROOT / ("analysis/native-geometry/arm64" if host_arm64 else "analysis/native-geometry/phase2")
     source = (parent / "spu_recomp.c").read_text()
     if "#define BUZZ_GEOMETRY_IMPLEMENTED_MASK 6015" not in source:
         raise SystemExit("Expected all eleven validated phase-2 groups")
@@ -248,17 +314,8 @@ def main():
         f"static void {delta_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {delta_name}(spu_context* ctx) {{ buzz_geometry_job_index_deltas(ctx, {delta_name}_reference, buzz_job_6eba_spu_func_000077F8); }}",
         source, count=1)
-    for old, new in (("spu_wrch", "buzz_geometry_job_wrch"),
-                     ("spu_rdch", "buzz_geometry_job_rdch"),
-                     ("spu_rchcnt", "buzz_geometry_job_rchcnt")):
-        source, counts[old] = re.subn(rf"\b{old}\(", new + "(", source)
-        if not counts[old]:
-            raise SystemExit(f"Missing channel sites: {old}")
-    source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
-    source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
-                            "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
-    source, callback_counts = guard_custom_callbacks(source)
-    counts.update(callback_counts)
+    source, io_counts = wrap_driver_io(source)
+    counts.update(io_counts)
     # Original interrupt thunks branch to r2+8, sometimes a lexical suffix
     # omitted from the lift's public entry table. Compile those exact suffixes
     # too, so strict BF8 replay never falls through to interpreted instructions.
@@ -507,28 +564,7 @@ def main():
         f"static void {descriptor_name}_reference(spu_context* ctx) {{{m[1]}}}\n"
         f"void {descriptor_name}(spu_context* ctx) {{ buzz_geometry_job_decode_descriptors(ctx, {descriptor_name}_reference, &{descriptor_name}_library); }}",
         source,count=1)
-    name = "buzz_job_6eba_spu_func_00001C18"
-    # Retain the public library wrappers and their per-kernel switches. No
-    # original main-driver block is a continuation of the native path.
-    entries = (0xac68, 0xbf8, 0x9f8, 0xaea0, 0x6608, 0x2b80, 0x37c0,
-               0x2dc0, 0x54e8, 0x35f0, 0x12f0, 0x2e8, 0x32c8, 0x27a0)
-    library = ", ".join(f"buzz_job_6eba_spu_func_{pc:08X}" for pc in entries)
-    pattern = rf"(?ms)^void {name}\(spu_context\* ctx\) \{{(.*?)^\}}"
-    matches = list(re.finditer(pattern, source))
-    if len(matches) != 1:
-        raise SystemExit("Expected one pinned whole-driver root")
-    source = re.sub(pattern, lambda m:
-                    f"static const buzz_geometry_job_functions {name}_library = {{{library}}};\n"
-                    f"static void {name}_native(spu_context* ctx) {{ "
-                    f"buzz_geometry_job_native_start(ctx, &{name}_library); }}\n"
-                    f"static void {name}_reference(spu_context* ctx) {{{m[1]}}}\n"
-                    f"void {name}(spu_context* ctx) {{ "
-                    f"buzz_geometry_job_run(ctx, {name}_reference, {name}_native, "
-                    f"buzz_geometry_job_native_eligible); }}", source, count=1)
-    support = '#include "native_geometry_job.h"\n'  # resolved by the game target's port/ include path
-    support += "#define BUZZ_GEOMETRY_JOB_AUDIT_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_NATIVE_SETUP_AVAILABLE 1\n"
-    support += "#define BUZZ_GEOMETRY_JOB_DRIVER_ABI 48\n"
+    source, support = wrap_driver(source)
     support += (DEST / "index-control-original.inc").read_text() + "\n"
     support += (DEST / "transform-control-original.inc").read_text() + "\n"
     support += (DEST / "float-output-original.inc").read_text() + "\n"
@@ -546,10 +582,13 @@ def main():
     for name in ("builtin20", "builtin24", "builtin24-cmp", "builtin12", "builtin15"):
         support += (DEST / (name+"-input-original.inc")).read_text() + "\n"
     source = source.replace('#include "spu_helpers.h"', '#include "spu_helpers.h"\n' + support, 1)
-    DEST.mkdir(parents=True, exist_ok=True)
-    (DEST / "spu_recomp.c").write_text(source)
-    (DEST / "spu_recomp.h").write_bytes((parent / "spu_recomp.h").read_bytes())
-    print(f"Phase-3 reference/shadow adapter -> {DEST}; wrapped sites {counts}")
+    target = DEST.with_name("phase3-host-arm64") if host_arm64 else DEST
+    if host_arm64:
+        source = "#define BUZZ_GEOMETRY_LS_DRIVER 1\n#define BUZZ_GEOMETRY_HOST_NEON 1\n" + source
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "spu_recomp.c").write_text(source)
+    (target / "spu_recomp.h").write_bytes((parent / "spu_recomp.h").read_bytes())
+    print(f"Phase-3 reference/shadow adapter -> {target}; wrapped sites {counts}")
 
 
 if __name__ == "__main__":

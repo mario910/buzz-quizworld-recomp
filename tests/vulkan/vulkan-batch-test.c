@@ -1,7 +1,11 @@
 /* Real GPU contract test with entirely synthetic shaders/pixels. Including
  * the implementation lets this fixture test the backend directly, without
  * generating a retail command stream or exposing test APIs to the game. */
+#ifdef BUZZ_VULKAN_UPLOAD_SOURCE
+#include BUZZ_VULKAN_UPLOAD_SOURCE
+#else
 #include "../../ps3recomp/libs/video/rsx_vulkan_backend.c"
+#endif
 #include <math.h>
 unsigned char* vm_base;
 struct batch_fentry {uint64_t address;void* function;const char* name;};
@@ -67,6 +71,37 @@ static u32 pipeline(const char* fragment,u32 rt_count,int depth){return pipeline
 static void draw_quad(float* vertices,u32 count,const u32* indices){
     vk_eng_draw(NULL,RSX_TOPOLOGY_TRIANGLES,vertices,count,16,indices,6);
 }
+#ifdef BUZZ_VULKAN_UPLOAD_SOURCE
+static PFN_vkUpdateDescriptorSets descriptor_update_driver;
+static unsigned descriptor_update_calls;
+static VKAPI_ATTR void VKAPI_CALL descriptor_count_update(VkDevice device,uint32_t count,
+    const VkWriteDescriptorSet* writes,uint32_t copies,const VkCopyDescriptorSet* copy) {
+    descriptor_update_calls++;
+    descriptor_update_driver(device,count,writes,copies,copy);
+}
+static void descriptor_write_contract(u32 target) {
+    const u32 pipe=pipeline(ps_tint,1,0),indices[6]={0,1,2,2,1,3};
+    const unsigned colors[4][3]={{255,0,0},{0,255,0},{0,0,255},{255,255,255}};
+    float vertices[16];
+    vk_eng_bind_pipeline(NULL,pipe);vk_eng_bind_targets(NULL,&target,1,0);bind_texture(0);
+    check(!vk_batch_flush(),"descriptor contract starts after retirement");
+    descriptor_update_driver=pvkUpdateDescriptorSets;pvkUpdateDescriptorSets=descriptor_count_update;
+    for(unsigned i=0;i<4;i++) {
+        constants(0,colors[i][0]/255.f,colors[i][1]/255.f,colors[i][2]/255.f);
+        quad(vertices,i*W/4,0,W/4,H,0,0.5f);descriptor_update_calls=0;
+        draw_quad(vertices,4,indices);
+        if(i>=2 && s_batch.limit && buzz_descriptor_batch_enabled() && buzz_descriptor_writes_enabled())
+            check(!descriptor_update_calls,"retired identical bindings really skip driver updates while constants change");
+        else if(!buzz_descriptor_batch_enabled() || !buzz_descriptor_writes_enabled())
+            check(descriptor_update_calls>0,"ordinary descriptor path reaches actual driver");
+        check(!vk_batch_flush(),"descriptor contract retires each distinct constant payload");
+    }
+    pvkUpdateDescriptorSets=descriptor_update_driver;
+    read_target(target);
+    for(unsigned i=0;i<4;i++)pixel(i*W/4+W/8,H/2,colors[i][0],colors[i][1],colors[i][2]);
+    vk_eng_pipeline_release(NULL,pipe);
+}
+#endif
 /* Retail shaders carry a full interpolant bank while fetching sparse vertex
  * attributes. Constant-UV smoke shaders cannot detect locations being compacted
  * differently between stages. Match the decompilers' interface field order. */
@@ -204,6 +239,70 @@ static void depth_sample_contract(u32 target,u32 pipe)
     vk_eng_release(NULL,depth);
     check(!vk_eng_get(snap,VK_ENG_TEXTURE),"depth target owns snapshot lifetime");
 }
+#ifdef BUZZ_VULKAN_UPLOAD_SOURCE
+static void uniform_reuse_contract(u32 target) {
+    if(!buzz_uniform_enabled() || !s_batch.ring_ready)return;
+    vk_batch_flush();
+    const u32 pipe=pipeline(ps_tint,1,0),indices[6]={0,1,2,2,1,3};
+    const unsigned colors[4][3]={{255,0,0},{0,255,0},{0,0,255},{255,255,255}};
+    vk_eng_bind_pipeline(NULL,pipe);vk_eng_bind_targets(NULL,&target,1,0);
+    unsigned reuse[2]={0};
+    descriptor_update_driver=pvkUpdateDescriptorSets;
+    pvkUpdateDescriptorSets=descriptor_count_update;descriptor_update_calls=0;
+    for(unsigned i=0;i<1027;++i) {
+        const unsigned tile=i%32,color=(i/2)%4;
+        const float shift=((i/4)%2)*0.25f;float vertices[16];
+        constants(shift,colors[color][0]/255.f,colors[color][1]/255.f,colors[color][2]/255.f);
+        quad(vertices,(tile%8)*8,(tile/8)*8,8,8,shift,0.5f);
+        const VkDeviceSize vo=buzz_uniform_cache.offset[0],po=buzz_uniform_cache.offset[1];
+        draw_quad(vertices,4,indices);
+        if(s_batch.draws>1) {
+            if(i%4){check(buzz_uniform_cache.offset[0]==vo,"VS immutable slice shared");reuse[0]++;}
+            if(i%2){check(buzz_uniform_cache.offset[1]==po,"PS immutable slice shared");reuse[1]++;}
+        }
+    }
+    if(s_batch.limit>1)check(reuse[0]&&reuse[1],"both uniform stages exercised sharing");
+    if(s_batch.limit>1 && buzz_uniform_sets_enabled())check(descriptor_update_calls<800,"identical immutable sets omit real Vulkan updates");
+    pvkUpdateDescriptorSets=descriptor_update_driver;
+    read_target(target);
+    for(unsigned tile=0;tile<32;++tile) {
+        const unsigned last=tile+(1026-tile)/32*32,color=(last/2)%4;
+        pixel((tile%8)*8+4,(tile/8)*8+4,colors[color][0],colors[color][1],colors[color][2]);
+    }
+    check(!buzz_uniform_cache.valid[0]&&!buzz_uniform_cache.valid[1],"readback flush invalidates uniform cache");
+    vk_eng_pipeline_release(NULL,pipe);
+}
+#ifdef BUZZ_VK_DRAW_STATE_DEFAULT
+static PFN_vkCmdSetViewport state_viewport_driver;
+static unsigned state_viewport_calls;
+static VKAPI_ATTR void VKAPI_CALL state_count_viewport(VkCommandBuffer cmd,uint32_t first,uint32_t count,const VkViewport* vp) {
+    state_viewport_calls++;state_viewport_driver(cmd,first,count,vp);
+}
+static void draw_state_contract(u32 target) {
+    if(!buzz_draw_state_enabled())return;
+    check(!vk_batch_flush(),"state contract starts after retirement");
+    const u32 pipe=pipeline(ps_tint,1,0),indices[6]={0,1,2,2,1,3};
+    vk_eng_bind_pipeline(NULL,pipe);vk_eng_bind_targets(NULL,&target,1,0);bind_texture(0);
+    float vertices[16];quad(vertices,0,0,W,H,0,0.5f);
+    const float black[4]={0,0,0,1};vk_eng_clear_color(NULL,target,black);
+    vk_eng_set_scissor(NULL,0,0,W,H);
+    state_viewport_driver=pvkCmdSetViewport;pvkCmdSetViewport=state_count_viewport;state_viewport_calls=0;
+    vk_eng_set_viewport(NULL,0,0,W/2,H);constants(0,1,0,0);draw_quad(vertices,4,indices);
+    vk_eng_set_viewport(NULL,W/2,0,W/2,H);constants(0,0,1,0);draw_quad(vertices,4,indices);
+    const unsigned before=state_viewport_calls;
+    draw_quad(vertices,4,indices);
+    if(s_batch.limit>=3)check(state_viewport_calls==before,"identical viewport omits real Vulkan command");
+    read_target(target);pixel(W/4,H/2,255,0,0);pixel(W*3/4,H/2,0,255,0);
+    const unsigned retired=state_viewport_calls;draw_quad(vertices,4,indices);
+    check(state_viewport_calls==retired+1,"retirement resends unchanged viewport to new command buffer");
+    vk_eng_set_viewport(NULL,0,0,W,H);vk_eng_set_scissor(NULL,W/2,0,W/2,H);
+    constants(0,0,0,1);draw_quad(vertices,4,indices);read_target(target);
+    pixel(W/4,H/2,255,0,0);pixel(W*3/4,H/2,0,0,255);
+    pvkCmdSetViewport=state_viewport_driver;
+    s_e2.have_vp=s_e2.have_sc=0;vk_eng_pipeline_release(NULL,pipe);
+}
+#endif
+#endif
 int main(int argc,char** argv){
     if(argc==2 && !strcmp(argv[1],"--invalid-depth-format")){
         env("PS3RECOMP_VK_DEPTH_FORMAT","bad");
@@ -364,10 +463,40 @@ int main(int argc,char** argv){
         check(s_gpu.pool && s_gpu.samples>0 && s_gpu.draw_samples>0 && s_gpu.total_ns>0 && !s_gpu.failures,
               "actual device timestamps collected after draw fences");
     if(s_batch.limit)check(s_batch.total_draws>32&&s_batch.flushes>0,"actual batched draws/fences");
+    // Replacing a sampled image while a draw still reads its previous bytes
+    // must split the render pass and preserve both versions on the GPU.
+    vk_eng_bind_pipeline(NULL,pipe);vk_eng_bind_targets(NULL,&copy,1,0);
+    constants(0,1,1,1);
+    const u32 changing=vk_eng_texture_create(NULL,RSX_BE_FMT_R8G8B8A8,1,1,1,1,0xaae4,0x85);
+    check(changing!=0,"mutable texture");
+    for(u32 cycle=0;cycle<8;cycle++){
+        unsigned char red[4]={255,0,0,255},blue[4]={0,0,255,255};
+        vk_eng_texture_upload(NULL,changing,0,0,1,1,red,4,1);
+        memset(red,0,sizeof red);bind_texture(changing);
+        quad(vertices,0,0,W/2,H,0,0.5f);draw_quad(vertices,4,indices);
+        vk_eng_texture_upload(NULL,changing,0,0,1,1,blue,4,1);
+        memset(blue,0,sizeof blue);
+        quad(vertices,W/2,0,W/2,H,0,0.5f);draw_quad(vertices,4,indices);
+        read_target(copy);pixel(W/4,H/2,255,0,0);pixel(W*3/4,H/2,0,0,255);
+    }
+    vk_eng_release(NULL,changing);
     texture_pool_contract(copy,pipe);
     depth_sample_contract(copy,pipe);
     varying_uv_contract(copy);
+#ifdef BUZZ_VULKAN_UPLOAD_SOURCE
+    descriptor_write_contract(copy);
+    uniform_reuse_contract(copy);
+#ifdef BUZZ_VK_DRAW_STATE_DEFAULT
+    draw_state_contract(copy);
+#endif
+#endif
     rsx_vulkan_backend_shutdown();
+#ifdef BUZZ_VULKAN_UPLOAD_SOURCE
+    check(!buzz_descriptor_pools[0].sets && !buzz_descriptor_pools[1].sets,
+          "shutdown frees both descriptor handle caches");
+    check(!buzz_descriptor_pools[0].contents && !buzz_descriptor_pools[1].contents && !buzz_descriptor_pending,
+          "shutdown frees descriptor contents and clears pending update");
+#endif
     check(!s_texture_pool.count && !s_texture_pool.bytes,"shutdown frees all retired pool images");
     free(vm_base);vm_base=NULL;
     puts("PASS draw payload snapshots, immutable descriptors, constants across flush, RTT, lifetime, fallback, guest labels, depth and MRT");return 0;

@@ -2,6 +2,7 @@ param(
     [string]$CompilerDirectory = '',
     [int]$Jobs = 6,
     [switch]$VulkanExperimental,
+    [switch]$Standalone,
     [ValidateSet('sse2','sse41','avx2','avx512')][string]$SpuIsa = 'avx2',
     [switch]$NativeSpuFloat = $true,
     [switch]$HotPpu = $true,
@@ -153,7 +154,7 @@ if ($FusedGeometry) {
 if ($StageF) {
     $geometryLift = Join-Path $experimentRoot 'port/spu/buzz_job_6eba/spu_recomp.c'
     $geometryPhase2 = $NativeSpuFloat.IsPresent -and $SpuIsa -in @('avx2','avx512') -and
-        (Get-FileHash -LiteralPath $geometryLift -Algorithm SHA256).Hash -eq '5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812'
+        (Get-BuzzFileSha256 -Path $geometryLift) -eq '5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812'
     # Only this family/renderer/FP/ISA combination has passed the full host-job
     # corpus, live, native-frame and reversed FPS/CPU gates.
     $geometryJobProfile = $geometryPhase2 -and $VulkanExperimental -and
@@ -185,6 +186,8 @@ if ($geometryJobProfile) {
 $configureOptions=@(
     "-DPS3RECOMP_DIR=$sdk", "-DCMAKE_C_COMPILER=$compiler", "-DCMAKE_CXX_COMPILER=$compiler",
     "-DPython3_EXECUTABLE=$(Join-Path $toolScripts 'python.exe')",
+    "-DBUZZ_STANDALONE=$($Standalone.IsPresent)",
+    "-DBUZZ_DISC_COMPLETION=$($generation.family -in @('quizworld-eu100','quizworld-us100'))",
     "-DBUZZ_EXPERIMENTAL_VULKAN=$($VulkanExperimental.IsPresent)",
     "-DPORT_HOST_PROFILE_DIR=$hostProfile", "-DPORT_SPU_ISA=$SpuIsa",
     "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)", "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)",
@@ -201,6 +204,13 @@ $configureOptions=@(
 if ($LASTEXITCODE) { throw "CMake configuration failed: $LASTEXITCODE" }
 & cmake --build $build --parallel $Jobs
 if ($LASTEXITCODE) { throw "Build failed: $LASTEXITCODE" }
+if ($Standalone) {
+    if (-not $env:VCToolsRedistDir) { throw 'The Visual C++ redistributable files are missing from the C++ workload.' }
+    $crt = Join-Path $env:VCToolsRedistDir 'x64/Microsoft.VC143.CRT'
+    foreach ($dll in @('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+        Copy-Item -LiteralPath (Join-Path $crt $dll) -Destination $build
+    }
+}
 if($generation) {
     $runtimePlan = & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/verify-game.py') --runtime-options
     if($LASTEXITCODE){throw 'Cannot bind runtime defaults to the validated build'}
@@ -208,7 +218,7 @@ if($generation) {
     # from here, not from the directory name of a copied/frozen build.
     $renderer=if($VulkanExperimental){'vulkan'}else{'d3d12'}
     $boundRuntimeDefaults=$runtimePlan | ConvertFrom-Json
-    $buildManifest=@{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);renderer=$renderer;runtime_defaults=$boundRuntimeDefaults}
+    $buildManifest=@{family=$generation.family;elf_sha256=$generation.elf_sha256;exe_sha256=(Get-BuzzFileSha256 -Path $expectedExe);renderer=$renderer;standalone=$Standalone.IsPresent;runtime_defaults=$boundRuntimeDefaults}
     if($geometryJobProfile) {
         $buildManifest.geometry_job_profile='host-groups-v1'
     }

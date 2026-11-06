@@ -60,8 +60,8 @@ inline bool read_geometry_unit_vectors(const spu_context& ctx,GeometryUnitStream
         if((base&15) || geometry_job_be32(ctx.ls+stack+0x70-row*16)!=uint64_t(base)+16 ||
             ctx.gpr[83]._u32[row]!=p.input_step || ctx.gpr[81]._u32[row]!=p.output_step ||
             ctx.gpr[80]._u32[row]!=p.limit || !geometry_output_range(scratch,16))return reject("input pointers/steps/scratch");
-        output_begin=std::min(output_begin,uint64_t(scratch)&~15ull);
-        output_end=std::max(output_end,(uint64_t(scratch)&~15ull)+16);
+        output_begin=std::min(output_begin,uint64_t(scratch)&~uint64_t{15});
+        output_end=std::max(output_end,(uint64_t(scratch)&~uint64_t{15})+16);
         const uint32_t physical=scratch&~15u;
         if(physical!=stack+0x20 && physical<stack+0xd0 && stack<physical+16)return reject("scratch/stack metadata alias");
     }
@@ -75,7 +75,7 @@ inline bool read_geometry_unit_vectors(const spu_context& ctx,GeometryUnitStream
             const uint64_t begin=uint64_t(ctx.gpr[bases[row]]._u32[0])+c.offset;
             const uint64_t end=begin+uint64_t(c.groups+1)*p.input_step+32;
             if(begin<0xe680 || end>SPU_LS_SIZE)return reject("source lookahead bounds");
-            input_begin=std::min(input_begin,begin&~15ull);input_end=std::max(input_end,end);
+            input_begin=std::min(input_begin,begin&~uint64_t{15});input_end=std::max(input_end,end);
             // Host batches require actual unit-vector selectors. The final
             // two iterations and speculative reads retain all sixteen table
             // outcomes through exact native ABI math, including padded bytes.
@@ -84,9 +84,9 @@ inline bool read_geometry_unit_vectors(const spu_context& ctx,GeometryUnitStream
             const uint64_t destination=uint64_t(ctx.gpr[41]._u32[row])+column*16;
             const uint64_t last=destination+uint64_t(c.groups-1)*p.output_step;
             if(last>INT32_MAX)return reject("output cursor bounds");
-            if(destination<=p.limit){output_begin=std::min(output_begin,destination&~15ull);
-                output_end=std::max(output_end,(std::min(last,uint64_t(p.limit))&~15ull)+16);
-                if((destination&~15ull)<stack+0xd0 && stack<(std::min(last,uint64_t(p.limit))&~15ull)+16)
+            if(destination<=p.limit){output_begin=std::min(output_begin,destination&~uint64_t{15});
+                output_end=std::max(output_end,(std::min(last,uint64_t(p.limit))&~uint64_t{15})+16);
+                if((destination&~uint64_t{15})<stack+0xd0 && stack<(std::min(last,uint64_t(p.limit))&~uint64_t{15})+16)
                     return reject("destination/stack metadata alias");}
         }
         p.column[column]=c;

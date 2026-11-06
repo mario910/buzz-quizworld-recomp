@@ -3,7 +3,7 @@
  * The generator rejects channels/calls/stops/double arithmetic in the leaf:
  * native execution cannot longjmp out with the host FP environment changed. */
 #include "native_image36.h"
-#include <immintrin.h>
+#include "spu_scoped_rtz.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
@@ -32,10 +32,7 @@ struct Init {
 
 void native_scoped(spu_context* ctx, void (*native)(spu_context*))
 {
-    const unsigned saved = _mm_getcsr();
-    _mm_setcsr((saved & ~0x6000u) | 0x6000u | 0x8040u | 0x1f80u);
-    native(ctx);
-    _mm_setcsr(saved);
+    buzz_spu_scoped_rtz(ctx, native);
 }
 
 void state(FILE* file, const spu_context* ctx)

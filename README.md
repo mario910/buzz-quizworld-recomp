@@ -1,8 +1,10 @@
-# Buzz! Quiz World — experimental native Windows port
+# Buzz! Quiz World — experimental native port
 
 An unofficial **PS3Recomp-based static recompilation** of Buzz! Quiz World for
-Windows x64, rendering with Vulkan by default and Direct3D 12 as the fallback.
-Startup films, menus, audio and single-player rounds have run in our tests.
+Windows and Linux x86-64, with an experimental EU 1.00 Android ARM64 target.
+Vulkan is the standalone renderer, with Direct3D 12
+available for Windows developer builds. Startup films, menus, audio and
+single-player rounds have run in the Windows tests.
 Original-disc EU and US 1.00 use their own hash-bound generation/PPU-adapter
 profiles and share byte-identical SPU images. The optional EU 1.02 update has
 separate executable bindings.
@@ -19,12 +21,19 @@ build generates translations locally; the resulting game is **not** covered
 in its entirety by this repository's MIT license. See
 [licensing and third-party notices](THIRD_PARTY_NOTICES.md).
 
-## Highlights (2026-11-03)
+## Highlights
+
+- **Android ARM64:** full host geometry through NEON, on-screen buzzer and
+  optional imported Turnip driver. Build on Linux/WSL and stage prepared data
+  over ADB; ISO/PUP preparation inside the Android app is not implemented yet.
+  Current phone tests remain below stable 30 FPS. See the
+  [build/install guide](android/README.md) and
+  [enabled and disabled optimization catalog](docs/optimization-status.md).
 
 - **Local preparation without RPCS3:** import your disc/ISO, firmware and optional
   update, validate exact executable hashes, then generate and build locally.
   Preparation sessions can be cancelled and resumed.
-- **Native desktop launcher and PC settings:** select prepared copies, map/test
+- **In-game PC settings and developer launcher:** select prepared copies, map/test
   controls, adjust volume, fullscreen, window size and the optional 30 FPS lock.
   Escape / START pauses gameplay while the settings menu is open on Vulkan.
 - **Display and texture options:** internal rendering from 720p to 4K, bilinear
@@ -93,71 +102,46 @@ command-line usage and validation. Still-encrypted disc images are
 not supported by this importer. Use files you are legally
 entitled to use under the rules in your jurisdiction.
 
-## Windows build prerequisites
+## Build prerequisites
 
-These are **preparation/development** requirements. Once your own copy has
-been prepared, the native C++ launcher starts it without Python, a venv or
-PowerShell. The launcher also builds on Linux; the game itself is not yet a
-validated Linux port. See [native launcher](docs/pc-launcher.md).
-
-- Windows 10/11 **64-bit** and a GPU/driver supporting Vulkan 1.0 (default renderer) and Direct3D 12 (fallback).
-- An x64 CPU with **AVX2 and FMA** for the supported build. AVX-512 is not required.
-- Git with submodule support.
-- Python **3.11 or newer**, including Tcl/Tk (for the preparation wizard), with
-  `python` available on PATH.
-- Visual Studio 2022 or its Build Tools, with **Desktop development with C++**
-  and a Windows 10/11 SDK. The build uses Clang via `clang-cl`, with the VS
-  headers/libraries and Windows SDK. Clang, CMake, Ninja and Python packages
-  are installed into/for the local `toolenv` by the setup script.
-- Substantial free disk space for generated C/C++, compiler objects and
-  caches. Six concurrent compiler jobs are the default; reduce `-Jobs` if
-  memory is limited. No minimum RAM/disk or low-end performance guarantee has
-  been established.
-
-PowerShell commands below work from the repository directory. If script
-execution is blocked, use `powershell.exe -NoProfile -ExecutionPolicy Bypass
--File .\scripts\Setup-Buzz.ps1` (and the corresponding build/start script). This is a
-per-process option; changing the machine-wide execution policy is unnecessary.
+The prepared game needs Windows 10/11 or Linux x86-64, a Vulkan-capable
+GPU driver, and AVX2/FMA. Linux also needs the SDL2 runtime. Preparation also needs Git and
+free disk space for generation, compilation and a local copy of the game.
+On Windows it uses Python 3.11+ and Visual Studio 2022 C++ tools with a
+Windows SDK. On Linux it uses Python 3.10+, Clang, CMake, Ninja and SDL2
+development files. The wizard checks these and can help install them.
 
 ## Build and play
 
-```powershell
-git clone --recurse-submodules https://github.com/mario910/buzz-quizworld-recomp.git
-cd buzz-quizworld-recomp
-.\scripts\Setup-Buzz.ps1
-```
+1. Clone the source repository with Git. The wizard can initialize submodules
+   if they were skipped during cloning.
+2. Extract the **BuzzPrepare** package for your system. On Windows open
+   **BuzzPrepare.exe**. On Linux run **`./bin/BuzzPrepare`** from the extracted
+   package. On Ubuntu 22.04/24.04 install `libqt6widgets6` and the distro’s
+   OpenSSL 3 runtime if they are missing.
+   Select the checkout if the wizard did not locate it. You can also open
+   `Prepare-Buzz.cmd` if the package is extracted to `dist-preparation/` in
+   the checkout. For a local developer build, see [building BuzzPrepare](preparation/README.md#developer-build).
+3. Resolve missing dependencies using the buttons in the wizard. Select your
+   ISO or disc dump, firmware PUP or `dev_flash`, and, if needed, your local
+   key file and update PKG/EBOOT. See [game and firmware inputs](docs/game-import.md).
+4. Click **Prepare dist**. The wizard generates and builds the matching Vulkan
+   executable in an isolated session under `runtime/setup/sessions/`. If
+   interrupted, select that session and the same inputs to resume.
+5. Open **`dist/BuzzQuizWorldRecomp.exe`** on Windows or
+   **`./dist/BuzzQuizWorldRecomp`** on Linux. Keep the `runtime/` directory
+   and any packaged libraries beside the executable when moving the folder. Open PC settings with
+   **Escape / controller START** to configure display, audio, textures and
+   keyboard or pad bindings. Use **Save settings** to keep the changes.
 
-### Guided preparation (recommended)
-
-For the guided route, double-click **Prepare-Buzz.cmd** (or run
-`scripts/Prepare-Buzz.ps1`):
-
-```powershell
-.\Prepare-Buzz.cmd
-```
-
-Select your ISO/dump, PUP/dev_flash and private local key file when needed;
-select an update only if you want to use that executable. The wizard identifies
-the exact title/executable, generates its matching translations and builds in
-an isolated `runtime/setup/sessions/` workspace. It supports cancellation and
-resuming an interrupted session. Python, Visual Studio C++ tools and the Windows
-SDK are prerequisites, not silently installed system-wide components. Preparation
-builds both renderers and the native launcher inside that session's `workspace`.
-
-Wait for **Ready: game build**, then click **Play** in the preparation wizard
-to open that prepared copy's native launcher and start the game from it.
-For later launches, use **Launch-Buzz.cmd inside the prepared workspace**:
-`runtime/setup/sessions/<session-id>/workspace/Launch-Buzz.cmd`.
-That workspace also contains `build-launcher/BuzzLauncher.exe`; playing the
-prepared copy needs no Python or build tools. The repository-root shortcut
-requires a launcher built at the repository root, as in the manual route below.
-
-If you change game/executable paths in the launcher, it looks for a matching prepared build;
-it does not run a 1.02 ELF on a 1.00 EXE or vice versa. Unsupported identities
-or missing matching builds are rejected with a preparation prompt. No version
-is hard-coded as the runtime default. See [1.00 migration status](docs/disc-100-status.md).
+The distribution includes your local game and firmware data. Keep it private.
+Preparing a new copy requires moving the existing `dist` aside. Saves and
+settings travel with the folder in `dist/runtime/`.
 
 ### Manual developer build
+
+Run `scripts/Setup-Buzz.ps1` to create the tool environment and paths template.
+The commands in this section retain the developer launcher workflow.
 
 Edit the newly created **`buzz-paths.json`**, using absolute paths to your
 own files. Forward slashes in JSON work on Windows and avoid backslash escaping:
@@ -278,7 +262,7 @@ and [inherited-history caveat](docs/publication.md#important-sdk-fork-caveat).
 
 ## Display and texture packs
 
-The launcher separates **window size** from **internal resolution**. Internal
+The in-game PC menu separates **window size** from **internal resolution**. Internal
 rendering offers 100% (1280×720), 150% (1920×1080), 200% (2560×1440) and 300%
 (3840×2160), with a restart required after changing it. Window size/fullscreen,
 the bilinear/FSR 1 filter and FSR sharpness apply live. FSR 1 scales the finished
@@ -286,8 +270,7 @@ frame when the output is larger than the internal image; rendering above the
 output resolution uses bilinear downscaling.
 
 Both renderers can dump eligible 2D colour textures as PNGs and load replacements
-from the selected build's `runtime/textures/replace/`. In the launcher's Game
-tab, optional **automatic texture upscaling** runs Real-ESRGAN in background
+from the selected build's `runtime/textures/replace/`. Optional **automatic texture upscaling** runs Real-ESRGAN in background
 batches and keeps the results under `replace/auto/`. New replacements are picked
 up on the texture's next upload; handmade replacements take priority. The
 default 2048-pixel output limit bounds texture growth.
@@ -342,10 +325,10 @@ limit simultaneous players. See [input/offline guide](docs/input-and-offline.md)
 
 ## Saves, offline mode and status
 
-Local saves/profiles and caches are under `runtime/`; logs are under `logs/`.
-Launcher paths/labels live in `runtime/launcher/`; shared gameplay preferences
-are `runtime/pc-settings.ini` and `runtime/input-settings.ini` in the selected
-build. They are not committed. Back up
+For a prepared distribution, saves, profiles, caches and standalone startup
+logs live under `dist/runtime/`. Preferences live in `pc-settings.ini` and
+`input-settings.ini` in that directory. Developer launchers retain their own
+logs and path settings. Back up
 saves before experimenting; this is not a verified RPCS3 save-transfer workflow.
 
 The native frontend defaults to **offline/no-PSN-account**. The 1.02 frontend
@@ -363,8 +346,9 @@ profile; launchers preserve explicit developer overrides. Other versions and
 renderers retain their own build profiles. Known limitations include
 occasional long frame-time spikes on menu transitions, an intermittent green
 monitor/white-square state, and limited multiplayer/long-session validation.
-Windows with Vulkan (default) or D3D12 is the tested target; Linux and Steam Deck
-are not yet a supported build of this port. Other game languages/content sets are unverified.
+The standalone Vulkan build targets Windows and Linux x86-64. D3D12 remains
+a Windows developer build. Steam Deck hardware and other game languages/content
+sets need separate validation.
 
 ## Troubleshooting and development
 
@@ -374,7 +358,7 @@ See the [documentation index](docs/README.md) for runtime architecture and file-
 - Wrong ELF/audio hash: obtain the supported files from your own installation;
   do not bypass the guard. The audio check hashes the ELF `.text`, not the
   whole `flashATRAC.pic` file.
-- Missing compiler/SDK: install the C++ workload and Windows SDK; rerun Setup.
+- Missing compiler/SDK: use the dependency buttons in BuzzPrepare and recheck.
 - Build already running/game EXE locked: close your game, then retry. Build
   scripts do not kill it. Avoid parallel builds against one output directory.
 - No keyboard response: focus the game window, check the buzzer mapping and

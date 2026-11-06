@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 class SourceLayoutTests(unittest.TestCase):
     def test_player_entrypoints_and_examples(self):
         self.assertEqual(sorted(p.name for p in ROOT.glob('*.cmd')),
-                         ['Launch-Buzz.cmd', 'Prepare-Buzz.cmd'])
+                         ['Launch-Buzz.cmd', 'Launch-Question-Studio.cmd', 'Prepare-Buzz.cmd'])
         for pattern in ('*.py', '*.pyw', '*.ps1'):
             self.assertEqual(list(ROOT.glob(pattern)), [], pattern)
         for relative in ('launcher/start.pyw', 'scripts/Prepare-Buzz.ps1',

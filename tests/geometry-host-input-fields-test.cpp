@@ -1,3 +1,4 @@
+#include "geometry-test-fp.h"
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_host_streams.h"
 #include "../port/native_geometry_host_unit_vectors.h"
@@ -36,8 +37,10 @@ static unsigned random_word(unsigned& state)
 }
 int main()
 {
+#ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-    _mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
+#endif
+    buzz_test_enter_rtz();
     auto constants = std::make_unique<uint8_t[]>(0xe680);
     auto* file = fopen("analysis/native-geometry/phase3/test-descriptors-constants.bin", "rb");
     assert(file && fread(constants.get(), 0xe680, 1, file) == 1 && fgetc(file) == EOF); fclose(file);

@@ -1,6 +1,9 @@
 /* Strict skinning checks; the pinned reference is generated into ignored analysis/. */
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../ps3recomp/runtime/spu/spu_helpers.h"
+#if defined(__aarch64__)
+#include "../port/spu_arm_fp_state.h"
+#endif
 #include "../port/native_function_check.h"
 #include "../port/native_geometry_ls.h"
 #include <cassert>
@@ -46,7 +49,12 @@ static void compare(spu_context* ref, spu_context* nat)
 
 int main(int argc, char** argv)
 {
+#if defined(__aarch64__)
+    const auto previous = buzz_arm_fp_save();
+    buzz_arm_fp_enter_rtz(previous);
+#else
     _mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
+#endif
     auto* seed = new spu_context{};
     seed->ls = seed->ls_store;
     constexpr unsigned large[] = {128, 256, 512, 1024, 2048};

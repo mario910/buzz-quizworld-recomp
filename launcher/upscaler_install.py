@@ -13,6 +13,7 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import urllib.request
 import uuid
@@ -23,6 +24,10 @@ URL = ("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/"
 SHA256 = "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d"
 SIZE = 45474481
 EXECUTABLE = "realesrgan-ncnn-vulkan.exe"
+LINUX_EXECUTABLE = "realesrgan-ncnn-vulkan"
+LINUX_URL = URL.replace("-windows.zip", "-ubuntu.zip")
+LINUX_SHA256 = "e5aa6eb131234b87c0c51f82b89390f5e3e642b7b70f2b9bbe95b6a285a40c96"
+LINUX_SIZE = 46931474
 MEMBERS = (EXECUTABLE, "vcomp140.dll", "vcomp140d.dll", "README_windows.md",
            *(f"models/{model}.{kind}" for model in ("realesrgan-x4plus", "realesrgan-x4plus-anime",
                                                     "realesr-animevideov3-x2", "realesr-animevideov3-x3",
@@ -39,7 +44,7 @@ def target(runtime):
 
 
 def installed(runtime):
-    return (target(runtime) / EXECUTABLE).is_file()
+    return any((target(runtime) / name).is_file() for name in (EXECUTABLE, LINUX_EXECUTABLE))
 
 
 def _check(cancel):
@@ -89,12 +94,17 @@ def fetch(cache, log, cancel=None, *, url=URL, sha256=SHA256, size=SIZE, opener=
     return archive
 
 
-def install(runtime, log, cancel=None, *, archive=None, cache=None, url=URL, sha256=SHA256, size=SIZE,
+def install(runtime, log, cancel=None, *, archive=None, cache=None, url=None, sha256=None, size=None,
             opener=urllib.request.urlopen, windows=None):
     """Install into ``<runtime>/textures/upscaler``, replacing an older install whole."""
-    if not (os.name == "nt" if windows is None else windows):
-        raise ValueError("The pinned upscaler release is the Windows build. Elsewhere, put realesrgan-ncnn-vulkan "
-                         "and its models/ folder in textures/upscaler yourself.")
+    linux = windows is None and sys.platform == "linux"
+    if not linux and not (os.name == "nt" if windows is None else windows):
+        raise ValueError("The pinned upscaler release is available for Windows and Linux. Elsewhere, put "
+                         "realesrgan-ncnn-vulkan and its models/ folder in textures/upscaler yourself.")
+    url = url or (LINUX_URL if linux else URL)
+    sha256 = sha256 or (LINUX_SHA256 if linux else SHA256)
+    size = size if size is not None else (LINUX_SIZE if linux else SIZE)
+    members = (LINUX_EXECUTABLE, "README_ubuntu.md", *MEMBERS[4:]) if linux else MEMBERS
     if archive is None:
         if cache is None:
             raise ValueError("Give a download cache folder or a local archive.")
@@ -111,15 +121,17 @@ def install(runtime, log, cancel=None, *, archive=None, cache=None, url=URL, sha
     try:
         with zipfile.ZipFile(archive) as release:
             names = set(release.namelist())
-            missing = [member for member in MEMBERS if member not in names]
+            missing = [member for member in members if member not in names]
             if missing:
                 raise ValueError("The upscaler archive lacks: " + ", ".join(missing))
-            for member in MEMBERS:
+            for member in members:
                 _check(cancel)
                 out = staging / member
                 out.parent.mkdir(parents=True, exist_ok=True)
                 with release.open(member) as source, open(out, "wb") as sink:
                     shutil.copyfileobj(source, sink)
+                if linux and member == LINUX_EXECUTABLE:
+                    out.chmod(0o755)
         if destination.exists():
             old = destination.with_name(f".upscaler-old-{uuid.uuid4().hex}")
             os.replace(destination, old)
@@ -130,5 +142,5 @@ def install(runtime, log, cancel=None, *, archive=None, cache=None, url=URL, sha
     finally:
         if staging.exists():
             shutil.rmtree(staging, ignore_errors=True)
-    log(f"Texture upscaler installed: {destination}. Turn on 'Upscale textures automatically' in the launcher.")
+    log(f"Texture upscaler installed: {destination}. Enable 'Auto texture upscaling' in the in-game PC settings.")
     return destination

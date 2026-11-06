@@ -2,7 +2,7 @@
 #define NOMINMAX
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_host_index_output.h"
-#include <windows.h>
+#include "geometry-test-memory.h"
 #include <cassert>
 #include <cstdio>
 static void check_index_output_rejects()

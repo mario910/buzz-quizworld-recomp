@@ -1,3 +1,4 @@
+#include "geometry-test-fp.h"
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_host_skin_job.h"
 #include "../port/native_geometry_host_clip_job.h"
@@ -40,8 +41,10 @@ static void drain(spu_context* c, uint32_t stop)
 int main(int argc, char** argv)
 {
     assert(argc == 2);
+#ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-    _mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
+#endif
+    buzz_test_enter_rtz();
     auto entry = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
     auto before = std::make_unique<uint8_t[]>(sizeof(spu_context));
     auto data = std::make_unique<GeometryHostInputData>(); auto workspace = std::make_unique<GeometryHostSkinWorkspace>();

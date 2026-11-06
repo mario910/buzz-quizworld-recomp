@@ -117,7 +117,7 @@ class UpscalerInstallTest(unittest.TestCase):
         self.assertFalse(up.installed(self.root / "runtime"))
 
     def test_other_platforms_are_told_to_install_by_hand(self):
-        with self.assertRaisesRegex(ValueError, "Windows build"):
+        with self.assertRaisesRegex(ValueError, "Windows and Linux"):
             up.install(self.root / "runtime", self.log.append, cache=self.root, windows=False)
 
     def test_preparation_choice_is_validated_and_defaults_off(self):

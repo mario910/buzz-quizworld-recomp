@@ -1,0 +1,354 @@
+--- a/libs/video/rsx_vulkan_backend.c
++++ b/libs/video/rsx_vulkan_backend.c
+@@ -66,13 +66,11 @@
+ #include <dlfcn.h>
+ #include <pthread.h>
+ #else
++#include "rsx_host_window.h"
++#endif
+ #include "ps3emu/host_overlay.h"
+ #include "ps3emu/host_controls.h"
+-#ifdef _WIN32
+-#include "rsx_host_window.h"
+ #include "rsx_fsr1.h"
+-#endif
+-#endif
+ #include <stddef.h>
+ #include <stdint.h>
+ #include <stdio.h>
+@@ -148,9 +146,9 @@
+ VK_DEVICE_FNS(VK_DECLARE)
+ VK_WSI_INSTANCE_FNS(VK_DECLARE)
+ VK_WSI_DEVICE_FNS(VK_DECLARE)
++static void (*s_host_key_handler)(u32,int);
+ #ifdef _WIN32
+ static PFN_vkCreateWin32SurfaceKHR pvkCreateWin32SurfaceKHR;
+-static void (*s_host_key_handler)(u32,int);
+ static int s_window_closed;
+ #ifdef _WIN32
+ /* "<title> | FPS | draws | size", as the D3D12 window shows: composed once a
+@@ -161,7 +159,12 @@
+ static u64 s_title_t0;
+ static u32 s_title_frames;
+ #endif
++#endif
+ void rsx_vulkan_set_key_handler(void (*handler)(u32,int)){s_host_key_handler=handler;}
++#ifndef _WIN32
++/* The embedding port translates SDL keycodes into its saved key format. */
++extern u32 buzz_sdl_key_code(int key);
++extern void buzz_input_sdl_frame(int has_focus);
+ #endif
+ 
+ /* ---------------------------------------------------------------------------
+@@ -485,7 +488,11 @@
+     if(!s_vk.lib){VK_LOG("Vulkan loader unavailable (Win32 %lu)\n",GetLastError());return -1;}
+     pvkGetInstanceProcAddr=(PFN_vkGetInstanceProcAddr)GetProcAddress((HMODULE)s_vk.lib,"vkGetInstanceProcAddr");
+ #else
++#ifdef __ANDROID__
++    static const char* names[] = { "libbuzz_vulkan.so" };
++#else
+     static const char* names[] = { "libvulkan.so.1", "libvulkan.so" };
++#endif
+     for (size_t i = 0; i < sizeof names / sizeof names[0] && !s_vk.lib; i++)
+         s_vk.lib = dlopen(names[i], RTLD_NOW | RTLD_LOCAL);
+     if (!s_vk.lib) {
+@@ -629,6 +636,9 @@
+      * the device really has (a title's 4608-wide target on RADV). */
+     s_vk.max_dim = p.limits.maxImageDimension2D >= 4096u ? p.limits.maxImageDimension2D : 4096u;
+     VK_LOG("using device %d: %s\n", best, p.deviceName);
++#ifdef __ANDROID__
++    { extern void buzz_android_gpu_device(const char*); buzz_android_gpu_device(p.deviceName); }
++#endif
+     return 0;
+ }
+ 
+@@ -2076,7 +2086,7 @@
+ #ifdef _WIN32
+     return 1;
+ #else
+-    return 0;
++    return ps3_host_overlay_enabled();
+ #endif
+ }
+ 
+@@ -2095,7 +2105,6 @@
+  * present. Any failure only disables the overlay; presenting is unaffected. */
+ static void vk_overlay_targets_create(void)
+ {
+-#ifdef _WIN32
+     if (s_vk.overlay_pass && s_vk.sc_format != s_vk.overlay_format) {
+         pvkDestroyRenderPass(s_vk.device, s_vk.overlay_pass, NULL);
+         s_vk.overlay_pass = VK_NULL_HANDLE;
+@@ -2143,7 +2152,6 @@
+         VK_LOG("overlay framebuffers could not be created; host overlay disabled\n");
+         vk_overlay_targets_drop();
+     }
+-#endif
+ }
+ 
+ static void* vk_overlay_proc(void* instance, const char* name)
+@@ -2215,7 +2223,7 @@
+         VK_LOG("window disabled, continuing headless: SDL video init failed: %s\n", SDL_GetError());
+         return;
+     }
+-    Uint32 flags = SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN;
++    Uint32 flags = SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
+     if (vk_env_on("PS3RECOMP_VK_FULLSCREEN")) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+     s_vk.window = SDL_CreateWindow(title && title[0] ? title : "ps3recomp",
+                                    SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+@@ -2324,6 +2332,15 @@
+     for (size_t k = 0; k < 4; k++)
+         if (caps.supportedCompositeAlpha & alphas[k]) { alpha = alphas[k]; break; }
+ 
++    VkSurfaceTransformFlagBitsKHR transform = caps.currentTransform;
++#ifdef __ANDROID__
++    /* The final blit has no pre-rotation. Ask the presentation engine to
++     * rotate the landscape image into the display's native orientation. */
++    if (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
++        transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
++    VK_LOG("surface transform current=%u supported=0x%X selected=%u\n",
++           (unsigned)caps.currentTransform, (unsigned)caps.supportedTransforms, (unsigned)transform);
++#endif
+     vk_overlay_targets_drop();          /* views of the old swapchain's images */
+     VkSwapchainKHR old = s_vk.swapchain;
+     VkSwapchainCreateInfoKHR sci = {
+@@ -2335,7 +2352,7 @@
+                       (ps3_overlay_wanted() && (caps.supportedUsageFlags & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+                        ? VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : 0),
+         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+-        .preTransform = caps.currentTransform, .compositeAlpha = alpha,
++        .preTransform = transform, .compositeAlpha = alpha,
+         .presentMode = present_mode,    /* FIFO default, alternatives diagnostic only */
+         .clipped = VK_TRUE, .oldSwapchain = old,
+     };
+@@ -2396,7 +2413,6 @@
+ }
+ #endif
+ 
+-#ifdef _WIN32
+ /* ---- FSR 1 presentation (rsx_fsr1.h) ----------------------------------------
+  * EASU renders the frame into `mid`, the size of the letterboxed output
+  * rectangle; RCAS then draws `mid` into the swapchain image inside the
+@@ -2615,11 +2631,44 @@
+     if (s_fsr.set_layout) pvkDestroyDescriptorSetLayout(s_vk.device, s_fsr.set_layout, NULL);
+     memset(&s_fsr, 0, sizeof s_fsr);
+ }
++
++#ifdef __ANDROID__
++static int s_android_surface_lost;
++static void vk_android_restore_surface(void)
++{
++    if (!(SDL_GetWindowFlags(s_vk.window) & SDL_WINDOW_INPUT_FOCUS)) return;
++    vk_device_idle();
++    vk_overlay_targets_drop();
++    if (s_vk.swapchain) pvkDestroySwapchainKHR(s_vk.device, s_vk.swapchain, NULL);
++    s_vk.swapchain = VK_NULL_HANDLE;
++    if (s_vk.surface) pvkDestroySurfaceKHR(s_vk.instance, s_vk.surface, NULL);
++    s_vk.surface = VK_NULL_HANDLE;
++    extern int buzz_android_surface_begin(void);
++    extern void buzz_android_surface_end(void);
++    if (!buzz_android_surface_begin()) return;
++    const SDL_bool created = SDL_Vulkan_CreateSurface(s_vk.window, s_vk.instance, &s_vk.surface);
++    buzz_android_surface_end();
++    if (!created) return;
++    /* The previous native window no longer owns these synchronization objects. */
++    if (s_vk.sem_acquire) pvkDestroySemaphore(s_vk.device, s_vk.sem_acquire, NULL);
++    s_vk.sem_acquire = VK_NULL_HANDLE;
++    VkSemaphoreCreateInfo semi = { .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
++    if (pvkCreateSemaphore(s_vk.device, &semi, NULL, &s_vk.sem_acquire) != VK_SUCCESS) return;
++    if (vk_create_swapchain()) return;
++    s_android_surface_lost = 0;
++    VK_LOG("Android surface restored after resume\n");
++}
+ #endif
+ 
+ /* Blit the offscreen target into the next swapchain image and present it. */
+ static void vk_present_window(void)
+ {
++#ifdef __ANDROID__
++    extern int buzz_android_surface_ready(void);
++    if (!buzz_android_surface_ready()) return;
++    if (s_vk.windowed && s_vk.window && s_android_surface_lost) vk_android_restore_surface();
++    if (s_android_surface_lost) return;
++#endif
+     if (!s_vk.windowed || !s_vk.swapchain) return;
+ #ifdef _WIN32
+     /* The swapchain follows the client area. A minimized window presents
+@@ -2630,6 +2679,8 @@
+           vk_swapchain_lost();
+           if (!s_vk.windowed || !s_vk.swapchain || s_vk.sc_stale) return;
+       } }
++#else
++    if (SDL_GetWindowFlags(s_vk.window) & SDL_WINDOW_MINIMIZED) return;
+ #endif
+ 
+     u32 idx = 0;
+@@ -2637,6 +2688,9 @@
+     VkResult r = pvkAcquireNextImageKHR(s_vk.device, s_vk.swapchain, UINT64_MAX,
+                                         s_vk.sem_acquire, VK_NULL_HANDLE, &idx);
+     vk_perf_add(&s_perf.acquire_ns,acquire_start);
++#ifdef __ANDROID__
++    if (r == VK_ERROR_SURFACE_LOST_KHR) { s_android_surface_lost = 1; return; }
++#endif
+     if (r == VK_ERROR_OUT_OF_DATE_KHR) { vk_swapchain_lost(); return; }
+     if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) {
+         VK_LOG("vkAcquireNextImageKHR failed (VkResult %d)\n", (int)r); return;
+@@ -2675,7 +2729,6 @@
+     int fsr = 0;
+     float fsr_constants[8] = { (float)s_vk.width, (float)s_vk.height, (float)fit.width, (float)fit.height,
+                                0.0f, 0.0f, (float)fit.x, (float)fit.y };
+-#ifdef _WIN32
+     /* FSR 1 upscales only: an output larger than the internal resolution.
+      * EASU runs here, into mid; RCAS runs in the swapchain pass below. */
+     { unsigned filter, sharpness;
+@@ -2693,7 +2746,6 @@
+           vk_fsr_draw(cb, s_fsr.easu, 0, easu, 0, 0, fit.width, fit.height);
+           pvkCmdEndRenderPass(cb);
+       } }
+-#endif
+     if (!fsr) {
+         VkImageBlit blit = {
+             .srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+@@ -2707,7 +2759,6 @@
+                         1, &blit, VK_FILTER_LINEAR);
+     }
+     if (s_vk.sc_framebuffers[idx]) {
+-#ifdef _WIN32
+         /* The pass's own dependencies order it after the blit and leave the
+          * image in PRESENT_SRC. The queue lock covers uploads the hook submits. */
+         VkRenderPassBeginInfo rb = { .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+@@ -2721,12 +2772,15 @@
+                                                s_vk.sc_extent.width, s_vk.sc_extent.height, s_vk.sc_count,
+                                                (unsigned)s_vk.sc_format, PS3_HOST_OVERLAY_VULKAN, &vulkan };
+         vk_mutex_lock(&s_vk.queue_mu);
++#ifdef _WIN32
+         void* dpi = rsx_host_window_dpi_enter();
++#endif
+         ps3_host_overlay_draw(&frame);
++#ifdef _WIN32
+         rsx_host_window_dpi_leave(dpi);
++#endif
+         vk_mutex_unlock(&s_vk.queue_mu);
+         pvkCmdEndRenderPass(cb);
+-#endif
+     } else {
+         b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+         b.dstAccessMask = 0;
+@@ -2762,7 +2816,26 @@
+     r = vk_queue_present(&pi);
+     vk_perf_add(&s_perf.present_ns,present_start);
+     if(r==VK_SUCCESS||r==VK_SUBOPTIMAL_KHR)__atomic_fetch_add(&s_vk.window_presented,1,__ATOMIC_RELAXED);
++#ifdef __ANDROID__
++    if(r==VK_SUCCESS||r==VK_SUBOPTIMAL_KHR) {
++        static int reported;
++        if(!reported) { extern void buzz_android_gpu_ready(void); buzz_android_gpu_ready(); reported=1; }
++    }
++#endif
++#ifdef __ANDROID__
++    /* A compositor rotation can report SUBOPTIMAL every frame. Recreate
++     * only when the drawable size changes, or the swapchain is out of date. */
++    if (r == VK_ERROR_SURFACE_LOST_KHR) { s_android_surface_lost = 1; }
++    else if (r == VK_SUBOPTIMAL_KHR) {
++        int width = 0, height = 0;
++        SDL_Vulkan_GetDrawableSize(s_vk.window, &width, &height);
++        if (width > 0 && height > 0 &&
++            ((u32)width != s_vk.sc_extent.width || (u32)height != s_vk.sc_extent.height))
++            vk_swapchain_lost();
++    } else if (r == VK_ERROR_OUT_OF_DATE_KHR) vk_swapchain_lost();
++#else
+     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR) vk_swapchain_lost();
++#endif
+     else if (r != VK_SUCCESS) VK_LOG("vkQueuePresentKHR failed (VkResult %d)\n", (int)r);
+ }
+ 
+@@ -5406,6 +5479,17 @@
+     VkApplicationInfo app = { .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+                               .pApplicationName = "ps3recomp", .pEngineName = "ps3recomp RSX",
+                               .apiVersion = VK_API_VERSION_1_0 };
++#ifdef __ANDROID__
++    /* Android's WSI queries external image formats via the Vulkan 1.1
++     * dispatch. Negotiate with the loader rather than hiding those core
++     * entry points behind a Vulkan 1.0 instance (notably with Mesa drivers). */
++    PFN_vkEnumerateInstanceVersion query_version =
++        (PFN_vkEnumerateInstanceVersion)pvkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion");
++    uint32_t loader_version = VK_API_VERSION_1_0;
++    if (query_version && query_version(&loader_version) == VK_SUCCESS && loader_version >= VK_API_VERSION_1_1)
++        app.apiVersion = VK_API_VERSION_1_1;
++    VK_LOG("Android instance API %u.%u\n", VK_API_VERSION_MAJOR(app.apiVersion), VK_API_VERSION_MINOR(app.apiVersion));
++#endif
+     VkInstanceCreateInfo ci = { .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+                                 .pApplicationInfo = &app };
+     if (s_vk.windowed) {
+@@ -5413,6 +5497,13 @@
+         ci.ppEnabledExtensionNames = s_vk.inst_exts;
+     }
+     VkResult ir = pvkCreateInstance(&ci, NULL, &s_vk.instance);
++#ifdef __ANDROID__
++    if (ir == VK_ERROR_INCOMPATIBLE_DRIVER && app.apiVersion != VK_API_VERSION_1_0) {
++        app.apiVersion = VK_API_VERSION_1_0;
++        VK_LOG("Android driver requires Vulkan 1.0; retrying instance creation\n");
++        ir = pvkCreateInstance(&ci, NULL, &s_vk.instance);
++    }
++#endif
+     if (ir != VK_SUCCESS && s_vk.windowed) {
+         vk_window_drop("vkCreateInstance with the surface extensions failed");
+         ci.enabledExtensionCount = 0;
+@@ -5661,14 +5752,12 @@
+             vk_present_window();         /* FIFO: paced by the display */
+         }
+     }
+-#ifdef _WIN32
+     if (s_vk.device) {               /* the overlay owns device objects */
+         vk_device_idle();
+         vk_mutex_lock(&s_vk.queue_mu);
+         ps3_host_overlay_shutdown();
+         vk_mutex_unlock(&s_vk.queue_mu);
+     }
+-#endif
+     if (s_vk.windowed || s_vk.window) vk_window_drop(NULL);
+     if (s_vk.device) {
+         vk_device_idle();
+@@ -5691,9 +5780,7 @@
+         if (s_vk.fs)          pvkDestroyShaderModule(s_vk.device, s_vk.fs, NULL);
+         if (s_vk.framebuffer) pvkDestroyFramebuffer(s_vk.device, s_vk.framebuffer, NULL);
+         if (s_vk.render_pass) pvkDestroyRenderPass(s_vk.device, s_vk.render_pass, NULL);
+-#ifdef _WIN32
+         vk_fsr_release();
+-#endif
+         for (u32 u = 0; u < RSX_MAX_TEXTURES; u++) vk_destroy_image(&s_vk.tex[u]);
+         vk_destroy_image(&s_vk.dummy);
+         vk_destroy_image(&s_vk.depth);
+@@ -5732,10 +5819,31 @@
+     return s_window_closed?-1:0;
+ #else
+     int quit = 0;
++    const int fullscreen = ps3_host_get_fullscreen();
++    const Uint32 flags = SDL_GetWindowFlags(s_vk.window);
++    buzz_input_sdl_frame((flags & SDL_WINDOW_INPUT_FOCUS) != 0);
++    if (fullscreen >= 0 && !!(flags & SDL_WINDOW_FULLSCREEN) != fullscreen)
++        SDL_SetWindowFullscreen(s_vk.window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
++    static unsigned old_width, old_height;
++    unsigned width, height;
++    ps3_host_get_window_size(&width, &height);
++    if (width != old_width || height != old_height) {
++        old_width = width; old_height = height;
++        SDL_SetWindowSize(s_vk.window, width ? (int)width : 1280, height ? (int)height : 720);
++    }
+     SDL_Event e;
+     while (SDL_PollEvent(&e)) {
+-        if (e.type == SDL_QUIT) quit = 1;
+-        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) quit = 1;
++        if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE)) quit = 1;
++        if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_LOST && s_host_key_handler)
++            s_host_key_handler(0, 0);
++        if (ps3_host_overlay_message(s_vk.window, e.type, 0, (intptr_t)&e)) continue;
++        if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
++            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) quit = 1;
++            if (s_host_key_handler && !e.key.repeat) {
++                const u32 key = buzz_sdl_key_code(e.key.keysym.sym);
++                if (key) s_host_key_handler(key, e.type == SDL_KEYDOWN);
++            }
++        }
+     }
+     return quit ? -1 : 0;
+ #endif

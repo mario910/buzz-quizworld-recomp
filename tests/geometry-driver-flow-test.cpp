@@ -1,7 +1,10 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_pipeline.h"
-#include "../port/native_geometry_conversion_control.h"
 #include "../port/native_function_check.h"
+#if defined(BUZZ_GEOMETRY_LS_DRIVER)
+#include "../port/spu_arm_fp_state.h"
+#else
+#include "../port/native_geometry_conversion_control.h"
 #include "../port/native_geometry_snorm_output.h"
 #include "../port/native_geometry_float_output.h"
 #include "../port/native_geometry_half_output.h"
@@ -9,15 +12,16 @@
 #include "../port/native_geometry_i16_output.h"
 #include "../port/native_geometry_cmp_output.h"
 #include "../port/native_geometry_u8_integer_output.h"
-#include "../ps3recomp/runtime/spu/spu_dma.h"
 #include "zlib.h"
+#include <immintrin.h>
+#endif
+#include "../ps3recomp/runtime/spu/spu_dma.h"
 #include <cassert>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
-#include <immintrin.h>
 
 struct Call {
     unsigned pc, link;
@@ -131,7 +135,9 @@ static unsigned run_list_native=0,run_list_fallback=0,run_list_reference_count=0
 static unsigned list_native=0,list_fallback=0,list_references=0;
 static unsigned publication_references = 0, publication_native = 0, publication_fallback = 0;
 static unsigned routed_references = 0, routed_native = 0, routed_fallback = 0;
+#if !defined(BUZZ_GEOMETRY_LS_DRIVER)
 static void routing_inside(spu_context*);
+#endif
 static void drain(spu_context* ctx, uint32_t stop)
 {
     unsigned steps = 0;
@@ -145,6 +151,10 @@ static void drain(spu_context* ctx, uint32_t stop)
     assert(ctx->pc == stop);
 }
 extern "C" {
+#if defined(BUZZ_GEOMETRY_LS_DRIVER)
+int buzz_geometry_fallback_reasons_enabled() { return 0; }
+void buzz_geometry_job_fallback_reason(const char*) { abort(); }
+#endif
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
 void spu_indirect_branch(spu_context*) { abort(); }
 void spu_drain_call(spu_context* ctx, uint32_t link) { drain(ctx, link); }
@@ -360,7 +370,9 @@ static unsigned arguments_of(unsigned pc)
 static void model_call(spu_context* ctx, unsigned pc)
 {
     assert(ctx->host_depth == 1);
+#if !defined(BUZZ_GEOMETRY_LS_DRIVER)
     if (routing_probe && pc == 0xac68) routing_inside(ctx);
+#endif
     Call record{}; record.pc = pc; record.link = ctx->gpr[0]._u32[0];
     uint32_t hash = pc ^ uint32_t(calls.size() * 0x173b);
     for (unsigned reg = 3; reg <= arguments_of(pc); ++reg) {
@@ -388,6 +400,7 @@ static void model_call(spu_context* ctx, unsigned pc)
     ctx->pc = record.link;
 }
 #include "../analysis/native-geometry/phase3/test-driver-reference.inc"
+#if !defined(BUZZ_GEOMETRY_LS_DRIVER)
 #include "../analysis/native-geometry/phase3/test-half-stream-reference.inc"
 #define BUZZ_GEOMETRY_TEST_CONTINUATION_83C8_DEFINED 1
 #include "../analysis/native-geometry/phase3/test-float32-stream-reference.inc"
@@ -1972,6 +1985,8 @@ static void routing_inside(spu_context* ctx)
     memcpy(ctx->gpr, saved.data(), sizeof ctx->gpr); ctx->pc = pc;
 }
 
+#endif
+
 static uint32_t random_word(uint32_t& value) { value ^= value << 13; value ^= value >> 17; value ^= value << 5; return value; }
 static void synthetic(spu_context& ctx, unsigned trial)
 {
@@ -2043,6 +2058,27 @@ static void compare(spu_context& native, spu_context& reference)
     }
     assert(native.host_depth == 0 && reference.host_depth == 0);
 }
+#if defined(BUZZ_GEOMETRY_LS_DRIVER)
+int main()
+{
+    auto native = std::make_unique<spu_context>();
+    auto reference = std::make_unique<spu_context>();
+    const auto fp = buzz_arm_fp_save();
+    buzz_arm_fp_enter_rtz(fp);
+    for (scenario = 0; scenario < 1024; ++scenario) {
+        synthetic(*native, scenario);
+        assert(buzz_geometry_job_native_eligible(native.get()));
+        compare(*native, *reference);
+    }
+    synthetic(*native, 0);
+    buzz::geometry_job_put32(native->ls + 0x3fcf4, 16);
+    std::memcpy(reference.get(), native.get(), sizeof(*native));
+    assert(!buzz_geometry_job_native_eligible(native.get()));
+    assert(!std::memcmp(reference.get(), native.get(), sizeof(*native)));
+    buzz_arm_fp_restore(fp);
+    puts("PASS ARM64 geometry driver: 1024 call transcripts and full exit states");
+}
+#else
 int main(int argc, char** argv)
 {
     _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);
@@ -2208,3 +2244,5 @@ int main(int argc, char** argv)
     _mm_setcsr(previous);
     printf("Native outer driver: 1024 mock-pipeline scenarios, %u real entries, exact call/argument/nonvolatile-spill transcript and full exit state PASS\n", corpus);
 }
+
+#endif

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "spu_0000_at_0000000C.elf",
+    "offset": 12,
+    "size": 288,
+    "entry": 16,
+    "fnv": "0x557dfe8fa21dd5a4",
+    "sha256": "2eea89cd6d1bab60ad88e6cd3326a4fff9bd259a50513f5f53827e80c982bef5"
+  },
+  {
+    "name": "spu_0001_at_00000252.elf",
+    "offset": 594,
+    "size": 288,
+    "entry": 16,
+    "fnv": "0x557dfe8fa21dd5a4",
+    "sha256": "2eea89cd6d1bab60ad88e6cd3326a4fff9bd259a50513f5f53827e80c982bef5"
+  }
+]

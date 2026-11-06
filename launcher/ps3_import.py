@@ -25,8 +25,11 @@ CHUNK = 1024**2
 
 
 def file_digest(path):
+    digest = hashlib.sha256()
     with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").digest()
+        while chunk := stream.read(CHUNK):
+            digest.update(chunk)
+    return digest.digest()
 
 
 def atomic_bytes(target, data, root):

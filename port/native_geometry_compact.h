@@ -1,4 +1,28 @@
 #pragma once
+#if defined(__aarch64__)
+#include "native_geometry_ls.h"
+#define BUZZ_NEON_RTZ_NO_REMAP
+#include "spu_neon_rtz.h"
+#undef BUZZ_NEON_RTZ_NO_REMAP
+
+static inline uint32_t buzz_compact_pack4(u128 input, u128 scale, u128 bias)
+{
+    const u128 value = buzz_neon_fused(input, scale, bias, 0, 0);
+    const uint32x4_t bits = vld1q_u32(value._u32);
+    const uint32x4_t ieee = buzz_neon_ieee(bits);
+    const float32x4_t safe = vreinterpretq_f32_u32(vandq_u32(bits, ieee));
+    const int32x4_t converted = vcvtq_s32_f32(vmulq_n_f32(safe, 2147483648.0f));
+    u128 quantized;
+    vst1q_s32(quantized._s32, converted);
+    if (vminvq_u32(ieee) == 0)
+        for (unsigned lane = 0; lane < 3; ++lane)
+            if ((value._u32[lane] & 0x7f800000u) == 0x7f800000u)
+                quantized._u32[lane] = spu__cfl_lane(value._u32[lane], 31, 0);
+    return ((quantized._u32[0] >> 21) & 0x7ffu) |
+           (((quantized._u32[1] >> 21) & 0x7ffu) << 11) |
+           ((quantized._u32[2] >> 22) << 22);
+}
+#else
 #include "native_stagef_avx2.h"
 static __attribute__((noinline, cold)) v8 buzz_compact_cfl31_fix(v8 out, int valid, v8 a)
 {
@@ -35,6 +59,7 @@ static inline u128 buzz_compact_pack(v8 input, v8 scale, v8 bias)
     memcpy(&result, &lo, 16);
     return result;
 }
+#endif
 
 /* 5008 -> 51E0 -> 51C8: bounded word-aligned 11/11/10-bit output.
  * The lifted final column restores all registers, padding and continuation. */
@@ -87,16 +112,26 @@ static int buzz_compact_native(spu_context *ctx, void (*last)(spu_context *))
         (input_first < sent_end && sent_first < input_end) ||
         (output_first < sent_end && sent_first < output_end))
         return 0;
+#if defined(__aarch64__)
+    const u128 scale = ctx->gpr[35], bias = ctx->gpr[34];
+#else
     const v8 scale = v8_bcast(ctx->gpr[35]), bias = v8_bcast(ctx->gpr[34]);
+#endif
     for (unsigned col = column; col < columns - 1; ++col)
     {
         const unsigned within = (stride * col + attribute) & 15;
         for (unsigned group = 0; group < groups; ++group)
         {
             const unsigned p = source + col * 16 + group * in_step;
+#if defined(__aarch64__)
+            uint32_t packed[4];
+            for (unsigned lane = 0; lane < 4; ++lane)
+                packed[lane] = buzz_compact_pack4(buzz_geometry_ls_read(ctx->ls, p + offsets[lane]), scale, bias);
+#else
             const u128 ab = buzz_compact_pack(v8_ld2(ctx->ls, p, p + offsets[1]), scale, bias);
             const u128 cd = buzz_compact_pack(v8_ld2(ctx->ls, p + offsets[2], p + offsets[3]), scale, bias);
             const uint32_t packed[4] = {ab._u32[0], ab._u32[1], cd._u32[0], cd._u32[1]};
+#endif
             for (unsigned lane = 0; lane < 4; ++lane)
             {
                 const unsigned cursor = ctx->gpr[52]._u32[lane] + col * 16 + (group + 1) * in_step;

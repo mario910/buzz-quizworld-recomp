@@ -1,3 +1,4 @@
+#include "geometry-test-fp.h"
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_host_skin_job.h"
 #include "../port/native_geometry_host_clip_job.h"
@@ -51,8 +52,10 @@ static void drain(spu_context* c, uint32_t stop)
 int main(int argc, char** argv)
 {
     assert(argc == 2);
+#ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-    _mm_setcsr((_mm_getcsr() & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);
+#endif
+    buzz_test_enter_rtz();
     auto entry = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
     auto before = std::make_unique<uint8_t[]>(sizeof(spu_context));
     auto data = std::make_unique<GeometryHostInputData>(); auto workspace = std::make_unique<GeometryHostSkinWorkspace>();
@@ -204,7 +207,7 @@ int main(int argc, char** argv)
     constexpr uint32_t special[] = {0,0x80000000,1,0x007fffff,0x00800000,0x3f800000,0xbf800000,0x7f7fffff,
         0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff,0x7fc12345,0x3f000000,0xbf000000};
     uint64_t corner_values = 0;
-    for (unsigned kind = 0; kind < 2; ++kind) for (unsigned trial = 0; trial < 48; ++trial) {
+    for (unsigned kind = 0; kind < 2; ++kind) for (unsigned trial = 0; trial < 64; ++trial) {
         const auto* seed = kind ? object_seed.get() : weighted_seed.get();
         memcpy(entry.get(), seed, sizeof(*entry)); entry->ls = entry->ls_store;
         current_case = std::string(kind ? "object FP corner " : "weighted FP corner ") + std::to_string(trial);
@@ -217,7 +220,7 @@ int main(int argc, char** argv)
             geometry_job_put32(entry->ls + palette + matrix * 48 + coefficient * 4, special[(trial + matrix + coefficient) % 16]);
         if (!kind) for (unsigned lane = 0; lane < 8; ++lane) for (unsigned influence = 0; influence < 4; ++influence) {
             auto* at = entry->ls + e.input[6].lsa + lane * 8 + influence * 2;
-            at[0] = uint8_t(trial % 4 == 0 ? 0 : trial % 4 == 1 ? (influence == lane % 4 ? 255 : 0) :
+            at[0] = uint8_t(trial >= 48 ? (influence == trial % 4 ? 255 : 0) : trial % 4 == 0 ? 0 : trial % 4 == 1 ? (influence == lane % 4 ? 255 : 0) :
                 trial % 4 == 2 ? 255 : trial * 19 + lane * 31 + influence * 73);
         }
         memcpy(before.get(), entry.get(), sizeof(*entry));
@@ -273,8 +276,10 @@ int main(int argc, char** argv)
         case 5: e.input[4].lsa |= 1; break;
         case 6: e.input[4].size_flags = UINT32_MAX; break;
         case 7: {
+            // A wholly zero influence must still reject an invalid palette index.
+            for (unsigned vertex = 0; vertex < e.vertices; ++vertex) entry->ls[skin.weights + vertex * 8 + 6] = 0;
             auto* at = entry->ls + skin.weights + (e.vertices - 1) * 8 + 6;
-            at[0] = 0; at[1] = uint8_t(skin.matrices); break; // Even zero weights read their palette entry.
+            at[0] = 0; at[1] = uint8_t(skin.matrices); break; // Zero weights still require valid palette indices.
         }
         case 8: entry->ls[0xda10] ^= 1; break;
         case 9: e.input[15].size = 47; break;
@@ -353,7 +358,7 @@ int main(int argc, char** argv)
     printf("PASS host cull composed producer: %u real entries; %u original full skin producer exact captures; %u weighted jobs/%llu vertices; %llu logical component values; entry LS/GPR/control unchanged\n",
         jobs, captured, skinned, static_cast<unsigned long long>(skinned_vertices), static_cast<unsigned long long>(compared));
     printf("PASS preceding object producer: %u jobs/%llu vertices;original matrix transform and direction normalization exact\n", objects, static_cast<unsigned long long>(object_vertices));
-    printf("PASS composed FP corners:96 modified hot-family cases/%llu logical values;zeros,denormals,extended exponents,sparse/dense/non-normalized weights;14 unchanged-state rejects\n", static_cast<unsigned long long>(corner_values));
+    printf("PASS composed FP corners:128 modified hot-family cases/%llu logical values;zeros,denormals,extended exponents,sparse/dense/non-normalized weights;14 unchanged-state rejects\n", static_cast<unsigned long long>(corner_values));
     for(const auto& [format,count]:formats)printf("Observed clip format%u: %u jobs\n",format,count);
     printf("PASS clip parameter corners:64 viewport/default-matrix special-value cases;unsigned16 viewport sums/wrap;reversed/denormal depth bounds; %llu preceding logical component values exact\n",static_cast<unsigned long long>(parameter_corner_values));
 #ifndef BUZZ_HOST_EXTRA_FP_CASES

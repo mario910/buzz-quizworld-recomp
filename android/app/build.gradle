@@ -1,0 +1,139 @@
+plugins {
+    id 'com.android.application' version '8.9.2'
+}
+
+def workspace = providers.gradleProperty('buzzWorkspace').map { file(it).canonicalFile }.orNull
+def sdl = providers.gradleProperty('sdlSource').map { file(it).canonicalFile }.orNull
+def hostPython = providers.gradleProperty('buzzPython').map { file(it).canonicalFile }.orNull
+if (workspace == null || sdl == null || hostPython == null) {
+    throw new GradleException('Set -PbuzzWorkspace, -PsdlSource and -PbuzzPython to absolute paths. See android/README.md.')
+}
+def generation = new groovy.json.JsonSlurper().parse(new File(workspace, 'analysis/game-generation.json'))
+if (generation.family != 'quizworld-eu100' ||
+        generation.elf_sha256 != '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8') {
+    throw new GradleException('The Android build requires the generated EU 1.00 profile.')
+}
+def completion = new groovy.json.JsonSlurper().parse(new File(workspace, 'analysis/native-completion/profile.json')).source
+if (completion != 'ppu_recomp_013.cpp') {
+    throw new GradleException('Unexpected EU 1.00 completion source.')
+}
+def neonImage36 = providers.gradleProperty('buzzNeonImage36').map { it.toBoolean() }.getOrElse(false)
+
+def neonImage7 = providers.gradleProperty('buzzNeonImage7').map { it.toBoolean() }.getOrElse(false)
+def compareImage7 = providers.gradleProperty('buzzCompareImage7').map { it.toBoolean() }.getOrElse(false)
+def neonJobFp = providers.gradleProperty('buzzNeonJobFp').map { it.toBoolean() }.getOrElse(false)
+def neonGeometry = providers.gradleProperty('buzzNeonGeometry').map { it.toBoolean() }.getOrElse(false)
+def neonGeometryDriver = providers.gradleProperty('buzzNeonGeometryDriver').map { it.toBoolean() }.getOrElse(false)
+def neonHostGeometry = providers.gradleProperty('buzzNeonHostGeometry').map { it.toBoolean() }.getOrElse(false)
+def neonVideoIdct = providers.gradleProperty('buzzNeonVideoIdct').map { it.toBoolean() }.getOrElse(false)
+def rendererCpuRefinements = providers.gradleProperty('buzzRendererCpuRefinements').map { it.toBoolean() }.getOrElse(false)
+def batchedTextureUploads = providers.gradleProperty('buzzBatchedTextureUploads').map { it.toBoolean() }.getOrElse(false)
+def specializedVertexFetch = providers.gradleProperty('buzzSpecializedVertexFetch').map { it.toBoolean() }.getOrElse(false)
+def textureSnapshot = providers.gradleProperty('buzzTextureSnapshot').map { it.toBoolean() }.getOrElse(false)
+def descriptorBatch = providers.gradleProperty('buzzDescriptorBatch').map { it.toBoolean() }.getOrElse(false)
+def descriptorWrites = providers.gradleProperty('buzzDescriptorWrites').map { it.toBoolean() }.getOrElse(false)
+def drawState = providers.gradleProperty('buzzDrawState').map { it.toBoolean() }.getOrElse(false)
+def statePackets = providers.gradleProperty('buzzStatePackets').map { it.toBoolean() }.getOrElse(false)
+
+def directDraw = providers.gradleProperty('buzzDirectDraw').map { it.toBoolean() }.getOrElse(false)
+
+def constantRanges = providers.gradleProperty('buzzConstantRanges').map { it.toBoolean() }.getOrElse(false)
+
+def vertexStream = providers.gradleProperty('buzzVertexStream').map { it.toBoolean() }.getOrElse(false)
+
+def rsxReadyCheck = providers.gradleProperty('buzzRsxReadyCheck').map { it.toBoolean() }.getOrElse(false)
+def rsxParkWake = providers.gradleProperty('buzzRsxParkWake').map { it.toBoolean() }.getOrElse(false)
+def rsxMethodFastpath = providers.gradleProperty('buzzRsxMethodFastpath').map { it.toBoolean() }.getOrElse(false)
+def ppuWordWait = providers.gradleProperty('buzzPpuWordWait').map { it.toBoolean() }.getOrElse(false)
+
+def uniformReuse = providers.gradleProperty('buzzUniformReuse').map { it.toBoolean() }.getOrElse(false)
+def indexFusion = providers.gradleProperty('buzzIndexFusion').map { it.toBoolean() }.getOrElse(false)
+def packedIndexFusion = providers.gradleProperty('buzzPackedIndexFusion').map { it.toBoolean() }.getOrElse(false)
+def geometryDeferredClip = providers.gradleProperty('buzzGeometryDeferredClip').map { it.toBoolean() }.getOrElse(false)
+def indexPrepare = providers.gradleProperty('buzzIndexPrepare').map { it.toBoolean() }.getOrElse(false)
+def geometryIndexSequential = providers.gradleProperty('buzzGeometryIndexSequential').map { it.toBoolean() }.getOrElse(false)
+def geometryIndexBatched = providers.gradleProperty('buzzGeometryIndexBatched').map { it.toBoolean() }.getOrElse(false)
+def spursPoolLayout = providers.gradleProperty('buzzSpursPoolLayout').map { it.toBoolean() }.getOrElse(false)
+def geometryCullCompact = providers.gradleProperty('buzzGeometryCullCompact').map { it.toBoolean() }.getOrElse(false)
+def spursIdleSpinUs = providers.gradleProperty('buzzSpursIdleSpinUs').getOrElse('-1')
+def spursPoolAutoSpinUs = providers.gradleProperty('buzzSpursPoolAutoSpinUs').getOrElse('-1')
+if (!(spursIdleSpinUs ==~ /-1|0|[1-9][0-9]{0,3}/) || spursIdleSpinUs.toInteger() > 1000) {
+    throw new GradleException('buzzSpursIdleSpinUs must be -1 or an integer from 0 to 1000')
+}
+
+android {
+    namespace 'org.buzzrecomp.game'
+    compileSdk 35
+    ndkVersion '30.0.16248370'
+
+    defaultConfig {
+        applicationId 'org.buzzrecomp.game'
+        minSdk 29
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+        ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild {
+            cmake {
+                arguments "-DBUZZ_ANDROID_SDL_SOURCE=${sdl}",
+                    '-DCMAKE_C_FLAGS_DEBUG=-O1 -g1',
+                    '-DCMAKE_CXX_FLAGS_DEBUG=-O1 -g1',
+                    '-DPORT_SPU_LS_DEBUG_HOOKS=OFF',
+                    "-DBUZZ_RENDERER_CPU_REFINEMENTS=${rendererCpuRefinements ? 'ON' : 'OFF'}",
+                    "-DBUZZ_VK_BATCH_UPLOAD=${batchedTextureUploads ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_VERTEX_FETCH=${specializedVertexFetch ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_TEXTURE_SNAPSHOT=${textureSnapshot ? 'ON' : 'OFF'}",
+                    "-DBUZZ_VK_DESCRIPTOR_BATCH=${descriptorBatch ? 'ON' : 'OFF'}",
+                    "-DBUZZ_VK_DESCRIPTOR_WRITES=${descriptorWrites ? 'ON' : 'OFF'}",
+                    "-DBUZZ_VK_UNIFORM_REUSE=${uniformReuse ? 'ON' : 'OFF'}",
+                    "-DBUZZ_VK_DRAW_STATE=${drawState ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_STATE_PACKETS=${statePackets ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_DIRECT_DRAW=${directDraw ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_CONSTANT_RANGES=${constantRanges ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_VERTEX_STREAM=${vertexStream ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RSX_READY_CHECK=${rsxReadyCheck ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RSX_PARK_WAKE=${rsxParkWake ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RSX_METHOD_FASTPATH=${rsxMethodFastpath ? 'ON' : 'OFF'}",
+                    "-DBUZZ_PPU_WORD_WAIT=${ppuWordWait ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_INDEX_FUSION=${indexFusion ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_PACKED_FUSION=${packedIndexFusion ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_DEFERRED_CLIP=${geometryDeferredClip ? 'ON' : 'OFF'}",
+                    "-DBUZZ_RENDERER_INDEX_PREPARE=${indexPrepare ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_INDEX_SEQUENTIAL=${geometryIndexSequential ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_INDEX_BATCHED=${geometryIndexBatched ? 'ON' : 'OFF'}",
+                    "-DBUZZ_SPURS_POOL_LAYOUT=${spursPoolLayout ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_CULL_COMPACT=${geometryCullCompact ? 'ON' : 'OFF'}",
+                    "-DBUZZ_SPURS_IDLE_SPIN_US=${spursIdleSpinUs}",
+                    "-DBUZZ_SPURS_POOL_AUTO_SPIN_US=${spursPoolAutoSpinUs}",
+                    "-DPS3RECOMP_DIR=${rootProject.projectDir.parentFile}/ps3recomp",
+                    "-DPython3_EXECUTABLE=${hostPython}",
+                    "-DRECOMP_DIR=${workspace}/port/recompiled",
+                    "-DSPU_DIR=${workspace}/port/spu",
+                    "-DPORT_HOST_PROFILE_DIR=${workspace}/analysis/host-disc100/port",
+                    "-DPORT_COMPLETION_SOURCE=${workspace}/analysis/native-completion/${completion}",
+                    "-DPORT_MSTREAM_DIR=${workspace}/analysis/mstream-modules"
+                def image36 = neonImage36 ? "${workspace}/analysis/native-image36/spu_recomp.c" : ""
+                def image7 = neonImage7 ? "${workspace}/analysis/native-image7/spu_recomp.c" : ""
+                def image39 = neonJobFp ? "${workspace}/analysis/native-image39/spu_recomp.c" : ""
+                def image40 = neonJobFp ? "${workspace}/analysis/native-image40/spu_recomp.c" : ""
+                def geometry = neonGeometryDriver && neonHostGeometry ? "${workspace}/analysis/native-geometry/phase3-host-arm64/spu_recomp.c" :
+                    neonGeometryDriver ? "${workspace}/analysis/native-geometry/phase3-arm64/spu_recomp.c" :
+                    neonGeometry ? "${workspace}/analysis/native-geometry/arm64/spu_recomp.c" : ""
+                arguments "-DPORT_IMAGE36_SOURCE=${image36}", "-DPORT_IMAGE7_SOURCE=${image7}",
+                    "-DPORT_VIDEO_IDCT_SOURCE=${neonVideoIdct ? workspace.toString() + '/analysis/native-video-idct/spu_recomp.c' : ''}",
+                    "-DPORT_GEOMETRY_HOST_NEON=${neonHostGeometry ? 'ON' : 'OFF'}",
+                    "-DPORT_IMAGE39_SOURCE=${image39}", "-DPORT_IMAGE40_SOURCE=${image40}",
+                    "-DPORT_GEOMETRY_SOURCE=${geometry}", "-DPORT_IMAGE7_COMPARE=${compareImage7 ? 'ON' : 'OFF'}"
+                targets 'BuzzQuizWorldRecomp', 'main_hook', 'file_redirect_hook', 'gsl_alloc_hook'
+            }
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path '../../port/CMakeLists.txt'
+            version '4.4.4'
+        }
+    }
+    sourceSets.main.java.srcDir new File(sdl, 'android-project/app/src/main/java')
+    packagingOptions { jniLibs { useLegacyPackaging = true } }
+}

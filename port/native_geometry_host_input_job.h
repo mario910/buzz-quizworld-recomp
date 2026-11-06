@@ -142,12 +142,7 @@ inline bool capture_geometry_host_inputs(const spu_context& c, const GeometryHos
             if (f.storage == 2) output = decode_geometry_host_positions8(c.ls + source, active);
             else if (f.storage == 3) output = decode_geometry_host_half_stream8(c.ls, source, f.stride, f.components, active);
             else {
-                alignas(32) uint32_t packed[8]{};
-                for (unsigned lane = 0; lane < active; ++lane) {
-                    const auto* at = c.ls + source + lane * f.stride;
-                    packed[lane] = (uint32_t(at[0]) << 16) | (uint32_t(at[1]) << 8) | at[2];
-                }
-                const v8 input = _mm256_load_si256(reinterpret_cast<const v8*>(packed));
+                const v8 input = geometry_host_unit_words8(c.ls+source,f.stride,active);
                 if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(_mm256_and_si256(input, v8_set(15)), v8_set(11)))) {
                     if (reason) *reason = "host unsupported unit selector"; return false;
                 }

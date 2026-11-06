@@ -1,7 +1,14 @@
 /* B880/B934/B940 blended skin matrices and position transform. Process pairs
- * with AVX2, then retain the original final pair for exact pipeline state. */
+ * with SIMD, then retain the original final pair for exact pipeline state. */
 #pragma once
+#if defined(__aarch64__)
+#include "native_geometry_ls.h"
+#define BUZZ_NEON_RTZ_NO_REMAP
+#include "spu_neon_rtz.h"
+#undef BUZZ_NEON_RTZ_NO_REMAP
+#else
 #include "native_stagef_avx2.h"
+#endif
 
 static inline u128 buzz_skin_broadcast(uint32_t word)
 {
@@ -24,6 +31,12 @@ static inline int buzz_skin_native(spu_context* ctx, void (*setup)(spu_context*)
         destination + count*48ull > SPU_LS_SIZE || ctx->gpr[53]._u32[0] != palette + 16 ||
         ctx->gpr[52]._u32[0] != palette + 32 || !buzz_skin_constants_match(ctx)) return 0;
     uint8_t* memory = ctx->ls_store;
+#if defined(__aarch64__)
+    uint8x8_t maximum = vdup_n_u8(0);
+    for (unsigned i = 0; i < count; i += 2)
+        maximum = vmax_u8(maximum, vld2_u8(memory + weights + 8*i).val[1]);
+    const unsigned max_index = vmaxv_u8(maximum);
+#else
     __m128i maximum = _mm_setzero_si128();
     for (unsigned i = 0; i < count; i += 2)
         maximum = _mm_max_epu8(maximum, _mm_and_si128(
@@ -33,6 +46,7 @@ static inline int buzz_skin_native(spu_context* ctx, void (*setup)(spu_context*)
     maximum = _mm_max_epu8(maximum, _mm_srli_si128(maximum, 2));
     maximum = _mm_max_epu8(maximum, _mm_srli_si128(maximum, 1));
     const unsigned max_index = (unsigned)_mm_cvtsi128_si32(maximum) & 255;
+#endif
     const uint64_t palette_end = palette + (max_index + 1ull)*48;
     const uint64_t position_end = position + (count + 2ull)*16;
     const uint64_t weights_end = weights + (count + 2ull)*8;
@@ -45,6 +59,41 @@ static inline int buzz_skin_native(spu_context* ctx, void (*setup)(spu_context*)
         BUZZ_SKIN_OVERLAP(destination, destination_end, weights, weights_end) ||
         BUZZ_SKIN_OVERLAP(destination, destination_end, palette, palette_end)) return 0;
 #undef BUZZ_SKIN_OVERLAP
+#if defined(__aarch64__)
+    for (unsigned vertex = 0; vertex < count - 2; ++vertex) {
+        const uint8_t* skin = memory + weights + vertex*8;
+        const uint8_t* paired = memory + weights + (vertex ^ 1u)*8;
+        const uint32x4_t weights4 = {skin[0], skin[2], skin[4], skin[6]};
+        u128 coefficients;
+        vst1q_u32(coefficients._u32, vreinterpretq_u32_f32(vcvtq_f32_u32(weights4)));
+        coefficients = buzz_neon_mul(coefficients, ctx->gpr[90]);
+        u128 matrix[3], translation = buzz_skin_broadcast(0);
+        for (unsigned row = 0; row < 3; ++row) {
+            u128 raw = buzz_skin_broadcast(0);
+            int started = 0;
+            for (unsigned j = 0; j < 4; ++j) if (skin[2*j] || paired[2*j]) {
+                const u128 factor = buzz_skin_broadcast(coefficients._u32[j]);
+                const u128 value = buzz_geometry_ls_read(memory, palette + skin[2*j + 1]*48 + row*16);
+                raw = started ? buzz_neon_fused(factor, value, raw, 0, 0) : buzz_neon_mul(factor, value);
+                started = 1;
+            }
+            translation._u32[row] = raw._u32[3];
+            raw._u32[3] = row == 0 ? 0x3f800000u : 0;
+            matrix[row] = raw;
+            buzz_geometry_ls_write(memory, destination + vertex*48 + row*16, raw);
+        }
+        const u128 point = buzz_geometry_ls_read(memory, position + vertex*16);
+        u128 y = point, z = point;
+        for (unsigned lane = 0; lane < 3; ++lane) {
+            y._u32[lane] = point._u32[(lane + 1) % 3];
+            z._u32[lane] = point._u32[(lane + 2) % 3];
+        }
+        u128 out = buzz_neon_fused(point, matrix[0], translation, 0, 0);
+        out = buzz_neon_fused(y, matrix[1], out, 0, 0);
+        out = buzz_neon_fused(z, matrix[2], out, 0, 0);
+        buzz_geometry_ls_write(memory, position + vertex*16, out);
+    }
+#else
     const v8 xyz = _mm256_setr_epi32(-1, -1, -1, 0, -1, -1, -1, 0);
     for (unsigned vertex = 0; vertex < count - 2; vertex += 2) {
         const uint8_t* skin = memory + weights + vertex*8;
@@ -79,6 +128,7 @@ static inline int buzz_skin_native(spu_context* ctx, void (*setup)(spu_context*)
         output = v8_fma(_mm256_shuffle_epi32(point, _MM_SHUFFLE(3,1,0,2)), matrix[2], output);
         v8_st2(memory, position + vertex*16, position + (vertex + 1)*16, output);
     }
+#endif
     const unsigned skipped = count - 2;
     const u128 saved_count = ctx->gpr[84], saved_destination = ctx->gpr[96];
     ctx->gpr[80] = spu_a(ctx->gpr[80], buzz_skin_broadcast(skipped*16));

@@ -1,7 +1,9 @@
 /* Generated scalar leaf vs guarded native SIMD, all architectural state.
  * Compile reference_06d8.c WITHOUT SPU_NATIVE_RTZ and kernel_06d8.c WITH it. */
 #include "../port/native_image36.h"
+#if !defined(__aarch64__)
 #include <immintrin.h>
+#endif
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +11,27 @@
 #include <time.h>
 #ifdef _WIN32
 #include <windows.h>
+#endif
+
+#if defined(__aarch64__)
+static uint64_t fp_control(void) { uint64_t v; asm volatile("mrs %0, fpcr" : "=r"(v)); return v; }
+static void set_fp_control(uint64_t v) { asm volatile("msr fpcr, %0; isb" :: "r"(v) : "memory"); }
+static uint64_t fp_status(void) { uint64_t v; asm volatile("mrs %0, fpsr" : "=r"(v)); return v; }
+static void set_fp_status(uint64_t v) { asm volatile("msr fpsr, %0" :: "r"(v) : "memory"); }
+static uint64_t test_control(uint64_t original, unsigned n)
+{
+    return (original & ~(7ull << 22)) | ((uint64_t)(n & 7) << 22);
+}
+#define REFERENCE_CONTROL 0
+#else
+static uint64_t fp_control(void) { return _mm_getcsr(); }
+static void set_fp_control(uint64_t v) { _mm_setcsr((unsigned)v); }
+static uint64_t test_control(uint64_t original, unsigned n)
+{
+    return (original & ~0xe07fu) | 0x1f80u | ((n % 4) << 13) |
+           ((n & 4) ? 0x8040u : 0) | (n & 0x3fu);
+}
+#define REFERENCE_CONTROL 0x1f80
 #endif
 
 void buzz_image36_06d8_reference(spu_context*);
@@ -40,15 +63,15 @@ static void check(unsigned n)
     a.gpr[0]._u32[0] = 0x2500;
     memcpy(&b, &a, sizeof b); b.ls = b.ls_store;
     memcpy(&c, &a, sizeof c); c.ls = c.ls_store;
-    const unsigned saved = _mm_getcsr();
+    const uint64_t saved = fp_control();
     // Production AVX2 reference uses a double-precision TwoSum fast path.
     // Its oracle environment is RN (the game's default), not arbitrary host
     // rounding. Independently check native against exact INTEGER FP helpers.
-    _mm_setcsr(0x1f80);
+    set_fp_control(REFERENCE_CONTROL);
     g_spu_trampoline_fn = incoming;
     buzz_image36_06d8_reference(&a);
     void (*expected_next)(spu_context*) = g_spu_trampoline_fn;
-    _mm_setcsr(saved);
+    set_fp_control(saved);
     g_spu_trampoline_fn = incoming;
     buzz_image36_06d8_oracle(&c);
     assert(!memcmp(a.gpr, c.gpr, sizeof a.gpr));
@@ -56,14 +79,22 @@ static void check(unsigned n)
     assert(g_spu_trampoline_fn == expected_next);
     g_spu_trampoline_fn = incoming;
     buzz_image36_mode = 1;
+#if defined(__aarch64__)
+    const uint64_t status = fp_status();
+    set_fp_status(0x10);
+#endif
     buzz_image36_run(&b, buzz_image36_06d8_reference, buzz_image36_06d8_native);
-    assert(_mm_getcsr() == saved);
+#if defined(__aarch64__)
+    assert(fp_status() == 0x10);
+    set_fp_status(status);
+#endif
+    assert(fp_control() == saved);
     assert(g_spu_trampoline_fn == expected_next);
     if (memcmp(a.gpr, b.gpr, sizeof a.gpr)) {
         for (unsigned r = 0; r < 128; ++r) for (unsigned w = 0; w < 4; ++w)
             if (a.gpr[r]._u32[w] != b.gpr[r]._u32[w])
-                fprintf(stderr, "case=%u mxcsr=%08X r%u.word%u reference=%08X native=%08X\n",
-                        n, saved, r, w, a.gpr[r]._u32[w], b.gpr[r]._u32[w]);
+                fprintf(stderr, "case=%u fp-control=%08X r%u.word%u reference=%08X native=%08X\n",
+                        n, (unsigned)saved, r, w, a.gpr[r]._u32[w], b.gpr[r]._u32[w]);
     }
     assert(!memcmp(a.gpr, b.gpr, sizeof a.gpr));
     assert(!memcmp(a.ls, b.ls, SPU_LS_SIZE));
@@ -108,7 +139,7 @@ static void captured(const char* path, double* reference_time, double* native_ti
     for (unsigned i = 0; i < 100; ++i) {
         unsigned native = (i ^ (i >> 1)) & 1;
         memcpy(&a, &entry, sizeof a); a.ls = a.ls_store;
-        _mm_setcsr(0x1f80); g_spu_trampoline_fn = incoming;
+        set_fp_control(REFERENCE_CONTROL); g_spu_trampoline_fn = incoming;
         double start = seconds_now();
         if (native) {
             buzz_image36_mode = 1;
@@ -123,13 +154,12 @@ static void captured(const char* path, double* reference_time, double* native_ti
 
 int main(int argc, char** argv)
 {
-    const unsigned original = _mm_getcsr();
+    const uint64_t original = fp_control();
     for (unsigned n = 0; n < 4000; ++n) {
-        _mm_setcsr((original & ~0xe07fu) | 0x1f80u | ((n % 4) << 13) |
-                   ((n & 4) ? 0x8040u : 0) | (n & 0x3fu));
+        set_fp_control(test_control(original, n));
         check(n);
     }
-    _mm_setcsr(original);
+    set_fp_control(original);
     assert(!buzz_image36_mismatches());
     double reference_time = 0, native_time = 0;
     for (int i = 1; i < argc; ++i) captured(argv[i], &reference_time, &native_time);
@@ -137,14 +167,14 @@ int main(int argc, char** argv)
         printf("Captured image36 leaf: %d cases x100, reference %.2f us, native %.2f us\n",
                argc - 1, reference_time * 1e6 / ((argc - 1) * 50),
                native_time * 1e6 / ((argc - 1) * 50));
-    _mm_setcsr(original);
+    set_fp_control(original);
     for (fault = 0; fault < 5; ++fault) {
         memset(&a, 0, sizeof a); a.ls = a.ls_store; a.gpr[2]._u32[0] = 1;
         buzz_image36_mode = 2;
         g_spu_trampoline_fn = NULL;
         buzz_image36_run(&a, buzz_image36_06d8_reference, broken_native);
         assert(buzz_image36_mismatches() == fault + 1);
-        assert(_mm_getcsr() == original);
+        assert(fp_control() == original);
     }
-    puts("PASS image36: 4000 full states, 1..4 iterations, host-depth/rounding/MXCSR, 5 injected faults caught");
+    puts("PASS image36: 4000 full states, 1..4 iterations, host-depth/rounding/FP control, 5 injected faults caught");
 }

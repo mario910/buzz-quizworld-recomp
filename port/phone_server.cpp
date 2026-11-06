@@ -76,8 +76,8 @@ std::vector<std::string> addresses() {
         if(a->OperStatus==IfOperStatusUp&&a->IfType!=IF_TYPE_SOFTWARE_LOOPBACK)
             for(auto* u=a->FirstUnicastAddress;u;u=u->Next)add(u->Address.lpSockaddr);
 #else
-    ifaddrs* list=nullptr;
-    if(getifaddrs(&list)==0){for(auto* a=list;a;a=a->ifa_next)if(a->ifa_flags&IFF_UP)add(a->ifa_addr);freeifaddrs(list);}
+    ifaddrs* interfaces=nullptr;
+    if(getifaddrs(&interfaces)==0){for(auto* a=interfaces;a;a=a->ifa_next)if(a->ifa_flags&IFF_UP)add(a->ifa_addr);freeifaddrs(interfaces);}
 #endif
     std::vector<std::string> list(result.begin(),result.end());list.push_back("127.0.0.1");return list;
 }

@@ -30,6 +30,15 @@
 
 /* The lifter's generated header, which declares ppu_context and the function
  * table. It comes first: everything below is written against that struct. */
+#include <chrono>
+#include "vblank_clock.h"
+#include <filesystem>
+#include <thread>
+#ifdef __ANDROID__
+#include <SDL_system.h>
+#include <android/log.h>
+#endif
+#include <stdexcept>
 #include "ppu_recomp.h"
 #include "ps3emu/ps3_ftrace.h"
 #include "ps3emu/host_controls.h"
@@ -45,14 +54,28 @@
  * passthrough to <windows.h>; off Windows the toolkit's shim supplies the same
  * names over pthreads and mmap, so the call sites below are written once. */
 #include "win32_compat.h"
+#include "rsx_idle_wait.h"
+#ifdef BUZZ_RENDERER_WAIT_TRACE
+#include "renderer_wait_trace.h"
+extern "C" uint32_t cellGcm_control_guest_addr(void);
+extern "C" uint32_t cellGcm_display_buffer_count(void);
+static void trace_fifo_position(int kind) {
+    if(!PS3_FT_ON() || !cellGcm_display_buffer_count())return;
+    const uint32_t control=cellGcm_control_guest_addr();
+    const auto word=[](uint32_t ea) {
+        return __builtin_bswap32(__atomic_load_n(reinterpret_cast<const uint32_t*>(vm_base+ea),__ATOMIC_RELAXED));
+    };
+    const auto now=ps3_ft_now();
+    ps3_ft_span(kind,0,word(control),word(control+4),now,now);
+}
+#endif
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-void ps3_sampler_start(void);
-
 #ifdef _WIN32
+void ps3_sampler_start(void);
 extern "C" uint32_t ppu_prof_resolve_host(void*);
 extern "C" uint32_t g_last_hle_nid;
 extern "C" const char* g_last_hle_name;
@@ -98,6 +121,9 @@ static LONG WINAPI buzz_crash_report(EXCEPTION_POINTERS* exception)
 #endif
 
 #ifndef _WIN32
+#include <fcntl.h>
+#include <sys/file.h>
+#include <unistd.h>
 #include <sys/mman.h>   /* mmap: the guest arena, see alloc_guest_vm */
 #endif
 
@@ -163,6 +189,7 @@ void     cellGcmTickFlip(void);
 int      cellGcm_take_flip_pending(void);
 void     cellGcm_rsx_process_fifo(void);      /* drain get -> put */
 void     cellGcm_fifo_kick_wait(unsigned ms); /* interruptible render-worker idle */
+void*    cellGcm_fifo_kick_event(void);
 unsigned cellGcm_flip_request_count(void);
 }
 
@@ -188,6 +215,7 @@ extern "C" int  rsx_vulkan_backend_init(uint32_t w, uint32_t h, const char* titl
 extern "C" void rsx_vulkan_backend_present(void);
 extern "C" uint64_t rsx_vulkan_backend_presented_frames(void);
 extern "C" int  rsx_vulkan_backend_pump_messages(void);
+extern "C" int  rsx_vulkan_backend_windowed(void);
 extern "C" void rsx_vulkan_backend_redisplay(void);
 #  define rsx_backend_init    rsx_vulkan_backend_init
 #  define rsx_backend_redisplay rsx_vulkan_backend_redisplay
@@ -254,6 +282,12 @@ static uint64_t g_render_perf_epoch,g_render_perf_previous,g_render_perf_flush;
 static uint64_t g_render_perf_drain_ns;
 static uint64_t g_render_perf_present_ns,g_render_perf_serial;
 static unsigned g_render_perf_drains,g_render_perf_calls;
+static uint64_t g_render_perf_idle_ns,g_render_perf_idle_budget_ns,g_render_perf_max_idle_ns,g_render_perf_tick_late_ns;
+static unsigned g_render_perf_waits,g_render_perf_ticks;
+static bool g_rsx_early_flip;
+#ifdef BUZZ_RSX_READY_CHECK
+extern "C" int buzz_gcm_fifo_ready(void);
+#endif
 static void render_perf_init(void)
 {
 #ifdef _WIN32
@@ -267,7 +301,7 @@ static void render_perf_init(void)
     if(!g_render_perf_file){fprintf(stderr,"[render-perf] cannot open diagnostic CSV\n");return;}
     setvbuf(g_render_perf_file,nullptr,_IOFBF,16384);
     g_render_perf_epoch=g_render_perf_flush=ps3_ft_now();
-    fprintf(g_render_perf_file,"frame,presented_delta,elapsed_ms,interval_ms,drain_ms,present_ms,drain_calls,guest_present_calls,backend\n");
+    fprintf(g_render_perf_file,"frame,presented_delta,elapsed_ms,interval_ms,drain_ms,present_ms,drain_calls,guest_present_calls,backend,idle_ms,idle_budget_ms,max_idle_ms,tick_late_ms,waits,ticks\n");
     fprintf(stderr,"[render-perf] buffered frame timing enabled (%s); disable image captures for comparisons\n",RSX_BACKEND_NAME);
 }
 static uint64_t g_frame_drain_ns;   /* FIFO drain time since the last present */
@@ -318,28 +352,38 @@ static void present_hold(void)
     if(!hold){grid+=period;return;}
     grid-=hold/64;
     const uint64_t due=now+hold;
+#ifdef _WIN32
     static HANDLE timer=CreateWaitableTimerExW(nullptr,nullptr,0x00000002,TIMER_ALL_ACCESS);
     if(timer&&hold>300000){
         LARGE_INTEGER t;t.QuadPart=-(long long)((hold-200000)/100);
         if(SetWaitableTimer(timer,&t,0,nullptr,nullptr,FALSE))WaitForSingleObject(timer,INFINITE);
     }
+#else
+    if(hold>300000)std::this_thread::sleep_for(std::chrono::nanoseconds(hold-200000));
+#endif
     while(ps3_ft_now()<due)YieldProcessor();
     grid+=period;
 }
 
 static void present_guest_frame(void)
 {
+#ifdef BUZZ_RENDERER_WAIT_TRACE
+    const uint64_t trace_present_start=buzz_wait_trace_begin();
+#endif
     present_hold();
     const uint64_t start=g_render_perf_file?ps3_ft_now():0;
     rsx_backend_present();
-    /* Mailbox/unsynchronised presentation already completed this flip. With
-     * host pacing enabled, deliver its completion now instead of adding a
+#ifdef BUZZ_RENDERER_WAIT_TRACE
+    buzz_wait_trace_end(BUZZ_FT_HOST_PRESENT,0,0,trace_present_start);
+#endif
+    /* Mailbox/unsynchronised presentation already submitted this flip. With
+     * Vulkan or host pacing enabled, deliver its completion now instead of adding a
      * second wait for the next synthetic vblank. TickFlip only completes an
      * executed FIFO flip; it does not manufacture a completion or skip fences. */
-    if (ps3_host_get_frame_limit() == 30) cellGcmTickFlip();
+    if (g_rsx_early_flip || ps3_host_get_frame_limit() == 30) cellGcmTickFlip();
     /* This thread increments and guest threads read, so interlocked rather
      * than a volatile ++, which on arm64 is neither atomic nor a fence. */
-    const auto frame=InterlockedIncrement(&g_frames_presented);
+    [[maybe_unused]] const auto frame=InterlockedIncrement(&g_frames_presented);
     if(g_render_perf_file){
         const uint64_t now=ps3_ft_now();
         g_render_perf_present_ns+=now-start;++g_render_perf_calls;
@@ -349,12 +393,16 @@ static void present_guest_frame(void)
         const auto serial=(uint64_t)frame; // legacy non-benchmark backends
 #endif
         if(serial==g_render_perf_serial)return;
-        fprintf(g_render_perf_file,"%llu,%llu,%.3f,%.3f,%.3f,%.3f,%u,%u,%s\n",
+        fprintf(g_render_perf_file,"%llu,%llu,%.3f,%.3f,%.3f,%.3f,%u,%u,%s,%.3f,%.3f,%.3f,%.3f,%u,%u\n",
             (unsigned long long)serial,(unsigned long long)(serial-g_render_perf_serial),
             double(now-g_render_perf_epoch)/1e6,g_render_perf_previous?double(now-g_render_perf_previous)/1e6:0.0,
-            double(g_render_perf_drain_ns)/1e6,double(g_render_perf_present_ns)/1e6,g_render_perf_drains,g_render_perf_calls,RSX_BACKEND_NAME);
+            double(g_render_perf_drain_ns)/1e6,double(g_render_perf_present_ns)/1e6,g_render_perf_drains,g_render_perf_calls,RSX_BACKEND_NAME,
+            double(g_render_perf_idle_ns)/1e6,double(g_render_perf_idle_budget_ns)/1e6,
+            double(g_render_perf_max_idle_ns)/1e6,double(g_render_perf_tick_late_ns)/1e6,g_render_perf_waits,g_render_perf_ticks);
         g_render_perf_serial=serial;g_render_perf_previous=now;g_render_perf_drain_ns=0;
         g_render_perf_present_ns=0;g_render_perf_drains=0;g_render_perf_calls=0;
+        g_render_perf_idle_ns=g_render_perf_idle_budget_ns=g_render_perf_max_idle_ns=g_render_perf_tick_late_ns=0;
+        g_render_perf_waits=g_render_perf_ticks=0;
         if(now-g_render_perf_flush>=500000000ull){
             if(fflush(g_render_perf_file)||ferror(g_render_perf_file)){
                 fprintf(stderr,"[render-perf] CSV write failed; measurements disabled\n");
@@ -371,18 +419,36 @@ static DWORD WINAPI frame_clock(LPVOID)
     const char* title = getenv("PS3_TITLE");
     if (!title || !*title) title = "Buzz! Quiz World";
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
+#ifdef _WIN32
     if(!getenv("PS3RECOMP_VK_WINDOW"))_putenv_s("PS3RECOMP_VK_WINDOW","1");
     if(!getenv("PS3RECOMP_VK_GUEST_PROGRAMS"))_putenv_s("PS3RECOMP_VK_GUEST_PROGRAMS","1");
+#else
+    setenv("PS3RECOMP_VK_WINDOW","1",0);
+    setenv("PS3RECOMP_VK_GUEST_PROGRAMS","1",0);
+#endif
 #endif
 
+#ifdef __ANDROID__
+    if (std::filesystem::exists("profile-frames")) {
+        setenv("BUZZ_RENDER_PERF", "frame-times.csv", 0);
+        setenv("PS3RECOMP_VK_PROFILE", "1", 0);
+    }
+#endif
     int rsx_ok = (rsx_backend_init(WINDOW_WIDTH, WINDOW_HEIGHT, title) == 0);
     fprintf(stderr, "[rsx] %s backend init %s\n", RSX_BACKEND_NAME,
             rsx_ok ? "OK -- window open" : "FAILED");
+#if defined(__linux__) && defined(BUZZ_STANDALONE)
+    const char* window = getenv("PS3RECOMP_VK_WINDOW");
+    if (!rsx_ok || ((!window || strcmp(window, "0")) && !rsx_vulkan_backend_windowed())) {
+        fprintf(stderr, "Cannot open a Vulkan window. Check the display session and Vulkan driver.\n");
+        exit(EXIT_FAILURE);
+    }
+#endif
     render_perf_init();
 
     unsigned  last_flip = 0;
-    ULONGLONG next_tick = GetTickCount64();
-    ULONGLONG last_report = next_tick;
+    buzz::VblankClock vblank(ps3_ft_now());
+    ULONGLONG last_report = GetTickCount64();
     const char* trace_trigger=getenv("BUZZ_TRACE_TRIGGER");
     ULONGLONG next_trace_check=0;
     unsigned idle_ms = 4;
@@ -393,8 +459,68 @@ static DWORD WINAPI frame_clock(LPVOID)
     }
     fprintf(stderr, "[rsx] worker idle timeout=%u ms (FIFO kick enabled)\n", idle_ms);
 
+    const auto enabled=[](const char* key,bool fallback) { const char* value=getenv(key);return value && *value ? !strcmp(value,"1") : fallback; };
+#ifdef BUZZ_RSX_READY_CHECK
+    const bool ready_check=enabled("BUZZ_RSX_READY_CHECK",true);
+    fprintf(stderr,"[rsx] consumer readiness check=%d\n",ready_check);
+#endif
+#ifdef BUZZ_EXPERIMENTAL_VULKAN
+    g_rsx_early_flip=enabled("BUZZ_RSX_EARLY_FLIP",true);
+#else
+    g_rsx_early_flip=enabled("BUZZ_RSX_EARLY_FLIP",false);
+#endif
+#ifdef _WIN32
+    const bool precise_wait=enabled("BUZZ_RSX_PRECISE_WAIT",true);
+    const bool poll_before_arm=enabled("BUZZ_RSX_POLL_BEFORE_ARM",true);
+    buzz::RsxIdleWait idle_timer;
+    const char* kick_option=getenv("GCM_FIFO_KICK");
+    const bool fifo_kick_enabled=!(kick_option && *kick_option=='0');
+    fprintf(stderr,"[rsx] pacing precise=%d early-flip=%d poll-before-arm=%d\n",precise_wait,g_rsx_early_flip,poll_before_arm);
+#else
+    fprintf(stderr,"[rsx] pacing native-wait early-flip=%d\n",g_rsx_early_flip);
+#endif
+
     for (;;) {
-        cellGcm_fifo_kick_wait(idle_ms);
+        // Still interruptible by guest fences, but never sleep a full idle
+        // interval when the next vblank is less than that interval away.
+        const uint64_t idle_start=ps3_ft_now();
+        unsigned idle_budget=vblank.wait_ms(idle_start, idle_ms);
+#ifdef BUZZ_RSX_READY_CHECK
+        // Keep the normal pause/30-FPS pacing. Otherwise, a successful prior
+        // drain plus fresh PUT can prove that sleeping would delay ready work.
+        if(idle_budget && ready_check && !ps3_host_get_paused() &&
+           ps3_host_get_frame_limit()!=30 && buzz_gcm_fifo_ready())idle_budget=0;
+#endif
+        const uint64_t idle_budget_ns=idle_budget*1000000ull;
+        bool waited=false;
+#ifdef BUZZ_RENDERER_WAIT_TRACE
+        unsigned trace_wait_reason=0;
+        trace_fifo_position(BUZZ_FT_FIFO_BEFORE_IDLE);
+#endif
+#ifdef _WIN32
+        // The 30 FPS path has its own guest/present pacing. Preserve its SDK
+        // wait; shorter idle wakeups improve tails but can reduce throughput
+        // when combined with that separate pacing schedule.
+        if(precise_wait && ps3_host_get_frame_limit()!=30){
+            HANDLE kick=fifo_kick_enabled ? (HANDLE)cellGcm_fifo_kick_event() : nullptr;
+            const auto wait_result=idle_timer.wait(kick,idle_budget_ns,poll_before_arm);
+            waited=wait_result!=buzz::RsxIdleWait::Result::fallback;
+#ifdef BUZZ_RENDERER_WAIT_TRACE
+            trace_wait_reason=wait_result==buzz::RsxIdleWait::Result::kick?1:waited?2:0;
+#endif
+        }
+#endif
+        if(!waited)cellGcm_fifo_kick_wait(idle_budget);
+#ifdef BUZZ_RENDERER_WAIT_TRACE
+        buzz_wait_trace_end(BUZZ_FT_RSX_IDLE,trace_wait_reason,idle_budget,idle_start);
+        trace_fifo_position(BUZZ_FT_FIFO_AFTER_IDLE);
+#endif
+        if(g_render_perf_file){
+            const uint64_t spent=ps3_ft_now()-idle_start;
+            g_render_perf_idle_ns+=spent;g_render_perf_idle_budget_ns+=idle_budget_ns;
+            if(spent>g_render_perf_max_idle_ns)g_render_perf_max_idle_ns=spent;
+            ++g_render_perf_waits;
+        }
 #ifdef rsx_backend_redisplay
         /* Host pause (PC menu): no vblank, flip or FIFO drain reaches the
          * guest, so its frame loop waits; the window keeps showing the last
@@ -406,7 +532,7 @@ static DWORD WINAPI frame_clock(LPVOID)
             }
             rsx_backend_redisplay();
             Sleep(16);
-            next_tick = GetTickCount64();
+            vblank.reset(ps3_ft_now());
             continue;
         }
 #endif
@@ -451,7 +577,13 @@ static DWORD WINAPI frame_clock(LPVOID)
         }
 
         int fired = 0;
-        while ((long long)(now - next_tick) >= 0 && fired < 240) {
+        const uint64_t tick_now = ps3_ft_now();
+        while (vblank.due(tick_now) && fired < 240) {
+            if(g_render_perf_file){
+                const uint64_t late=tick_now-vblank.deadline();
+                if(late>g_render_perf_tick_late_ns)g_render_perf_tick_late_ns=late;
+                ++g_render_perf_ticks;
+            }
             cellGcmTickVBlank();
             cellGcmTickFlip();
             /* Present a pending flip BEFORE draining any further. The flip
@@ -467,10 +599,10 @@ static DWORD WINAPI frame_clock(LPVOID)
              * labels the game's per-frame logic blocks on, so it has to keep
              * advancing at 60 Hz even while present() throttles. */
             if (rsx_ok) drain_guest_fifo();
-            next_tick += 16;             /* ~60 Hz */
+            vblank.advance();             /* exact 60 Hz, no millisecond drift */
             fired++;
         }
-        if (fired >= 240) next_tick = now;   /* fell too far behind -- resync */
+        if (fired >= 240) vblank.reset(ps3_ft_now());   /* fell too far behind -- resync */
 
         /* Drain at the outer cadence too, not only on the 16 ms tick: titles
          * fence every render pass on a label the drain writes, and one wave of
@@ -611,12 +743,96 @@ static int report_replay_interpreter_counts()
     return 0;
 }
 extern "C" void buzz_print_runtime_defaults();
+#ifdef __ANDROID__
+extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv)
+#else
 int main(int argc, char** argv)
+#endif
 {
     if (argc == 2 && strcmp(argv[1], "--runtime-defaults") == 0) {
         buzz_print_runtime_defaults();
         return 0;
     }
+#ifdef __ANDROID__
+    const char* elf = nullptr;
+#else
+    const char* elf = argc > 1 ? argv[1] : nullptr;
+#endif
+#if defined(BUZZ_STANDALONE)
+    if (!elf) {
+        namespace fs = std::filesystem;
+        try {
+#ifdef _WIN32
+            wchar_t executable[32768];
+            const DWORD length = GetModuleFileNameW(nullptr, executable, 32768);
+            if (!length || length == 32768) throw std::runtime_error("Cannot locate the game executable.");
+            const auto executable_path = fs::path(executable);
+#elif defined(__ANDROID__)
+            const char* files = SDL_AndroidGetInternalStoragePath();
+            if (!files || !*files) throw std::runtime_error("Cannot locate the app files directory.");
+            const auto base = fs::path(files);
+#else
+            const auto base = fs::read_symlink("/proc/self/exe").parent_path();
+#endif
+#ifdef _WIN32
+            const auto base = executable_path.parent_path();
+#endif
+            const auto runtime = base / "runtime";
+            if (!fs::is_regular_file(runtime / "EBOOT.elf") ||
+                !fs::is_regular_file(runtime / "disc/PS3_GAME/PARAM.SFO") ||
+                !fs::is_directory(runtime / "dev_flash"))
+                throw std::runtime_error("The prepared runtime folder is missing or incomplete. Run BuzzPrepare.");
+            fs::current_path(runtime);
+            // Keep the handle open until process exit to guard local saves/settings.
+#ifdef _WIN32
+            if (CreateFileW(L".game.lock", GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL, nullptr) == INVALID_HANDLE_VALUE)
+                throw std::runtime_error("This copy is already running or its runtime folder is not writable.");
+#else
+            const int lock = open(".game.lock", O_CREAT | O_CLOEXEC | O_NOFOLLOW | O_WRONLY, 0600);
+            if (lock < 0 || flock(lock, LOCK_EX | LOCK_NB) != 0)
+                throw std::runtime_error("This copy is already running or its runtime folder is not writable.");
+#endif
+            fs::create_directories("dev_hdd0");
+            fs::create_directories("dev_hdd1");
+#ifdef _WIN32
+            const auto set_path = _putenv_s;
+#else
+            const auto set_path = [](const char* name, const char* value) { return setenv(name,value,1); };
+#endif
+            if (set_path("PS3_VFS_ROOT", "disc") || set_path("PS3_DISC_ROOT", "disc") ||
+                set_path("PS3_DEV_FLASH", "dev_flash") || set_path("PS3_HDD0_ROOT", "dev_hdd0") ||
+                set_path("PS3_HDD1_ROOT", "dev_hdd1"))
+                throw std::runtime_error("Cannot configure the local game folders.");
+            elf = "EBOOT.elf";
+#ifdef _WIN32
+            DWORD consoleProcesses[2];
+            if (GetConsoleProcessList(consoleProcesses, 2) <= 1) {
+                FILE* output = nullptr;
+                if (!freopen_s(&output, "game.log", "w", stdout) &&
+                    !freopen_s(&output, "game-error.log", "w", stderr))
+                    ShowWindow(GetConsoleWindow(), SW_HIDE);
+            }
+#elif defined(__ANDROID__)
+            (void)freopen("game.log", "w", stdout);
+            (void)freopen("game-error.log", "w", stderr);
+#else
+            if (!isatty(STDERR_FILENO)) {
+                (void)freopen("game.log", "w", stdout);
+                (void)freopen("game-error.log", "w", stderr);
+            }
+#endif
+        } catch (const std::exception& error) {
+            fprintf(stderr, "%s\n", error.what());
+#ifdef _WIN32
+            MessageBoxA(nullptr, error.what(), "Buzz! Quiz World", MB_OK | MB_ICONERROR);
+#elif defined(__ANDROID__)
+            __android_log_print(ANDROID_LOG_ERROR, "Buzz", "%s", error.what());
+#endif
+            return 2;
+        }
+    }
+#endif
     /* Configure streams before their first use. Buffers must outlive all
      * guest/worker threads, including normal exit's final flush. A forced
      * kill may lose the tail; live crash debugging can opt out explicitly. */
@@ -682,7 +898,7 @@ int main(int argc, char** argv)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
     SetUnhandledExceptionFilter(buzz_crash_report);
 #endif
-    if (argc < 2) {
+    if (!elf) {
         printf("usage: %s <PPU ELF>\n", argv[0]);
         return 2;
     }
@@ -711,13 +927,13 @@ int main(int argc, char** argv)
         return replay_result ? replay_result : diagnostic_result;
     }
 
-    uint32_t entry = ppu_load_elf(argv[1]);
+    uint32_t entry = ppu_load_elf(elf);
     if (!entry) {
-        fprintf(stderr, "ERROR: could not load %s\n", argv[1]);
+        fprintf(stderr, "ERROR: could not load %s\n", elf);
         return 1;
     }
 
-    derive_vfs_root(argv[1]);
+    derive_vfs_root(elf);
     printf("[boot] VFS root: %s\n", ppu_vfs_root);
 
     ppu_recomp_register();   /* lifted function table -> address map */
@@ -742,7 +958,9 @@ int main(int argc, char** argv)
     fflush(stdout);
     fflush(stderr);
 
+#ifdef _WIN32
     ps3_sampler_start(); /* opt-in PS3_SAMPLE; includes lifted SPU host map */
+#endif
     int rc = ppu_run(entry, STACK_TOP);
     printf("\n[boot] ppu_run returned %d (entry function unwound)\n", rc);
 

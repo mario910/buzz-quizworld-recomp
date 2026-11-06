@@ -1,9 +1,10 @@
 # Built-in game and firmware preparation
 
-Run `Prepare-Buzz.cmd` to prepare your own game and firmware. The importer
+Open BuzzPrepare to prepare your own game and firmware. The importer
 reads the files directly; it does not start RPCS3, scetool, or another
 decryption executable. Building still requires the development tools listed
-in README. The resulting game and native launcher do not need Python.
+in README. Open the game directly from `dist/BuzzQuizWorldRecomp.exe` on Windows or
+`dist/BuzzQuizWorldRecomp` on Linux.
 
 Choose your game ISO/dump, firmware PUP or installed `dev_flash`, an optional
 update PKG/EBOOT, and a private local key file for encrypted inputs. A key
@@ -20,7 +21,7 @@ You can also prepare files without opening a window:
   --keys 'D:\Private\ps3.keys' --update 'D:\MyUpdate.pkg' --import-only
 ```
 
-Omit `--import-only` to generate/build after import. Omit `--update` to use
+Use `--dist` instead of `--import-only` to build and publish the standalone distribution. Omit `--update` to use
 the disc executable. Use `--resume <session-directory>` with the same inputs
 to resume. Old sessions prepared with the RPCS3 helper are retained, but must
 be imported into a new session with the built-in importer. Existing prepared
@@ -52,9 +53,8 @@ To set up the importer manually:
    key=<64-byte PUP HMAC value as 128 hexadecimal characters>
    ```
 
-3. Open `Prepare-Buzz.cmd`. The wizard selects `runtime/keys/ps3.keys`
-   automatically. If you store the file elsewhere, choose it in **Decryption
-   keys (local file)**, or pass its full path with `--keys` on the command line.
+3. Open BuzzPrepare. The wizard selects `runtime/keys/ps3.keys`
+   automatically. If you store the file elsewhere, choose it in **Local keys (if encrypted)**, or pass its full path with `--keys` on the command line.
 
 These are manually obtained input files. The app does not contact those sites
 or download keys. Keep the resulting key file in the ignored directory or

@@ -5,11 +5,16 @@ FetchContent_Declare(imgui
 FetchContent_MakeAvailable(imgui)
 add_library(buzz_game_imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 target_include_directories(buzz_game_imgui PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
-target_link_libraries(buzz_game_imgui PUBLIC d3d12 dxgi d3dcompiler dwmapi)
+if(WIN32)
+    target_sources(buzz_game_imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+    target_link_libraries(buzz_game_imgui PUBLIC d3d12 dxgi d3dcompiler dwmapi)
+else()
+    target_sources(buzz_game_imgui PRIVATE ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp)
+    target_link_libraries(buzz_game_imgui PUBLIC SDL2::SDL2)
+endif()
 if(BUZZ_EXPERIMENTAL_VULKAN)
     # The SDK loads libvulkan at run time; ImGui takes its entry points from
     # the backend's instance through ImGui_ImplVulkan_LoadFunctions.

@@ -2,7 +2,7 @@
 # Vulkan (build-vulkan-windows) is the default renderer; D3D12 (build-windows)
 # is built beside it as the fallback. -Renderer picks one; -VulkanExperimental
 # is the older spelling of -Renderer Vulkan.
-param([ValidateRange(1,64)][int]$Jobs = 6, [switch]$SkipGeneration, [switch]$SkipLauncher,
+param([ValidateRange(1,64)][int]$Jobs = 6, [switch]$SkipGeneration, [switch]$SkipLauncher, [switch]$Standalone,
     [ValidateSet('Both','Vulkan','D3D12')][string]$Renderer = 'Both', [switch]$VulkanExperimental)
 $projectRoot = (Split-Path -Parent $PSScriptRoot)
 
@@ -27,7 +27,8 @@ foreach($option in ($profileOptions | ConvertFrom-Json).PSObject.Properties) {
 }
 if (-not $SkipGeneration) { & (Join-Path $root 'scripts/generate.ps1') -Jobs $Jobs }
 foreach($vulkan in $variants) {
-    & (Join-Path $root 'scripts/build-windows.ps1') -Jobs $Jobs -VulkanExperimental:$vulkan @nativeOptions
+    & (Join-Path $root 'scripts/build-windows.ps1') -Jobs $Jobs -VulkanExperimental:$vulkan -Standalone:$Standalone @nativeOptions
 }
+if($Standalone){return}
 if(-not $SkipLauncher){& (Join-Path $root 'scripts/build-launcher.ps1') -Jobs $Jobs}
 Write-Output ("Build ready ({0}). Start with Launch-Buzz.cmd; the launcher prefers Vulkan unless PC settings select D3D12." -f $Renderer)

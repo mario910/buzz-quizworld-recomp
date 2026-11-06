@@ -4,7 +4,8 @@ Keep the root simple for players: **Prepare-Buzz.cmd → Launch-Buzz.cmd**.
 Developer commands live below `scripts/`; old root-level script paths have moved.
 
 ```text
-launcher/native/ C++ SDL3/ImGui player launcher; no interpreter at runtime
+preparation/     Qt wizard and native import/generation primitives
+launcher/native/ Legacy C++ SDL3/ImGui launcher for developer builds
 launcher/        Legacy Python UI/models and developer preparation pipeline
 scripts/         Windows setup, generation, build and direct-start commands
 config/          Public example configurations (personal configs stay ignored)
@@ -22,7 +23,9 @@ ps3recomp/       Pinned SDK submodule (normal fork master, validated v0.17.0 cod
 | Install local build/tool dependencies; create paths template without overwriting it | `scripts/Setup-Buzz.ps1` (`-SkipInstall` only checks an existing environment) |
 | Read-only game/ELF/firmware validation | `toolenv/Scripts/python.exe tools/verify-game.py` |
 | Supported generation + native build | `scripts/Build-Buzz.ps1 [-Jobs 6] [-SkipGeneration]` |
-| GUI and input setup | `Launch-Buzz.cmd` / `scripts/Launch-Buzz.ps1` |
+| Build and package the preparation wizard | Windows `scripts/build-preparation.ps1 -QtPrefix <Qt MSVC prefix>`, Linux `bash scripts/build-preparation-linux.sh` |
+| Build and publish a standalone game without the wizard | `toolenv/Scripts/python.exe tools/prepare-game.py --dist ...` |
+| Legacy developer launcher | `scripts/Launch-Buzz.ps1` |
 | Native launcher only (no game/SDK needed) | CMake from `launcher/native/`, or `scripts/build-launcher.ps1` |
 | Native launcher tests | `ctest --test-dir build-launcher --output-on-failure` |
 | Runtime host settings prototype | `config/pc-settings.example.ini`, `port/pc_runtime.*`, SDK `ps3emu/host_controls.h` |
@@ -31,6 +34,8 @@ ps3recomp/       Pinned SDK submodule (normal fork master, validated v0.17.0 cod
 | Experimental compiler/kernel variants | `scripts/build-windows.ps1` |
 | Windows renderer architecture and diagnostics | [Vulkan and D3D12](renderer.md) |
 | Performance experiments | `perf/` and `tools/inspect/` |
+| Android ARM64 APK and device staging | [Android build guide](../android/README.md), `android/profiles/reference29.properties` |
+| Optimization inventory consistency | `python tools/document-optimizations.py --check`; [status catalog](optimization-status.md) |
 | 30 FPS cap checks | `tests/scripts/test-frame-limit.ps1`; `perf/measure-frame-limit.ps1 -LiveSwitches` |
 | Renderer frame-time A/B (menu, solo round) | `perf/measure-vulkan-scene.ps1`; `perf/scene-window-stats.py`; [measurement rules](performance.md) |
 
@@ -72,8 +77,8 @@ withdrawn GUI smoke test; it neither shows the window nor starts the game.
 
 ## What a build needs
 
-A clone, the user's own game files and `Prepare-Buzz.cmd` are enough for the
-full native profile, in any checkout or worktree. Every generated adapter is
+The full native profile builds from a checkout or worktree, the build tools,
+and the user's own game files. Every generated adapter is
 derived from the lift that `scripts/generate.ps1` writes from the ELF; nothing
 private needs to be copied from another checkout.
 
