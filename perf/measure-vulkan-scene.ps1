@@ -5,8 +5,9 @@
 # perf/scene-window-stats.py.
 #   -Scene Menu   studio main menu via BUZZ_SCRIPT; heavy camera tour from ~35 s
 #   -Scene Round  first single-player challenge with the first saved profile
-#                 (main menu -> Play -> 9x down -> challenges); round starts
-#                 ~137 s after launch, printed as round_start_s
+#                 (main menu -> Play -> 8x down -> challenges in EU 1.00); round starts
+#                 ready input at ~137 s, printed as round_start_s for compatibility.
+#                 This timestamp does not prove that a question has started.
 #   -Env 'K=V;K2=V2'  extra environment for an A/B (e.g. PS3RECOMP_ENG_DEPTH_COLOR=0)
 #   -Shots        PrintWindow screenshots along the navigation, to check it
 param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
@@ -17,6 +18,7 @@ param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [string]$CpuBinding = '', [string]$CpuOutput = '',
       [double[]]$CpuWindow = @(),
       [ValidateRange(26,120)][int]$RoundIntroSeconds = 26,
+      [ValidateRange(0,32)][int]$SoloMenuSteps = 8,
       [ValidateRange(0,900)][int]$ContentShotAt = 0,
       [ValidateRange(0,900000)][int]$ContentReadbackAtMs = 0,
       [string]$InterpreterBinding = '', [string]$InterpreterOutput = '',
@@ -119,7 +121,7 @@ try {
         Shot 'menu'
         Phase 'menu'
         Key $red; Start-Sleep 5                  # Play
-        1..9 | ForEach-Object { Key $orange; Start-Sleep 1 }; Start-Sleep 2
+        for($step=0;$step -lt $SoloMenuSteps;$step++){ Key $orange; Start-Sleep 1 }; Start-Sleep 2
         Key $red; Start-Sleep 6                  # single-player challenges
         Phase 'scene-load'
         Key $red; Start-Sleep $RoundIntroSeconds # first challenge host intro
@@ -132,7 +134,8 @@ try {
         Write-Output 'round_ready_input=fixed-single-v2'
         $roundStart = ((Get-Date) - $t0).TotalSeconds
         Write-Output ("round_start_s={0:N1}" -f $roundStart)
-        Phase 'solo-round'
+        Write-Output 'round_progression_verified=0'
+        Phase 'player-ready-input'
         Shot 'round'
         $end = $roundStart + $RoundSeconds
     }

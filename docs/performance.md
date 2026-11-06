@@ -85,6 +85,12 @@ a measurement. Debug checkers and instruction counters are separate runs.
 The associated `*-report.py` and `scene-window-stats.py` tools validate and
 summarize their artifacts. Use each runner's configured renderer-relative
 window; do not mix old round windows with later navigation schedules.
+The EU 1.00 solo challenge entry uses eight downward presses in the Play menu;
+`-SoloMenuSteps` permits an explicit layout override. The runner's legacy
+`round_start_s` field marks completion of the ready-input sequence, not verified
+gameplay. It emits `round_progression_verified=0` until question, answer and
+score progression have been inspected independently. An animated player avatar
+alone does not establish round coverage, including on a locked desktop.
 
 Captures introduce work. Place a one-shot GPU readback before the timed
 window, verify the PPM/PNG pixels, and inspect it after the run. Disable
