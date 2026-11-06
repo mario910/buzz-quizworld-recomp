@@ -34,10 +34,14 @@ variables; retain the full run configuration and inspect captures too.
 
 For a native change require:
 
-1. Exact corpus replay of ordered DMA/atomic/channel events, all published
-   output bytes and job exit controls. Use `BUZZ_REPLAY_CONTRACT=1`.
-2. At least 10,000 completed live whole-job I/O comparisons. Report skipped
-   comparisons and fallbacks separately.
+1. State the job-boundary contract. Preserve DMA bounds, publication order,
+   atomic/channel effects and completion controls. Exact paths compare all
+   published bytes (`BUZZ_REPLAY_CONTRACT=1`). Explicitly relaxed arithmetic may
+   differ numerically when its declared error limits, rendering and game
+   behavior are validated; intermediate register/LS equality is not required.
+2. At least 10,000 completed whole-job contract checks, with live I/O coverage
+   as appropriate to the declared contract. Report skipped comparisons and
+   fallbacks separately; offline kernel equality alone is not game validation.
 3. Inspected native menu and actual round frames. A settings screen is not
    round coverage; a black capture or a different scene invalidates the run.
 4. Reversed same-EXE off/on/on/off menu and round FPS comparisons, plus a
@@ -45,8 +49,9 @@ For a native change require:
 5. Default-on only after correctness/render gates and repeatable performance
    benefit or parity. Flat FPS can still accompany useful worker CPU savings.
 
-Internal register/LS diagnostics are optional; the job boundary defines
-correctness. Unsupported inputs must select the whole lift before mutation.
+Internal register/LS diagnostics are optional; the declared job boundary and
+rendered/game behavior define correctness. Unsupported inputs must select the
+whole lift before mutation.
 
 ## Reproducible runs
 
@@ -173,9 +178,19 @@ The observer's `validate_window` helper checks sample coverage, missing windows,
 minimization and changed client size. If collecting it during FPS measurements,
 use it in every comparison arm; do not mix observed and unobserved runs.
 `--session-state` also records the target's console/RDP protocol, connection
-state, lock flag and last connection/disconnection times. Require the same
-active, unlocked session signature across all arms; a visible game window alone
-does not establish comparable desktop conditions. `--cpu-load` adds aggregate
+state, lock flag and last connection/disconnection times. Select the session
+policy before the series and require the same signature across every arm.
+`session_window_signature(..., policy='unlocked')` retains the normal active,
+unlocked requirement; `policy='locked'` supports a consistently locked console
+or RDP session, including a disconnected session if rendering keeps progressing.
+Never mix lock states, connection states/protocols or connection timestamps
+within or across paired windows. A locked desktop is a supported benchmark
+environment, not an automatic failure or a reason to require user interaction.
+Record its actual swapchain extent, retain frame/progress/tail checks and inspect
+captures; results apply to that recorded environment. For unattended PC work,
+keep the desktop locked throughout the comparison and use the input mailbox
+and renderer readbacks for game validation. A visible game window alone does
+not establish comparable desktop conditions. `--cpu-load` adds aggregate
 system and game CPU counters without enumerating unrelated processes. It can
 show coincident CPU-load changes, not prove their cause or measure GPU load.
 

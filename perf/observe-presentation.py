@@ -69,14 +69,24 @@ def parse_session_info(info,protocol):
     return dict(session_id=sid,state=state,flags=flags,protocol=struct.unpack_from('<H',protocol)[0],
                 connected_100ns=connected,disconnected_100ns=disconnected)
 
-def session_window_signature(records,start_ms,end_ms):
+def session_window_signature(records,start_ms,end_ms,policy='unlocked'):
+    """Bind one stable session under an explicitly selected lock policy.
+
+    Locked benchmarking is supported when rendering keeps progressing. Never
+    pool locked/unlocked, console/RDP or connected/disconnected signatures.
+    Window/progress coverage, frame tails and scene checks remain separate.
+    """
+    if policy not in ('unlocked','locked'):raise ValueError('Unknown session policy')
     rows=[x for x in records if x.get('elapsed_ms') is not None and start_ms<=x['elapsed_ms']<end_ms]
     if not rows or rows[0]['elapsed_ms']-start_ms>=2000 or end_ms-rows[-1]['elapsed_ms']>=2000:return None
     fields=('session_id','state','flags','protocol','connected_100ns','disconnected_100ns')
     signatures=[]
     for row in rows:
         s=row.get('session',{})
-        if any(key not in s for key in fields) or s['state']!=0 or s['flags']!=1 or s['protocol'] not in (0,2):return None
+        if any(s.get(key) is None for key in fields) or s['protocol'] not in (0,2):return None
+        if policy=='unlocked':
+            if s['state']!=0 or s['flags']!=1:return None
+        elif s['state'] not in (0,4) or s['flags']!=0:return None
         signatures.append(tuple(s[key] for key in fields))
     return signatures[0] if all(x==signatures[0] for x in signatures) else None
 

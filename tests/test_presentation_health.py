@@ -8,6 +8,26 @@ def row(present,guest,flips,iconic=False,width=1280):
     return {'counters':{'g_render_perf_serial':present,'g_frames_presented':guest,'s_flip_request_count':flips},
             'windows':[{'iconic':iconic,'width':width,'height':720}]}
 class HealthTest(unittest.TestCase):
+    def test_locked_session_requires_explicit_policy_and_stable_identity(self):
+        def samples(state=0,protocol=0):
+            session=dict(session_id=3,state=state,flags=0,protocol=protocol,connected_100ns=100,disconnected_100ns=50)
+            return [dict(elapsed_ms=t,session=dict(session)) for t in range(45000,90000,500)]
+        for state in (0,4):
+            for protocol in (0,2):
+                rows=samples(state,protocol)
+                self.assertIsNone(m.session_window_signature(rows,45000,90000))
+                self.assertIsNotNone(m.session_window_signature(rows,45000,90000,policy='locked'))
+        def signature(rows):return m.session_window_signature(rows,45000,90000,policy='locked')
+        for field,value in [('state',4),('flags',1),('protocol',2),('session_id',4),('connected_100ns',101),('disconnected_100ns',51)]:
+            rows=samples();rows[30]['session'][field]=value;self.assertIsNone(signature(rows))
+        for state,flags,protocol in [(1,0,0),(0,-1,0),(0,0,9),(0,1,0)]:
+            rows=samples(state,protocol)
+            for row in rows:row['session']['flags']=flags
+            self.assertIsNone(signature(rows))
+        rows=samples();rows[30]['session']['session_id']=None;self.assertIsNone(signature(rows))
+        self.assertIsNone(signature(samples()[4:]))
+        self.assertIsNone(signature(samples()[:-4]))
+        with self.assertRaises(ValueError):m.session_window_signature(samples(),45000,90000,policy='any')
     def test_session_state_and_reconnection(self):
         data=bytearray(232);struct.pack_into('<I',data,0,1)
         struct.pack_into('<IIi',data,8,3,0,1);struct.pack_into('<qq',data,176,100,50)
