@@ -107,7 +107,7 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
 {
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
     const auto& output = recipe.output;
-    if (!recipe.ready || !data.ready || !tail.ready || !input.vertices || input.vertices != output.vertices)
+    if (!recipe.ready || !data.ready || data.pending_fields || !tail.ready || !input.vertices || input.vertices != output.vertices)
         return reject("host vertex output readiness");
     if (!destination || capacity < output.bytes) return reject("host vertex output span");
     alignas(32) uint8_t chunk[8*64+16];

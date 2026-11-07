@@ -15,7 +15,7 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
         recipe.fields*recipe.blocks_per_field>GeometryHostInputData::capacity || (e.config[0]&16))return false;
     unsigned field=16;
     for(unsigned n=0;n<recipe.fields;++n)if(recipe.field[n].semantic==1)field=n;
-    if(field==16)return false;
+    if(field==16 || (data.pending_fields&(1u<<field)))return false;
     GeometryHostClipParameters params;
     if(!read_geometry_host_clip_parameters(c,e,params))return false;
     auto ordinary=[](uint32_t bits){return (bits&0x7fffffff)<=0x4e800000u;};

@@ -193,6 +193,7 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     unsigned position = 16;
     for (unsigned field = 0; field < input.fields; ++field) if (input.field[field].semantic == 1) position = field;
     if (position == 16) return reject("host clip position semantic");
+    if(data.pending_fields&(1u<<position))return reject("host clip position not captured");
     GeometryHostClipParameters params;
     if (!read_geometry_host_clip_parameters(c, e, params, reason)) return false;
     for (unsigned first = 0; first < input.vertices; first += 8) {

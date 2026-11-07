@@ -19,7 +19,7 @@ struct GeometryHostJobWorkspace {
     unsigned index_source = 0, index_bytes = 0;
     bool ready = false;
 };
-template<bool CoarseClip>
+template<bool CoarseClip, bool LazyAttributes = false>
 inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJobEntry& e,
     GeometryHostJobWorkspace& w,const char** reason=nullptr)
 {
@@ -33,9 +33,13 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
     }
     if (!read_geometry_host_input_recipe(c,e,w.input,reason) ||
         !read_geometry_host_vertex_recipe(c,e,w.input,w.vertices,reason) ||
-        !read_geometry_host_skin_recipe(c,e,w.input,w.skin,reason) ||
-        !capture_geometry_host_inputs(c,w.input,w.data,reason) ||
-        !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason)) return false;
+        !read_geometry_host_skin_recipe(c,e,w.input,w.skin,reason)) return false;
+    const bool deferred=LazyAttributes && !w.skin.active;
+    if(deferred) {
+        if(!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,w.input,w.data,reason) ||
+           !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,e,w.input,w.data,w.skin_workspace,reason))return false;
+    } else if(!capture_geometry_host_inputs(c,w.input,w.data,reason) ||
+              !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason))return false;
     if constexpr(CoarseClip) {
         if(!decode_geometry_host_indices(c,e,w.indices,reason))return false;
         if(geometry_host_trivially_outside(c,e,w.input,w.data)) {
@@ -47,6 +51,9 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
         !project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||
         !decode_geometry_host_indices(c,e,w.indices,reason) ||
         !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason)) return false;
+    if(deferred && w.indices.triangles &&
+       (!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,w.input,w.data,reason) ||
+        !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,e,w.input,w.data,w.skin_workspace,reason)))return false;
     if (w.indices.triangles &&
         !prepare_geometry_host_vertex_tail(c,e,w.input,w.skin,w.skin_workspace,w.vertices,w.tail,reason)) return false;
     w.index_source=e.input[GeometryJobEntry::indices].lsa;
@@ -62,10 +69,16 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
 inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntry& e,
     GeometryHostJobWorkspace& w,const char** reason=nullptr)
 {
-#if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
-    return prepare_geometry_host_job_impl<true>(c,e,w,reason);
+    constexpr bool lazy=
+#if defined(BUZZ_GEOMETRY_LAZY_ATTRIBUTES) && BUZZ_GEOMETRY_LAZY_ATTRIBUTES
+        true;
 #else
-    return prepare_geometry_host_job_impl<false>(c,e,w,reason);
+        false;
+#endif
+#if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
+    return prepare_geometry_host_job_impl<true,lazy>(c,e,w,reason);
+#else
+    return prepare_geometry_host_job_impl<false,lazy>(c,e,w,reason);
 #endif
 }
 inline void commit_geometry_host_job_data(spu_context& c,const GeometryJobEntry& e,

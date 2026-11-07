@@ -169,6 +169,11 @@ property file outside tracked sources, change exactly one property, and load
 that file instead. For example, build30 differs by
 `buzzGeometryDeferredClip=true`. Do not enable every switch at once.
 
+`buzzGeometryLazyAttributes=true` tests deferred rigid/unskinned normal and UV
+preparation after culling. It is OFF in the reference profile and bare build.
+The complete captured-output test passes on ARM64/QEMU; this is correctness
+coverage, not a phone FPS result. Weighted skinning keeps its existing pass.
+
 Verify the resulting APK with the same SDK:
 
 ```sh

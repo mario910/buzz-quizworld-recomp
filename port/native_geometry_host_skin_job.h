@@ -147,15 +147,23 @@ inline void transform_geometry_host_weighted_value(GeometryHostSoA8& value,
     value.component[2] = _mm256_and_si256(d, mask);
 }
 
-template<bool Bounded>
+template<bool Bounded, GeometryHostInputPhase Phase = GeometryHostInputPhase::All>
 inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
     GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
 {
     if (!data.ready) { if (reason) *reason = "host skin input not ready"; return false; }
+    if constexpr(Phase==GeometryHostInputPhase::All) {
+        if(data.pending_fields){if(reason)*reason="host skin deferred input";return false;}
+    }
     data.ready = false;
     GeometryHostSkinRecipe recipe;
     if (!read_geometry_host_skin_recipe(c, e, input, recipe, reason)) return false;
+    if constexpr(Phase!=GeometryHostInputPhase::All) {
+        // Weighted palettes stay in one pass: repeating their blend would
+        // penalize visible jobs. Only rigid/unskinned jobs defer attributes.
+        if(recipe.active){if(reason)*reason="host deferred weighted skin";return false;}
+    }
     if (recipe.object) {
         v8 matrix[12];
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
@@ -167,6 +175,7 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
             const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
             const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
             for (unsigned semantic = 0; semantic < 3; ++semantic) {
+                if(!geometry_host_capture_field<Phase>(semantic+1))continue;
                 if (recipe.field[semantic] == 16 || (semantic && e.position_only())) continue;
                 auto& value = data.at(input, recipe.field[semantic], first / 8);
                 if (semantic==0 && bounded_object && transform_geometry_bounded_position(value,matrix,mask)) continue;
@@ -232,14 +241,21 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
     }
     data.ready = true; if (reason) *reason = nullptr; return true;
 }
-inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
+template<GeometryHostInputPhase Phase = GeometryHostInputPhase::All>
+inline bool skin_geometry_host_inputs_phase(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
     GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
 {
 #if defined(BUZZ_GEOMETRY_BOUNDED_SKIN) && BUZZ_GEOMETRY_BOUNDED_SKIN
-    return skin_geometry_host_inputs_impl<true>(c,e,input,data,workspace,reason);
+    return skin_geometry_host_inputs_impl<true,Phase>(c,e,input,data,workspace,reason);
 #else
-    return skin_geometry_host_inputs_impl<false>(c,e,input,data,workspace,reason);
+    return skin_geometry_host_inputs_impl<false,Phase>(c,e,input,data,workspace,reason);
 #endif
+}
+inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
+    const GeometryHostInputRecipe& input, GeometryHostInputData& data,
+    GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
+{
+    return skin_geometry_host_inputs_phase(c,e,input,data,workspace,reason);
 }
 } // namespace buzz

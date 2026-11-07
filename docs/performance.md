@@ -314,6 +314,18 @@ the captured clip oracle additionally checks against the original lifted code.
 An isolated projection speedup is not evidence of higher game FPS. Qualify
 this option independently on ARM and x86 before enabling a platform default.
 
+`BUZZ_GEOMETRY_LAZY_ATTRIBUTES` (default OFF, Android property
+`buzzGeometryLazyAttributes`) defers rigid/unskinned normal and UV preparation
+until position-based culling retains triangles. Weighted palette blending keeps
+its existing single pass. Deferred unit selectors still undergo validation;
+invalid streams fall back as before. A pending-field mask prevents a partial
+host bank from publishing stale attributes. Surviving jobs materialize and
+transform every remaining field before ordinary vertex/tail publication.
+This changes neither DMA, completion, publication ordering nor guest bounds.
+Captured final index/vertex bytes are compared with the eager pipeline, with
+coarse rejection OFF and ON, using `geometry-lazy-attributes-test.cpp` in the
+offline CPU suite's `--corpus` mode. Measure game FPS separately from kernel cost.
+
 ## Keeping documentation useful
 
 Store run artifacts under ignored `analysis/`, with a compact table and

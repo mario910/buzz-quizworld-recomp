@@ -15,12 +15,21 @@ struct GeometryHostInputRecipe {
     std::array<GeometryHostInputField, 16> field{};
     unsigned fields = 0, vertices = 0, blocks_per_field = 0;
 };
+enum class GeometryHostInputPhase { All, Positions, Attributes };
+template<GeometryHostInputPhase Phase>
+inline bool geometry_host_capture_field(unsigned semantic)
+{
+    if constexpr(Phase==GeometryHostInputPhase::Positions)return semantic==1;
+    if constexpr(Phase==GeometryHostInputPhase::Attributes)return semantic!=1;
+    return true;
+}
 struct GeometryHostInputData {
     // Same bytes per vertex as float4 scratch, bounded by the entire LS.
     // Leave unused blocks alone: no hot-path allocation or bank-sized copy.
     static constexpr unsigned capacity = SPU_LS_SIZE / sizeof(GeometryHostSoA8);
     std::array<GeometryHostSoA8, capacity> block;
     bool ready = false;
+    unsigned pending_fields = 0; // Deferred attributes must never reach publication.
     GeometryHostSoA8& at(const GeometryHostInputRecipe& recipe, unsigned field, unsigned batch)
     { return block[field * recipe.blocks_per_field + batch]; }
     const GeometryHostSoA8& at(const GeometryHostInputRecipe& recipe, unsigned field, unsigned batch) const
@@ -129,12 +138,22 @@ inline bool read_geometry_host_input_recipe(const spu_context& c, const Geometry
     output = recipe; if (reason) *reason = nullptr; return true;
 }
 
-inline bool capture_geometry_host_inputs(const spu_context& c, const GeometryHostInputRecipe& recipe,
+template<GeometryHostInputPhase Phase = GeometryHostInputPhase::All>
+inline bool capture_geometry_host_inputs_phase(const spu_context& c, const GeometryHostInputRecipe& recipe,
     GeometryHostInputData& data, const char** reason = nullptr)
 {
     data.ready = false;
+    if constexpr(Phase!=GeometryHostInputPhase::Attributes)data.pending_fields=0;
     for (unsigned field = 0; field < recipe.fields; ++field) {
         const auto& f = recipe.field[field];
+        const bool capture=geometry_host_capture_field<Phase>(f.semantic);
+        if(!capture) {
+            if constexpr(Phase==GeometryHostInputPhase::Positions)data.pending_fields|=1u<<field;
+            // Unit selectors affect admission even when all triangles vanish.
+            // Other supported formats admit every payload bit pattern.
+            if constexpr(Phase==GeometryHostInputPhase::Attributes)continue;
+            if(f.storage!=9)continue;
+        }
         for (unsigned first = 0; first < recipe.vertices; first += 8) {
             const unsigned active = recipe.vertices - first < 8 ? recipe.vertices - first : 8;
             auto& output = data.at(recipe, field, first / 8);
@@ -146,13 +165,21 @@ inline bool capture_geometry_host_inputs(const spu_context& c, const GeometryHos
                 if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(_mm256_and_si256(input, v8_set(15)), v8_set(11)))) {
                     if (reason) *reason = "host unsupported unit selector"; return false;
                 }
+                if(!capture)continue;
                 output = decode_geometry_host_unit8(input);
                 const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
                 for (auto& component : output.component) component = _mm256_and_si256(component, mask);
             }
         }
+        if constexpr(Phase==GeometryHostInputPhase::Attributes)
+            data.pending_fields&=~(1u<<field);
     }
     data.ready = true; if (reason) *reason = nullptr; return true;
+}
+inline bool capture_geometry_host_inputs(const spu_context& c, const GeometryHostInputRecipe& recipe,
+    GeometryHostInputData& data, const char** reason = nullptr)
+{
+    return capture_geometry_host_inputs_phase(c,recipe,data,reason);
 }
 
 inline bool prepare_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
