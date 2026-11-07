@@ -174,6 +174,14 @@ preparation after culling. It is OFF in the reference profile and bare build.
 The complete captured-output test passes on ARM64/QEMU; this is correctness
 coverage, not a phone FPS result. Weighted skinning keeps its existing pass.
 
+`buzzGeometryZeroVertexPadding=true` tests zero-filled, unindexed alignment
+bytes after the last logical vertex in the full NEON host geometry pipeline.
+This avoids evaluating a padding-only vertex with an out-of-palette index.
+Logical palette/index checks remain active; paired strict audits retain the
+original padding policy. The property defaults false and reference29 keeps it
+OFF. See [the padding contract](../docs/geometry-vertex-padding.md); ARM64/QEMU
+correctness does not establish Android hardware performance.
+
 Verify the resulting APK with the same SDK:
 
 ```sh

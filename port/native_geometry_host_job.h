@@ -5,6 +5,7 @@
 #include "native_geometry_host_cull_job.h"
 #include "native_geometry_host_index_output.h"
 #include "native_geometry_coarse_clip.h"
+#include "native_geometry_job.h"
 
 namespace buzz {
 struct GeometryHostJobWorkspace {
@@ -19,7 +20,7 @@ struct GeometryHostJobWorkspace {
     unsigned index_source = 0, index_bytes = 0;
     bool ready = false, bounded_projection = false;
 };
-template<bool CoarseClip, bool LazyAttributes = false, bool BoundedProjection = false>
+template<bool CoarseClip, bool LazyAttributes = false, bool BoundedProjection = false, bool ZeroVertexPadding = false>
 inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJobEntry& e,
     GeometryHostJobWorkspace& w,const char** reason=nullptr)
 {
@@ -69,8 +70,11 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
     if(deferred && w.indices.triangles &&
        (!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,w.input,w.data,reason) ||
         !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,e,w.input,w.data,w.skin_workspace,reason)))return false;
-    if (w.indices.triangles &&
-        !prepare_geometry_host_vertex_tail(c,e,w.input,w.skin,w.skin_workspace,w.vertices,w.tail,reason)) return false;
+    if(w.indices.triangles) {
+        if constexpr(ZeroVertexPadding) {
+            if(!prepare_geometry_host_zero_vertex_tail(w.input,w.vertices,w.tail,reason))return false;
+        } else if(!prepare_geometry_host_vertex_tail(c,e,w.input,w.skin,w.skin_workspace,w.vertices,w.tail,reason))return false;
+    }
     w.index_source=e.input[GeometryJobEntry::indices].lsa;
     w.index_bytes=(w.indices.triangles*6+15)&~15u;
     const uint64_t end=uint64_t(w.index_source)+w.index_bytes;
@@ -90,11 +94,25 @@ inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntr
 #else
         false;
 #endif
-#if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
-    return prepare_geometry_host_job_impl<true,lazy,true>(c,e,w,reason);
+    constexpr bool zero_padding=
+#if defined(BUZZ_GEOMETRY_ZERO_VERTEX_PADDING) && BUZZ_GEOMETRY_ZERO_VERTEX_PADDING
+        true;
 #else
-    return prepare_geometry_host_job_impl<false,lazy>(c,e,w,reason);
+        false;
 #endif
+    constexpr bool coarse=
+#if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
+        true;
+#else
+        false;
+#endif
+    // Paired strict audits retain the original padding payload/ABI contract.
+    // The relaxed policy belongs only to the ordinary native job controller.
+    if constexpr(zero_padding) {
+        if(buzz_geometry_job_mode()==1)
+            return prepare_geometry_host_job_impl<coarse,lazy,coarse,true>(c,e,w,reason);
+    }
+    return prepare_geometry_host_job_impl<coarse,lazy,coarse,false>(c,e,w,reason);
 }
 inline void commit_geometry_host_job_data(spu_context& c,const GeometryJobEntry& e,
     const GeometryHostJobWorkspace& w)

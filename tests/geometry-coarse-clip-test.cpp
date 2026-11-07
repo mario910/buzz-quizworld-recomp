@@ -201,6 +201,8 @@ int main(int argc,char** argv) {
                 assert((!prepare_geometry_host_job_impl<true,false>(*c,e,*new_job)));
                 assert((!prepare_geometry_host_job_impl<false,true>(*c,e,*old_job)));
                 assert((!prepare_geometry_host_job_impl<true,true>(*c,e,*new_job)));
+                assert((!prepare_geometry_host_job_impl<true,false,true,true>(*c,e,*new_job)));
+                assert((!prepare_geometry_host_job_impl<true,true,true,true>(*c,e,*new_job)));
                 assert(!memcmp(c->ls,unchanged.data(),SPU_LS_SIZE));
                 assert(!memcmp(c->gpr,registers,sizeof registers));
                 c->ls[source+2]=uint8_t(bias>>8);c->ls[source+3]=uint8_t(bias);

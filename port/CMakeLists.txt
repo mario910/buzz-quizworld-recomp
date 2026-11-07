@@ -661,6 +661,7 @@ option(BUZZ_GEOMETRY_LAZY_ATTRIBUTES "Defer rigid geometry attributes until tria
 option(BUZZ_GEOMETRY_INDEX_BATCHED "Eight-lane packed geometry delta decoding" OFF)
 option(BUZZ_GEOMETRY_INDEX_CACHE "Content-verified cache of decoded geometry indices" OFF)
 option(BUZZ_GEOMETRY_HOST_COMMANDS "Build and publish geometry command packets with host integer control" OFF)
+option(BUZZ_GEOMETRY_ZERO_VERTEX_PADDING "Zero unindexed vertex alignment bytes instead of evaluating a padding vertex" OFF)
 # Explicitly reproduce the compaction path present in the qualified Windows
 # executable. Other platforms keep their existing source default.
 option(BUZZ_GEOMETRY_CULL_COMPACT "Eight-lane geometry output compaction" ${WIN32})
@@ -674,6 +675,7 @@ set_property(SOURCE native_geometry_job_flow.cpp APPEND PROPERTY COMPILE_DEFINIT
     "BUZZ_GEOMETRY_INDEX_BATCHED=$<BOOL:${BUZZ_GEOMETRY_INDEX_BATCHED}>"
     "BUZZ_GEOMETRY_INDEX_CACHE=$<BOOL:${BUZZ_GEOMETRY_INDEX_CACHE}>"
     "BUZZ_GEOMETRY_HOST_COMMANDS=$<BOOL:${BUZZ_GEOMETRY_HOST_COMMANDS}>"
+    "BUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$<BOOL:${BUZZ_GEOMETRY_ZERO_VERTEX_PADDING}>"
     "BUZZ_GEOMETRY_CULL_COMPACT=$<BOOL:${BUZZ_GEOMETRY_CULL_COMPACT}>")
 if(geometry_job_native_setup_available OR
    (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUZZ_STANDALONE AND PORT_SPU_ISA STREQUAL "avx2"))

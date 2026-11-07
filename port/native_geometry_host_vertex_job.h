@@ -14,6 +14,21 @@ struct GeometryHostVertexTail {
     uint32_t position[3]{};
     bool ready = false;
 };
+// Only alignment bytes after the final logical vertex are synthesized. The
+// caller must have culled/range-checked every index before selecting this
+// policy; no logical attribute or indexed position can come from this tail.
+inline bool prepare_geometry_host_zero_vertex_tail(const GeometryHostInputRecipe& input,
+    const GeometryHostVertexRecipe& recipe,GeometryHostVertexTail& result,const char** reason=nullptr)
+{
+    result.ready=false;
+    const auto& output=recipe.output;
+    const uint64_t logical=uint64_t(input.vertices)*output.stride;
+    if(!recipe.ready || !input.vertices || input.vertices>4096 || output.vertices!=input.vertices ||
+       !output.stride || output.stride>64 || output.bytes<logical || output.bytes-logical>12 || (output.bytes&15)) {
+        if(reason)*reason="host zero vertex alignment span";return false;
+    }
+    result={};result.ready=true;if(reason)*reason=nullptr;return true;
+}
 inline bool read_geometry_host_vertex_recipe(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostVertexRecipe& result,
     const char** reason = nullptr)
