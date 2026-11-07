@@ -78,6 +78,15 @@ An execution-trace-enabled Windows build and its 34 OFF/ON runtime modes also
 pass. Stronger CMake anchor validation produces byte-identical ordinary
 generated channels to the measured final release.
 
+A separate 600-second locked-session functional run used the final EXE,
+ordinary test-mailbox buzzer input, two distinct saved players and native job
+completion ON. Vulkan readbacks confirmed category selection, successive
+rendered questions, both players' selected answers and scores increasing from
+0 to 250 each, followed by another question. This qualifies a basic
+question/answer/scoring sequence, not an entire match. It used the supported
+30 FPS cap and continuous diagnostic readback; its frame timings are excluded
+from performance comparisons. No Windows unlock or OS key injection was used.
+
 ## Measured PC result
 
 Six 72-second runs used one locked Windows session, the same save/input script,
