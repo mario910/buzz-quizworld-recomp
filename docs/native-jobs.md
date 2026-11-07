@@ -97,6 +97,13 @@ does not establish a game FPS or Android hardware gain. Native gameplay
 progression, visible output and a matched locked-session comparison remain
 required before enabling a default.
 
+The complete-job replay test also exercises the retained callers with bounds
+OFF/paired/native and with volatile registers deliberately overwritten after
+the original leaf returns. It requires invocation counters for all four modes,
+including explicit poison coverage. Every recorded publication and exit
+control must still match, while concurrent-input differences remain separately
+reported. See the [replay command](performance.md) for the standalone runner.
+
 `BUZZ_IMAGE39_NATIVE_REQUEST` is a separate experiment, OFF by default. The
 pinned EU 1.00 generator can route `0x3A10` descriptor requests through
 `native_image39_request.h`. It plans the cache lookup, replacement, output

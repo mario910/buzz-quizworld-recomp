@@ -412,6 +412,25 @@ The combined offline CPU suite runs synthetic bounds checks with
 `--image39-source <original.c>`; repeated `--image39-bounds-corpus <directory>`
 adds the corresponding private captures.
 
+To check the calling code and complete job publications without starting the
+game, use a native-bounds executable and private Image39 whole-job captures:
+
+```sh
+python3 tests/scripts/test-image39-bounds-replay.py --exe /path/to/BuzzQuizWorldRecomp.exe \
+  --corpus /path/to/image39-jobs --output /path/to/new-results-directory
+```
+
+`--corpus` can be repeated. `--exe-sha256 <hash>` additionally requires a
+specific frozen binary. The runner binds the binary/map/corpus identities,
+checks every job with bounds OFF, paired, native and volatile-register poison
+modes, and requires actual execution/comparison/poison counters. All-fallback
+native runs cannot pass. The poison counter is diagnostic-only; it adds no
+counter to the normal native execution path. Each mode must preserve the
+ordered transfer count, exit controls and per-job captured-input divergence
+classification. Input-divergent jobs remain separate from exact-input jobs.
+These checks cover the recorded schedules and formats; they do not replace
+native gameplay, visible output or locked-session FPS/CPU comparisons.
+
 ## Keeping documentation useful
 
 Store run artifacts under ignored `analysis/`, with a compact table and

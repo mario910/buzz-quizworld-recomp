@@ -44,6 +44,8 @@ int main()
     buzz_stagef_mode = 4;
     buzz_stagef_run(ctx, reference_leaf, correct_leaf, 3);
     assert(ctx->gpr[3]._u32[0] == 7 && ctx->gpr[42]._u32[0] != 123);
+    assert(g_poisoned[3].load() == 1 && g_poisoned[0].load() == 0);
+    buzz_stagef_report(); // Replay automation must be able to prove poison coverage.
     delete ctx;
     puts("stagef-image39-return: PASS (live return, dead scratch, poison contract)");
 }

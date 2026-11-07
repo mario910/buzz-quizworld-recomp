@@ -55,6 +55,7 @@ constexpr int kKernels = 4;   /* 3: image 39 0x05D0 (generate-image39-kernels.py
 const char* const kKernelNames[kKernels] = {"vertex 6338", "xform C3A0", "normalize 2C10", "img39 05D0"};
 unsigned g_kernel_mask = ~0u;
 std::atomic<long> g_compared[kKernels], g_mismatched[kKernels], g_native[kKernels], g_fallback[kKernels];
+std::atomic<long> g_poisoned[kKernels]; // Diagnostic mode 4 only; no native-path counter.
 std::atomic<long> g_reasons[4];
 std::atomic<long> g_restored = 0;
 std::atomic<long> g_full_compared[kKernels], g_full_mismatched[kKernels];
@@ -195,6 +196,7 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
     }
     run_reference(ctx, reference);
     if (buzz_stagef_mode == 4) {
+        (++g_poisoned[kernel]);
         /* BUZZ_STAGEF_POISON_KEEP=3,4 adds live registers. Image39 always
          * preserves its known r3 return, independent of this diagnostic. */
         static uint64_t keep = UINT64_MAX;
@@ -333,6 +335,9 @@ extern "C" void buzz_stagef_report(void)
         for (int k = 0; k < kKernels; k++)
             fprintf(stderr, "[stagef] %s: native %ld, fallback %ld, compared %ld, mismatched %ld\n",
                     kKernelNames[k], g_native[k].load(), g_fallback[k].load(), g_compared[k].load(), g_mismatched[k].load());
+    for (int k = 0; k < kKernels; ++k)
+        if (g_poisoned[k].load())
+            fprintf(stderr, "[stagef] poisoned %s: calls %ld\n", kKernelNames[k], g_poisoned[k].load());
     if (buzz_stagef_mode)
         fprintf(stderr, "[stagef] vertex fallback reasons: count %ld, empty %ld, overlap %ld\n",
                 g_reasons[1].load(), g_reasons[2].load(), g_reasons[3].load());
