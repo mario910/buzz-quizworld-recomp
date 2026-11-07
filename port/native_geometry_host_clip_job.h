@@ -90,17 +90,21 @@ inline bool read_geometry_host_clip_parameters(const spu_context& c, const Geome
 // canonicalization after every operation. If ANY intermediate needs repair,
 // discard the entire speculative block and execute the original exact path.
 // No LS writes, stores to output, or guest-visible effects occur before this.
-template<bool Deferred> struct GeometryClipArithmetic {
+// Bounded is separate from speculation: the current job's interval proof
+// already excludes exceptional intermediates, including in padded lanes.
+template<bool Deferred, bool Bounded = false> struct GeometryClipArithmetic {
     v8 largest = _mm256_setzero_si256();
     inline __attribute__((always_inline)) v8 finish(__m256 value, v8 a, v8 b, v8 c, int op) {
-        if constexpr (!Deferred) return v8_finish(value,a,b,c,op);
+        if constexpr (!Deferred && !Bounded) return v8_finish(value,a,b,c,op);
         const v8 bits = _mm256_castps_si256(value);
         const v8 magnitude = _mm256_and_si256(bits,v8_set(0x7fffffff));
+        if constexpr (Deferred) {
 #if defined(__aarch64__)
-        largest = {vmaxq_u32(largest.lo,magnitude.lo),vmaxq_u32(largest.hi,magnitude.hi)};
+            largest = {vmaxq_u32(largest.lo,magnitude.lo),vmaxq_u32(largest.hi,magnitude.hi)};
 #else
-        largest = _mm256_max_epi32(largest,magnitude);
+            largest = _mm256_max_epi32(largest,magnitude);
 #endif
+        }
         return _mm256_andnot_si256(_mm256_cmpeq_epi32(magnitude,_mm256_setzero_si256()),bits);
     }
     inline __attribute__((always_inline)) v8 fma(v8 a,v8 b,v8 c) {
@@ -120,11 +124,11 @@ template<bool Deferred> struct GeometryClipArithmetic {
 #endif
     }
 };
-template<bool Deferred, bool NativeReciprocal = false>
+template<bool Deferred, bool NativeReciprocal = false, bool Bounded = false>
 inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     const GeometryHostClipParameters& params, const GeometryHostSoA8& position)
 {
-    GeometryClipArithmetic<Deferred> fp;
+    GeometryClipArithmetic<Deferred,Bounded> fp;
     auto row = [&](unsigned axis) __attribute__((always_inline)) {
         v8 value = fp.fma(position.component[0], v8_set(params.row[axis][0]), v8_set(params.row[axis][3]));
         value = fp.fma(position.component[1], v8_set(params.row[axis][1]), value);
@@ -136,12 +140,14 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
         // Ordinary finite W only. Keep SPU extended floats, zero and extreme
         // exponents on the original path; native division can differ by a few
         // low bits from the SPU estimate/interpolation/refinement sequence.
-        const v8 magnitude = _mm256_and_si256(w, v8_set(0x7fffffff));
-        const v8 ordinary = _mm256_and_si256(
-            _mm256_cmpgt_epi32(magnitude, v8_set(0x1fffffff)),
-            _mm256_cmpgt_epi32(v8_set(0x5f000001), magnitude));
-        if (_mm256_movemask_ps(_mm256_castsi256_ps(ordinary)) != 255)
-            return geometry_host_clip8_impl<Deferred, false>(params, position);
+        if constexpr (!Bounded) {
+            const v8 magnitude = _mm256_and_si256(w, v8_set(0x7fffffff));
+            const v8 ordinary = _mm256_and_si256(
+                _mm256_cmpgt_epi32(magnitude, v8_set(0x1fffffff)),
+                _mm256_cmpgt_epi32(v8_set(0x5f000001), magnitude));
+            if (_mm256_movemask_ps(_mm256_castsi256_ps(ordinary)) != 255)
+                return geometry_host_clip8_impl<Deferred, false>(params, position);
+        }
 #if defined(__aarch64__)
         reciprocal = {vreinterpretq_u32_f32(vdivq_f32(vdupq_n_f32(1.0f), vreinterpretq_f32_u32(w.lo))),
                       vreinterpretq_u32_f32(vdivq_f32(vdupq_n_f32(1.0f), vreinterpretq_f32_u32(w.hi)))};
@@ -185,7 +191,7 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
 inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, const GeometryHostInputData& data,
     GeometryHostClipData& clips, const char** reason = nullptr,
-    const GeometryHostClipParameters* prepared = nullptr)
+    const GeometryHostClipParameters* prepared = nullptr, bool bounded_projection = false)
 {
     clips.ready = false;
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
@@ -199,9 +205,19 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     // Standalone callers retain their full viewport/codec validation here.
     GeometryHostClipParameters storage;
     if (!prepared && !read_geometry_host_clip_parameters(c, e, storage, reason)) return false;
-    const auto& params = prepared ? *prepared : storage;
+    // Own the coefficients across output stores; a caller's prepared storage
+    // need not be proven disjoint from every member of the output workspace.
+    const GeometryHostClipParameters params = prepared ? *prepared : storage;
+    if(bounded_projection && !prepared)return reject("host clip missing arithmetic admission");
     for (unsigned first = 0; first < input.vertices; first += 8) {
-        auto value = geometry_host_clip8(params, data.at(input, position, first / 8));
+        const auto& position_data = data.at(input, position, first / 8);
+        auto value = bounded_projection ? geometry_host_clip8_impl<false,
+#if defined(BUZZ_GEOMETRY_NATIVE_RECIPROCAL) && BUZZ_GEOMETRY_NATIVE_RECIPROCAL
+            true,
+#else
+            false,
+#endif
+            true>(params,position_data) : geometry_host_clip8(params,position_data);
         const v8 mask = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
         for (unsigned component = 0; component < 4; ++component)
             _mm256_store_si256(reinterpret_cast<v8*>(clips.component[component] + first), _mm256_and_si256(value.component[component], mask));

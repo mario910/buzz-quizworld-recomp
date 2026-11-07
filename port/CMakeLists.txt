@@ -656,7 +656,7 @@ option(BUZZ_GEOMETRY_INDEX_SEQUENTIAL "Bulk-validated sequential geometry index 
 option(BUZZ_GEOMETRY_DEFERRED_CLIP "Defer exceptional geometry projection repair to one block check" OFF)
 option(BUZZ_GEOMETRY_NATIVE_RECIPROCAL "Use native SIMD reciprocal division for ordinary geometry projection (relaxed intermediate values)" OFF)
 option(BUZZ_GEOMETRY_BOUNDED_SKIN "Use native bounded palette blending and weighted transforms" OFF)
-option(BUZZ_GEOMETRY_COARSE_CLIP "Reject bounded whole geometry jobs before per-vertex projection" OFF)
+option(BUZZ_GEOMETRY_COARSE_CLIP "Reject offscreen geometry jobs and admit bounded native projection" OFF)
 option(BUZZ_GEOMETRY_LAZY_ATTRIBUTES "Defer rigid geometry attributes until triangles survive culling" OFF)
 option(BUZZ_GEOMETRY_INDEX_BATCHED "Eight-lane packed geometry delta decoding" OFF)
 option(BUZZ_GEOMETRY_INDEX_CACHE "Content-verified cache of decoded geometry indices" OFF)

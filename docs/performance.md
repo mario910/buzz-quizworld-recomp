@@ -330,12 +330,28 @@ offline CPU suite's `--corpus` mode. Measure game FPS separately from kernel cos
 codec parameters between its interval test and surviving vertex projection.
 The parameters belong to one read-only job preparation and are never reused
 after a guest write or across jobs. This removes duplicate validation and
-matrix composition without changing projection arithmetic. Decoded indices
+matrix composition. For surviving jobs, the same interval proof can omit
+per-operation SPU exceptional-range checks in AVX2/NEON projection. Positions,
+row coefficients and viewport limits must have magnitude at most 2^30;
+the complete W interval must have one sign with magnitude in [2^-30, 2^30].
+Every padded lane participates in this proof. Ordered FMAs stay below 2^62
+and projected products below 2^92. RZ/FZ, operation order, zero canonicalization,
+clip comparisons and quantization remain unchanged. Both original and native
+reciprocal modes are supported. Unproven jobs retain ordinary projection;
+no arithmetic admission survives the preparation. Coefficients are copied
+into projection-owned storage across output writes. Decoded indices
 must still fit the vertex bank even when the entire object is offscreen;
 otherwise the whole native job falls back before architectural writes.
 `geometry-coarse-clip-test.cpp` compares full published output with ordinary
 culling and checks malformed offscreen indices with lazy attributes OFF/ON.
-It is included in the offline CPU suite's `--corpus` mode.
+It also compares bounded/unbounded full producers with lazy attributes OFF/ON,
+including clip records, final indices/vertices and unchanged architectural
+state, and checks exceptional/mixed W rejection. These pass on Windows, Linux
+x86 and ARM64/QEMU with both reciprocal modes. It is included in the offline
+CPU suite's `--corpus` mode. A paired locked-session PC comparison found a
+small incremental throughput gain and lower SPURS CPU cost per frame;
+stable 45 FPS, gameplay progression and Android hardware gains remain unproven.
+The option and Android `buzzGeometryCoarseClip` property remain default OFF.
 
 `BUZZ_IMAGE39_NATIVE_REQUEST` (default OFF, Android property
 `buzzNativeImage39Request`) replaces the pinned EU 1.00 descriptor request

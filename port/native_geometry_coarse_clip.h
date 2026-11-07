@@ -4,13 +4,14 @@
 #include <cmath>
 
 namespace buzz {
-// Conservative whole-job clip rejection. Surviving or unbounded jobs retain
-// the ordinary per-vertex projection and per-triangle culling. No writes to
+// Conservative whole-job clip rejection and optional arithmetic admission.
+// Surviving jobs still project/cull every vertex/triangle. No writes to
 // guest state, host streams or indices occur during this admission test.
 inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJobEntry& e,
     const GeometryHostInputRecipe& recipe,const GeometryHostInputData& data,
-    const GeometryHostClipParameters* prepared=nullptr)
+    const GeometryHostClipParameters* prepared=nullptr, bool* bounded_projection=nullptr)
 {
+    if(bounded_projection)*bounded_projection=false;
     if(!data.ready || e.vertices<32 || e.vertices>4096 || recipe.vertices!=e.vertices ||
         recipe.fields>16 || recipe.blocks_per_field!=(e.vertices+7)/8 ||
         recipe.fields*recipe.blocks_per_field>GeometryHostInputData::capacity || (e.config[0]&16))return false;
@@ -76,6 +77,12 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
     if(low[3]>=0x1p-30 && high[3]<=0x1p30){wmin=low[3];wmax=high[3];}
     else if(high[3]<=-0x1p-30 && low[3]>=-0x1p30){wmin=-high[3];wmax=-low[3];}
     else return false; // Mixed/zero/extreme W: no projective interval proof.
+    // Every padded lane participates in the bounds above. With positions and
+    // coefficients <= 2^30, the three ordered FMAs stay below 2^62. The W
+    // interval bounds the reciprocal by 2^30, so projected products stay below
+    // 2^92, well inside ordinary finite arithmetic. Keep RZ/FZ and zero repair;
+    // only SPU exceptional-range checks may be omitted for this preparation.
+    if(bounded_projection)*bounded_projection=true;
     for(unsigned axis=0;axis<3;++axis) {
         double a,b;
         if(low[axis]>=0){a=low[axis]/wmax;b=high[axis]/wmin;}

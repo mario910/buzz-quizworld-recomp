@@ -17,13 +17,14 @@ struct GeometryHostJobWorkspace {
     GeometryHostVertexRecipe vertices;
     GeometryHostVertexTail tail;
     unsigned index_source = 0, index_bytes = 0;
-    bool ready = false;
+    bool ready = false, bounded_projection = false;
 };
-template<bool CoarseClip, bool LazyAttributes = false>
+template<bool CoarseClip, bool LazyAttributes = false, bool BoundedProjection = false>
 inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJobEntry& e,
     GeometryHostJobWorkspace& w,const char** reason=nullptr)
 {
     w.ready=false;
+    w.bounded_projection=false;
     // The outer driver can fetch additional weighted blend streams after
     // ordinary attributes. Those jobs need the complete lifted flow until
     // their host data operation is supported; the base streams alone are
@@ -52,11 +53,15 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
         // no prepared parameters survive this call or cross a guest mutation.
         GeometryHostClipParameters parameters;
         if(!read_geometry_host_clip_parameters(c,e,parameters,reason))return false;
-        if(geometry_host_trivially_outside(c,e,w.input,w.data,&parameters)) {
+        bool bounded=false;
+        if(geometry_host_trivially_outside(c,e,w.input,w.data,&parameters,BoundedProjection?&bounded:nullptr)) {
             w.indices.triangles=w.indices.maximum_index=w.indices.final_group_kept=0;
             w.clips.ready=false;
-        } else if(!project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason,&parameters) ||
-                  !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason))return false;
+        } else {
+            w.bounded_projection=bounded;
+            if(!project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason,&parameters,bounded) ||
+               !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason))return false;
+        }
     } else if (
         !project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||
         !decode_geometry_host_indices(c,e,w.indices,reason) ||
@@ -86,7 +91,7 @@ inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntr
         false;
 #endif
 #if defined(BUZZ_GEOMETRY_COARSE_CLIP) && BUZZ_GEOMETRY_COARSE_CLIP
-    return prepare_geometry_host_job_impl<true,lazy>(c,e,w,reason);
+    return prepare_geometry_host_job_impl<true,lazy,true>(c,e,w,reason);
 #else
     return prepare_geometry_host_job_impl<false,lazy>(c,e,w,reason);
 #endif
