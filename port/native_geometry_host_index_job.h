@@ -214,15 +214,18 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
 // Content-verified decoded indices. The cache owns both its complete source
 // bytes and its result; no guest pointer, LS bank or admission survives a job.
 // Every lookup revalidates the source span, family and the guest codec tables.
-// Bounded storage: 64 cells, <=8192 source bytes and <=4096 triangles per cell.
+// Bounded storage: 256 cells, <=8192 source bytes and <=4096 triangles per cell.
 class GeometryHostIndexCache {
+public:
+    static constexpr unsigned cell_count=256, ways=4;
+private:
     struct Cell {
-        uint64_t fingerprint=0;
+        uint64_t fingerprint=0, last_used=0;
         unsigned index_count=0, maximum=0;
         std::vector<uint8_t> source;
         std::vector<uint16_t> indices;
     };
-    std::array<Cell,64> cells;
+    std::array<Cell,cell_count> cells;
     uint64_t requests=0,hits=0;
     bool stats;
     void record(bool hit) {
@@ -253,22 +256,32 @@ public:
         uint64_t fingerprint=first^(middle*0x9e3779b97f4a7c15ull)^(last*0xbf58476d1ce4e5b9ull);
         fingerprint^=uint64_t(e.index_count)*0x94d049bb133111ebull+source.size;
         fingerprint^=fingerprint>>32;fingerprint*=0xbf58476d1ce4e5b9ull;fingerprint^=fingerprint>>29;
-        auto& cell=cells[fingerprint&63];
+        const unsigned first_cell=(fingerprint&(cell_count/ways-1))*ways;
+        unsigned victim=first_cell;
         const unsigned padded=(triangles+7)&~7u;
-        if(cell.fingerprint==fingerprint && cell.index_count==e.index_count &&
-           cell.source.size()==source.size && !memcmp(cell.source.data(),bytes,source.size)) {
-            for(unsigned corner=0;corner<3;++corner)
-                memcpy(output.component[corner],cell.indices.data()+corner*padded,padded*sizeof(uint16_t));
-            output.triangles=triangles;output.maximum_index=cell.maximum;
-            output.final_group_kept=5;output.ready=true;
-            if(reason)*reason=nullptr;record(true);return true;
+        // Separate content identities that share a set instead of repeatedly
+        // decoding them on alternating jobs. Recency only selects a victim;
+        // even a wrapped counter cannot make an unequal source into a hit.
+        for(unsigned way=0;way<ways;++way) {
+            auto& cell=cells[first_cell+way];
+            if(cell.fingerprint==fingerprint && cell.index_count==e.index_count &&
+               cell.source.size()==source.size && !memcmp(cell.source.data(),bytes,source.size)) {
+                for(unsigned corner=0;corner<3;++corner)
+                    memcpy(output.component[corner],cell.indices.data()+corner*padded,padded*sizeof(uint16_t));
+                output.triangles=triangles;output.maximum_index=cell.maximum;
+                output.final_group_kept=5;output.ready=true;
+                if(reason)*reason=nullptr;record(true);cell.last_used=requests;return true;
+            }
+            if(cell.last_used<cells[victim].last_used)victim=first_cell+way;
         }
         record(false);
         if(!decode_geometry_host_indices_uncached(c,e,output,reason))return false;
+        auto& cell=cells[victim];
         cell.source.assign(bytes,bytes+source.size);cell.indices.resize(padded*3);
         for(unsigned corner=0;corner<3;++corner)
             memcpy(cell.indices.data()+corner*padded,output.component[corner],padded*sizeof(uint16_t));
         cell.fingerprint=fingerprint;cell.index_count=e.index_count;cell.maximum=output.maximum_index;
+        cell.last_used=requests;
         return true;
     }
 };
@@ -282,7 +295,8 @@ inline bool decode_geometry_host_indices(const spu_context& c,const GeometryJobE
             std::fprintf(stderr,"BUZZ_INDEX_CACHE must be 0 or 1\n");std::abort();
         }
         const bool on=!v||v[0]=='1';
-        std::fprintf(stderr,"[geometry-index-cache] enabled=%d cells=64 max-source=8192 max-triangles=4096\n",int(on));
+        std::fprintf(stderr,"[geometry-index-cache] enabled=%d cells=%u ways=%u max-source=8192 max-triangles=4096\n",
+            int(on),GeometryHostIndexCache::cell_count,GeometryHostIndexCache::ways);
         return on;
     }();
     if(enabled){static thread_local GeometryHostIndexCache cache;return cache.decode(c,e,output,reason);}

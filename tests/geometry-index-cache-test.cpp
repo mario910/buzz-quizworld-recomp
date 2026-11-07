@@ -12,7 +12,7 @@ int main(int argc,char** argv) {
     auto expected=std::make_unique<GeometryHostIndexData>();
     auto actual=std::make_unique<GeometryHostIndexData>();
     GeometryHostIndexCache cache;
-    unsigned jobs=0,admitted=0,mutations=0;
+    unsigned jobs=0,admitted=0,mutations=0,collision_sets=0,collisions=0;
     auto compare=[&](const GeometryJobEntry& e) {
         const char *a=nullptr,*b=nullptr;
         const bool ok=decode_geometry_host_indices_uncached(*c,e,*expected,&a);
@@ -42,6 +42,25 @@ int main(int argc,char** argv) {
         if(!ok)continue;
         // A warmed cache must revalidate source bytes, codec and entry spans.
         const unsigned source=e.input[GeometryJobEntry::indices].lsa,size=e.input[GeometryJobEntry::indices].size;
+        if(collision_sets<32 && size>64 && size<=8192) {
+            // Change consumed packed deltas outside all three fingerprint
+            // samples. These valid, different payloads have the SAME full
+            // fingerprint; exercise all ways and force repeated evictions.
+            const auto* bytes=c->ls+source;
+            const unsigned deltas=geometry_job_be16(bytes),width=bytes[6];
+            const unsigned packed=8+geometry_job_be16(bytes+4)+(e.index_count/3+3)/4;
+            const unsigned end=packed+(deltas*width+7)/8;
+            for(unsigned at=packed;at<end && end<=size;++at) {
+                const unsigned middle=(size-8)/2;
+                if(at<8 || (at>=middle && at<middle+8) || at>=size-8)continue;
+                const uint8_t original=c->ls[source+at];
+                for(unsigned variant:{1u,2u,3u,4u,1u,3u,2u,4u,5u,6u,7u,4u,1u,0u}) {
+                    c->ls[source+at]=original^variant;
+                    assert(compare(e));assert(compare(e));++collisions;
+                }
+                assert(c->ls[source+at]==original);++collision_sets;break;
+            }
+        }
         if(size>64 && size<=8192) {
             // Offset 16 avoids all three fingerprint samples for large inputs:
             // full memcmp, rather than the sampled key, must reject a stale hit.
@@ -52,5 +71,7 @@ int main(int argc,char** argv) {
         malformed=e;malformed.index_count=4;assert(!compare(malformed));assert(compare(e));++mutations;
     }
     assert(jobs==19508 && admitted);
+    assert(collision_sets==32 && collisions==448);
     printf("Geometry index cache: %u corpus jobs, %u admitted, %u mutations; cold/warm/poisoned outputs PASS\n",jobs,admitted,mutations);
+    printf("Geometry index cache: %u same-fingerprint sets, %u valid payload variants/evictions PASS\n",collision_sets,collisions);
 }

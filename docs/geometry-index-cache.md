@@ -7,11 +7,16 @@ triangle order, indices, padding, admission decision or guest-visible state.
 Projection, skinning, culling, allocation, DMA and command publication still
 execute normally. Vertex data is never cached by this option.
 
-Each worker owns 64 direct-mapped cells. Only sources of 8–8192 bytes and
+Each worker owns 256 cells in 64 four-way sets. Only sources of 8–8192 bytes and
 1–4096 triangles participate. Each cell retains owned source bytes and three
 decoded index components. Larger jobs use the ordinary decoder. Allocations
 occur on cache population/growth; warmed hits only compare and copy bytes.
-Memory use therefore depends on the worker count and retained source sizes.
+Within a set, the least recently used entry is replaced after a successful
+decode. Failed decodes leave previous entries intact. Recency is only an
+eviction policy; equality checks remain mandatory even after a counter wrap.
+Memory use depends on worker count, retained source sizes and vector capacity;
+the logical source/index payload is at most 8 MiB per worker, with allocator
+capacity potentially higher. This is larger than the original 64-cell cache.
 
 The sampled fingerprint only selects a cell. Every hit requires full source
 byte equality, index-count equality, current source-span/family validation and
@@ -40,6 +45,9 @@ architecture and poisoned output buffers. The original lifted index decoder
 also matches all 19745661 real indices with the cache compiled ON on Linux x86;
 264 payload/bias boundary cases and 18 malformed-input rejections pass. This
 does not constitute Android hardware speed or full-gameplay qualification.
+The four-way variant also passes 448 valid delta-payload variants across 32
+same-fingerprint sets on each architecture, exercising all ways, repeated
+evictions and warmed lookups against the uncached decoder.
 
 `tests/geometry-index-cache-test.cpp` uses the same private image41 corpus as
 the other producer tests. It is included in `tests/scripts/test-offline-cpu.py`
@@ -48,10 +56,13 @@ when `--corpus` is supplied. The original-decoder oracle test remains
 
 ## Performance qualification
 
-The locked-console diagnostic run shows approximately 55% eligible cache hits
+The original 64-cell locked-console diagnostic run shows approximately 55% eligible cache hits
 in the fixed animated menu workload. This is a hit-rate observation, not an
 FPS result. The same immutable reference14 EXE remains the reference; a separate
 incremental control is the maintained native image39-request build.
+The measurements below qualify that original implementation. Four-way/256-cell
+performance must be qualified separately; an offline ownership simulation or
+larger hit rate alone is not proof of higher game FPS.
 
 Six matched PC runs pass all executable/profile/window/locked-session guards;
 all six Vulkan readbacks show the intended menu without an obvious defect.
@@ -109,3 +120,62 @@ Private raw artifacts and analysis scripts remain under `analysis/pc45-image39/`
 these denominators or replace the immutable reference14 artifact.
 
 The cache remains OFF in source defaults and reference29.
+
+## Four-way qualification
+
+The current four-way cache is compared with the frozen host-command build
+using the same reference14, save seed, script, warmed shader cache, mailbox
+presentation, two contexts, 1024x576 client and 1280x720 render extent. All
+eight 100-second runs retain the same locked Windows session and pass the
+effective-setting, executable/map, presentation and runtime-mode checks.
+Their 35-second Vulkan readbacks show the intended menu. Timed windows contain
+no build, correctness test, sampling profiler or second game.
+
+| Build | Heavy 45–60s FPS, two runs | Pooled 45–90s FPS |
+|---|---|---|
+| Same immutable reference14 | 38.0174 / 37.3422 | 44.9892 |
+| Frozen host-command control, 64-cell cache | 40.3896 / 40.1711 | 48.8675 |
+| Shared clip preparation only, 64-cell cache | 39.9589 / 40.1071 | 48.4870 |
+| Shared clip preparation and four-way cache | 40.4686 / 41.1128 | 49.7397 |
+
+The combined candidate gains about 0.51 FPS in the heavy window and 1.78%
+over the longer window relative to the frozen control. Two repeats establish
+only a small workload-specific gain. Sharing clip parameters alone does not
+establish a throughput improvement; its smaller preparation work must not be
+reported as an FPS win. Candidate longer-window P99 is 30.805/30.091ms, so this
+is **not stable 45 FPS**. These are animated-menu measurements, not Android
+hardware or question/answer/scoring qualification.
+
+A separate pair of 60-second diagnostic runs changes eligible cache hits from
+54.6655% to 87.0234%, over 3407872 reported lookups per build. Statistics are
+disabled in the FPS/CPU runs. The higher hit rate is evidence of fewer decoder
+invocations, rather than a substitute for end-to-end timing.
+
+Four separate 72-second CPU runs compare the frozen host-command control and
+the combined candidate in control/candidate/candidate/control order. Both
+builds have host commands and index caching ON; this is **not** a runtime
+cache OFF/ON comparison. Owned persistent handles measure 45–65s without
+suspension, timed thread enumeration or sampling. All mode/window/session
+checks pass.
+
+| Measurement | Frozen control | Combined candidate |
+|---|---|---|
+| Process CPU ms/frame | 125.7123 | 125.2439 |
+| Process cycles/frame | 471.185 million | 461.661 million |
+| SPURS pool CPU ms/frame | 57.3842 | 56.5210 |
+| SPURS chain CPU ms/frame | 22.0545 | 21.8569 |
+| RSX CPU ms/frame | 15.0699 | 15.4986 |
+| Process busy cores, uncapped | 5.3081 | 5.4167 |
+
+Process CPU time per frame is effectively flat (0.37% lower); recorded cycles
+per frame are 2.02% lower. Total uncapped CPU utilization rises slightly, and
+there is no claim of lower power or a measured device benefit.
+
+Frozen executable SHA256 values are reference14
+`d66601b4c612eb4006597d285e9d247ed538692d269cadb1448219179fb903fb`,
+control `1cdddd62a3e93bca31bdb7ee95e32e2fb476bf15509b885ff946447de55662a3`,
+clip-only `c36411a3f48c420ed031c3a71557d2bd76f69983dde85e9e93439251e926979f`,
+and combined `875017011972f68eea90d0e68d04b3f89f3b862f3aec84af0144a35b169840cf`.
+Private `critical-*` artifacts under `analysis/pc45-image39/` retain the raw
+frames, CPU counters, source bindings and guards. Defaults and reference29
+remain OFF.
