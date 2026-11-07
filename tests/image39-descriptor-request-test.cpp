@@ -98,6 +98,7 @@ int main(int argc,char** argv) {
         assert(!memcmp(&b->gpr[3],&gold->gpr[3],16));controls(b.get(),gold.get());
         for(unsigned r=0;r<128;++r)if(r<2||r>=80)assert(!memcmp(&b->gpr[r],&gold->gpr[r],16));
         const auto sp=b->gpr[1]._u32[0];
+        assert(!memcmp(b->ls+sp-112,gold->ls+sp-112,16));
         for(unsigned i=0;i<SPU_LS_SIZE;++i)
             if(i<sp-144||i>=sp+32)assert(b->ls[i]==gold->ls[i]);
         ++cases;
@@ -172,9 +173,52 @@ int main(int argc,char** argv) {
         assert(!memcmp(&a->gpr[3],&b->gpr[3],16));controls(a.get(),b.get());
         for(unsigned r=0;r<128;++r)if(r<2||r>=80)assert(!memcmp(&a->gpr[r],&b->gpr[r],16));
         const auto sp=a->gpr[1]._u32[0];
+        assert(!memcmp(a->ls+sp-112,b->ls+sp-112,16));
         for(unsigned i=0;i<SPU_LS_SIZE;++i)if(i<sp-144||i>=sp+32)assert(a->ls[i]==b->ls[i]);
         ++admitted;
     }
     assert(admitted>700 && unsupported && synthetic_hits && synthetic_misses);
     printf("PASS synthetic requests=%u hits=%u misses=%u unsupported=%u\n",admitted,synthetic_hits,synthetic_misses,unsupported);
+    unsigned limits=0;
+    for(unsigned used:{1u,7u,8u,31u,32u,255u,256u,4095u,4096u})for(unsigned kind=0;kind<6;++kind) {
+        *a=*seed;a->ls=a->ls_store;
+        const unsigned d=0x23000,table=0x10000;
+        a->gpr[3]=spu_il(d);a->gpr[4]=spu_il(0x400000);a->gpr[5]=spu_il(5);
+        a->gpr[6]=spu_il(0x23100);a->gpr[1]=spu_il(0x3f000);
+        if(kind==1 || kind==2)a->gpr[4]._u32[0]|=(used%4)*4;
+        u128 stride=spu_il(16);
+        for(unsigned lane=1;lane<4;++lane) {
+            a->gpr[4]._u32[lane]=next();a->gpr[5]._u32[lane]=next();
+            stride._u32[lane]=next()&0xffff0000u;
+        }
+        if(kind==5)stride._u32[1]|=1;
+        spu_ls_write128(a.get(),d,spu_il(kind==4?0x3f000-112:0x24000));spu_ls_write128(a.get(),d+16,spu_il(table));
+        spu_ls_write128(a.get(),d+32,stride);spu_ls_write128(a.get(),d+48,spu_il(4096));
+        spu_ls_write128(a.get(),d+64,spu_il(used));
+        spu_ls_write128(a.get(),d+80,spu_il(kind==3?-1:1000));
+        const auto mask=spu_ls_read128(a.get(),0x5d90);
+        for(unsigned i=0;i<used;++i) {
+            u128 key=a->gpr[4];
+            const bool hit=kind==1?i==0:kind==2?(i==0||i==used-1):kind>=4?i==0:false;
+            if(!hit)key._u32[0]^=16*(i+1);
+            for(unsigned lane=1;lane<4;++lane)key._u32[lane]=next();
+            const uint32_t age=(kind==3?0x80000000u:0u)+i%3;
+            spu_ls_write128(a.get(),table+16*i,spu_shufb(key,spu_il((int)age),mask));
+        }
+        // Unused records deliberately match. A rounded-up SIMD tail would
+        // select one and change the published result, even inside capacity.
+        for(unsigned i=used;i<4096 && i<used+4;++i)
+            spu_ls_write128(a.get(),table+16*i,a->gpr[4]);
+        *b=*a;b->ls=b->ls_store;buzz_image39_request_plan plan;
+        assert(buzz_image39_prepare_request(b.get(),&plan));
+        commands=0;recording=true;reference(a.get());const unsigned count=commands;
+        commands=0;recording=false;assert(buzz_image39_native_request(b.get()) && commands==count);
+        assert(!memcmp(&a->gpr[3],&b->gpr[3],16));controls(a.get(),b.get());
+        for(unsigned r=0;r<128;++r)if(r<2||r>=80)assert(!memcmp(&a->gpr[r],&b->gpr[r],16));
+        const unsigned sp=a->gpr[1]._u32[0];
+        assert(!memcmp(a->ls+sp-112,b->ls+sp-112,16));
+        for(unsigned i=0;i<SPU_LS_SIZE;++i)if(i<sp-144||i>=sp+32)assert(a->ls[i]==b->ls[i]);
+        ++limits;
+    }
+    printf("PASS %u cache capacity/search boundaries: 4096 entries, packed fields, result slots and generic guards\n",limits);
 }
