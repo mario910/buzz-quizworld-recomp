@@ -55,6 +55,7 @@ def indexFusion = providers.gradleProperty('buzzIndexFusion').map { it.toBoolean
 def packedIndexFusion = providers.gradleProperty('buzzPackedIndexFusion').map { it.toBoolean() }.getOrElse(false)
 def geometryDeferredClip = providers.gradleProperty('buzzGeometryDeferredClip').map { it.toBoolean() }.getOrElse(false)
 def geometryLazyAttributes = providers.gradleProperty('buzzGeometryLazyAttributes').map { it.toBoolean() }.getOrElse(false)
+def geometryIndexCache = providers.gradleProperty('buzzGeometryIndexCache').map { it.toBoolean() }.getOrElse(false)
 def indexPrepare = providers.gradleProperty('buzzIndexPrepare').map { it.toBoolean() }.getOrElse(false)
 def geometryIndexSequential = providers.gradleProperty('buzzGeometryIndexSequential').map { it.toBoolean() }.getOrElse(false)
 def geometryIndexBatched = providers.gradleProperty('buzzGeometryIndexBatched').map { it.toBoolean() }.getOrElse(false)
@@ -104,6 +105,7 @@ android {
                     "-DBUZZ_RENDERER_PACKED_FUSION=${packedIndexFusion ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_DEFERRED_CLIP=${geometryDeferredClip ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_LAZY_ATTRIBUTES=${geometryLazyAttributes ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_INDEX_CACHE=${geometryIndexCache ? 'ON' : 'OFF'}",
                     "-DBUZZ_RENDERER_INDEX_PREPARE=${indexPrepare ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_INDEX_SEQUENTIAL=${geometryIndexSequential ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_INDEX_BATCHED=${geometryIndexBatched ? 'ON' : 'OFF'}",

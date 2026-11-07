@@ -143,7 +143,8 @@ def main():
             zlib = [args.zlib.resolve()] if args.arm64 else ['-lz']
             for source, name in [('geometry-cull-rejection-test.cpp', 'cull-rejection'),
                                  ('geometry-host-vertex-job-test.cpp', 'composed-geometry'),
-                                 ('geometry-lazy-attributes-test.cpp', 'lazy-attributes')]:
+                                 ('geometry-lazy-attributes-test.cpp', 'lazy-attributes'),
+                                 ('geometry-index-cache-test.cpp', 'index-cache')]:
                 run([prefix+'g++', '-O2', '-std=gnu++17', *fp, *includes, '-Ithird_party/zlib',
                      'tests/'+source, *zlib, '-o', out/name])
                 run([*runner, out/name, args.corpus.resolve()])

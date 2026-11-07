@@ -659,6 +659,7 @@ option(BUZZ_GEOMETRY_BOUNDED_SKIN "Use native bounded palette blending and weigh
 option(BUZZ_GEOMETRY_COARSE_CLIP "Reject bounded whole geometry jobs before per-vertex projection" OFF)
 option(BUZZ_GEOMETRY_LAZY_ATTRIBUTES "Defer rigid geometry attributes until triangles survive culling" OFF)
 option(BUZZ_GEOMETRY_INDEX_BATCHED "Eight-lane packed geometry delta decoding" OFF)
+option(BUZZ_GEOMETRY_INDEX_CACHE "Content-verified cache of decoded geometry indices" OFF)
 # Explicitly reproduce the compaction path present in the qualified Windows
 # executable. Other platforms keep their existing source default.
 option(BUZZ_GEOMETRY_CULL_COMPACT "Eight-lane geometry output compaction" ${WIN32})
@@ -670,6 +671,7 @@ set_property(SOURCE native_geometry_job_flow.cpp APPEND PROPERTY COMPILE_DEFINIT
     "BUZZ_GEOMETRY_LAZY_ATTRIBUTES=$<BOOL:${BUZZ_GEOMETRY_LAZY_ATTRIBUTES}>"
     "BUZZ_GEOMETRY_INDEX_SEQUENTIAL=$<BOOL:${BUZZ_GEOMETRY_INDEX_SEQUENTIAL}>"
     "BUZZ_GEOMETRY_INDEX_BATCHED=$<BOOL:${BUZZ_GEOMETRY_INDEX_BATCHED}>"
+    "BUZZ_GEOMETRY_INDEX_CACHE=$<BOOL:${BUZZ_GEOMETRY_INDEX_CACHE}>"
     "BUZZ_GEOMETRY_CULL_COMPACT=$<BOOL:${BUZZ_GEOMETRY_CULL_COMPACT}>")
 if(geometry_job_native_setup_available OR
    (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUZZ_STANDALONE AND PORT_SPU_ISA STREQUAL "avx2"))

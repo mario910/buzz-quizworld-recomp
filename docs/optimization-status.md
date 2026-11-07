@@ -79,6 +79,7 @@ is authoritative for which ones were actually packaged on the phone.
 | `BUZZ_RENDERER_NORMAL_MULTIPLY` | OFF: needs vertex stream and round-to-nearest finite domain; otherwise division | `BUZZ_NORMAL_MULTIPLY=0` |
 | `BUZZ_RENDERER_INDEX_PREPARE` | OFF: bulk reference expansion and dense packed remap; independent experiment | `BUZZ_INDEX_APPEND=0`, `BUZZ_PACKED_REMAP=0` |
 | `BUZZ_GEOMETRY_INDEX_SEQUENTIAL`, `BUZZ_GEOMETRY_INDEX_BATCHED` | OFF: producer-side flag validation / packed delta decoding; do not assume cumulative wins | Rebuild OFF |
+| `BUZZ_GEOMETRY_INDEX_CACHE` | OFF: experimental [content-verified decoded index cache](geometry-index-cache.md), bounded to 64 entries per worker. Rechecks complete source bytes and current guest codec tables; skips repeated decoding on hits. Windows `-GeometryIndexCache`, Android `buzzGeometryIndexCache=false`; OFF in reference29. Hardware performance qualification is separate from corpus correctness | `BUZZ_INDEX_CACHE=0`; `BUZZ_INDEX_CACHE_STATS=1` is diagnostic only |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | Windows default ON, other platforms OFF; Android reference OFF | Rebuild with the explicit platform choice |
 | `BUZZ_GEOMETRY_DEFERRED_CLIP` | OFF; build30 rejected as an FPS upgrade after phone ABBA; exceptional blocks recomputed exactly | Rebuild OFF |
 | `BUZZ_GEOMETRY_NATIVE_RECIPROCAL` | OFF: experimental native SIMD division replaces SPU reciprocal estimation/interpolation/refinement for ordinary finite W; low projection bits and quantized culling coordinates may differ. Extreme/zero/extended W retains the reference path. Captured retained triangles agree; paired PC menu testing does not establish stable 45 FPS or gameplay qualification. Android reference29 does not enable it | Rebuild OFF; takes precedence over deferred clip when both are enabled |
@@ -173,6 +174,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_COARSE_CLIP` | `OFF` | Reject bounded whole geometry jobs before per-vertex projection ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_LAZY_ATTRIBUTES` | `OFF` | Defer rigid geometry attributes until triangles survive culling ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_BATCHED` | `OFF` | Eight-lane packed geometry delta decoding ([source](../port/CMakeLists.txt)) |
+| `BUZZ_GEOMETRY_INDEX_CACHE` | `OFF` | Content-verified cache of decoded geometry indices ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_INPUTS` | `empty` | Input files to scan for all embedded SPU ELF programs (semicolon-separated decrypted ELF/PRX/data paths) ([source](../port/CMakeLists.txt)) |
@@ -245,6 +247,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzPackedIndexFusion` | `false` | `true` |
 | `buzzGeometryDeferredClip` | `false` | `false` |
 | `buzzGeometryLazyAttributes` | `false` | `false` |
+| `buzzGeometryIndexCache` | `false` | `false` |
 | `buzzIndexPrepare` | `false` | `false` |
 | `buzzGeometryIndexSequential` | `false` | `false` |
 | `buzzGeometryIndexBatched` | `false` | `false` |

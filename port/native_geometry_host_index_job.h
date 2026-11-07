@@ -3,11 +3,17 @@
  * unpack/expand/relocation scratch, SPU register bank or dummy iteration. */
 #pragma once
 #include "native_geometry_job_input.h"
+#include <vector>
+#include <cstdio>
+#include <cstdlib>
 #ifndef BUZZ_GEOMETRY_INDEX_SEQUENTIAL
 #define BUZZ_GEOMETRY_INDEX_SEQUENTIAL 0
 #endif
 #ifndef BUZZ_GEOMETRY_INDEX_BATCHED
 #define BUZZ_GEOMETRY_INDEX_BATCHED 0
+#endif
+#ifndef BUZZ_GEOMETRY_INDEX_CACHE
+#define BUZZ_GEOMETRY_INDEX_CACHE 0
 #endif
 #if BUZZ_GEOMETRY_INDEX_BATCHED
 #include "native_geometry_index_delta.h"
@@ -74,7 +80,7 @@ inline bool geometry_host_index_codec_matches(const spu_context& c)
     // Compare all guest bytes on every call; no pointer-based admission cache.
     return memcmp(c.ls + 0xd690, edge_tables.data(), edge_tables.size()) == 0;
 }
-inline bool decode_geometry_host_indices(const spu_context& c, const GeometryJobEntry& e,
+inline bool decode_geometry_host_indices_uncached(const spu_context& c, const GeometryJobEntry& e,
     GeometryHostIndexData& output, const char** reason = nullptr)
 {
     output.ready = false; output.final_group_kept = 5;
@@ -203,5 +209,84 @@ inline bool decode_geometry_host_indices(const spu_context& c, const GeometryJob
         for (auto& component : output.component) component[triangle] = 0;
     output.triangles = triangles; output.maximum_index = maximum; output.ready = true;
     if (reason) *reason = nullptr; return true;
+}
+
+// Content-verified decoded indices. The cache owns both its complete source
+// bytes and its result; no guest pointer, LS bank or admission survives a job.
+// Every lookup revalidates the source span, family and the guest codec tables.
+// Bounded storage: 64 cells, <=8192 source bytes and <=4096 triangles per cell.
+class GeometryHostIndexCache {
+    struct Cell {
+        uint64_t fingerprint=0;
+        unsigned index_count=0, maximum=0;
+        std::vector<uint8_t> source;
+        std::vector<uint16_t> indices;
+    };
+    std::array<Cell,64> cells;
+    uint64_t requests=0,hits=0;
+    bool stats;
+    void record(bool hit) {
+        ++requests;hits+=hit;
+        if(stats && !(requests&65535))
+            std::fprintf(stderr,"[geometry-index-cache] worker=%p requests=%llu hits=%llu misses=%llu\n",
+                static_cast<void*>(this),(unsigned long long)requests,(unsigned long long)hits,
+                (unsigned long long)(requests-hits));
+    }
+public:
+    GeometryHostIndexCache():stats([]{const char* v=std::getenv("BUZZ_INDEX_CACHE_STATS");return v&&v[0]=='1';}()){}
+    bool decode(const spu_context& c,const GeometryJobEntry& e,GeometryHostIndexData& output,
+                const char** reason=nullptr) {
+        const auto& source=e.input[GeometryJobEntry::indices];
+        const unsigned triangles=e.index_count/3;
+        const uint64_t io_end=uint64_t(e.io_lsa)+e.io_bytes;
+        if(c.ls!=c.ls_store || e.index_flavor()!=3 || !triangles || triangles>4096 ||
+           e.index_count%3 || (source.lsa&15) || source.size<8 || source.size>8192 ||
+           source.lsa<e.io_lsa || uint64_t(source.lsa)+source.size>io_end || io_end>SPU_LS_SIZE ||
+           !geometry_host_index_codec_matches(c))
+            return decode_geometry_host_indices_uncached(c,e,output,reason);
+        const uint8_t* bytes=c.ls+source.lsa;
+        uint64_t first,middle,last;
+        memcpy(&first,bytes,8);memcpy(&middle,bytes+(source.size-8)/2,8);
+        memcpy(&last,bytes+source.size-8,8);
+        // This inexpensive fingerprint only selects a cell. Full byte equality
+        // below is mandatory, including when sampled bytes happen to collide.
+        uint64_t fingerprint=first^(middle*0x9e3779b97f4a7c15ull)^(last*0xbf58476d1ce4e5b9ull);
+        fingerprint^=uint64_t(e.index_count)*0x94d049bb133111ebull+source.size;
+        fingerprint^=fingerprint>>32;fingerprint*=0xbf58476d1ce4e5b9ull;fingerprint^=fingerprint>>29;
+        auto& cell=cells[fingerprint&63];
+        const unsigned padded=(triangles+7)&~7u;
+        if(cell.fingerprint==fingerprint && cell.index_count==e.index_count &&
+           cell.source.size()==source.size && !memcmp(cell.source.data(),bytes,source.size)) {
+            for(unsigned corner=0;corner<3;++corner)
+                memcpy(output.component[corner],cell.indices.data()+corner*padded,padded*sizeof(uint16_t));
+            output.triangles=triangles;output.maximum_index=cell.maximum;
+            output.final_group_kept=5;output.ready=true;
+            if(reason)*reason=nullptr;record(true);return true;
+        }
+        record(false);
+        if(!decode_geometry_host_indices_uncached(c,e,output,reason))return false;
+        cell.source.assign(bytes,bytes+source.size);cell.indices.resize(padded*3);
+        for(unsigned corner=0;corner<3;++corner)
+            memcpy(cell.indices.data()+corner*padded,output.component[corner],padded*sizeof(uint16_t));
+        cell.fingerprint=fingerprint;cell.index_count=e.index_count;cell.maximum=output.maximum_index;
+        return true;
+    }
+};
+inline bool decode_geometry_host_indices(const spu_context& c,const GeometryJobEntry& e,
+    GeometryHostIndexData& output,const char** reason=nullptr)
+{
+#if BUZZ_GEOMETRY_INDEX_CACHE
+    static const bool enabled=[]{
+        const char* v=std::getenv("BUZZ_INDEX_CACHE");
+        if(v && ((v[0]!='0' && v[0]!='1') || v[1])) {
+            std::fprintf(stderr,"BUZZ_INDEX_CACHE must be 0 or 1\n");std::abort();
+        }
+        const bool on=!v||v[0]=='1';
+        std::fprintf(stderr,"[geometry-index-cache] enabled=%d cells=64 max-source=8192 max-triangles=4096\n",int(on));
+        return on;
+    }();
+    if(enabled){static thread_local GeometryHostIndexCache cache;return cache.decode(c,e,output,reason);}
+#endif
+    return decode_geometry_host_indices_uncached(c,e,output,reason);
 }
 } // namespace buzz
