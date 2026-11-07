@@ -1,4 +1,7 @@
+param([switch]$HostCommands)
 $ErrorActionPreference = 'Stop'
+$geometryCase=if($HostCommands){'geometry-host-commands-test'}else{'geometry-full-commands-test'}
+$geometryOutput=if($HostCommands){'host-full-commands-test'}else{'full-commands-test'}
 $geometryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Push-Location -LiteralPath $geometryRoot
 try {
@@ -8,8 +11,8 @@ try {
     $geometryVs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
     & (Join-Path $geometryVs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     $geometryCompiler = & .\toolenv\Scripts\python.exe -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
-    & (Join-Path $geometryCompiler 'clang-cl.exe') /nologo /std:c++17 /MD /O2 /UNDEBUG /W0 /arch:AVX2 /Ips3recomp/include /Ips3recomp/runtime/spu tests/geometry-full-commands-test.cpp /Foanalysis/native-geometry/phase3/full-commands-test.obj /Feanalysis/native-geometry/phase3/full-commands-test.exe
+    & (Join-Path $geometryCompiler 'clang-cl.exe') /nologo /std:c++17 /MD /O2 /UNDEBUG /W0 /arch:AVX2 /Ips3recomp/include /Ips3recomp/runtime/spu "tests/${geometryCase}.cpp" "/Foanalysis/native-geometry/phase3/${geometryOutput}.obj" "/Feanalysis/native-geometry/phase3/${geometryOutput}.exe"
     if ($LASTEXITCODE) { throw 'Native full command test build failed' }
-    & .\analysis\native-geometry\phase3\full-commands-test.exe 2>&1 | Tee-Object -FilePath analysis/native-geometry/phase3/full-commands-test.log
+    & "./analysis/native-geometry/phase3/${geometryOutput}.exe" 2>&1 | Tee-Object -FilePath "analysis/native-geometry/phase3/${geometryOutput}.log"
     if ($LASTEXITCODE) { throw 'Native full command test failed' }
 } finally { Pop-Location }

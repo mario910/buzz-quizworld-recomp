@@ -16,6 +16,7 @@
 #include "native_geometry_command_publish.h"
 #include "native_geometry_position_commands.h"
 #include "native_geometry_full_commands.h"
+#include "native_geometry_host_commands.h"
 #include "native_geometry_attributes.h"
 #include "native_geometry_color.h"
 #include "native_geometry_unit_vectors.h"
@@ -1512,7 +1513,9 @@ extern "C" void buzz_geometry_job_emit_position(spu_context* ctx, buzz_geometry_
     const bool supported = buzz::read_geometry_position_commands(*ctx, plan);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_POSITION_COMMANDS, supported, 0);
     if (!supported) { reference(ctx); return; }
-    buzz::emit_geometry_position_commands(*ctx, plan, *functions);
+    if(buzz::geometry_host_commands_enabled() && !buzz_geometry_job_debug_stages())
+        buzz::emit_geometry_position_commands_host(*ctx,plan,*functions);
+    else buzz::emit_geometry_position_commands(*ctx, plan, *functions);
     SPU_RET(ctx);
 }
 
@@ -1526,7 +1529,9 @@ extern "C" void buzz_geometry_job_emit_full(spu_context* ctx, buzz_geometry_job_
     const bool supported = buzz::read_geometry_full_commands(*ctx, plan);
     buzz_geometry_job_output_result(BUZZ_GEOMETRY_JOB_FULL_COMMANDS, supported, 0);
     if (!supported) { reference(ctx); return; }
-    buzz::emit_geometry_full_commands(*ctx, plan, *functions);
+    if(buzz::geometry_host_commands_enabled() && !buzz_geometry_job_debug_stages())
+        buzz::emit_geometry_full_commands_host(*ctx,plan,*functions);
+    else buzz::emit_geometry_full_commands(*ctx, plan, *functions);
     SPU_RET(ctx);
 }
 

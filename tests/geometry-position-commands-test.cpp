@@ -1,6 +1,9 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_command_publish.h"
 #include "../port/native_geometry_position_commands.h"
+#if defined(BUZZ_TEST_HOST_COMMANDS)
+#include "../port/native_geometry_host_commands.h"
+#endif
 #include "../port/native_geometry_job_io.h"
 #include <cassert>
 #include <cstdio>
@@ -123,9 +126,24 @@ static void compare(spu_context& native, spu_context& reference, unsigned trial)
     operations.clear();
     const buzz_geometry_command_functions original{buzz_job_6eba_spu_func_000032C8,buzz_job_6eba_spu_func_00000100,buzz_job_6eba_spu_func_00000020,buzz_job_6eba_spu_func_000027A0};
     const buzz_geometry_command_functions combined{native_prepare,native_bind,native_reset,native_publish};
-    emit_geometry_position_commands(native, plan, (trial < 8192 ? trial & 4096 : trial & 1) ? combined : original); native.pc = native.gpr[0]._u32[0];
+    const auto& callbacks=(trial < 8192 ? trial & 4096 : trial & 1) ? combined : original;
+#if defined(BUZZ_TEST_HOST_COMMANDS)
+    emit_geometry_position_commands_host(native,plan,callbacks);
+#else
+    emit_geometry_position_commands(native,plan,callbacks);
+#endif
+    native.pc = native.gpr[0]._u32[0];
     assert(!geometry_command_admission);
+#if defined(BUZZ_TEST_HOST_COMMANDS)
+    assert(native.host_depth==reference.host_depth && native.image_id==reference.image_id &&
+           native.policy_mode==reference.policy_mode && native.resident_ovl==reference.resident_ovl &&
+           native.irq_frame==reference.irq_frame && native.ls==native.ls_store);
+    auto observed=std::unique_ptr<spu_context,decltype(&release_function_state)>(clone_function_state(&reference),release_function_state);
+    for(unsigned reg=2;reg<80;++reg)if(reg!=3)observed->gpr[reg]=native.gpr[reg];
+    const auto diff=compare_function_state(native,*observed);
+#else
     const auto diff = compare_function_state(native, reference);
+#endif
     if (!diff.exact()) {
         fprintf(stderr, "position command case%u indices=%u start=%X expectedend=%X differs: r%d byte%d LS=%X/%u controls=%s\n", trial,
             plan.indices, plan.reservation.start, plan.relocated_end, diff.first_register, diff.first_register_byte, diff.first_ls, diff.ls_bytes,
@@ -195,7 +213,12 @@ int main()
         if (read_geometry_position_commands(*native,plan)) { fprintf(stderr,"position rejection %u unexpectedly accepted\n",rejection); abort(); }
         assert(operations.empty() && !memcmp(native.get(),reference.get(),sizeof(*native)) && !memcmp(&plan,&before,sizeof plan));
     }
+#if defined(BUZZ_TEST_HOST_COMMANDS)
+    assert(prepare_reused>4000 && !publish_reused);
+    puts("Host position commands: live ABI, complete LS/control/channel/packet comparisons PASS; volatile temporaries excluded");
+#else
     assert(prepare_reused>4000 && publish_reused==prepare_reused);
     printf("Command proof reuse: %u preparation / %u publication matches independent readers PASS\n",prepare_reused,publish_reused);
     puts("Native position commands: 8320 strict full-state/channel cases with original/native callees (64 null-EA/minimum-reservation, 64 full-8192-byte-batch cases), 26 unchanged-state/no-I/O rejections PASS");
+#endif
 }
