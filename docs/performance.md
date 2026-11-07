@@ -11,6 +11,10 @@ Absolute FPS from different execution environments is not a shared baseline;
 the observed Codex/Claude difference has no established causal explanation.
 Do not infer an aggregate speedup by adding gains from overlapping changes.
 
+The [RSX preparation study](rsx-preparation-study.md) records the CPU profile
+after native job completion, a rejected renderer-remap cache and its cache-fill
+coherence failure. Its diagnostic phase estimates are separate from timed FPS.
+
 Keep a named PC baseline throughout an optimization series. Re-run its frozen
 EXE alongside candidates in the same environment; report its identity, scene,
 window, wait policy and renderer settings with every progress claim. A test
