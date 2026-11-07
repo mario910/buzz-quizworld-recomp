@@ -1,8 +1,9 @@
 """Pinned image 39 arithmetic adapter, independent opt-in and checked mode.
 
-Only the six scalar-reference FP operations change implementation. Reciprocal
-estimates/interpolation/conversions remain their integer reference helpers.
-No local-store, register, DMA, branch or job-completion changes are made.
+The arithmetic adapter changes six scalar-reference FP operations. Reciprocal
+estimates/interpolation/conversions keep their integer reference helpers. A
+separate, default-OFF EU100 descriptor-request hook is emitted for the audited
+0x3A10 routine; its native plan retains actual ordered MFC commands and exits.
 """
 
 from pathlib import Path as _Path
@@ -12,6 +13,7 @@ from pathlib import Path
 import hashlib
 import re
 import shutil
+from image39_request import wrap_request
 
 root = Path(__file__).resolve().parents[2]
 source_dir = root / 'port/spu/buzz_job_c0bc'
@@ -34,6 +36,7 @@ adapter = '''
 '''
 out = root / 'analysis/native-image39'
 out.mkdir(parents=True, exist_ok=True)
-(out / 'spu_recomp.c').write_text(source.replace(anchor, anchor + adapter), encoding='utf-8', newline='\n')
+(out / 'spu_recomp.c').write_text(wrap_request(source.replace(anchor, anchor + adapter), raw),
+                                encoding='utf-8', newline='\n')
 shutil.copyfile(source_dir / 'spu_recomp.h', out / 'spu_recomp.h')
 print(f'Image 39: pinned reference + shared checked FP adapter -> {out}')

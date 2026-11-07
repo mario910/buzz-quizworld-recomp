@@ -1,5 +1,17 @@
 /* Included after the SDK drain hooks; the SDK's private history remains the
  * single source of truth. No SPU state/layout changes or duplicate TLS bank. */
+int buzz_spu_native_request_allowed(const spu_context* ctx)
+{
+    static int diagnostics = -1;
+    int active = __atomic_load_n(&diagnostics, __ATOMIC_RELAXED);
+    if (active < 0) {
+        active = getenv("SPU_PCHIST") || getenv("SPU_CHHIST") ? 1 : 0;
+        __atomic_store_n(&diagnostics, active, __ATOMIC_RELAXED);
+    }
+    return !active && !g_spu_step_observer && !g_yz_lockstep_on && !g_spu_stack_reset_n &&
+        g_pm_flow_ctx != (const void*)ctx && !spu_launch_check_slow();
+}
+
 unsigned buzz_spu_pure_loop_budget(const spu_context* ctx, uint32_t back_pc, uint32_t body_pc)
 {
     static int diagnostics = -1;

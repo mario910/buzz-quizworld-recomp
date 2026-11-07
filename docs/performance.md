@@ -326,6 +326,26 @@ Captured final index/vertex bytes are compared with the eager pipeline, with
 coarse rejection OFF and ON, using `geometry-lazy-attributes-test.cpp` in the
 offline CPU suite's `--corpus` mode. Measure game FPS separately from kernel cost.
 
+`BUZZ_IMAGE39_NATIVE_REQUEST` (default OFF, Android property
+`buzzNativeImage39Request`) replaces the pinned EU 1.00 descriptor request
+with a host cache/output plan and one real MFC command for a miss. Regenerate
+`tools/codegen/generate-image39-native.py` and, when selected,
+`generate-image39-kernels.py` before configuring ON. CMake rejects an old or
+different adapter instead of silently enabling an absent hook. Android also
+requires `buzzNeonJobFp`; reference29 keeps the new property false.
+The Windows build script exposes `-NativeImage39 -NativeImage39Request` and
+explicitly resets the new CMake option OFF when that experiment is omitted.
+
+`BUZZ_IMAGE39_REQUEST=0` retains the original request in an enabled build.
+`BUZZ_IMAGE39_REQUEST_STATS=1` counts attempted/native requests and is not a
+timing setting. Full-job replay must preserve ordered transfers and exit
+controls; keep captured read-input divergences separate from exact cases.
+The standalone oracle can be included in the offline CPU suite with
+`--image39-request-corpus <B39REQ01-directory> --image39-source <original-C0BC.c>`.
+It verifies the original source hash, retained full LS/register output, live
+native results, GET arguments/payloads and fallback before mutation. DMA is
+modeled there; a complete game/replay test still exercises the actual engine.
+
 ## Keeping documentation useful
 
 Store run artifacts under ignored `analysis/`, with a compact table and

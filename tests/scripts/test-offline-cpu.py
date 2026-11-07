@@ -7,6 +7,7 @@ emitted by an actual CMake build, so this tests the production adapter.
 import argparse
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 
@@ -18,7 +19,11 @@ def main():
     parser.add_argument('--corpus', type=Path, help='Complete private image41 capture directory')
     parser.add_argument('--remap-corpus', type=Path, help='Private stream of 10000 RSX remap inputs')
     parser.add_argument('--zlib', type=Path, help='ARM64 Linux libz.a, required with --arm64 --corpus')
+    parser.add_argument('--image39-request-corpus', type=Path, help='Private B39REQ01 descriptor-request captures')
+    parser.add_argument('--image39-source', type=Path, help='Original pinned EU100 C0BC translation unit')
     args = parser.parse_args()
+    if bool(args.image39_request_corpus) != bool(args.image39_source):
+        parser.error('--image39-request-corpus and --image39-source must be supplied together')
     if args.arm64 and args.bench:
         parser.error('QEMU timing is not a hardware benchmark')
     if args.arm64 and args.corpus and not args.zlib:
@@ -60,6 +65,12 @@ def main():
         run([prefix+'g++', '-O2', '-std=gnu++17', *fp, *includes,
              'tests/stagef-image39-return-test.cpp', '-o', out/'stagef-return'])
         run([*runner, out/'stagef-return'])
+        if args.image39_request_corpus:
+            run([sys.executable, 'tools/codegen/image39_request.py', '--reference', args.image39_source.resolve(),
+                 '--output', out/'image39_request_oracle.inc'])
+            run([prefix+'g++', '-O2', '-std=gnu++17', *fp, *includes, '-I'+str(out),
+                 'tests/image39-descriptor-request-test.cpp', '-o', out/'image39-request'])
+            run([*runner, out/'image39-request', args.image39_request_corpus.resolve()])
         for source, name in [('geometry-bounded-position-test.cpp', 'position'),
                              ('geometry-object-directions-test.cpp', 'directions'),
                              ('geometry-host-streams-test.cpp', 'streams'),

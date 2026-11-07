@@ -85,6 +85,7 @@ is authoritative for which ones were actually packaged on the phone.
 | `BUZZ_GEOMETRY_BOUNDED_SKIN` | OFF: experimental bounded palette blending and weighted transforms. Palette coefficients are checked once; ordinary inputs use native SIMD without per-operation SPU range checks, with exact fallback for other ranges. Captured output comparisons pass on x86 and ARM64/QEMU; combined PC CPU savings do not establish stable 45 FPS. Android reference29 does not enable it | Rebuild OFF |
 | `BUZZ_GEOMETRY_COARSE_CLIP` | OFF: experimental interval bounds reject whole jobs outside one clip plane before projecting every vertex; bounded input/matrix/viewport, same-sign normal W and codec admission are required. Other jobs retain full projection/culling. Captured final-output comparisons pass on Windows, Linux x86 and ARM64/QEMU; paired PC menu testing does not establish a repeatable incremental FPS gain. Android reference29 does not enable it | Rebuild OFF |
 | `BUZZ_GEOMETRY_LAZY_ATTRIBUTES` | OFF: rigid/unskinned jobs prepare positions before culling and decode/transform other attributes only when triangles survive. Weighted skinning stays in one pass. Full captured output/admission comparisons pass on Windows, Linux x86 and ARM64/QEMU; paired PC tests do not establish a meaningful heavy-scene FPS gain. Android property `buzzGeometryLazyAttributes` defaults false and is OFF in reference29 | Rebuild OFF |
+| `BUZZ_IMAGE39_NATIVE_REQUEST` | OFF: experimental EU100 descriptor-cache request driver; needs regenerated pinned image39 source. Preserves cache/output publication and actual MFC commands, with whole-request fallback before mutation. Android `buzzNativeImage39Request` defaults false and is OFF in reference29; requires `buzzNeonJobFp`. No stable 45 FPS or Android speed claim | `BUZZ_IMAGE39_REQUEST=0`; stats are diagnostic only |
 | `BUZZ_SPURS_POOL_LAYOUT` | OFF: separates polling/cache-line writes; no task-order change and no established FPS win | Rebuild OFF |
 | `BUZZ_RSX_PARK_WAKE` | OFF: notify exact watched self-JUMP replacement; needs ordinary SPURS DMA wake path | `BUZZ_RSX_PARK_WAKE=0` |
 | `BUZZ_WINDOWS_TIMER_REUSE` | OFF, Windows-only timer reuse experiment | Rebuild OFF |
@@ -103,6 +104,8 @@ behavior and further admission checks live in the linked CMake/header sources;
   decided by generated source/ISA options, not the mode variable alone.
 - Image39's kernel hook is currently a fallback stub. Its checked FP option
   changes arithmetic helpers, not the retained producer's instruction flow.
+  The optional native descriptor request replaces a separate `0x3A10` path;
+  it does not provide a native `0x05C0` arithmetic kernel or a whole-image driver.
   Native whole-job animation is Image40; see [native jobs](native-jobs.md).
 - Android reference29 explicitly enables Image7, Image36, Image39/40 checked FP,
   full Image41 host geometry and video IDCT generation. The native PC animation
@@ -157,6 +160,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_SPU_LS_DEBUG_HOOKS` | `${spu_probe_default}` | Keep SPU_LS_WATCH/SPU_SMC_WATCH probes in lifted SPU images ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_SPU_FLOAT` | `OFF` | Native RZ/FMA for the audited single-precision geometry image only ([source](../port/CMakeLists.txt)) |
 | `PORT_RTZ_RESULT_GUARD` | `OFF` | Experimental result classification instead of operand exponent checks; same exact lane repair ([source](../port/CMakeLists.txt)) |
+| `BUZZ_IMAGE39_NATIVE_REQUEST` | `OFF` | Use the admitted EU100 native descriptor-cache request driver ([source](../port/CMakeLists.txt)) |
 | `BUZZ_STANDALONE` | `OFF` | Build for the prepared distribution layout ([source](../port/CMakeLists.txt)) |
 | `BUZZ_DISC_COMPLETION` | `OFF` | Enable the validated original disc completion mode ([source](../port/CMakeLists.txt)) |
 | `PORT_GEOMETRY_HOST_NEON` | `OFF` | Use the native host SoA geometry pipeline on ARM64 ([source](../port/CMakeLists.txt)) |
@@ -216,6 +220,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzNeonImage7` | `false` | `true` |
 | `buzzCompareImage7` | `false` | `false` |
 | `buzzNeonJobFp` | `false` | `true` |
+| `buzzNativeImage39Request` | `false` | `false` |
 | `buzzNeonGeometry` | `false` | `false` |
 | `buzzNeonGeometryDriver` | `false` | `true` |
 | `buzzNeonHostGeometry` | `false` | `true` |

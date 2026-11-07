@@ -271,6 +271,12 @@ python3 tools/document-optimizations.py --check
 
 The broader CPU suite uses the CMake-generated renderer adapter rather than a
 hand-recreated version; see [performance checks](../docs/performance.md).
+The optional `-PbuzzNativeImage39Request=true` experiment requires
+`-PbuzzNeonJobFp=true` and freshly generated EU 1.00 image39 sources. It uses
+the portable native descriptor-request plan; unsupported requests retain the
+original implementation. Bare builds and reference29 leave it false. ARM64
+oracle validation does not establish phone FPS; qualify it against the same
+Turnip version, scene and thermal conditions before promoting a device default.
 The geometry oracle compares 19,508 captured jobs with the original producers;
 the deferred-clip test also compares ordinary, special and random-bit inputs.
 Driver archive checks can run on JDK 17:

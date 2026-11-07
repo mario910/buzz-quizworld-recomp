@@ -2,13 +2,14 @@
 
 Input is the image 39 translation unit as built (tools/codegen/generate-image39-native.py
 output, analysis/native-image39/spu_recomp.c). Leaf kernels:
-  0x05D0  loop 0x0760 (fma/fm/shift heavy; ~45% of an image 39 job), called
-          with brsl from 0x2044, leaves through `bi $0`
+  0x05D0/0x05C0, loop 0x0760/0x0750: fma/fm/shift-heavy arithmetic leaf.
+          Job share must be measured on the selected workload; it is not a
+          fixed property of this source. The current native hook is a stub.
 For each, the lifted body is kept as `..._reference` and a wrapper under the
 original name calls buzz_stagef_run(ctx, reference, native, kernel). The
-native code (port/native_image39_kernels.h) is included into this translation
-unit; it sets MXCSR RZ+FTZ+DAZ itself for its hardware float operations, so it
-does not depend on SPURS_NATIVE_IMAGE39_FP.
+hook (port/native_image39_kernels.h) is included into this translation unit.
+The separate optional descriptor-request hook is carried from the input;
+selecting this arithmetic leaf's Stage F bit does not enable that request.
 Reproducible derived output: never edit port/spu.
 """
 

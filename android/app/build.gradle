@@ -22,6 +22,10 @@ def neonImage36 = providers.gradleProperty('buzzNeonImage36').map { it.toBoolean
 def neonImage7 = providers.gradleProperty('buzzNeonImage7').map { it.toBoolean() }.getOrElse(false)
 def compareImage7 = providers.gradleProperty('buzzCompareImage7').map { it.toBoolean() }.getOrElse(false)
 def neonJobFp = providers.gradleProperty('buzzNeonJobFp').map { it.toBoolean() }.getOrElse(false)
+def nativeImage39Request = providers.gradleProperty('buzzNativeImage39Request').map { it.toBoolean() }.getOrElse(false)
+if (nativeImage39Request && !neonJobFp) {
+    throw new GradleException('buzzNativeImage39Request requires buzzNeonJobFp and regenerated EU 1.00 sources.')
+}
 def neonGeometry = providers.gradleProperty('buzzNeonGeometry').map { it.toBoolean() }.getOrElse(false)
 def neonGeometryDriver = providers.gradleProperty('buzzNeonGeometryDriver').map { it.toBoolean() }.getOrElse(false)
 def neonHostGeometry = providers.gradleProperty('buzzNeonHostGeometry').map { it.toBoolean() }.getOrElse(false)
@@ -125,6 +129,7 @@ android {
                     "-DPORT_VIDEO_IDCT_SOURCE=${neonVideoIdct ? workspace.toString() + '/analysis/native-video-idct/spu_recomp.c' : ''}",
                     "-DPORT_GEOMETRY_HOST_NEON=${neonHostGeometry ? 'ON' : 'OFF'}",
                     "-DPORT_IMAGE39_SOURCE=${image39}", "-DPORT_IMAGE40_SOURCE=${image40}",
+                    "-DBUZZ_IMAGE39_NATIVE_REQUEST=${nativeImage39Request ? 'ON' : 'OFF'}",
                     "-DPORT_GEOMETRY_SOURCE=${geometry}", "-DPORT_IMAGE7_COMPARE=${compareImage7 ? 'ON' : 'OFF'}"
                 targets 'BuzzQuizWorldRecomp', 'main_hook', 'file_redirect_hook', 'gsl_alloc_hook'
             }

@@ -7,6 +7,8 @@ extern "C" {
 // operations. Zero preserves the ordinary dispatch at every block boundary.
 unsigned buzz_spu_pure_loop_budget(const spu_context* ctx, uint32_t back_pc, uint32_t body_pc);
 void buzz_spu_pure_loop_hops(spu_context* ctx, uint32_t back_pc, uint32_t body_pc, unsigned pairs);
+// A native request owns its I/O; this gate only excludes active drain diagnostics.
+int buzz_spu_native_request_allowed(const spu_context* ctx);
 #ifdef __cplusplus
 }
 #endif

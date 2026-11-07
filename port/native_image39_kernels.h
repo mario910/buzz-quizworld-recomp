@@ -1,7 +1,7 @@
 /* Native image 39 (C0BC) kernels, included into the generated image 39
- * translation unit by generate-image39-kernels.py. Same contract as the
- * image 41 kernels (port/native_stagef_loop.h): bit-identical results,
- * verified by BUZZ_STAGEF=2 against the lift on the job corpus. */
+ * translation unit by generate-image39-kernels.py. This arithmetic hook is
+ * still a fallback stub. The optional native descriptor request is a separate
+ * path in native_image39_request.h; its I/O needs whole-job checking. */
 #include <immintrin.h>
 
 /* 0x05D0 (loop 0x0760): placeholder until the native form is derived. */

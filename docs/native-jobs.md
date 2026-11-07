@@ -60,6 +60,30 @@ native replacement for the hot EU 1.00 `0x05C0`/`0x0750` loop. The optional
 checked Image 39 FP adapter replaces arithmetic helpers while retaining the
 instruction flow, register bank and I/O. It is not a native whole-job driver.
 
+`BUZZ_IMAGE39_NATIVE_REQUEST` is a separate experiment, OFF by default. The
+pinned EU 1.00 generator can route `0x3A10` descriptor requests through
+`native_image39_request.h`. It plans the cache lookup, replacement, output
+record and optional GET using local host values, then publishes in the
+original order. Dead ABI spills and dispatch between the request's blocks are
+omitted. The actual MFC command still performs validation, DMA, coherency,
+wakeups and tag completion; it is never replaced by a fabricated completion.
+The arithmetic `0x05C0` kernel and the rest of image39 remain separate paths.
+
+The request admits only audited caller return addresses, private LS with
+bounded disjoint descriptor/table/output spans, a nonempty cache and no
+enabled interrupts. Empty caches, aliases, invalid arguments, LS hooks and
+active drain/channel diagnostics retain the whole original request before any
+mutation. The result is r3 plus the published cache/output records and ordered
+DMA, rather than dead scratch registers or frame bytes. `BUZZ_IMAGE39_REQUEST=0`
+rolls back an enabled build. `BUZZ_IMAGE39_REQUEST_STATS=1` enables diagnostic
+admission counters; leave it unset during FPS/CPU comparisons.
+
+This I/O path must use whole-job checking. Stage F's paired leaf runner must
+not execute a DMA request twice. The standalone request test also compares
+captured entry/exit states with an independently extracted, hash-pinned
+retained oracle and models each observed GET payload. ARM64/QEMU verifies
+correctness, not device performance. Other game revisions are not admitted.
+
 `port/native_animation_runtime.cpp` owns dispatch and the reusable worker-local
 workspace. `port/native_animation_job.h` prepares and executes the recognized
 256-byte-descriptor family without an SPU register bank or call frames.

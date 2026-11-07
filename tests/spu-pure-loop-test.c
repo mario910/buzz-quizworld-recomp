@@ -23,20 +23,25 @@ int main(int argc, char** argv)
 {
     memset(&ctx, 0, sizeof(ctx));
     ctx.gpr[0]._u32[0] = 0x100;
+    if (argc == 2 && !strcmp(argv[1], "--request-diagnostics")) {
+        assert(!buzz_spu_native_request_allowed(&ctx));
+        puts("native-request diagnostic fallback PASS"); return 0;
+    }
     if (argc == 2) {
         assert(!buzz_spu_pure_loop_budget(&ctx, 0x6ee0, 0x6ee8));
         puts("pure-loop diagnostic fallback PASS"); return 0;
     }
     (void)argv;
     assert(buzz_spu_pure_loop_budget(&ctx, 0x6ee0, 0x6ee8) == 256);
+    assert(buzz_spu_native_request_allowed(&ctx));
     ctx.int_enable=1; ctx.event_mask=4;
     assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8));
     ctx.event_mask=0;
     assert(buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)==256); ctx.int_enable=0;
-    g_spu_step_observer=observer; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); g_spu_step_observer=0;
-    g_yz_lockstep_on=1; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); g_yz_lockstep_on=0;
-    g_spu_stack_reset_n=1; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); g_spu_stack_reset_n=0;
-    g_pm_flow_ctx=&ctx; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); g_pm_flow_ctx=0;
+    g_spu_step_observer=observer; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); assert(!buzz_spu_native_request_allowed(&ctx)); g_spu_step_observer=0;
+    g_yz_lockstep_on=1; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); assert(!buzz_spu_native_request_allowed(&ctx)); g_yz_lockstep_on=0;
+    g_spu_stack_reset_n=1; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); assert(!buzz_spu_native_request_allowed(&ctx)); g_spu_stack_reset_n=0;
+    g_pm_flow_ctx=&ctx; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); assert(!buzz_spu_native_request_allowed(&ctx)); g_pm_flow_ctx=0;
     ctx.gpr[0]._u32[0]=0x6ee0; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); ctx.gpr[0]._u32[0]=0x100;
     ctx.drain_ret_pc=0x6ee8; assert(!buzz_spu_pure_loop_budget(&ctx,0x6ee0,0x6ee8)); ctx.drain_ret_pc=0;
     for (unsigned start=0;start<45;++start) for(unsigned pairs=0;pairs<256;++pairs) {
