@@ -204,6 +204,44 @@ not establish comparable desktop conditions. `--cpu-load` adds aggregate
 system and game CPU counters without enumerating unrelated processes. It can
 show coincident CPU-load changes, not prove their cause or measure GPU load.
 
+On Windows, `BUZZ_WINDOWS_HIGH_QOS=1` opts into process-level HighQoS at
+startup; the default is OS-managed policy (unset or `0`). It explicitly
+disables execution-speed throttling through `SetProcessInformation`, with
+dynamic API lookup and a nonfatal fallback on unsupported systems. Startup
+logs report requested, unavailable or failed policy. It changes neither
+priority, affinity, timer policy nor the system power plan. Linux and Android
+do not use this Windows-only option. Battery/thermal behavior and other
+Windows versions remain unqualified; keep it opt-in.
+
+Microsoft describes the execution-speed control in
+[SetProcessInformation](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessinformation)
+and the system's foreground/background classification in
+[Quality of Service](https://learn.microsoft.com/en-us/windows/win32/procthread/quality-of-service).
+In a disconnected locked Windows 11 session, repeated same-EXE tests found
+that explicit HighQoS restored throughput that a resolution change did not.
+An independent timer-policy-only ablation did not reproduce the improvement.
+This is a Windows scheduling-policy result, not a native geometry speedup or
+proof that all earlier session differences have the same cause.
+
+Record the actual process power-throttling policy alongside session state and
+swapchain extent. Hold it identical for reference and candidate, including a
+frozen reference predating this startup option. Do not pool OS-managed and
+explicit-HighQoS results, infer efficiency from FPS alone, or treat a menu
+average above 45 FPS as stable gameplay qualification.
+
+`perf/windows-process-qos.py` reads the exact EXE's policy by default; it
+requires its PID, path, frozen SHA-256 and a new output path. For example:
+
+```powershell
+python perf/windows-process-qos.py <pid> --exe <game.exe> --expected-sha256 <hash> --output <policy.json>
+```
+
+Use `--mode high` before warmup to apply HighQoS to an older frozen reference;
+`--mode system` returns that process to OS-managed policy. Mutations request
+only process-level rights and record policy before/after, priority and affinity.
+Do not apply or query policy during timed windows. API failures reject the
+diagnostic rather than silently qualifying a run.
+
 `BUZZ_RENDERER_PIPELINE_LOOKUP` and `BUZZ_RENDERER_NORMAL_MULTIPLY` are optional
 experiments, OFF by default and excluded from qualified packages. The first
 indexes existing pipeline keys with full-key validation and a linear fallback.
@@ -406,8 +444,13 @@ and rejects `--bench`. Windows uses `tests/scripts/test-image39-bounds.ps1
 -ReferenceSource <original.c>` with optional `-Corpus <directories>` and
 `-CompilerDirectory <clang-cl-directory>`. Kernel-only `--bench`/`-Bench`
 timings are not game FPS. The [native job contract](native-jobs.md#image-39-object-visibility-and-descriptor-requests)
-describes admission and observable output. Until native gameplay and matched
-whole-game measurements pass, keep the experiment out of default profiles.
+describes admission and observable output. Keep the experiment out of default
+profiles until matched whole-game measurements establish a benefit.
+Live paired checks and a separate two-player question/answer/scoring run now
+exercise the native path without fallback. Matched menu measurements have
+not established a consistent incremental FPS/CPU benefit over the accepted
+bundle, so bounds remains default-OFF. These checks do not establish a full
+match, stable 45 FPS or Android hardware performance.
 The combined offline CPU suite runs synthetic bounds checks with
 `--image39-source <original.c>`; repeated `--image39-bounds-corpus <directory>`
 adds the corresponding private captures.

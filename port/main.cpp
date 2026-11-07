@@ -134,6 +134,7 @@ static LONG WINAPI buzz_crash_report(EXCEPTION_POINTERS* exception)
  * there is nothing to shim: the 15.6 ms default timer granularity this works
  * around is a Windows problem. */
 #include <timeapi.h>
+#include "windows_process_qos.h"
 #endif
 
 /* ---------------------------------------------------------------------------
@@ -909,6 +910,7 @@ int main(int argc, char** argv)
      * inflates every shorter wait the title makes and throttles the whole
      * thing. POSIX timers are already fine-grained. */
     timeBeginPeriod(1);
+    buzz_configure_windows_qos();
 #endif
 
     printf("=== Buzz! Quiz World experimental PS3Recomp runner ===\n");
