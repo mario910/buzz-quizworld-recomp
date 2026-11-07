@@ -214,10 +214,10 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
 // Content-verified decoded indices. The cache owns both its complete source
 // bytes and its result; no guest pointer, LS bank or admission survives a job.
 // Every lookup revalidates the source span, family and the guest codec tables.
-// Bounded storage: 256 cells, <=8192 source bytes and <=4096 triangles per cell.
+// Bounded storage: 1024 cells, <=8192 source bytes and <=4096 triangles per cell.
 class GeometryHostIndexCache {
 public:
-    static constexpr unsigned cell_count=256, ways=4;
+    static constexpr unsigned cell_count=1024, ways=4;
 private:
     struct Cell {
         uint64_t fingerprint=0, last_used=0;
