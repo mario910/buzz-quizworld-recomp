@@ -59,6 +59,7 @@ is authoritative for which ones were actually packaged on the phone.
 | Switch/family | Status and dependencies | Runtime rollback in an enabled build |
 |---|---|---|
 | `BUZZ_GEOMETRY_CHANNEL_SETUP` (environment) | OFF: experimental [direct pure MFC argument-register writes](geometry-channel-setup.md); set `1` before startup in native job mode 1. Modes 0/2, recording, shadow replay and startup `SPU_CHHIST` retain SDK handling. DMA, atomics and waits are unchanged; complete SDK-context comparisons pass on Windows/Linux x86/ARM64 QEMU | `BUZZ_GEOMETRY_CHANNEL_SETUP=0` |
+| `BUZZ_SPU_JOB_RETURN` | OFF: experimental [native SPURS job completion](spu-job-return.md). Handles an already completed direct driver return without non-local stack unwinding; retains existing halt for other callbacks, live callers, IRQs and diagnostics. Real-runtime OFF/ON tests pass on Windows, Linux x86 and ARM64/QEMU. Windows `-SpuJobReturn`; Android `buzzSpuJobReturn=false`, OFF in reference29. Full gameplay and Android performance remain unqualified | `BUZZ_SPU_JOB_RETURN=0` |
 | `BUZZ_RENDERER_CPU_REFINEMENTS` | Reference29 ON: fragment hash/metadata refinements; content-validated caches | `BUZZ_FP_HASH_CACHE=0` disables structural-hash caching |
 | `BUZZ_RENDERER_VERTEX_FETCH` | Reference29 ON: specialized conversion; independent of four-vertex streaming | `BUZZ_VERTEX_FETCH=0` |
 | `BUZZ_RENDERER_TEXTURE_SNAPSHOT` | Reference29 ON: one snapshot of texture registers per decision | `BUZZ_TEXTURE_SNAPSHOT=0` |
@@ -204,6 +205,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_RENDERER_NORMAL_MULTIPLY` | `OFF` | Exact finite-domain CMP normalization with multiplication ([source](../cmake/BuzzRendererVertexStream.cmake)) |
 | `BUZZ_RENDERER_WAIT_TRACE` | `OFF` | Detailed RSX/FIFO/Vulkan wait timeline ([source](../cmake/BuzzRendererWait.cmake)) |
 | `BUZZ_PRODUCER_DEPENDENCY_TRACE` | `OFF` | Trace DMA publications and FIFO park addresses (diagnostics only) ([source](../cmake/BuzzRendererWait.cmake)) |
+| `BUZZ_SPU_JOB_RETURN` | `OFF` | Complete admitted SPURS job-manager returns on the native driver stack ([source](../cmake/BuzzSpuJobReturn.cmake)) |
 | `BUZZ_SPURS_EXECUTION_TRACE` | `OFF` | Diagnostic SPURS execution CPU counters and native-thread channel waits ([source](../cmake/BuzzSpursExecutionTrace.cmake)) |
 | `BUZZ_SPURS_POOL_LAYOUT` | `OFF` | Separate SPURS polling and bookkeeping cache lines ([source](../cmake/BuzzSpursPoolLayout.cmake)) |
 | `BUZZ_SPURS_POOL_AUTO_SPIN_US` | `-1` | Automatic SPURS worker poll on 12+ logical CPUs (-1: SDK policy, 0..1000 us) ([source](../cmake/BuzzSpursPoolSpin.cmake)) |
@@ -255,6 +257,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzGeometryIndexCache` | `false` | `false` |
 | `buzzGeometryHostCommands` | `false` | `false` |
 | `buzzGeometryZeroVertexPadding` | `false` | `false` |
+| `buzzSpuJobReturn` | `false` | `false` |
 | `buzzIndexPrepare` | `false` | `false` |
 | `buzzGeometryIndexSequential` | `false` | `false` |
 | `buzzGeometryIndexBatched` | `false` | `false` |

@@ -195,6 +195,12 @@ audits, including on ARM64; that audit does not validate the approximate
 mode-1 policy. Reference29 keeps native reciprocal OFF. See
 [projection audit qualification](../docs/geometry-projection-audits.md).
 
+`buzzSpuJobReturn=true` enables experimental [native SPURS job completion](../docs/spu-job-return.md).
+It completes the SDK's existing job-manager return on the driver stack,
+preserving the non-local halt for other execution paths. Real-runtime ARM64/
+QEMU checks pass; Android hardware performance is unqualified. The property
+defaults false and reference29 keeps it OFF.
+
 Verify the resulting APK with the same SDK:
 
 ```sh

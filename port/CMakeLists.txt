@@ -490,6 +490,7 @@ if(ANDROID AND (PORT_IMAGE39_SOURCE OR PORT_IMAGE40_SOURCE OR geometry_arm_neon)
     include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzAndroidJobRtz.cmake")
 endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzSpursExecutionTrace.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzSpuJobReturn.cmake")
 if(geometry_arm_neon)
     set_property(SOURCE "${native_geometry}" APPEND PROPERTY COMPILE_OPTIONS -frounding-math -ffp-contract=off)
     set_property(SOURCE "${spurs_job_source}" TARGET_DIRECTORY ps3recomp_runtime

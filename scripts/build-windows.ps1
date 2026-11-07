@@ -13,6 +13,7 @@ param(
     [switch]$GeometryIndexCache,
     [switch]$GeometryHostCommands,
     [switch]$GeometryZeroVertexPadding,
+    [switch]$SpuJobReturn,
     [switch]$GeometryShufflePlans,
     [switch]$DirectGeometryLS,
     [switch]$ResultGuardFP,
@@ -36,7 +37,7 @@ if ($NativeImage39Request -and !$NativeImage39) {
     throw 'NativeImage39Request requires NativeImage39 and the pinned EU 1.00 profile.'
 }
 if($ReferenceOnly) {
-    if($NativeCompletion -or $NativeImage40 -or $NativeImage39 -or $NativeImage39Request -or $NativeImage36 -or $NativeImage7 -or $MStreamModules -or $StageF -or $NativeGeometry -or $GeometryIndexCache -or $GeometryHostCommands -or $GeometryZeroVertexPadding -or $MergeGeometry -or $FusedGeometry) {
+    if($NativeCompletion -or $NativeImage40 -or $NativeImage39 -or $NativeImage39Request -or $NativeImage36 -or $NativeImage7 -or $MStreamModules -or $StageF -or $NativeGeometry -or $GeometryIndexCache -or $GeometryHostCommands -or $GeometryZeroVertexPadding -or $SpuJobReturn -or $MergeGeometry -or $FusedGeometry) {
         throw 'ReferenceOnly cannot be combined with version-specific native adapters.'
     }
     $NativeSpuFloat=[System.Management.Automation.SwitchParameter]::new($false)
@@ -207,6 +208,7 @@ $configureOptions=@(
     "-DBUZZ_GEOMETRY_INDEX_CACHE=$($GeometryIndexCache.IsPresent)",
     "-DBUZZ_GEOMETRY_HOST_COMMANDS=$($GeometryHostCommands.IsPresent)",
     "-DBUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$($GeometryZeroVertexPadding.IsPresent)",
+    "-DBUZZ_SPU_JOB_RETURN=$($SpuJobReturn.IsPresent)",
     "-DPORT_MSTREAM_DIR=$mstreamDir", "-DPORT_IMAGE36_SOURCE=$image36Override",
     "-DPORT_VIDEO_SOURCE=$videoOverride", "-DPORT_PRODUCER_PROBE_DIR=$producerOverride",
     '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
