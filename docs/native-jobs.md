@@ -53,6 +53,13 @@ descriptors and invalid spans also retain the lift.
 
 ## Image 40: animation
 
+Image 39 (C0BC) is a separate producer, not this native animation pipeline.
+Its [kernel hook](../port/native_image39_kernels.h) currently returns to the
+retained implementation; selecting its Stage F mask bit does not provide a
+native replacement for the hot EU 1.00 `0x05C0`/`0x0750` loop. The optional
+checked Image 39 FP adapter replaces arithmetic helpers while retaining the
+instruction flow, register bank and I/O. It is not a native whole-job driver.
+
 `port/native_animation_runtime.cpp` owns dispatch and the reusable worker-local
 workspace. `port/native_animation_job.h` prepares and executes the recognized
 256-byte-descriptor family without an SPU register bank or call frames.

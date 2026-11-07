@@ -101,6 +101,9 @@ behavior and further admission checks live in the linked CMake/header sources;
 - Image7/36, retained geometry and Stage F modes generally use `0` for the
   reference, `1` native and `2` compare/reference-result mode. Availability is
   decided by generated source/ISA options, not the mode variable alone.
+- Image39's kernel hook is currently a fallback stub. Its checked FP option
+  changes arithmetic helpers, not the retained producer's instruction flow.
+  Native whole-job animation is Image40; see [native jobs](native-jobs.md).
 - Android reference29 explicitly enables Image7, Image36, Image39/40 checked FP,
   full Image41 host geometry and video IDCT generation. The native PC animation
   profile must not be assumed enabled on Android merely because both have
