@@ -54,7 +54,7 @@ int main(int argc,char** argv) {
     auto old_job=std::make_unique<GeometryHostJobWorkspace>(),new_job=std::make_unique<GeometryHostJobWorkspace>();
     std::vector<uint8_t> old_bytes(SPU_LS_SIZE),new_bytes(SPU_LS_SIZE);
     unsigned jobs=0,admitted=0,rejected=0,fully_culled=0;uint64_t saved_vertices=0;
-    unsigned producers=0;uint64_t published_bytes=0;
+    unsigned producers=0,invalid_ranges=0;uint64_t published_bytes=0;
     bool checked_rejection=false;
     for(const auto& file:std::filesystem::directory_iterator(argv[1])) {
         if(file.path().extension()!=".gz")continue;
@@ -97,6 +97,29 @@ int main(int argc,char** argv) {
         if(outside) {
             if(indices->triangles) {printf("FALSE REJECT: %s triangles=%u\n",file.path().filename().string().c_str(),indices->triangles);return 1;}
             ++rejected;saved_vertices+=e.vertices;
+            // A whole-job rejection must not bypass the ordinary culler's
+            // decoded-index range check. Keep valid offscreen positions but
+            // move explicit references outside their vertex bank, including
+            // on a warmed content cache. Both producers must fall back before
+            // touching any architectural state.
+            const unsigned source=e.input[GeometryJobEntry::indices].lsa;
+            if(old_ready && invalid_ranges<32 && c->ls[source+6] && geometry_job_be16(c->ls+source)) {
+                const uint16_t bias=geometry_job_be16(c->ls+source+2);
+                const uint16_t invalid_bias=uint16_t(bias+0x4000);
+                c->ls[source+2]=uint8_t(invalid_bias>>8);c->ls[source+3]=uint8_t(invalid_bias);
+                assert(decode_geometry_host_indices(*c,e,*indices));
+                assert(indices->maximum_index>=e.vertices);
+                std::vector<uint8_t> unchanged(c->ls,c->ls+SPU_LS_SIZE);
+                u128 registers[128];memcpy(registers,c->gpr,sizeof registers);
+                assert((!prepare_geometry_host_job_impl<false,false>(*c,e,*old_job)));
+                assert((!prepare_geometry_host_job_impl<true,false>(*c,e,*new_job)));
+                assert((!prepare_geometry_host_job_impl<false,true>(*c,e,*old_job)));
+                assert((!prepare_geometry_host_job_impl<true,true>(*c,e,*new_job)));
+                assert(!memcmp(c->ls,unchanged.data(),SPU_LS_SIZE));
+                assert(!memcmp(c->gpr,registers,sizeof registers));
+                c->ls[source+2]=uint8_t(bias>>8);c->ls[source+3]=uint8_t(bias);
+                ++invalid_ranges;
+            }
             if(!checked_rejection) {
                 unsigned field=16;
                 for(unsigned n=0;n<recipe.fields;++n)if(recipe.field[n].semantic==1)field=n;
@@ -112,7 +135,9 @@ int main(int argc,char** argv) {
     }
     assert(jobs==19508 && admitted>19000 && checked_rejection);
     assert(producers>18000 && published_bytes>0);
+    assert(invalid_ranges==32);
     printf("PASS coarse clip corpus: jobs=%u admitted=%u coarse_rejected=%u fully_culled=%u saved_vertices=%llu false_rejects=0; invalid/unbounded inputs retained\n",
         jobs,admitted,rejected,fully_culled,(unsigned long long)saved_vertices);
     printf("PASS whole host producer: %u matching admissions; %llu identical published index/vertex bytes\n",producers,(unsigned long long)published_bytes);
+    printf("PASS offscreen invalid indices: %u payload mutations rejected by coarse/eager and lazy producers without architectural writes\n",invalid_ranges);
 }

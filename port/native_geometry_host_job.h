@@ -42,10 +42,20 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
               !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason))return false;
     if constexpr(CoarseClip) {
         if(!decode_geometry_host_indices(c,e,w.indices,reason))return false;
-        if(geometry_host_trivially_outside(c,e,w.input,w.data)) {
+        // Keep the culler's range admission even when no per-vertex clip
+        // records will be built. Offscreen positions cannot admit bad indices.
+        if(w.indices.maximum_index>=e.vertices) {
+            if(reason)*reason="host cull source readiness/range";return false;
+        }
+        // The viewport and codec are immutable during this read-only job
+        // preparation. Compose them once for both interval and vertex tests;
+        // no prepared parameters survive this call or cross a guest mutation.
+        GeometryHostClipParameters parameters;
+        if(!read_geometry_host_clip_parameters(c,e,parameters,reason))return false;
+        if(geometry_host_trivially_outside(c,e,w.input,w.data,&parameters)) {
             w.indices.triangles=w.indices.maximum_index=w.indices.final_group_kept=0;
             w.clips.ready=false;
-        } else if(!project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||
+        } else if(!project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason,&parameters) ||
                   !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason))return false;
     } else if (
         !project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||

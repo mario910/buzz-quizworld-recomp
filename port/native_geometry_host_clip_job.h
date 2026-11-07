@@ -184,7 +184,8 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
 }
 inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, const GeometryHostInputData& data,
-    GeometryHostClipData& clips, const char** reason = nullptr)
+    GeometryHostClipData& clips, const char** reason = nullptr,
+    const GeometryHostClipParameters* prepared = nullptr)
 {
     clips.ready = false;
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
@@ -194,8 +195,11 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     for (unsigned field = 0; field < input.fields; ++field) if (input.field[field].semantic == 1) position = field;
     if (position == 16) return reject("host clip position semantic");
     if(data.pending_fields&(1u<<position))return reject("host clip position not captured");
-    GeometryHostClipParameters params;
-    if (!read_geometry_host_clip_parameters(c, e, params, reason)) return false;
+    // Only the current immutable job preparation may supply admitted data.
+    // Standalone callers retain their full viewport/codec validation here.
+    GeometryHostClipParameters storage;
+    if (!prepared && !read_geometry_host_clip_parameters(c, e, storage, reason)) return false;
+    const auto& params = prepared ? *prepared : storage;
     for (unsigned first = 0; first < input.vertices; first += 8) {
         auto value = geometry_host_clip8(params, data.at(input, position, first / 8));
         const v8 mask = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));

@@ -8,7 +8,8 @@ namespace buzz {
 // the ordinary per-vertex projection and per-triangle culling. No writes to
 // guest state, host streams or indices occur during this admission test.
 inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJobEntry& e,
-    const GeometryHostInputRecipe& recipe,const GeometryHostInputData& data)
+    const GeometryHostInputRecipe& recipe,const GeometryHostInputData& data,
+    const GeometryHostClipParameters* prepared=nullptr)
 {
     if(!data.ready || e.vertices<32 || e.vertices>4096 || recipe.vertices!=e.vertices ||
         recipe.fields>16 || recipe.blocks_per_field!=(e.vertices+7)/8 ||
@@ -16,8 +17,11 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
     unsigned field=16;
     for(unsigned n=0;n<recipe.fields;++n)if(recipe.field[n].semantic==1)field=n;
     if(field==16 || (data.pending_fields&(1u<<field)))return false;
-    GeometryHostClipParameters params;
-    if(!read_geometry_host_clip_parameters(c,e,params))return false;
+    // A caller may share its freshly admitted parameters with projection in
+    // the same read-only preparation. This is never a cross-job admission.
+    GeometryHostClipParameters storage;
+    if(!prepared && !read_geometry_host_clip_parameters(c,e,storage))return false;
+    const auto& params=prepared?*prepared:storage;
     auto ordinary=[](uint32_t bits){return (bits&0x7fffffff)<=0x4e800000u;};
     auto number=[](uint32_t bits){float value;memcpy(&value,&bits,4);return double(value);};
     for(const auto& row:params.row)for(auto bits:row)if(!ordinary(bits))return false;

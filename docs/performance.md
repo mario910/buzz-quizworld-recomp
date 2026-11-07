@@ -326,6 +326,17 @@ Captured final index/vertex bytes are compared with the eager pipeline, with
 coarse rejection OFF and ON, using `geometry-lazy-attributes-test.cpp` in the
 offline CPU suite's `--corpus` mode. Measure game FPS separately from kernel cost.
 
+`BUZZ_GEOMETRY_COARSE_CLIP` (default OFF) shares freshly admitted viewport and
+codec parameters between its interval test and surviving vertex projection.
+The parameters belong to one read-only job preparation and are never reused
+after a guest write or across jobs. This removes duplicate validation and
+matrix composition without changing projection arithmetic. Decoded indices
+must still fit the vertex bank even when the entire object is offscreen;
+otherwise the whole native job falls back before architectural writes.
+`geometry-coarse-clip-test.cpp` compares full published output with ordinary
+culling and checks malformed offscreen indices with lazy attributes OFF/ON.
+It is included in the offline CPU suite's `--corpus` mode.
+
 `BUZZ_IMAGE39_NATIVE_REQUEST` (default OFF, Android property
 `buzzNativeImage39Request`) replaces the pinned EU 1.00 descriptor request
 with a host cache/output plan and one real MFC command for a miss. Regenerate

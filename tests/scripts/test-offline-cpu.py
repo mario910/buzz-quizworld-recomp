@@ -142,6 +142,7 @@ def main():
         if args.corpus:
             zlib = [args.zlib.resolve()] if args.arm64 else ['-lz']
             for source, name in [('geometry-cull-rejection-test.cpp', 'cull-rejection'),
+                                 ('geometry-coarse-clip-test.cpp', 'coarse-clip'),
                                  ('geometry-host-vertex-job-test.cpp', 'composed-geometry'),
                                  ('geometry-lazy-attributes-test.cpp', 'lazy-attributes'),
                                  ('geometry-index-cache-test.cpp', 'index-cache')]:
