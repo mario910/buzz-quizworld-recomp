@@ -182,6 +182,13 @@ original padding policy. The property defaults false and reference29 keeps it
 OFF. See [the padding contract](../docs/geometry-vertex-padding.md); ARM64/QEMU
 correctness does not establish Android hardware performance.
 
+Shared native job mode 1 also supports experimental
+[direct MFC argument setup](../docs/geometry-channel-setup.md). This defaults
+OFF and has no Gradle switch. Startup `BUZZ_GEOMETRY_CHANNEL_SETUP=1` enables
+shared C++ address/size/tag assignments; DMA, atomics and waits still use the
+SDK. Modes 0/2 and channel auditing keep general handling. ARM64/QEMU checks
+pass; no phone speedup is established.
+
 Verify the resulting APK with the same SDK:
 
 ```sh

@@ -4,6 +4,7 @@
 #include "native_geometry_ledger.h"
 #include "native_geometry_job_io.h"
 #include "spu_dma.h"
+#include "native_geometry_channel_setup.h"
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -114,6 +115,8 @@ struct AdmissionOwnerScope {
     ~AdmissionOwnerScope(){admission_owner=previous;}
 };
 thread_local GeometryJobIoReplay* replay = nullptr;
+// Immutable after startup. Audits and SDK channel histograms retain every call.
+bool native_channel_setup = false;
 
 void unsupported(Recording& r, const char* reason)
 {
@@ -225,6 +228,10 @@ bool eligible(const spu_context* ctx, unsigned image=41, uint32_t entry=0x1c18)
 struct Init {
     Init()
     {
+        const char* setup = std::getenv("BUZZ_GEOMETRY_CHANNEL_SETUP");
+        if (setup && ((setup[0] != '0' && setup[0] != '1') || setup[1])) std::abort();
+        native_channel_setup = buzz_geometry_job_mode() == 1 &&
+            setup && setup[0] == '1' && !std::getenv("SPU_CHHIST");
         const char* option = std::getenv("BUZZ_GEOMETRY_JOB_AUDIT");
         if (option && ((option[0] != '0' && option[0] != '1') || option[1])) std::abort();
         if (buzz_geometry_job_mode()) {
@@ -234,6 +241,7 @@ struct Init {
             }
             std::fprintf(stderr, "[geometry-job] mode=%d: native job driver, build default=%d\n",
                          buzz_geometry_job_mode(), BUZZ_NATIVE_JOB_DEFAULT);
+            std::fprintf(stderr,"[geometry-job] MFC argument setup=%d\n",native_channel_setup);
             std::fprintf(stderr,"[geometry-job] profile=%s publication=%d commands=%d\n",
                 buzz_geometry_job_legacy_enabled()?"legacy-debug":"host-groups",
                 buzz_geometry_job_publication_enabled(),buzz_geometry_job_commands_enabled());
@@ -992,6 +1000,8 @@ extern "C" int buzz_geometry_job_audit_enabled()
 
 extern "C" void buzz_geometry_job_wrch(spu_context* ctx, uint32_t channel, u128 value)
 {
+    if (native_channel_setup && !recording && !shadow &&
+        buzz::set_geometry_mfc_argument(*ctx, channel, value._u32[0])) return;
     if (is_shadow(ctx)) { consume(ctx, GeometryJobIoKind::write, channel, value._u32[0]); return; }
     auto* op = begin(ctx, GeometryJobIoKind::write, channel, value._u32[0]);
     spu_wrch(ctx, channel, value);

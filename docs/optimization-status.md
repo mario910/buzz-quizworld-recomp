@@ -58,6 +58,7 @@ is authoritative for which ones were actually packaged on the phone.
 
 | Switch/family | Status and dependencies | Runtime rollback in an enabled build |
 |---|---|---|
+| `BUZZ_GEOMETRY_CHANNEL_SETUP` (environment) | OFF: experimental [direct pure MFC argument-register writes](geometry-channel-setup.md); set `1` before startup in native job mode 1. Modes 0/2, recording, shadow replay and startup `SPU_CHHIST` retain SDK handling. DMA, atomics and waits are unchanged; complete SDK-context comparisons pass on Windows/Linux x86/ARM64 QEMU | `BUZZ_GEOMETRY_CHANNEL_SETUP=0` |
 | `BUZZ_RENDERER_CPU_REFINEMENTS` | Reference29 ON: fragment hash/metadata refinements; content-validated caches | `BUZZ_FP_HASH_CACHE=0` disables structural-hash caching |
 | `BUZZ_RENDERER_VERTEX_FETCH` | Reference29 ON: specialized conversion; independent of four-vertex streaming | `BUZZ_VERTEX_FETCH=0` |
 | `BUZZ_RENDERER_TEXTURE_SNAPSHOT` | Reference29 ON: one snapshot of texture registers per decision | `BUZZ_TEXTURE_SNAPSHOT=0` |
@@ -177,8 +178,8 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_LAZY_ATTRIBUTES` | `OFF` | Defer rigid geometry attributes until triangles survive culling ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_BATCHED` | `OFF` | Eight-lane packed geometry delta decoding ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_CACHE` | `OFF` | Content-verified cache of decoded geometry indices ([source](../port/CMakeLists.txt)) |
-| `BUZZ_GEOMETRY_ZERO_VERTEX_PADDING` | `OFF` | Zero unindexed vertex alignment bytes instead of evaluating a padding vertex ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_HOST_COMMANDS` | `OFF` | Build and publish geometry command packets with host integer control ([source](../port/CMakeLists.txt)) |
+| `BUZZ_GEOMETRY_ZERO_VERTEX_PADDING` | `OFF` | Zero unindexed vertex alignment bytes instead of evaluating a padding vertex ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_INPUTS` | `empty` | Input files to scan for all embedded SPU ELF programs (semicolon-separated decrypted ELF/PRX/data paths) ([source](../port/CMakeLists.txt)) |
@@ -253,6 +254,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzGeometryLazyAttributes` | `false` | `false` |
 | `buzzGeometryIndexCache` | `false` | `false` |
 | `buzzGeometryHostCommands` | `false` | `false` |
+| `buzzGeometryZeroVertexPadding` | `false` | `false` |
 | `buzzIndexPrepare` | `false` | `false` |
 | `buzzGeometryIndexSequential` | `false` | `false` |
 | `buzzGeometryIndexBatched` | `false` | `false` |

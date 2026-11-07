@@ -72,6 +72,7 @@ def main():
                  'tests/image39-descriptor-request-test.cpp', '-o', out/'image39-request'])
             run([*runner, out/'image39-request', args.image39_request_corpus.resolve()])
         for source, name in [('geometry-bounded-position-test.cpp', 'position'),
+                             ('geometry-channel-setup-test.cpp', 'channel-setup'),
                              ('geometry-object-directions-test.cpp', 'directions'),
                              ('geometry-host-streams-test.cpp', 'streams'),
                              ('geometry-deferred-clip-test.cpp', 'deferred-clip'),
