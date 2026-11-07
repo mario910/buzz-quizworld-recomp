@@ -188,6 +188,7 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8(
     return geometry_host_clip8_impl<false>(params,position);
 #endif
 }
+template<bool ExactProjection = false>
 inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, const GeometryHostInputData& data,
     GeometryHostClipData& clips, const char** reason = nullptr,
@@ -211,13 +212,20 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     if(bounded_projection && !prepared)return reject("host clip missing arithmetic admission");
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const auto& position_data = data.at(input, position, first / 8);
-        auto value = bounded_projection ? geometry_host_clip8_impl<false,
+        auto value = [&] {
+            // A strict published-output audit cannot use an approximate
+            // reciprocal: a one-bit coordinate change can alter culling.
+            if constexpr (ExactProjection)
+                return bounded_projection ? geometry_host_clip8_impl<false,false,true>(params,position_data) :
+                    geometry_host_clip8_impl<false,false>(params,position_data);
+            else return bounded_projection ? geometry_host_clip8_impl<false,
 #if defined(BUZZ_GEOMETRY_NATIVE_RECIPROCAL) && BUZZ_GEOMETRY_NATIVE_RECIPROCAL
             true,
 #else
             false,
 #endif
-            true>(params,position_data) : geometry_host_clip8(params,position_data);
+                true>(params,position_data) : geometry_host_clip8(params,position_data);
+        }();
         const v8 mask = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
         for (unsigned component = 0; component < 4; ++component)
             _mm256_store_si256(reinterpret_cast<v8*>(clips.component[component] + first), _mm256_and_si256(value.component[component], mask));

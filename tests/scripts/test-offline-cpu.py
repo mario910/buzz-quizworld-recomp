@@ -73,6 +73,7 @@ def main():
             run([*runner, out/'image39-request', args.image39_request_corpus.resolve()])
         for source, name in [('geometry-bounded-position-test.cpp', 'position'),
                              ('geometry-channel-setup-test.cpp', 'channel-setup'),
+                             ('geometry-strict-projection-test.cpp', 'strict-projection'),
                              ('geometry-object-directions-test.cpp', 'directions'),
                              ('geometry-host-streams-test.cpp', 'streams'),
                              ('geometry-deferred-clip-test.cpp', 'deferred-clip'),

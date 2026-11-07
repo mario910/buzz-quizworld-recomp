@@ -73,9 +73,9 @@ does not meet the stable 45 FPS goal. Actual round progression and Android
 hardware performance remain unqualified. The option stays default-OFF.
 
 Startup checks confirm the unset default and `SPU_CHHIST` suppress the
-shortcut. The experimental PC bundle's paired job mode 2 aborts on a strict
-DMA-output-byte comparison during startup, both in the preceding frozen
-zero-padding build and in this build with argument setup disabled. Its log
-confirms the mode-2 guard, but that run is not a successful whole-job strict
-validation. The pre-existing output difference still needs classification;
-these measurements do not establish a new mode-2 regression or resolve it.
+shortcut. The initial paired mode-2 startup failure reproduced in the prior
+frozen build with argument setup disabled. It was subsequently traced to a
+thin-triangle decision changed by approximate reciprocal projection. The
+[strict projection policy](geometry-projection-audits.md) now repairs that
+audit mismatch. Mode 2 continues to disable the MFC argument shortcut, so its
+successful strict run does not provide additional coverage of that shortcut.

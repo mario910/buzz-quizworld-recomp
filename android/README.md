@@ -189,6 +189,12 @@ shared C++ address/size/tag assignments; DMA, atomics and waits still use the
 SDK. Modes 0/2 and channel auditing keep general handling. ARM64/QEMU checks
 pass; no phone speedup is established.
 
+Experimental native reciprocal projection may also change thin-triangle
+culling. Paired job mode 2 uses reference projection for strict published-byte
+audits, including on ARM64; that audit does not validate the approximate
+mode-1 policy. Reference29 keeps native reciprocal OFF. See
+[projection audit qualification](../docs/geometry-projection-audits.md).
+
 Verify the resulting APK with the same SDK:
 
 ```sh

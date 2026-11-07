@@ -20,7 +20,8 @@ struct GeometryHostJobWorkspace {
     unsigned index_source = 0, index_bytes = 0;
     bool ready = false, bounded_projection = false;
 };
-template<bool CoarseClip, bool LazyAttributes = false, bool BoundedProjection = false, bool ZeroVertexPadding = false>
+template<bool CoarseClip, bool LazyAttributes = false, bool BoundedProjection = false,
+    bool ZeroVertexPadding = false, bool ExactProjection = false>
 inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJobEntry& e,
     GeometryHostJobWorkspace& w,const char** reason=nullptr)
 {
@@ -60,11 +61,11 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
             w.clips.ready=false;
         } else {
             w.bounded_projection=bounded;
-            if(!project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason,&parameters,bounded) ||
+            if(!project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason,&parameters,bounded) ||
                !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason))return false;
         }
     } else if (
-        !project_geometry_host_inputs(c,e,w.input,w.data,w.clips,reason) ||
+        !project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason) ||
         !decode_geometry_host_indices(c,e,w.indices,reason) ||
         !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason)) return false;
     if(deferred && w.indices.triangles &&
@@ -106,10 +107,21 @@ inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntr
 #else
         false;
 #endif
-    // Paired strict audits retain the original padding payload/ABI contract.
-    // The relaxed policy belongs only to the ordinary native job controller.
-    if constexpr(zero_padding) {
-        if(buzz_geometry_job_mode()==1)
+    constexpr bool native_reciprocal=
+#if defined(BUZZ_GEOMETRY_NATIVE_RECIPROCAL) && BUZZ_GEOMETRY_NATIVE_RECIPROCAL
+        true;
+#else
+        false;
+#endif
+    // Strict published-byte audits retain reference projection and padding.
+    // A relaxed reciprocal can change a thin triangle's zero-area decision.
+    if constexpr(zero_padding || native_reciprocal) {
+        const int mode=buzz_geometry_job_mode();
+        if constexpr(native_reciprocal) {
+            if(mode==2)
+                return prepare_geometry_host_job_impl<coarse,lazy,coarse,false,true>(c,e,w,reason);
+        }
+        if(zero_padding && mode==1)
             return prepare_geometry_host_job_impl<coarse,lazy,coarse,true>(c,e,w,reason);
     }
     return prepare_geometry_host_job_impl<coarse,lazy,coarse,false>(c,e,w,reason);
