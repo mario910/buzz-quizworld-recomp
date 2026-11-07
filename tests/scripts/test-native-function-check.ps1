@@ -9,4 +9,8 @@ try {
     if ($LASTEXITCODE) { throw 'Function-check test build failed' }
     & .\analysis\native-function-check-test.exe
     if ($LASTEXITCODE) { throw 'Function-check test failed' }
+    & (Join-Path $compilerDirectory 'clang-cl.exe') /nologo /W0 /O2 /std:c++17 /Ips3recomp/include /Ips3recomp/runtime/spu tests/stagef-image39-return-test.cpp /Foanalysis/stagef-image39-return-test.obj /Feanalysis/stagef-image39-return-test.exe
+    if ($LASTEXITCODE) { throw 'Stage F return test build failed' }
+    & .\analysis\stagef-image39-return-test.exe
+    if ($LASTEXITCODE) { throw 'Stage F return test failed' }
 } finally { Pop-Location }

@@ -8,7 +8,7 @@
  *   BUZZ_STAGEF=3  probe: write the entry/exit state of the first
  *                  BUZZ_STAGEF_DUMP_MAX calls to BUZZ_STAGEF_DUMP (a directory)
  *   BUZZ_STAGEF=4  diagnostic: reference, then overwrite the volatile registers
- *                  r2..r79 with garbage (proves the caller never reads them)
+ *                  dead r2..r79 with garbage (image39's r3 result is kept)
  */
 #include "spu_context.h"
 #include "native_function_check.h"
@@ -131,10 +131,11 @@ void compare(const spu_context* reference, const spu_context* native, int kernel
     for (uint32_t i = SPU_LS_SIZE; i-- > 0;)
         if (reference->ls[i] != native->ls[i]) { ls_diff++; first = i; }
     uint64_t regs = 0, regs_high = 0;
-    /* The contract: r2..r79 are volatile and dead after the return (proven by
-     * BUZZ_STAGEF=4 on the corpus); everything else must match. */
+    /* Scratch r2..r79 may differ, except image39's live r3 result. Its caller
+     * consumes that count immediately after returning from the leaf. */
     for (int r = 0; r < 128; r++)
-        if ((r < 2 || r >= 80) && memcmp(&reference->gpr[r], &native->gpr[r], 16))
+        if ((r < 2 || r >= 80 || (kernel == 3 && r == 3)) &&
+            memcmp(&reference->gpr[r], &native->gpr[r], 16))
             (r < 64 ? regs : regs_high) |= 1ull << (r & 63);
     if (!ls_diff && !regs && !regs_high && reference->pc == native->pc) return;
     if ((++g_mismatched[kernel]) <= 16)
@@ -194,7 +195,8 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
     }
     run_reference(ctx, reference);
     if (buzz_stagef_mode == 4) {
-        /* BUZZ_STAGEF_POISON_KEEP=3,4: registers the kernel returns (left alone) */
+        /* BUZZ_STAGEF_POISON_KEEP=3,4 adds live registers. Image39 always
+         * preserves its known r3 return, independent of this diagnostic. */
         static uint64_t keep = UINT64_MAX;
         if (keep == UINT64_MAX) {
             keep = 0;
@@ -206,7 +208,7 @@ void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),
             }
         }
         for (int r = 2; r < 80; r++)
-            if (r >= 64 || !((keep >> r) & 1))
+            if (!(kernel == 3 && r == 3) && (r >= 64 || !((keep >> r) & 1)))
                 for (int w = 0; w < 4; w++) ctx->gpr[r]._u32[w] = 0xDEAD0000u ^ (uint32_t)(r * 4 + w) * 0x9E3779B1u;
     }
 }

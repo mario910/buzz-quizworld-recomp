@@ -57,6 +57,9 @@ def main():
         fp = ['-frounding-math', '-ffp-contract=off', '-D_Thread_local=thread_local']
         if not args.arm64:
             fp += ['-mavx2', '-mfma', '-DSPU_NATIVE_RTZ=1', '-DSPU_RTZ_RESULT_GUARD=1']
+        run([prefix+'g++', '-O2', '-std=gnu++17', *fp, *includes,
+             'tests/stagef-image39-return-test.cpp', '-o', out/'stagef-return'])
+        run([*runner, out/'stagef-return'])
         for source, name in [('geometry-bounded-position-test.cpp', 'position'),
                              ('geometry-object-directions-test.cpp', 'directions'),
                              ('geometry-host-streams-test.cpp', 'streams'),

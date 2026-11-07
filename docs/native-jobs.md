@@ -127,6 +127,13 @@ adapters. The geometry leaf mask is 827 (`0x33B`); the
 [kernel reference](native-geometry-kernels.md) describes the groups.
 These routines also serve the lifted fallback and diagnostics.
 
+Stage F's image-39 paired checker compares the complete r3 return value in
+addition to LS, return PC and preserved registers. Its volatile-register
+poison mode also preserves r3 automatically for kernel 3. The image-39 caller
+consumes that count; treating it as dead scratch would hide an incorrect
+native result. `tests/stagef-image39-return-test.cpp` exercises the actual
+paired runner with a wrong count and a permitted scratch-register difference.
+
 Legacy JOB1 removal remains deferred. The next optimization starts with a
 profile of the current executable, rather than expanding cold-format coverage.
 Do not reintroduce per-function SPU transliterations or assume that unobserved
