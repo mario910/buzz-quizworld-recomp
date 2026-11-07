@@ -87,3 +87,28 @@ correctness coverage only, not phone performance.
 The remaining measured work supports investigating conversion, backend draw
 submission and pipeline preparation. Further caching needs a demonstrated
 reuse rate and coherent fill contract before its complexity is retained.
+
+## Initial automated gameplay route
+
+A separate 400-second run of the unchanged accepted EXE automated two-player
+join, saved-profile selection, readiness, category input and periodic answers
+through ordinary buzzer events. It was uncapped with continuous readback OFF.
+The only Vulkan readback was at 370 seconds, after the 270–350 s observation
+window. It showed a rendered question and both players at 250 points, confirming
+that the automated route reached actual questions and scoring while Windows
+stayed locked.
+
+The 270–350 s route window measured 56.927 FPS, P95 24.846 ms and P99 28.116 ms;
+9.95% of presentation intervals exceeded 22.22 ms. Process CPU/frame was
+84.931 ms. The busiest SPURS chain thread used 16.174 CPU ms/frame; the RSX
+thread used 7.701, and the four pool lanes together 35.359. CPU time accumulated
+across threads is not elapsed frame time. A busy SPURS thread may include
+active polling; its CPU total alone does not prove that all of it is useful
+work or a dependency on the critical path.
+
+This is one route measurement, not a speedup over reference14, a same-scene
+comparison with the menu, or proof of stable 45 FPS. The post-window readback
+does not independently establish the scene of every earlier frame. Repeated
+reference/candidate runs need matching navigation and additional phase evidence
+before this route becomes the gameplay acceptance workload. The automated
+progression makes that next comparison possible without unlocking Windows.
