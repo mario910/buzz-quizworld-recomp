@@ -169,6 +169,15 @@ redirects and unmatched waits remain unknown. Values are post-copy snapshots,
 not an atomic log of concurrent guest writers. Use matching consumed words and
 separate CPU counters/FPS measurements before drawing throughput conclusions.
 
+The publication-address filter uses C linkage so C and C++ observers share one
+registration bitmap. Windows C++ name mangling otherwise creates a second,
+unregistered map and silently hides publications from C++ code. Missing events
+from that observer cannot establish publisher inactivity. The mixed-language
+link and concurrent registration test is
+`python3 tests/scripts/test-publication-watch.py` (optional `--arm64` for QEMU),
+or `tests/scripts/test-publication-watch.ps1` with clang-cl on Windows. This
+filter is diagnostic only; it does not notify consumers or change guest ordering.
+
 `BUZZ_RSX_PARK_WAKE` is an experimental CMake option, OFF by default. It uses
 the existing SPURS DMA notification hook to signal the RSX event only when a
 write replaces the exact self-JUMP currently watched by the consumer. It needs

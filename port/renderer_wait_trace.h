@@ -24,7 +24,15 @@ enum {
  * harmless hash collisions. Atomic registration avoids a cross-thread race.
  * It is NOT a notification mechanism and does not alter guest synchronization. */
 #ifdef BUZZ_PRODUCER_DEPENDENCY_TRACE
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* C and C++ observers must share the same selectany/weak object. Without C
+ * linkage a C++ publisher silently reads a different, never-registered map. */
 PS3_FT_SHARED uint64_t buzz_publication_lines[256] = {0};
+#ifdef __cplusplus
+}
+#endif
 static inline unsigned buzz_publication_bit(uint32_t ea) {
     return ((ea >> 7) ^ (ea >> 21)) & 16383u;
 }
