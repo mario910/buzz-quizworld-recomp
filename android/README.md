@@ -298,6 +298,19 @@ python3 tools/document-optimizations.py --check
 
 The broader CPU suite uses the CMake-generated renderer adapter rather than a
 hand-recreated version; see [performance checks](../docs/performance.md).
+The optional `-PbuzzNativeImage39Bounds=true` object-visibility experiment is
+OFF by default and remains OFF in reference29. It requires `buzzNeonJobFp`,
+updated native sources and both `generate-image39-native.py` and
+`generate-image39-kernels.py` regenerated in the prepared workspace. It selects
+the wrapped EU100 image39 source and checked NEON bounds driver. Runtime
+`BUZZ_STAGEF=1` with mask bit 8 is also required; add it to the intended kernel
+mask rather than replacing other selections. `BUZZ_IMAGE39_BOUNDS=0` rolls
+back to the original function. Whole-image `SPURS_NATIVE_IMAGE39_FP` can stay
+0. ARM64/QEMU checks arithmetic and output only; Android device performance
+and native gameplay progression are not yet qualified. See the
+[bounds contract](../docs/native-jobs.md#image-39-object-visibility-and-descriptor-requests)
+and [offline checks](../docs/performance.md).
+
 The optional `-PbuzzNativeImage39Request=true` experiment requires
 `-PbuzzNeonJobFp=true` and freshly generated EU 1.00 image39 sources. It uses
 the portable native descriptor-request plan; unsupported requests retain the

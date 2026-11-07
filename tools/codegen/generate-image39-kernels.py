@@ -4,7 +4,8 @@ Input is the image 39 translation unit as built (tools/codegen/generate-image39-
 output, analysis/native-image39/spu_recomp.c). Leaf kernels:
   0x05D0/0x05C0, loop 0x0760/0x0750: fma/fm/shift-heavy arithmetic leaf.
           Job share must be measured on the selected workload; it is not a
-          fixed property of this source. The current native hook is a stub.
+          fixed property of this source. The optional native bounds driver
+          admits only the pinned EU 1.00 caller and disjoint bounded inputs.
 For each, the lifted body is kept as `..._reference` and a wrapper under the
 original name calls buzz_stagef_run(ctx, reference, native, kernel). The
 hook (port/native_image39_kernels.h) is included into this translation unit.
@@ -47,7 +48,8 @@ for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
         raise SystemExit(f"0x{pc} has side effects beyond LS and registers")
     wrapper = ""
     if not included:
-        wrapper += f'\n#include "{header}"\n'
+        bounds_profile = 100 if pc == "05C0" else 0
+        wrapper += f'\n#define BUZZ_IMAGE39_BOUNDS_PROFILE {bounds_profile}\n#include "{header}"\n'
         wrapper += ("extern void buzz_stagef_run(spu_context* ctx, void (*reference)(spu_context*),\n"
                     "                            int (*native)(spu_context*), int kernel);\n"
                     "extern int buzz_stagef_mode;\n")

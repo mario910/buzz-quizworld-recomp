@@ -20,10 +20,12 @@ def main():
     parser.add_argument('--remap-corpus', type=Path, help='Private stream of 10000 RSX remap inputs')
     parser.add_argument('--zlib', type=Path, help='ARM64 Linux libz.a, required with --arm64 --corpus')
     parser.add_argument('--image39-request-corpus', type=Path, help='Private B39REQ01 descriptor-request captures')
+    parser.add_argument('--image39-bounds-corpus', action='append', default=[], type=Path,
+                        help='Private Stage F k3 bounds captures; repeat for multiple directories')
     parser.add_argument('--image39-source', type=Path, help='Original pinned EU100 C0BC translation unit')
     args = parser.parse_args()
-    if bool(args.image39_request_corpus) != bool(args.image39_source):
-        parser.error('--image39-request-corpus and --image39-source must be supplied together')
+    if (args.image39_request_corpus or args.image39_bounds_corpus) and not args.image39_source:
+        parser.error('Image39 captures require --image39-source')
     if args.arm64 and args.bench:
         parser.error('QEMU timing is not a hardware benchmark')
     if args.arm64 and args.corpus and not args.zlib:
@@ -65,6 +67,15 @@ def main():
         run([prefix+'g++', '-O2', '-std=gnu++17', *fp, *includes,
              'tests/stagef-image39-return-test.cpp', '-o', out/'stagef-return'])
         run([*runner, out/'stagef-return'])
+        if args.image39_source:
+            bounds_args = ['--reference', args.image39_source.resolve()]
+            if args.arm64:
+                bounds_args += ['--arm64']
+            if args.bench:
+                bounds_args += ['--bench']
+            for corpus in args.image39_bounds_corpus:
+                bounds_args += ['--corpus', corpus.resolve()]
+            run([sys.executable, 'tests/scripts/test-image39-bounds.py', *bounds_args])
         if args.image39_request_corpus:
             run([sys.executable, 'tools/codegen/image39_request.py', '--reference', args.image39_source.resolve(),
                  '--output', out/'image39_request_oracle.inc'])

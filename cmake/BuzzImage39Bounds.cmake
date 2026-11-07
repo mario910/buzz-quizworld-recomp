@@ -1,0 +1,31 @@
+# Experimental direct object-bounds culling, independent of whole-image FP.
+option(BUZZ_IMAGE39_NATIVE_BOUNDS "Use the admitted EU100 host object-bounds driver" OFF)
+if(BUZZ_IMAGE39_NATIVE_BOUNDS)
+    if(NOT PORT_IMAGE39_SOURCE)
+        message(FATAL_ERROR "Native image39 bounds require the generated EU100 Stage F adapter")
+    endif()
+    file(READ "${PORT_IMAGE39_SOURCE}" image39_bounds_source)
+    if(NOT image39_bounds_source MATCHES "#define BUZZ_IMAGE39_BOUNDS_PROFILE 100")
+        message(FATAL_ERROR "Regenerate the pinned EU100 image39 kernel adapter before enabling native bounds")
+    endif()
+    if(NOT ANDROID AND NOT PORT_SPU_ISA MATCHES "^(avx2|avx512)$")
+        message(FATAL_ERROR "Native image39 bounds require AVX2/FMA or Android ARM64 NEON")
+    endif()
+    target_sources(${PROJECT_NAME} PRIVATE native_image39_bounds.cpp)
+    set_property(SOURCE native_image39_bounds.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+        "SPU_LS_DEBUG_HOOKS=$<BOOL:${PORT_SPU_LS_DEBUG_HOOKS}>")
+    if(MSVC)
+        set_property(SOURCE native_image39_bounds.cpp APPEND PROPERTY COMPILE_OPTIONS
+            /O2 /arch:AVX2 /clang:-frounding-math /clang:-ffp-contract=off)
+    else()
+        set_property(SOURCE native_image39_bounds.cpp APPEND PROPERTY COMPILE_OPTIONS
+            -O2 -frounding-math -ffp-contract=off)
+        if(NOT ANDROID)
+            set_property(SOURCE native_image39_bounds.cpp APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma)
+        endif()
+    endif()
+endif()
+if(PORT_IMAGE39_SOURCE)
+    set_property(SOURCE "${PORT_IMAGE39_SOURCE}" APPEND PROPERTY COMPILE_DEFINITIONS
+        "BUZZ_IMAGE39_NATIVE_BOUNDS=$<BOOL:${BUZZ_IMAGE39_NATIVE_BOUNDS}>")
+endif()

@@ -26,6 +26,10 @@ def nativeImage39Request = providers.gradleProperty('buzzNativeImage39Request').
 if (nativeImage39Request && !neonJobFp) {
     throw new GradleException('buzzNativeImage39Request requires buzzNeonJobFp and regenerated EU 1.00 sources.')
 }
+def nativeImage39Bounds = providers.gradleProperty('buzzNativeImage39Bounds').map { it.toBoolean() }.getOrElse(false)
+if (nativeImage39Bounds && !neonJobFp) {
+    throw new GradleException('buzzNativeImage39Bounds requires buzzNeonJobFp and the regenerated EU 1.00 Stage F adapter.')
+}
 def neonGeometry = providers.gradleProperty('buzzNeonGeometry').map { it.toBoolean() }.getOrElse(false)
 def neonGeometryDriver = providers.gradleProperty('buzzNeonGeometryDriver').map { it.toBoolean() }.getOrElse(false)
 def neonHostGeometry = providers.gradleProperty('buzzNeonHostGeometry').map { it.toBoolean() }.getOrElse(false)
@@ -128,7 +132,8 @@ android {
                     "-DPORT_MSTREAM_DIR=${workspace}/analysis/mstream-modules"
                 def image36 = neonImage36 ? "${workspace}/analysis/native-image36/spu_recomp.c" : ""
                 def image7 = neonImage7 ? "${workspace}/analysis/native-image7/spu_recomp.c" : ""
-                def image39 = neonJobFp ? "${workspace}/analysis/native-image39/spu_recomp.c" : ""
+                def image39 = nativeImage39Bounds ? "${workspace}/analysis/native-image39-kernels/spu_recomp.c" :
+                    neonJobFp ? "${workspace}/analysis/native-image39/spu_recomp.c" : ""
                 def image40 = neonJobFp ? "${workspace}/analysis/native-image40/spu_recomp.c" : ""
                 def geometry = neonGeometryDriver && neonHostGeometry ? "${workspace}/analysis/native-geometry/phase3-host-arm64/spu_recomp.c" :
                     neonGeometryDriver ? "${workspace}/analysis/native-geometry/phase3-arm64/spu_recomp.c" :
@@ -138,6 +143,7 @@ android {
                     "-DPORT_GEOMETRY_HOST_NEON=${neonHostGeometry ? 'ON' : 'OFF'}",
                     "-DPORT_IMAGE39_SOURCE=${image39}", "-DPORT_IMAGE40_SOURCE=${image40}",
                     "-DBUZZ_IMAGE39_NATIVE_REQUEST=${nativeImage39Request ? 'ON' : 'OFF'}",
+                    "-DBUZZ_IMAGE39_NATIVE_BOUNDS=${nativeImage39Bounds ? 'ON' : 'OFF'}",
                     "-DPORT_GEOMETRY_SOURCE=${geometry}", "-DPORT_IMAGE7_COMPARE=${compareImage7 ? 'ON' : 'OFF'}"
                 targets 'BuzzQuizWorldRecomp', 'main_hook', 'file_redirect_hook', 'gsl_alloc_hook'
             }

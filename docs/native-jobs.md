@@ -51,14 +51,51 @@ padding position, additional blend streams and input storage 4. A discarded
 padding value is not permission to read a different palette entry. Unknown
 descriptors and invalid spans also retain the lift.
 
-## Image 40: animation
+## Image 39: object visibility and descriptor requests
 
-Image 39 (C0BC) is a separate producer, not this native animation pipeline.
-Its [kernel hook](../port/native_image39_kernels.h) currently returns to the
-retained implementation; selecting its Stage F mask bit does not provide a
-native replacement for the hot EU 1.00 `0x05C0`/`0x0750` loop. The optional
-checked Image 39 FP adapter replaces arithmetic helpers while retaining the
-instruction flow, register bank and I/O. It is not a native whole-job driver.
+Image 39 (C0BC) handles object visibility and descriptor requests.
+The optional checked Image 39 FP adapter replaces arithmetic helpers while
+retaining the instruction flow, register bank and I/O. It is not a native
+whole-job driver. The arithmetic and descriptor paths below are independent.
+
+`BUZZ_IMAGE39_NATIVE_BOUNDS` is an experimental, default-OFF replacement for
+the pinned EU 1.00 `0x05C0`/`0x0750` object-visibility loop. Its
+[host implementation](../port/native_image39_bounds.cpp) reads object bounds
+and matrices, transforms the center and projects each extent against five
+planes. SIMD lanes hold four planes, followed by the remaining plane. Once
+one group proves the object outside, the other group is unnecessary.
+This replaces SPU register traffic, byte shuffles, software pipelining and
+dead prefetches with a direct bounds algorithm.
+
+Checked SSE/FMA or NEON arithmetic retains ordered round-toward-zero/flush
+operations and integer repair of exceptional values. The function saves and
+restores the caller's FP control and sticky flags. It does not depend on the
+whole-image `SPURS_NATIVE_IMAGE39_FP` mode, which can remain 0.
+
+Admission requires the hash-pinned EU100 wrapper, the known `0x2178` caller,
+private LS, 1..4096 items, known shuffle constants and bounded aligned input
+records. A preflight rejects output overlapping pointer tables, input records
+or constants before any mutation. Interrupt/event/policy contexts, LS hooks
+and active native-request diagnostics keep the entire retained function.
+There is no cross-call input cache, allocation or fabricated completion.
+
+The live result is full LS, the complete r3 return, preserved registers and
+the return PC. The preferred r3 word is the retained count; its other words
+still contain the number of tested objects. Every candidate writes its index
+at the current output slot even when rejected, so the final rejected tail
+word must remain observable. Scratch r2..r79 except r3 are not reconstructed.
+Stage F paired mode 2 checks this contract while retaining the original
+result. Full-register strict mode deliberately does not describe this ABI.
+
+The standalone bounds suite uses separately compiled, unchanged functions
+extracted from the original hash-pinned lift. It first reproduces captured
+full-register/LS returns, then compares native live state and all LS bytes.
+Synthetic coverage includes ordinary/extended values, culling boundaries,
+4095/4096-item lists, all output word alignments, four incoming FP modes and
+fallback without mutation. Windows, Linux x86 and ARM64/QEMU correctness
+does not establish a game FPS or Android hardware gain. Native gameplay
+progression, visible output and a matched locked-session comparison remain
+required before enabling a default.
 
 `BUZZ_IMAGE39_NATIVE_REQUEST` is a separate experiment, OFF by default. The
 pinned EU 1.00 generator can route `0x3A10` descriptor requests through
@@ -83,6 +120,8 @@ not execute a DMA request twice. The standalone request test also compares
 captured entry/exit states with an independently extracted, hash-pinned
 retained oracle and models each observed GET payload. ARM64/QEMU verifies
 correctness, not device performance. Other game revisions are not admitted.
+
+## Image 40: animation
 
 `port/native_animation_runtime.cpp` owns dispatch and the reusable worker-local
 workspace. `port/native_animation_job.h` prepares and executes the recognized

@@ -377,6 +377,41 @@ It verifies the original source hash, retained full LS/register output, live
 native results, GET arguments/payloads and fallback before mutation. DMA is
 modeled there; a complete game/replay test still exercises the actual engine.
 
+`BUZZ_IMAGE39_NATIVE_BOUNDS` (default OFF, Android property
+`buzzNativeImage39Bounds`) is the direct EU100 object-visibility driver,
+separate from the descriptor request and whole-image FP switches. Regenerate
+both `generate-image39-native.py` and `generate-image39-kernels.py`; CMake
+rejects old or different adapters. Windows exposes `-NativeImage39
+-NativeImage39Bounds` and resets the bounds option OFF when omitted. Android
+requires `buzzNeonJobFp` and selects the wrapped kernel source only for this
+experiment; reference29 keeps it false.
+
+Runtime `BUZZ_STAGEF=1` and Stage F mask bit 8 enable native bounds in a compiled
+ON build. Add that bit to the other intended kernels (for example 6 becomes
+14), rather than changing unrelated selections. `BUZZ_IMAGE39_BOUNDS=0`
+retains the original function. `BUZZ_STAGEF=2` compares full LS, preserved
+registers, return PC and complete r3, retaining the original output. Do not
+select full-register strict checking for a driver that omits dead scratch.
+Global `SPURS_NATIVE_IMAGE39_FP=0` remains valid with this experiment.
+
+Run the production driver's standalone checks without a display:
+
+```sh
+python3 tests/scripts/test-image39-bounds.py --reference /path/to/original/C0BC/spu_recomp.c
+```
+
+Add `--corpus /path/to/stagef-k3-captures` for private captured entry/exit
+states; the option can be repeated. `--arm64` uses ARM64/QEMU for correctness
+and rejects `--bench`. Windows uses `tests/scripts/test-image39-bounds.ps1
+-ReferenceSource <original.c>` with optional `-Corpus <directories>` and
+`-CompilerDirectory <clang-cl-directory>`. Kernel-only `--bench`/`-Bench`
+timings are not game FPS. The [native job contract](native-jobs.md#image-39-object-visibility-and-descriptor-requests)
+describes admission and observable output. Until native gameplay and matched
+whole-game measurements pass, keep the experiment out of default profiles.
+The combined offline CPU suite runs synthetic bounds checks with
+`--image39-source <original.c>`; repeated `--image39-bounds-corpus <directory>`
+adds the corresponding private captures.
+
 ## Keeping documentation useful
 
 Store run artifacts under ignored `analysis/`, with a compact table and

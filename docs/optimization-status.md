@@ -91,6 +91,7 @@ is authoritative for which ones were actually packaged on the phone.
 | `BUZZ_GEOMETRY_COARSE_CLIP` | OFF: experimental interval bounds reject whole offscreen jobs and admit bounded AVX2/NEON projection for surviving jobs. Input/matrix/viewport bounds, same-sign normal W (including padded lanes) and codec admission are required. Unproven jobs retain the ordinary path. Full producer/clip comparisons pass on Windows, Linux x86 and ARM64/QEMU with original/native reciprocals. Paired locked-session PC testing found a small incremental FPS/SPURS CPU-per-frame improvement; stable 45 FPS and Android hardware gains remain unproven. Android reference29 does not enable it | Rebuild OFF |
 | `BUZZ_GEOMETRY_LAZY_ATTRIBUTES` | OFF: rigid/unskinned jobs prepare positions before culling and decode/transform other attributes only when triangles survive. Weighted skinning stays in one pass. Full captured output/admission comparisons pass on Windows, Linux x86 and ARM64/QEMU; paired PC tests do not establish a meaningful heavy-scene FPS gain. Android property `buzzGeometryLazyAttributes` defaults false and is OFF in reference29 | Rebuild OFF |
 | `BUZZ_IMAGE39_NATIVE_REQUEST` | OFF: experimental [EU100 descriptor-cache request driver](image39-descriptor-requests.md); needs regenerated pinned image39 source. Preserves cache/output publication and actual MFC commands, with whole-request fallback before mutation. Whole-job and captured-request checks pass on Windows, Linux x86 and ARM64/QEMU; matched PC testing does not establish a repeatable heavy-scene FPS gain. Android `buzzNativeImage39Request` defaults false and is OFF in reference29; requires `buzzNeonJobFp`. No stable 45 FPS or Android speed claim | `BUZZ_IMAGE39_REQUEST=0`; stats are diagnostic only |
+| `BUZZ_IMAGE39_NATIVE_BOUNDS` | OFF: experimental [EU100 host object-visibility driver](native-jobs.md#image-39-object-visibility-and-descriptor-requests). Groups five planes into checked SSE/FMA or NEON operations, omitting dead SPU scratch and prefetches. Requires regenerated Stage F wrapper, known caller and disjoint bounded LS inputs. Captured/synthetic output checks pass on Windows/Linux x86/ARM64 QEMU; native gameplay and whole-game FPS remain unqualified. Android `buzzNativeImage39Bounds=false`, OFF in reference29 | `BUZZ_IMAGE39_BOUNDS=0`; Stage F mode 2 checks live ABI/LS; mask bit 8 selects this kernel |
 | `BUZZ_SPURS_POOL_LAYOUT` | OFF: separates polling/cache-line writes; no task-order change and no established FPS win | Rebuild OFF |
 | `BUZZ_RSX_PARK_WAKE` | OFF: notify exact watched self-JUMP replacement; needs ordinary SPURS DMA wake path | `BUZZ_RSX_PARK_WAKE=0` |
 | `BUZZ_WINDOWS_TIMER_REUSE` | OFF, Windows-only timer reuse experiment | Rebuild OFF |
@@ -107,10 +108,11 @@ behavior and further admission checks live in the linked CMake/header sources;
 - Image7/36, retained geometry and Stage F modes generally use `0` for the
   reference, `1` native and `2` compare/reference-result mode. Availability is
   decided by generated source/ISA options, not the mode variable alone.
-- Image39's kernel hook is currently a fallback stub. Its checked FP option
-  changes arithmetic helpers, not the retained producer's instruction flow.
-  The optional native descriptor request replaces a separate `0x3A10` path;
-  it does not provide a native `0x05C0` arithmetic kernel or a whole-image driver.
+- Image39's checked FP option changes arithmetic helpers, not the retained
+  producer's instruction flow. The default-OFF native bounds option replaces
+  admitted EU100 `0x05C0` calls; its hook otherwise retains the original.
+  The optional native descriptor request replaces a separate `0x3A10` path.
+  Neither is a whole-image driver.
   Native whole-job animation is Image40; see [native jobs](native-jobs.md).
 - Android reference29 explicitly enables Image7, Image36, Image39/40 checked FP,
   full Image41 host geometry and video IDCT generation. The native PC animation
@@ -188,6 +190,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_RSX_METHOD_FASTPATH` | `OFF` | Experimental compact FIFO method dispatch loop ([source](../cmake/BuzzFifoMethods.cmake)) |
 | `BUZZ_RSX_PARK_WAKE` | `OFF` | Wake RSX when DMA replaces its observed parked jump ([source](../cmake/BuzzFifoParkWake.cmake)) |
 | `BUZZ_RSX_READY_CHECK` | `OFF` | Avoid sleeping when a completed FIFO drain has new work ([source](../cmake/BuzzFifoReady.cmake)) |
+| `BUZZ_IMAGE39_NATIVE_BOUNDS` | `OFF` | Use the admitted EU100 host object-bounds driver ([source](../cmake/BuzzImage39Bounds.cmake)) |
 | `BUZZ_PPU_WORD_WAIT` | `OFF` | Experimental portable DMA notification for registered PPU busy-word waits ([source](../cmake/BuzzPpuWordWait.cmake)) |
 | `BUZZ_PPU_WORD_WAIT_TRACE` | `OFF` | Diagnostic PPU wait and exact-word DMA timeline ([source](../cmake/BuzzPpuWordWait.cmake)) |
 | `BUZZ_RENDERER_CONSTANT_RANGES` | `OFF` | Clear only previously active shader constants ([source](../cmake/BuzzRendererConstantRanges.cmake)) |
@@ -230,6 +233,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzCompareImage7` | `false` | `false` |
 | `buzzNeonJobFp` | `false` | `true` |
 | `buzzNativeImage39Request` | `false` | `false` |
+| `buzzNativeImage39Bounds` | `false` | `false` |
 | `buzzNeonGeometry` | `false` | `false` |
 | `buzzNeonGeometryDriver` | `false` | `true` |
 | `buzzNeonHostGeometry` | `false` | `true` |
