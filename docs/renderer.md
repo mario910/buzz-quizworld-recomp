@@ -130,6 +130,29 @@ remains part of the existing optional specialized-fetch path.
 
 ## Presentation and capture
 
+### Windows display scaling
+
+The Windows Vulkan path presents in **physical client pixels**, independently
+of desktop scaling (125%, 150%, etc.). Internal `render_scale` and the optional
+bilinear/FSR 1 presentation filter remain separate quality preferences. This
+does not change Windows display settings or the process-wide DPI policy.
+
+`cmake/BuzzVulkanUpload.cmake` keeps the swapchain capability query and creation
+inside a per-monitor-V2 thread context, restoring the caller on success and
+every early error return. Variable surface extents use the existing physical
+client-size helper. This avoids a 1280x720 physical window receiving a
+1024x576 swapchain at 125% DPI and being resampled again. The pinned SDK stays
+unchanged. The explicit developer compatibility override `RSX_PIXEL_WINDOW=0`
+still opts out of physical-pixel window handling.
+
+`tests/scripts/test-vulkan-dpi.ps1 -Workspace <prepared-Windows-workspace>
+-Output <fresh-private-directory>` compares original and adapted WSI on a real
+Vulkan device. At 125% the original mismatch is reproduced; the adapted path
+checks initial size, resize, variable extents, both filters, borderless/windowed
+transitions and DPI-context restoration after an injected query failure.
+It uses background synthetic windows without desktop input. A 100% desktop
+can check the fixed path, but cannot demonstrate the scaled-desktop regression.
+
 `PS3RECOMP_VK_PRESENT_MODE=fifo|mailbox|immediate` requests the swapchain mode;
 unavailable modes fall back to FIFO. Mailbox avoids tearing and FIFO backlog;
 immediate may tear. The approved profile selects mailbox.

@@ -19,6 +19,33 @@ if(BUZZ_EXPERIMENTAL_VULKAN)
         endif()
         string(REPLACE "${old}" "${new}" upload_text "${upload_text}")
     endmacro()
+    if(WIN32)
+        # Win32 WSI queries inherit the calling thread's DPI context, not the
+        # per-monitor-aware HWND's. Keep physical pixels for the WHOLE query /
+        # create operation, and restore the caller even on VK_CHECK failures.
+        buzz_upload_replace("static int vk_create_swapchain(void)"
+            "static int vk_create_swapchain_pixels(void)")
+        buzz_upload_replace("static void vk_swapchain_lost(void)" [=[
+static int vk_create_swapchain(void)
+{
+    void* previous_dpi = rsx_host_window_dpi_enter();
+    const int result = vk_create_swapchain_pixels();
+    rsx_host_window_dpi_leave(previous_dpi);
+    return result;
+}
+
+static void vk_swapchain_lost(void)
+]=])
+        buzz_upload_replace("        RECT client={0};GetClientRect(s_vk.window,&client);w=client.right;hh=client.bottom;" [=[
+        unsigned cw = 0, ch = 0;
+        if (!rsx_host_window_client(&s_host_window, &cw, &ch)) return -1;
+        w = (int)cw; hh = (int)ch;
+]=])
+        buzz_upload_replace("      s_vk.sc_client_w=cw;s_vk.sc_client_h=ch; }" [=[
+      s_vk.sc_client_w=cw;s_vk.sc_client_h=ch;
+      VK_LOG("physical client %ux%u, swapchain extent %ux%u (Windows DPI excluded)\\n", cw, ch, ext.width, ext.height); }
+]=])
+    endif()
     buzz_upload_replace("    int async_requested,async_ready;"
         "    int async_requested,async_ready;\n    int upload_mode;\n    vk_buffer upload_ring[2];\n    VkDeviceSize upload_head[2];")
     buzz_upload_replace("    s_batch.context_inflight[i]=0;"
