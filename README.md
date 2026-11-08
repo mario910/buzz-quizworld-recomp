@@ -5,9 +5,14 @@ Windows and Linux x86-64, with an experimental EU 1.00 Android ARM64 target.
 Vulkan is the standalone renderer, with Direct3D 12
 available for Windows developer builds. Startup films, menus, audio and
 single-player rounds have run in the Windows tests.
-Original-disc EU and US 1.00 use their own hash-bound generation/PPU-adapter
-profiles and share byte-identical SPU images. The optional EU 1.02 update has
-separate executable bindings.
+**Original-disc EU and US 1.00 are the primary development and optimization
+targets. Start with 1.00; no game update is needed.** These releases use their
+own hash-bound PPU adapters and share byte-identical SPU programs. The qualified
+Windows/Vulkan/AVX2 builds enable full native geometry and animation for both.
+EU 1.02 remains a separate compatibility profile: it has shared renderer
+improvements and its own reviewed adapters, but not the full 1.00 native-job
+profile. Linux and Android have separate build/optimization profiles; Windows
+qualification does not establish feature or performance parity on those targets.
 Standard two-player gameplay has been tested on Polish assets in both EU releases
 and on US 1.00, including podium names, avatars and scoring. Full game validation
 is still in progress. This is a research
@@ -42,9 +47,9 @@ in its entirety by this repository's MIT license. See
 - **Several ways to buzz:** keyboard, up to four XInput pads, optional phone
   browsers over local Wi-Fi with QR pairing, and experimental Windows Buzz HID.
   Physical Buzz receivers and real phone hardware remain unverified.
-- **Native geometry and animation:** the qualified EU 1.00/Vulkan/AVX2 build
-  enables reviewed host geometry, animation, completion and renderer defaults
-  inside the EXE, with whole-job fallbacks for unsupported inputs. It builds
+- **Native geometry and animation:** the qualified EU/US 1.00/Vulkan/AVX2 builds
+  enable reviewed host geometry, animation, completion and renderer defaults
+  inside the EXE, with whole-job fallbacks for unsupported inputs. They build
   from a clean checkout without private captured test data. See
   [native jobs](docs/native-jobs.md) and
   [runtime defaults](docs/runtime-defaults.md).
@@ -73,12 +78,19 @@ the locally packaged editor after building it.
 
 ## Supported game — exact match required
 
+Use an **original-disc 1.00** input for the main optimized path. In preparation,
+leave **Game update (optional)** empty (or omit `--update` on the command line).
+Do not combine a 1.00 executable with 1.02 update assets or reuse an EXE built
+for another region/version. Preparation detects the executable and selects its
+profile automatically; there is no manual address patch or optimization preset
+to copy between regions.
+
 | Input | Requirement |
 |---|---|
 | Disc input | Your ISO, or a directory containing `PS3_GAME/USRDIR` and `PS3_GAME/PARAM.SFO` |
 | EU original disc 1.00 | `BCES00647`, `BCES00644`, `BCES00645`; ELF SHA-256 `6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8` |
 | US original disc 1.00 | `BCUS98209`; ELF SHA-256 `fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d` |
-| Optional update 1.02 | `BCES00647` only; ELF SHA-256 `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241` |
+| EU update 1.02 — compatibility profile | `BCES00647` only; ELF SHA-256 `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241`; not the full 1.00 optimization profile |
 | Firmware | Your PS3 PUP, or installed `dev_flash` including `data/font` and `sys/external/flashATRAC.pic` |
 | Audio-module compatibility | The `.text` SHA-256 of `flashATRAC.pic` must be `c543ecc87e82beec3159d88fbb73dc4229424d357c0a48be3c4cb55d3fdefadc`; checked by the validator/generator |
 
@@ -113,35 +125,99 @@ development files. The wizard checks these and can help install them.
 
 ## Build and play
 
-1. Clone the source repository with Git. The wizard can initialize submodules
-   if they were skipped during cloning.
-2. Extract the **BuzzPrepare** package for your system. On Windows open
-   **BuzzPrepare.exe**. On Linux run **`./bin/BuzzPrepare`** from the extracted
+Choose **guided preparation** or **command-line preparation** below. Both
+build a private, standalone Vulkan copy in the checkout's `dist/` folder.
+The separate [manual developer build](#manual-developer-build) is for working
+on the port, not required for playing a prepared copy.
+
+### Guided preparation
+
+1. Clone the source and its pinned submodules:
+
+   ```sh
+   git clone --recurse-submodules https://github.com/mario910/buzz-quizworld-recomp.git
+   cd buzz-quizworld-recomp
+   ```
+
+2. Use a packaged **BuzzPrepare** for your system, or
+   [build the wizard locally](preparation/README.md#developer-build).
+   Its executable is **not included in the source checkout**.
+   On Windows open **`bin/BuzzPrepare.exe`** in the extracted package.
+   On Linux run **`./bin/BuzzPrepare`** from the extracted
    package. On Ubuntu 22.04/24.04 install `libqt6widgets6` and the distro’s
    OpenSSL 3 runtime if they are missing.
-   Select the checkout if the wizard did not locate it. You can also open
-   `Prepare-Buzz.cmd` if the package is extracted to `dist-preparation/` in
-   the checkout. For a local developer build, see [building BuzzPrepare](preparation/README.md#developer-build).
+   Select **Source checkout** if the wizard did not locate it. On Windows,
+   `Prepare-Buzz.cmd` is a shortcut to `dist-preparation/bin/BuzzPrepare.exe`;
+   it requires that packaged or locally built wizard to exist first.
 3. Resolve missing dependencies using the buttons in the wizard. Select your
    ISO or disc dump, firmware PUP or `dev_flash`, and, if needed, your local
-   key file and update PKG/EBOOT. See [game and firmware inputs](docs/game-import.md).
+   key file. **For EU/US 1.00, leave Game update empty.** Only select an update
+   PKG/EBOOT when intentionally preparing the separate EU 1.02 profile.
+   See [game and firmware inputs](docs/game-import.md).
 4. Click **Prepare dist**. The wizard generates and builds the matching Vulkan
    executable in an isolated session under `runtime/setup/sessions/`. If
    interrupted, select that session and the same inputs to resume.
-5. Open **`dist/BuzzQuizWorldRecomp.exe`** on Windows or
+5. When preparation reports **Completed**, click **Play from dist**, or open
+   **`dist/BuzzQuizWorldRecomp.exe`** on Windows or
    **`./dist/BuzzQuizWorldRecomp`** on Linux. Keep the `runtime/` directory
    and any packaged libraries beside the executable when moving the folder. Open PC settings with
    **Escape / controller START** to configure display, audio, textures and
    keyboard or pad bindings. Use **Save settings** to keep the changes.
+   On Windows, the checkout's `Launch-Buzz.cmd` also starts
+   `dist/BuzzQuizWorldRecomp.exe` when it exists.
 
-The distribution includes your local game and firmware data. Keep it private.
-Preparing a new copy requires moving the existing `dist` aside. Saves and
-settings travel with the folder in `dist/runtime/`.
+The prepared game does **not** need Python, PowerShell, a compiler, RPCS3 or a
+separate gameplay launcher. Build tools and interpreters are preparation
+dependencies; RPCS3 is not used.
+Move the **whole `dist/` folder**, not just the EXE. It contains your own game
+and firmware data: **keep it private; do not upload it**. Saves and settings
+travel with `dist/runtime/`. Before preparing another version or region, move
+the existing `dist` aside and keep its saves with that copy.
+
+### Command-line preparation (without the wizard)
+
+Windows: install the [build prerequisites](#build-prerequisites), clone as
+above, then run these commands from the checkout in PowerShell. Replace the
+example paths with your own EU or US **1.00** disc and firmware inputs:
+
+```powershell
+.\scripts\Setup-Buzz.ps1 -BuildOnly
+.\toolenv\Scripts\python.exe .\tools\prepare-game.py --dist `
+  --game 'D:\Games\Buzz! Quiz World.iso' `
+  --firmware 'D:\PS3\PS3UPDAT.PUP' `
+  --keys 'D:\Private\ps3.keys' --jobs 6
+
+# After preparation succeeds:
+.\dist\BuzzQuizWorldRecomp.exe
+```
+
+For an already decrypted disc dump plus installed firmware, `--game` can name
+the folder containing `PS3_GAME`, and `--firmware` can name `dev_flash`.
+The local key file is needed only for encrypted inputs. Omit `--keys` if none
+of your inputs need decryption. No update is passed in this example, so the
+disc's 1.00 executable is selected.
+
+Linux: after installing the [Linux preparation dependencies](preparation/README.md#developer-build),
+use the same inputs and pipeline:
+
+```sh
+python3 tools/setup-linux.py
+./toolenv/bin/python tools/prepare-game.py --dist \
+  --game '/path/to/Buzz! Quiz World.iso' \
+  --firmware /path/to/PS3UPDAT.PUP --keys /path/to/ps3.keys --jobs 6
+./dist/BuzzQuizWorldRecomp
+```
+
+Lower `--jobs` if compilation runs out of memory. For interruption/resume,
+reuse the same inputs with `--resume <session-directory>`; see
+[import and resume options](docs/game-import.md). Source inputs are not modified.
 
 ### Manual developer build
 
-Run `scripts/Setup-Buzz.ps1` to create the tool environment and paths template.
-The commands in this section retain the developer launcher workflow.
+This Windows route keeps source/build outputs and uses the native developer
+launcher to supply the matching paths. It does **not** publish a portable
+`dist/` copy. Run `scripts/Setup-Buzz.ps1` to create the tool environment and
+paths template, then configure your own decrypted **disc 1.00** executable.
 
 Edit the newly created **`buzz-paths.json`**, using absolute paths to your
 own files. Forward slashes in JSON work on Windows and avoid backslash escaping:
@@ -150,13 +226,16 @@ own files. Forward slashes in JSON work on Windows and avoid backslash escaping:
 {
   "game_root": "D:/Games/Buzz! Quiz World [BCES00647]",
   "dev_flash": "D:/PS3/dev_flash",
-  "eboot_elf": "D:/PS3/BCES00647-1.02/EBOOT.elf"
+  "eboot_elf": "D:/PS3/BCES00647-1.00/EBOOT.elf"
 }
 ```
 
 `game_root` is the **parent of `PS3_GAME`**, not `PS3_GAME` or `USRDIR` itself.
-Do not replace the executable in your disc dump: the update ELF is a separate
-input. EU 1.02 also needs its matching `Patched` assets, not just the update ELF.
+For US 1.00, point at your `BCUS98209` dump and its own decrypted disc ELF;
+the profile is detected by title ID and hash. Do not rename encrypted
+`EBOOT.BIN` to `.elf`. If testing EU 1.02 instead, keep its decrypted update ELF
+separate from the disc dump. EU 1.02 also needs its matching `Patched` assets,
+not just the update ELF.
 The preparation wizard stages these from your update PKG, or from a `Patched`
 folder beside a supplied update EBOOT. Missing assets are rejected before play;
 1.00 does not need them. Profiles, saves and plaintext caches are not imported.
@@ -167,8 +246,8 @@ firmware or global Python installation.
 # Optional read-only preflight (also performed by Build-Buzz).
 .\toolenv\Scripts\python.exe .\tools\verify-game.py
 
-# Validate, generate all PPU/SPU translations, build both renderers and launcher.
-.\scripts\Build-Buzz.ps1 -Jobs 6
+# Validate, generate translations, build the optimized Vulkan game and launcher.
+.\scripts\Build-Buzz.ps1 -Renderer Vulkan -Jobs 6
 
 # Start the native desktop launcher (no interpreter at runtime).
 .\Launch-Buzz.cmd
@@ -188,6 +267,11 @@ Each command also builds `build-launcher/BuzzLauncher.exe`. Start through
 selects the matching executable, content and runtime preferences. Vulkan is
 preferred unless saved settings select D3D12; make sure the selected renderer
 was built. Reduce `-Jobs` if compilation runs out of memory.
+
+If a standalone `dist/` already exists, `Launch-Buzz.cmd` prefers that copy.
+To test a developer rebuild explicitly, run
+`build-launcher/BuzzLauncher.exe --project . --launch` from that build's
+checkout/workspace. Do not copy an EU EXE into a US build or mix manifests.
 
 The gameplay GUI lets you validate/select files, configure keyboard/controllers
 and test buttons. The interface and preparation wizard are in English. The separate preparation

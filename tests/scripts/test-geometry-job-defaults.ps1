@@ -12,6 +12,18 @@ try {
     $embedded=GoodManifest
     $embedded.runtime_defaults=[pscustomobject]@{}
     $embedded | Add-Member embedded_runtime_profile 'eu100-vulkan-native-v1'
+    $usEmbedded=$embedded | ConvertTo-Json | ConvertFrom-Json
+    $usEmbedded.family='quizworld-us100'
+    $usEmbedded.elf_sha256='fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d'
+    $usEmbedded.embedded_runtime_profile='us100-vulkan-native-v1'
+    Check (Test-BuzzEmbeddedRuntimeProfile $usEmbedded) 'Qualified US embedded profile rejected'
+    foreach($field in @('embedded_runtime_profile','family','elf_sha256')) {
+        $bad=$usEmbedded | ConvertTo-Json | ConvertFrom-Json
+        $bad.$field=$embedded.$field
+        $rejected=$false
+        try {Test-BuzzEmbeddedRuntimeProfile $bad}catch{$rejected=$true}
+        Check $rejected 'Cross-region embedded profile accepted'
+    }
     foreach($original in @($null,'0','2')) {
         Restore @{BUZZ_ANIMATION_JOB=$original}
         $snapshot=@{}

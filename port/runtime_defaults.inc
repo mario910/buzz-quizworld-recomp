@@ -1,4 +1,4 @@
-// Reviewed EU 1.00 Vulkan/AVX2 profile. X(name, value).
+// Shared reviewed EU/US 1.00 Vulkan/AVX2 defaults. X(name, value).
 // Only missing variables receive defaults; explicit overrides are preserved.
 X(PS3_VERBOSE, "0")
 X(CULL_FLIP, "1")

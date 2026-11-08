@@ -14,6 +14,14 @@ command-line import and analysis remain available on Windows and Linux.
 UDF-only discs still need a native reader; the native CLI supports
 ISO9660/Joliet bridges, including hybrid UDF images with a readable bridge.
 
+**Prefer the original-disc EU or US 1.00 for normal preparation.** These are
+the primary optimization targets. Leave **Game update (optional)** empty in
+the wizard, or omit `--update` on the command line. EU 1.02 remains a separate
+compatibility profile and does not receive the full 1.00 native-job profile.
+The full EU/US geometry and animation path is qualified on Windows/Vulkan/AVX2;
+Linux and Android have separate profiles. See the [main build and play guide](../README.md)
+for complete 1.00 preparation and startup commands.
+
 ## Native operations
 
 ```

@@ -95,6 +95,17 @@ int main(int argc,char** argv) {
         embedded.manifest["runtime_defaults"]=Json::object();
         embedded.manifest["embedded_runtime_profile"]="eu100-vulkan-native-v1";
         const auto bare=runtime_environment(s,embedded,temp/"embedded",{});
+        auto embedded_us=embedded;
+        embedded_us.profile=identify("BCUS98209",elfUS);
+        embedded_us.manifest["family"]="quizworld-us100";
+        embedded_us.manifest["elf_sha256"]=elfUS;
+        embedded_us.manifest["embedded_runtime_profile"]="us100-vulkan-native-v1";
+        check(!runtime_environment(s,embedded_us,temp/"embedded-us",{}).count("BUZZ_GEOMETRY_JOB"),"US EXE owns native defaults");
+        check(runtime_environment(s,embedded_us,temp/"embedded-us",{{"BUZZ_ANIMATION_JOB","0"}}).at("BUZZ_ANIMATION_JOB")=="0","US explicit override");
+        for(const auto& field:{"embedded_runtime_profile","animation_job_profile","geometry_job_profile","family","elf_sha256","renderer"}) {
+            auto bad=embedded_us;bad.manifest[field]=embedded.manifest[field];
+            if(bad.manifest[field]!=embedded_us.manifest[field])rejects([&]{runtime_environment(s,bad,temp/"invalid-us",{});});
+        }
 #define X(name, value) check(!bare.count(#name),"EXE owns " #name); check(runtime_environment(s,embedded,temp/"embedded",{{#name,"0"}}).at(#name)=="0","Explicit override " #name);
 #include "../port/runtime_defaults.inc"
 #undef X

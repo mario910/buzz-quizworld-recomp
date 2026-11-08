@@ -1,6 +1,6 @@
 {
-  "_comment": "Copy to buzz-paths.json (ignored by git) and point it at YOUR OWN copy of Buzz! Quiz World (BCES00647). Nothing from the game ships with this repository.",
+  "_comment": "Copy to buzz-paths.json (ignored by git). Prefer your own supported EU/US original-disc 1.00 dump and its decrypted ELF; title ID and hash select the profile. Nothing from the game ships with this repository.",
   "game_root": "D:\\PS3\\Buzz! Quiz World [BCES00647]",
   "dev_flash": "D:\\PS3\\dev_flash",
-  "eboot_elf": "D:\\PS3\\BCES00647-1.02\\EBOOT.elf"
+  "eboot_elf": "D:\\PS3\\BCES00647-1.00\\EBOOT.elf"
 }

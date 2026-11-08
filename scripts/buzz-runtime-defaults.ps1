@@ -3,9 +3,11 @@
 function Test-BuzzEmbeddedRuntimeProfile {
     param($Binding)
     if(-not $Binding -or -not $Binding.PSObject.Properties['embedded_runtime_profile']){return $false}
-    if($Binding.embedded_runtime_profile -cne 'eu100-vulkan-native-v1' -or
-       $Binding.family -cne 'quizworld-eu100' -or $Binding.renderer -cne 'vulkan' -or
-       $Binding.elf_sha256 -cne '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8' -or
+    $eu=$Binding.family -ceq 'quizworld-eu100' -and $Binding.elf_sha256 -ceq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8'
+    $us=$Binding.family -ceq 'quizworld-us100' -and $Binding.elf_sha256 -ceq 'fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d'
+    $profile=if($us){'us100-vulkan-native-v1'}else{'eu100-vulkan-native-v1'}
+    if(-not ($eu -or $us) -or $Binding.embedded_runtime_profile -cne $profile -or
+       $Binding.renderer -cne 'vulkan' -or
        $Binding.geometry_job_profile -cne 'host-groups-v1' -or $Binding.animation_job_profile -cne 'host-soa-v1' -or
        $Binding.runtime_defaults -isnot [pscustomobject] -or @($Binding.runtime_defaults.PSObject.Properties).Count -ne 0) {
         throw 'Unknown or unqualified embedded runtime profile'
@@ -18,8 +20,10 @@ function Set-BuzzBuildRuntimeDefaults {
     if (-not $Binding -or -not $Binding.PSObject.Properties['runtime_defaults']) { return }
     if ($Binding.runtime_defaults -isnot [pscustomobject]) { throw 'Invalid build runtime defaults' }
     $options=@($Binding.runtime_defaults.PSObject.Properties)
-    $hostProfile=$Binding.family -ceq 'quizworld-eu100' -and $Binding.renderer -ceq 'vulkan' -and
-        $Binding.elf_sha256 -ceq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8' -and
+    $hostProfile=(($Binding.family -ceq 'quizworld-eu100' -and
+        $Binding.elf_sha256 -ceq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8') -or
+        ($Binding.family -ceq 'quizworld-us100' -and
+        $Binding.elf_sha256 -ceq 'fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d')) -and $Binding.renderer -ceq 'vulkan' -and
         $Binding.geometry_job_profile -ceq 'host-groups-v1'
     foreach($option in $options) {
         $completion=$option.Name -ceq 'BUZZ_NATIVE_COMPLETION' -and $option.Value -is [string] -and $option.Value -ceq '2'

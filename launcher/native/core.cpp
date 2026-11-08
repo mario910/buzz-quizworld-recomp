@@ -254,7 +254,7 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
             auto defaults=j.value("runtime_defaults",Json::object());
             require(defaults.is_object(),"Invalid build runtime defaults");
             validate_runtime_defaults(j,profile);
-            if(profile.family!="quizworld-102-verified")require(defaults.value("BUZZ_NATIVE_COMPLETION",std::string{})=="2"||j.value("embedded_runtime_profile",std::string())=="eu100-vulkan-native-v1","Missing version-bound completion mode");
+            if(profile.family!="quizworld-102-verified")require(defaults.value("BUZZ_NATIVE_COMPLETION",std::string{})=="2"||j.contains("embedded_runtime_profile"),"Missing version-bound completion mode");
             validate_prepared_content(profile,root);
             return {root,exe,j,profile};
         } catch(const std::exception& e) { rejection=e.what(); }
@@ -264,11 +264,13 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
 void validate_runtime_defaults(const Json& manifest,const Profile& profile) {
     const auto defaults=manifest.value("runtime_defaults",Json::object());
     require(defaults.is_object(),"Invalid build runtime defaults");
-    const bool host_profile=profile.family=="quizworld-eu100"&&manifest.value("family",std::string())==profile.family&&
-        manifest.value("elf_sha256",std::string())==elf100&&manifest.value("renderer",std::string())=="vulkan"&&
+    const bool eu=profile.family=="quizworld-eu100"&&manifest.value("elf_sha256",std::string())==elf100;
+    const bool us=profile.family=="quizworld-us100"&&manifest.value("elf_sha256",std::string())==elfUS;
+    const bool host_profile=(eu||us)&&manifest.value("family",std::string())==profile.family&&
+        manifest.value("renderer",std::string())=="vulkan"&&
         manifest.value("geometry_job_profile",std::string())=="host-groups-v1";
     if(manifest.contains("embedded_runtime_profile")) {
-        require(manifest.at("embedded_runtime_profile")=="eu100-vulkan-native-v1"&&host_profile&&
+        require(manifest.at("embedded_runtime_profile")== (us?"us100-vulkan-native-v1":"eu100-vulkan-native-v1")&&host_profile&&
             manifest.value("animation_job_profile",std::string())=="host-soa-v1"&&defaults.empty(),
             "Unknown or unqualified embedded runtime profile");
     }

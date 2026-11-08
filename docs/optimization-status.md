@@ -13,7 +13,7 @@ at compile time. Most environment options are cached: change them before launch.
 | Configuration | Enabled behavior | What it does not imply |
 |---|---|---|
 | Bare CMake / Gradle | Source defaults in the generated tables; shared unconditional adapters below | Not the tested phone profile; most optional Android paths default to false |
-| Supported Windows EU 1.00 native build | Hash-bound geometry/animation/completion adapters and embedded `eu100-vulkan-native-v1` defaults when CMake's qualification checks pass | Does not enable every `BUZZ_RENDERER_*` experiment; other game families have separate bindings |
+| Supported Windows EU/US 1.00 native build | Hash-bound geometry/animation/completion adapters and region-bound `eu100-vulkan-native-v1` / `us100-vulkan-native-v1` defaults when CMake's qualification checks pass | Does not enable every `BUZZ_RENDERER_*` experiment; EU 1.02 has separate bindings and no full disc-job profile |
 | Linux x86-64 preparation build | Shared runtime/renderer improvements; exact options from `tools/build-linux.py` and its generated cache | Not the Android NEON profile; a reused cache can retain research options |
 | Android phone reference 29 | Every choice explicitly listed in [reference29.properties](../android/profiles/reference29.properties); NEON host geometry, selected audio/video leaves, renderer and scheduler options | A comparison baseline, not independently proven wins for every enabled switch; Turnip is a separate runtime driver selection |
 | Android deferred-clip experiment (30) | Reference29 plus `buzzGeometryDeferredClip=true` | Not promoted: repeated phone tests did not show a whole-game FPS benefit; default remains false |
@@ -189,6 +189,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_INPUTS` | `empty` | Input files to scan for all embedded SPU ELF programs (semicolon-separated decrypted ELF/PRX/data paths) ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_OPT` | `-O2` | Optimization level of the lifted SPU TUs ([source](../port/CMakeLists.txt)) |
+| `PORT_NATIVE_JOB_PROFILE` | `eu100-vulkan-native-v1` | Identity of the reviewed disc native runtime profile ([source](../port/CMakeLists.txt)) |
 | `BUZZ_RSX_METHOD_FASTPATH` | `OFF` | Experimental compact FIFO method dispatch loop ([source](../cmake/BuzzFifoMethods.cmake)) |
 | `BUZZ_RSX_PARK_WAKE` | `OFF` | Wake RSX when DMA replaces its observed parked jump ([source](../cmake/BuzzFifoParkWake.cmake)) |
 | `BUZZ_RSX_READY_CHECK` | `OFF` | Avoid sleeping when a completed FIFO drain has new work ([source](../cmake/BuzzFifoReady.cmake)) |

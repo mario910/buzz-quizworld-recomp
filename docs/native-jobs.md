@@ -1,10 +1,16 @@
 # Native geometry and animation jobs
 
 The port replaces recognized SPU jobs with host C++ and AVX2 while retaining
-the lifted implementation for unsupported inputs. The qualified EU
+the lifted implementation for unsupported inputs. The qualified EU/US
 1.00/Vulkan/AVX2 build enables these paths inside the executable; it does not
 need a launcher to set their environment switches. Other executable families
 retain their own hash-bound adapters and defaults.
+
+EU and US disc programs are byte-identical. Their continuation entries are
+selected by canonical SPU role and full raw-program hash in
+`tools/codegen/disc100_profiles.py`, rather than EU container offsets.
+Both produce the same pinned geometry and animation translations. Their
+PPU completion, frontend and wait-site bindings remain region-specific.
 
 ## Observable contract
 

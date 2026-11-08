@@ -5,6 +5,9 @@
 #ifndef BUZZ_RUNTIME_DEFAULTS
 #define BUZZ_RUNTIME_DEFAULTS 0
 #endif
+#ifndef BUZZ_NATIVE_RUNTIME_PROFILE
+#define BUZZ_NATIVE_RUNTIME_PROFILE "eu100-vulkan-native-v1"
+#endif
 
 namespace {
 struct Default { const char* name; const char* value; };
@@ -84,7 +87,7 @@ __attribute__((constructor(101))) void initialize() {
 }
 
 extern "C" void buzz_print_runtime_defaults() {
-    std::printf("profile=%s\n", BUZZ_RUNTIME_DEFAULTS ? "eu100-vulkan-native-v1" : "none");
+    std::printf("profile=%s\n", BUZZ_RUNTIME_DEFAULTS ? BUZZ_NATIVE_RUNTIME_PROFILE : "none");
     for (const auto& option : defaults) {
         const char* value = std::getenv(option.name);
         std::printf("%s=%s\n", option.name, value ? value : "<unset>");

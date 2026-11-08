@@ -5,7 +5,7 @@ reference profile and experiments that remain off, see
 [optimization status](optimization-status.md). This document describes runtime
 environment defaults; it is not a list of every compiled optimization.
 
-The qualified EU 1.00/Vulkan/AVX2 executable installs its approved runtime
+The qualified EU/US 1.00/Vulkan/AVX2 executable installs its approved runtime
 profile before C/C++ constructors cache environment options. Missing variables
 therefore select the intended defaults even when starting the EXE directly.
 Explicit overrides, including `0`, take precedence.
@@ -53,10 +53,14 @@ available; qualify both frame times and CPU work on the target hardware.
 and standalone builds, explicit overrides and configuration bounds.
 
 The manifest identifies `embedded_runtime_profile=eu100-vulkan-native-v1`
-with an empty `runtime_defaults` map. Launchers preserve inherited overrides
+or `us100-vulkan-native-v1`, bound to the corresponding ELF/family and PPU
+completion adapter. Cross-region profile labels are rejected by CMake and
+both launch paths. The two discs share content-pinned SPU continuations,
+not a common PPU layout. EU 1.02 does not inherit the full disc job profile.
+Each embedded profile has an empty `runtime_defaults` map. Launchers preserve inherited overrides
 and do not inject this profile. Older frozen executables retain their legacy
 manifest/launcher defaults. Other executable families and experimental build
-configurations do not automatically acquire the EU profile.
+configurations do not automatically acquire the disc profile.
 
 Use `BuzzQuizWorldRecomp.exe --runtime-defaults` to print the embedded profile
 and its environment values without booting the game. Do not enable every

@@ -76,6 +76,7 @@ $build = Join-Path $experimentRoot $buildName
 $geometryOverride = ''
 $geometryJobProfile = $false
 $animationJobProfile = $false
+$nativeRuntimeProfile = 'eu100-vulkan-native-v1'
 $hostProfile = ''
 $generationPath=Join-Path $experimentRoot 'analysis\game-generation.json'
 if(Test-Path -LiteralPath $generationPath) {
@@ -167,11 +168,14 @@ if ($StageF) {
     $geometryLift = Join-Path $experimentRoot 'port/spu/buzz_job_6eba/spu_recomp.c'
     $geometryPhase2 = $NativeSpuFloat.IsPresent -and $SpuIsa -in @('avx2','avx512') -and
         (Get-BuzzFileSha256 -Path $geometryLift) -eq '5368d1c2e3cdea0e6e3eb594e69cc7404b46980977aadbcbc3b5b9db6edff812'
-    # Only this family/renderer/FP/ISA combination has passed the full host-job
-    # corpus, live, native-frame and reversed FPS/CPU gates.
+    # Content-identical disc SPU adapters share this renderer/FP/ISA gate;
+    # each family retains its own PPU bindings. US job replay/live validation
+    # does not imply the EU profile's earlier FPS/CPU measurements apply to US.
     $geometryJobProfile = $geometryPhase2 -and $VulkanExperimental -and
-        $generation.family -eq 'quizworld-eu100' -and
-        $generation.elf_sha256 -eq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8' -and
+        (($generation.family -eq 'quizworld-eu100' -and
+          $generation.elf_sha256 -eq '6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8') -or
+         ($generation.family -eq 'quizworld-us100' -and
+          $generation.elf_sha256 -eq 'fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d')) -and
         $SpuIsa -eq 'avx2' -and -not $VideoTrace -and -not $ProducerTrace -and -not $SpuLsDebugHooks -and
         $ResultGuardFP -and $HotPpu -and $SpuOpt -eq '-O2' -and -not $MergeGeometry -and
         $NativeCompletion -and $NativeImage40 -and $NativeImage39 -and
@@ -194,6 +198,7 @@ if ($geometryJobProfile) {
     if ($LASTEXITCODE) { throw 'Native animation job adapter generation failed' }
     $image40Override = Join-Path $animationAdapter 'spu_recomp.c'
     $animationJobProfile = $true
+    if($generation.family -eq 'quizworld-us100'){$nativeRuntimeProfile='us100-vulkan-native-v1'}
 }
 $configureOptions=@(
     "-DPS3RECOMP_DIR=$sdk", "-DCMAKE_C_COMPILER=$compiler", "-DCMAKE_CXX_COMPILER=$compiler",
@@ -204,6 +209,7 @@ $configureOptions=@(
     "-DPORT_HOST_PROFILE_DIR=$hostProfile", "-DPORT_SPU_ISA=$SpuIsa",
     "-DPORT_NATIVE_SPU_FLOAT=$($NativeSpuFloat.IsPresent)", "-DPORT_RTZ_RESULT_GUARD=$($ResultGuardFP.IsPresent)",
     "-DPORT_NATIVE_JOB_DEFAULTS=$animationJobProfile",
+    "-DPORT_NATIVE_JOB_PROFILE=$nativeRuntimeProfile",
     "-DPORT_SPU_LS_DEBUG_HOOKS=$($SpuLsDebugHooks.IsPresent)", "-DPORT_SPU_OPT=$SpuOpt",
     "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)", "-DPORT_GEOMETRY_SOURCE=$geometryOverride",
     "-DPORT_COMPLETION_SOURCE=$completionOverride", "-DPORT_IMAGE40_SOURCE=$image40Override",
@@ -243,7 +249,7 @@ if($generation) {
     if($animationJobProfile) {
         $buildManifest.animation_job_profile='host-soa-v1'
         $buildManifest.runtime_defaults=@{}
-        $buildManifest.embedded_runtime_profile='eu100-vulkan-native-v1'
+        $buildManifest.embedded_runtime_profile=$nativeRuntimeProfile
     }
     $buildManifest |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'game-build.json') -Encoding UTF8

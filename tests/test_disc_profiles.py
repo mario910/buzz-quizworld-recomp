@@ -6,10 +6,30 @@ import unittest
 
 from launcher.game_profiles import identify, identify_elf
 from tools.codegen.disc100_profiles import (EU100_SHA256, US100_SHA256,
-                                   US_EMBEDDED_ALIASES, canonicalize_embedded)
+                                   US_EMBEDDED_ALIASES, canonicalize_embedded, extra_disc_entries,
+                                   DISC100_ENTRY_PROFILES)
 
 
 class DiscProfileTests(unittest.TestCase):
+    def test_continuations_are_bound_to_program_content_not_disc_offset(self):
+        blob = bytes(16) + b'\x40\x80\x20\x10' + bytes(12)
+        profiles = {'role': (hashlib.sha256(blob).hexdigest(), ((16, 0x40802010),))}
+        self.assertEqual(extra_disc_entries('role', blob, 32, profiles=profiles), (16,))
+        # A changed byte outside the entry must still invalidate the program.
+        with self.assertRaisesRegex(ValueError, 'Unreviewed'):
+            extra_disc_entries('role', blob[:-1] + b'1', 32, profiles=profiles)
+        for bound in (0, 16, 19):
+            with self.assertRaises(ValueError):
+                extra_disc_entries('role', blob, bound, profiles=profiles)
+        for entry in ((16, 0), (17, 0x40802010), (32, 0)):
+            bad = {'role': (hashlib.sha256(blob).hexdigest(), (entry,))}
+            with self.assertRaises(ValueError):
+                extra_disc_entries('role', blob, 32, profiles=bad)
+        self.assertEqual(extra_disc_entries('unprofiled', blob, 32), ())
+        self.assertEqual(len(DISC100_ENTRY_PROFILES), 7)
+        self.assertIn('buzz_job_6eba', DISC100_ENTRY_PROFILES)
+        self.assertIn('buzz_job_abe1', DISC100_ENTRY_PROFILES)
+
     def test_regions_and_families_are_not_interchangeable(self):
         us = identify("BCUS98209", US100_SHA256)
         self.assertTrue(us.buildable)
