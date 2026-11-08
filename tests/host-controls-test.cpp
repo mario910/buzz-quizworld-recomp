@@ -19,7 +19,9 @@ int main(){try {
     values.fill(1);ps3_host_apply_volume(values.data(),4,&gain);for(float v:values)check(v==0);
     check(ps3_host_set_volume(100));ps3_host_apply_volume(values.data(),0,&gain);check(gain==0);
     ps3_host_apply_volume(nullptr,4,&gain);ps3_host_apply_volume(values.data(),4,nullptr);
-    check(!ps3_host_set_frame_limit(60));check(ps3_host_set_frame_limit(30)&&ps3_host_get_frame_limit()==30);
+    check(!ps3_host_set_frame_limit(59));check(ps3_host_set_frame_limit(30)&&ps3_host_get_frame_limit()==30);
+    check(ps3_host_set_frame_limit(60)&&ps3_host_get_frame_limit()==60);
+    check(!ps3_host_set_frame_limit(120)&&ps3_host_get_frame_limit()==60);
     check(ps3_host_set_frame_limit(0)&&ps3_host_get_frame_limit()==0);
     ps3_host_set_fullscreen(1);check(ps3_host_get_fullscreen()==1);ps3_host_set_fullscreen(0);check(!ps3_host_get_fullscreen());
     ps3_host_pacer p{};
@@ -30,6 +32,9 @@ int main(){try {
     check(ps3_host_frame_deadline(&p,1000+100*step,30)==1000+100*step); // stall: no burst debt
     check(ps3_host_frame_deadline(&p,8000000000ull,0)==8000000000ull);
     check(ps3_host_frame_deadline(&p,8000000001ull,30)==8000000001ull);
+    check(ps3_host_frame_deadline(&p,8000000002ull,60)==8000000002ull);
+    check(ps3_host_frame_deadline(&p,8000000003ull,60)==8000000002ull+1000000000ull/60);
+    check(ps3_host_frame_deadline(&p,8000000004ull,0)==8000000004ull&&p.next_ns==0);
     std::thread writer([]{for(unsigned i=0;i<10000;++i)ps3_host_set_volume(i%101);});
     for(unsigned i=0;i<10000;++i)check(ps3_host_get_volume()<=100);writer.join();
     std::cout<<"PASS host volume ramp, atomic controls and non-catching-up frame deadlines\n";return 0;

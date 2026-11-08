@@ -1,0 +1,65 @@
+name: Native launcher and PC settings
+on:
+  push:
+    branches: [main]
+    paths: ['launcher/native/**', 'port/**', 'tests/**', 'cmake/BuzzPhone.cmake', 'ps3recomp', '.gitmodules', '.github/workflows/native-launcher.yml']
+  pull_request:
+    paths: ['launcher/native/**', 'port/**', 'tests/**', 'cmake/BuzzPhone.cmake', 'ps3recomp', '.gitmodules', '.github/workflows/native-launcher.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: ${{ matrix.platform }} (tools and synthetic tests)
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            platform: windows-x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+          - os: macos-15
+            platform: macos-arm64-bootstrap
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install build tools
+        run: python -m pip install cmake==3.31.10 ninja==1.13.0
+      - name: Configure Windows compiler
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - name: Install Linux window-system headers
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev
+      - name: Configure
+        run: cmake -S launcher/native -B build-ci/launcher -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build-ci/launcher --parallel 3
+      - name: Test (no game files, firmware, controllers or desktop input)
+        run: ctest --test-dir build-ci/launcher --output-on-failure --timeout 60
+      - name: Verify Apple Silicon artifact
+        if: runner.os == 'macOS'
+        run: lipo -verify_arch arm64 build-ci/launcher/BuzzLauncher
+      - name: Stage launcher and licenses only
+        run: cmake --install build-ci/launcher --prefix dist-launcher
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: BuzzLauncher-${{ matrix.platform }}
+          path: dist-launcher/
+          if-no-files-found: error
+          retention-days: 14

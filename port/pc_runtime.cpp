@@ -3,6 +3,7 @@
 #include "pc_texture_upscaler.h"
 #include "ps3emu/host_controls.h"
 #include <chrono>
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -19,6 +20,7 @@ namespace {
 namespace fs=std::filesystem;
 std::unique_ptr<buzz_pc::State> state;
 std::mutex apply_mutex;
+std::atomic<bool> performance_overlay{false};
 fs::path preferences_file;
 unsigned phone_players=4;
 buzz_phone::Server::Input phone_input;
@@ -43,6 +45,7 @@ void atomic_save(const buzz_pc::Preferences& p) {
     buzz_pc_write_file_atomic(preferences_file,buzz_pc::serialize(p));
 }
 void apply_live(const buzz_pc::Preferences& p) {
+    performance_overlay.store(p.performance_overlay,std::memory_order_relaxed);
     ps3_host_set_volume(p.volume_percent);
     ps3_host_set_frame_limit(p.fps_limit);
     ps3_host_set_fullscreen(p.fullscreen);
@@ -93,6 +96,7 @@ bool buzz_pc_runtime_init() {
                 fprintf(stderr,"[pc-settings] texture pack folder path is too long; texture packs disabled\n");
         }
         state=std::make_unique<buzz_pc::State>(p);
+        performance_overlay.store(p.performance_overlay,std::memory_order_relaxed);
         fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%% texture_replace=%d texture_dump=%d texture_auto_upscale=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale,p.texture_replace,p.texture_dump,p.texture_auto_upscale);
         return true;
     }catch(const std::exception& e){fprintf(stderr,"[pc-settings] %s\n",e.what());return false;}
@@ -100,6 +104,9 @@ bool buzz_pc_runtime_init() {
 buzz_pc::Preferences buzz_pc_requested_preferences() {
     std::lock_guard lock(apply_mutex);
     return state?state->requested():buzz_pc::Preferences{};
+}
+bool buzz_pc_performance_overlay_enabled() {
+    return performance_overlay.load(std::memory_order_relaxed);
 }
 unsigned buzz_pc_active_render_scale() {
     std::lock_guard lock(apply_mutex);

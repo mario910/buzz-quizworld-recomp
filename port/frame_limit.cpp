@@ -45,7 +45,7 @@ void reset_flip(ppu_context*) {
     static thread_local buzz_pc::FramePacer pacer;
     const auto now = Clock::now();
     const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-    const auto due = pacer.deadline(uint64_t(ns), ps3_host_get_frame_limit()==30);
+    const auto due = pacer.deadline(uint64_t(ns), ps3_host_get_frame_limit());
     if (due > uint64_t(ns))
         wait_until(now + std::chrono::nanoseconds(due - uint64_t(ns)));
     cellGcmResetFlipStatus();

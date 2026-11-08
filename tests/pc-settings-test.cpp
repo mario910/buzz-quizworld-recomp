@@ -1,6 +1,8 @@
 #include "../port/pc_settings.h"
 #include "../port/buzzer_input.h"
 #include "../port/pc_menu_model.h"
+#include "../port/pc_performance.h"
+#include "../port/frame_pacer.h"
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -10,6 +12,21 @@ void check(bool value){if(!value)throw std::runtime_error("PC settings regressio
 int main() {
     try {
         Preferences p;std::string error;
+        check(next_frame_limit(30,1)==60&&next_frame_limit(60,1)==0&&next_frame_limit(0,1)==30);
+        check(next_frame_limit(30,-1)==0&&next_frame_limit(0,-1)==60&&next_frame_limit(60,-1)==30);
+        FramePacer pacing;
+        check(pacing.deadline(100,30)==100&&pacing.deadline(101,30)==100+1000000000ull/30);
+        check(pacing.deadline(102,60)==102&&pacing.deadline(103,60)==102+1000000000ull/60);
+        check(pacing.deadline(104,0)==104&&pacing.next_ns==0);
+        check(!p.performance_overlay);
+        PerformanceSample perf;
+        perf.update(1000,100,false);check(!perf.ready);
+        perf.update(1500,115,false);check(perf.ready&&perf.fps==30);
+        perf.update(2000,115,false);check(perf.ready&&perf.fps==0); // redraw is not a game frame
+        perf.update(2100,115,true);check(!perf.ready); // pause cannot inflate FPS
+        perf.update(9000,115,false);perf.update(9500,130,false);check(perf.fps==30);
+        perf.update(9600,1,false);check(!perf.ready); // renderer sequence reset
+        perf.reset();check(!perf.ready);
         MenuPadNavigation pad;
         check(pad.sample(1,100)==1);check(pad.sample(1,449)==0);
         check(pad.sample(1,450)==1);check(pad.sample(1,559)==0);
@@ -19,24 +36,66 @@ int main() {
         check(pad.sample(0,565)==0);check(pad.sample(0x1000|0x2000,566)==(0x1000|0x2000));
         pad.reset();check(pad.sample(0x10,567)==0); // START is not an answer/select
         MenuModel menu;check(!menu.open());menu.navigate(MenuAction::toggle);check(menu.open());
-        menu.navigate(MenuAction::up);check(menu.selection()==row_quit&&menu.rows()==13);menu.navigate(MenuAction::down);check(menu.selection()==0);
+        check(menu.tab()==MenuTab::general&&menu.tabs_focused());
+        menu.navigate(buzzer_menu_action(2));check(menu.tab()==MenuTab::phones); // yellow wraps back
+        menu.navigate(buzzer_menu_action(4));check(menu.tab()==MenuTab::general); // green wraps forward
+        menu.navigate(buzzer_menu_action(1));check(!menu.tabs_focused()&&menu.selection()==0);
+        menu.navigate(buzzer_menu_action(16));check(menu.tabs_focused()); // blue above first option
+        menu.navigate(MenuAction::up);check(menu.setting_row(menu.selection())==row_quit);
+        menu.navigate(buzzer_menu_action(8));check(menu.tabs_focused());
+        std::array<bool,row_settings_count> reachable{};
+        for(int tab=0;tab<int(MenuTab::count);++tab){
+            menu.set_tab(MenuTab(tab));check(menu.option_rows()<=5&&menu.rows()<=8);
+            menu.navigate(buzzer_menu_action(1));
+            for(int row=0;row<menu.rows();++row){
+                check(!menu.tabs_focused()&&menu.selection()==row);
+                const int setting=menu.setting_row(row);if(setting>=0)reachable[setting]=true;
+                menu.navigate(buzzer_menu_action(8));
+            }
+            check(menu.tabs_focused()); // every option/footer reachable without a pad
+            check(menu.setting_row(menu.option_rows())==row_save);
+            check(menu.setting_row(menu.option_rows()+1)==row_return);
+            check(menu.setting_row(menu.option_rows()+2)==row_quit);
+        }
+        for(bool found:reachable)check(found);
+        menu.select_setting(row_performance_overlay);check(menu.tab()==MenuTab::general&&menu.setting_row(menu.selection())==row_performance_overlay);
+        menu.select_setting(row_render_scale);check(menu.tab()==MenuTab::display&&menu.setting_row(menu.selection())==row_render_scale);
+        menu.select_setting(row_texture_auto);check(menu.tab()==MenuTab::textures&&menu.setting_row(menu.selection())==row_texture_auto);
         check(next_window_size({0,0},1).width==1280&&next_window_size({0,0},-1).width==3840);
         check(next_window_size({3840,2160},1).width==0);
         {auto custom=next_window_size({1000,700},1);check(custom.width==0);check(next_window_size({1000,700},-1).width==3840);}
         check(next_render_scale(100,1)==150&&next_render_scale(300,1)==300&&next_render_scale(100,-1)==100);
         check(next_render_scale(175,-1)==150&&next_render_scale(175,1)==200);
-        menu.show(MenuPage::controllers);check(menu.rows()==10);menu.navigate(MenuAction::up);check(menu.selection()==9);
-        menu.navigate(MenuAction::back);check(menu.open()&&menu.page()==MenuPage::settings);
+        menu.show(MenuPage::controllers);check(menu.rows()==8&&menu.tab()==MenuTab::controllers);
+        for(auto page:{MenuPage::bindings,MenuPage::pad_assignments,MenuPage::controller_options}){
+            menu.show(page);menu.navigate(MenuAction::back);check(menu.open()&&menu.page()==MenuPage::controllers);
+        }
         menu.show(MenuPage::quit_confirm);check(menu.rows()==2&&menu.selection()==0);
-        menu.navigate(MenuAction::back);menu.navigate(MenuAction::back);check(!menu.open());
-        menu.show(MenuPage::phones);check(menu.rows()==14);menu.select(99);check(menu.selection()==13);
+        menu.navigate(MenuAction::back);check(menu.tab()==MenuTab::controllers&&menu.root());
+        menu.navigate(MenuAction::back);check(menu.tabs_focused());menu.navigate(MenuAction::back);check(!menu.open());
+        menu.show(MenuPage::phones);check(menu.rows()==8);menu.show(MenuPage::phone_seats);check(menu.rows()==9);
+        menu.select(99);check(menu.selection()==8);menu.back();check(menu.tab()==MenuTab::phones&&menu.page()==MenuPage::phones);
+        check(buzzer_menu_action(1)==MenuAction::accept&&buzzer_menu_action(2)==MenuAction::left&&
+              buzzer_menu_action(4)==MenuAction::right&&buzzer_menu_action(8)==MenuAction::down&&buzzer_menu_action(16)==MenuAction::up);
         auto controls=buzz_input::defaults();std::string controls_text;
+        for(unsigned player=0;player<controls.players;++player)for(unsigned color=0;color<5;++color)
+            check(buzzer_menu_key(controls,controls.keys[player][color])==(1u<<color));
+        controls.keys[0][4]='Z';check(buzzer_menu_key(controls,'Z')==16&&buzzer_menu_key(controls,0)==0&&buzzer_menu_key(controls,255)==0);
         check(buzz_input_format_config(controls,controls_text,error));
         auto loaded_controls=buzz_input::defaults();check(buzz_input::parse_config(controls_text,loaded_controls,error));
         check(loaded_controls.keys==controls.keys&&loaded_controls.pad_buttons==controls.pad_buttons);
         controls.pad_buttons[0][0]=0x1234;const auto old_text=controls_text;check(!buzz_input_format_config(controls,controls_text,error)&&controls_text==old_text);
         check(p.volume_percent==100&&p.fps_limit==30&&p.offline);
         Preferences decoded;check(parse(serialize(p),decoded,error)&&decoded==p);
+        for(unsigned limit:frame_limit_presets){
+            auto cap=p;cap.fps_limit=limit;check(parse(serialize(cap),decoded,error)&&decoded==cap);
+            State live;check(live.apply(cap).restart==no_restart&&live.active().fps_limit==limit);
+        }
+        {Preferences hud;hud.performance_overlay=true;
+         check(parse(serialize(hud),decoded,error)&&decoded==hud);
+         check(parse("version=2\nperformance_overlay=0",decoded,error)&&!decoded.performance_overlay);
+         State live;auto change=live.apply(hud);check(change.accepted&&change.restart==no_restart&&live.active().performance_overlay);
+         check(live.apply(Preferences{}).restart==no_restart&&!live.active().performance_overlay);}
         // Default display settings keep the exact version-1 file for older builds.
         check(serialize(p).find("version=1\n")!=std::string::npos&&serialize(p).find("window_width")==std::string::npos);
         check(parse("version=1\nvolume=7\nfullscreen=1",decoded,error)&&decoded.volume_percent==7&&decoded.fullscreen&&
@@ -66,12 +125,13 @@ int main() {
         p.volume_percent=42;p.fullscreen=true;p.fps_limit=0;p.offline=false;p.renderer=Renderer::vulkan;p.phone_buzzers=true;p.phone_port=65535;
         check(parse(serialize(p),decoded,error)&&decoded==p);
         const auto previous=decoded;
-        for(const char* bad:{"version=0","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=60","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10",
+        for(const char* bad:{"version=0","version=1\nvolume=101","version=1\nvolume=-1","version=1\nfps_limit=61","version=1\nvolume=2\nvolume=3","version=1\nunknown=1","version=1\nrenderer=unimplemented","version=1\noffline=true","version=1\nphone_buzzers=yes","version=1\nphone_port=80","version=1\nphone_port=65536","volume=10",
             "version=3","version=1\nwindow_width=1920\nwindow_height=1080","version=2\nwindow_width=1920","version=2\nwindow_width=100\nwindow_height=100",
             "version=2\nwindow_width=99999\nwindow_height=1080","version=2\nrender_scale=50","version=2\nrender_scale=301","version=2\nrender_scale=1.5",
             "version=2\nupscale_filter=dlss","version=2\nfsr_sharpness=101","version=1\nupscale_filter=fsr1",
             "version=2\ntexture_replace=2","version=2\ntexture_dump=on","version=1\ntexture_dump=1",
-            "version=2\ntexture_auto_upscale=yes","version=1\ntexture_auto_upscale=1"}) {
+            "version=2\ntexture_auto_upscale=yes","version=1\ntexture_auto_upscale=1",
+            "version=2\nperformance_overlay=yes","version=2\nperformance_overlay=2","version=1\nperformance_overlay=1"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));

@@ -11,7 +11,8 @@ enum class Renderer { automatic, d3d12, vulkan };
 enum class Upscaler { bilinear, fsr1 };
 struct Preferences {
     unsigned volume_percent = 100;
-    unsigned fps_limit = 30; // Only 0 (uncapped) or 30, not a simulation-speed knob.
+    unsigned fps_limit = 30; // 0 (uncapped), 30 or 60; not a simulation-speed knob.
+    bool performance_overlay = false; // Live, non-interactive FPS/draw/resolution HUD.
     bool fullscreen = false; // Borderless at the desktop resolution of the window's monitor.
     // Windowed client size in physical pixels. 0x0 keeps the backend's own
     // default size; the backend shrinks it to fit the monitor's work area.
@@ -34,6 +35,11 @@ struct Preferences {
     unsigned phone_port = 8073;
 };
 bool operator==(const Preferences&, const Preferences&);
+inline constexpr unsigned frame_limit_presets[]={30,60,0};
+inline unsigned next_frame_limit(unsigned current,int direction){
+    int index=0;for(int i=0;i<3;++i)if(frame_limit_presets[i]==current)index=i;
+    return frame_limit_presets[(index+(direction<0?-1:1)+3)%3];
+}
 inline bool operator!=(const Preferences& a,const Preferences& b){return !(a==b);}
 bool validate(const Preferences&,std::string& error);
 std::string serialize(const Preferences&);

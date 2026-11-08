@@ -132,6 +132,30 @@ and stores its bindings through the in-game menu.
 
 ## Settings and process isolation
 
+The in-game settings menu has five tabs: **General, Display, Textures, Controls,
+and Phones**. Each has at most five primary options, with **Save settings,
+Resume game, and Quit** kept in a separate fixed footer. Controller assignments,
+advanced input options, bindings, and paired phones use short subpages with a
+Back option. Settings are applied and saved exactly as before.
+
+Open with **Escape / controller START**. With a physical buzzer or any player's
+configured keyboard buzzer, **blue/orange** move up/down, **yellow/green**
+decrease/increase, and **red** selects. The menu initially highlights the tab
+strip: yellow/green switch tabs, red (or orange) enters the options. Blue above
+the first option returns to the tabs. Save and Resume are reachable using just
+these five buttons; no gameplay chord is reserved to open the menu. Arrow keys,
+D-pad, A/R1, B/Backspace, and mouse navigation remain available. Physical USB
+buzzer navigation is covered with synthetic input tests, not verified hardware.
+
+The in-game **Escape / controller START** menu includes **Performance overlay**
+(off by default). It toggles a non-interactive top-right HUD immediately, showing
+game FPS, game draw calls per frame, internal render resolution and output
+(swapchain) resolution in physical pixels. FPS is averaged over half-second
+intervals; paused-menu redraws do not count as game frames. Draw calls exclude
+clears, final scaling/compositing and the host UI. Choose **Save settings** to
+remember the toggle (`performance_overlay=1` in version-2 `pc-settings.ini`).
+When disabled, the HUD does not start ImGui or sample clocks during gameplay.
+
 The native launcher reads/writes the same version-1
 `runtime/launcher/settings.json` schema as the Python UI, retaining existing
 paths, mappings and custom labels. Only old automatic `Gracz N` labels are
@@ -169,7 +193,7 @@ that use START as a buzzer keep that binding; use Escape for the menu until
 you select the new preset. The keyboard uses arrows, Enter/Space and Backspace;
 controllers use D-pad, A/R1 to select and B to go back. Mouse buttons also work.
 
-The purple/navy overlay has volume, 30 FPS lock, borderless fullscreen,
+The purple/navy overlay has volume, a 30 / 60 / Uncapped frame limit, borderless fullscreen,
 restart-only offline mode, controller assignments, the R1/D-pad preset, tap
 retention and a restart-only 4/8-buzzer count. It **does not pause the quiz**.
 Guest buzzer input is suppressed while open and held buttons must be released
@@ -183,7 +207,7 @@ separate renderer. Its layout scales with the window height (1x at ~900 px,
 up to 3x), so it stays readable at 1440p and 4K. `BUZZ_PC_OVERLAY=0` disables it
 for diagnostic A/B checks (and restores the SDK's old Escape-to-close behavior).
 The runtime now connects volume to the shared audio mixer and borderless/fullscreen
-and the 0/30 FPS cap to D3D12 host controls. To seed preferences without the menu,
+and the 0/30/60 FPS cap to D3D12 host controls. To seed preferences without the menu,
 copy `config/pc-settings.example.ini` to the selected build's `runtime/pc-settings.ini`
 or pass an explicit `BUZZ_PC_SETTINGS` path. It is loaded once, never polled.
 Without a file, the existing SDK presentation/vsync behaviour remains unchanged.
@@ -317,11 +341,13 @@ presented as a successful save. Files are loaded once at startup/menu actions,
 not polled during gameplay. The legacy Python UI is not a shared-settings editor.
 
 Volume changes ramp over one mixer block; 100% uses the bit-preserving old path.
-The frame limiter only wraps actual D3D12 presentations and leaves the guest
-vblank cadence and audio pacing code unchanged. Initial isolated 1.02 startup
-tests observed 29.53-30 FPS capped and 60-63 FPS without the cap, after warm-up.
-This is not a heavy-scene performance result or verification of uncapped round
-timers. Borderless mode deliberately does not change guest rendering resolution.
+The 30/60 FPS limiter paces the guest PPU thread at flip reset on both renderers;
+it leaves the vblank cadence and audio rate unchanged. Switching the cap is live,
+but selecting 60 does not guarantee that the workload reaches 60 FPS. Earlier
+isolated 1.02 startup tests observed 29.53-30 FPS with the 30 cap and 60-63 FPS
+uncapped after warm-up. Those historical startup results are not a heavy-scene
+benchmark or validation of round timing above 30 FPS. Borderless mode
+deliberately does not change guest rendering resolution.
 
 The Windows game has a default-enabled original Buzz HID provider, labelled
 **hardware-unverified** until somebody can test a working receiver. It is
@@ -380,8 +406,10 @@ Do not leave this developer variable set for normal play: the internal script
 intentionally changes settings. Synthetic tests cover repeat/edge navigation,
 R1/D-pad mapping, held-input gates, transactional parsers, Unicode atomic
 storage and optional host-overlay dispatch on Windows and Linux. The actual
-overlay was tested in a bounded EU 1.02 D3D12 boot, not yet in every game/profile
-or with physical controllers. It has not been ported to Vulkan.
+overlay has bounded D3D12 and Windows Vulkan integration coverage, but not
+every game/profile or physical controller. Public CI builds the launcher and
+synthetic tests without game inputs; see [CI scope](ci.md), including the
+macOS launcher-only bootstrap.
 
 For matched developer scene tests, `--test-skip-intro` is accepted only with
 `--launch --test-seconds N` (1..300). It selects the existing startup-only video

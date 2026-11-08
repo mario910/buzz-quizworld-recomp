@@ -1,21 +1,13 @@
 --- a/libs/video/rsx_vulkan_backend.c
 +++ b/libs/video/rsx_vulkan_backend.c
-@@ -66,13 +66,11 @@
- #include <dlfcn.h>
- #include <pthread.h>
- #else
-+#include "rsx_host_window.h"
-+#endif
+@@ -69,6 +69,6 @@
+ #include "rsx_host_window.h"
+-#include "rsx_fsr1.h"
+ #endif
  #include "ps3emu/host_overlay.h"
  #include "ps3emu/host_controls.h"
--#ifdef _WIN32
--#include "rsx_host_window.h"
- #include "rsx_fsr1.h"
--#endif
--#endif
++#include "rsx_fsr1.h"
  #include <stddef.h>
- #include <stdint.h>
- #include <stdio.h>
 @@ -148,9 +146,9 @@
  VK_DEVICE_FNS(VK_DECLARE)
  VK_WSI_INSTANCE_FNS(VK_DECLARE)
@@ -217,9 +209,9 @@
          /* The pass's own dependencies order it after the blit and leave the
           * image in PRESENT_SRC. The queue lock covers uploads the hook submits. */
          VkRenderPassBeginInfo rb = { .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-@@ -2721,12 +2772,15 @@
-                                                s_vk.sc_extent.width, s_vk.sc_extent.height, s_vk.sc_count,
-                                                (unsigned)s_vk.sc_format, PS3_HOST_OVERLAY_VULKAN, &vulkan };
+@@ -2722,12 +2773,15 @@
+                                                (unsigned)s_vk.sc_format, PS3_HOST_OVERLAY_VULKAN, &vulkan,
+                                                s_vk.presented,s_vk.present_draw_calls,s_vk.width,s_vk.height };
          vk_mutex_lock(&s_vk.queue_mu);
 +#ifdef _WIN32
          void* dpi = rsx_host_window_dpi_enter();

@@ -69,7 +69,9 @@ static u32 pipeline_state(const char* fragment,u32 rt_count,int depth,int blend)
 }
 static u32 pipeline(const char* fragment,u32 rt_count,int depth){return pipeline_state(fragment,rt_count,depth,0);}
 static void draw_quad(float* vertices,u32 count,const u32* indices){
+    const u32 previous=s_vk.frame_draw_calls;
     vk_eng_draw(NULL,RSX_TOPOLOGY_TRIANGLES,vertices,count,16,indices,6);
+    check(s_vk.frame_draw_calls==previous+1,"HUD counts each game draw once across GPU batches");
 }
 #ifdef BUZZ_VULKAN_UPLOAD_SOURCE
 static PFN_vkUpdateDescriptorSets descriptor_update_driver;

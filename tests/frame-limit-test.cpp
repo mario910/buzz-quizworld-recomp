@@ -31,25 +31,31 @@ int main() { try {
     ps3_host_set_frame_limit(0);reset_hook(&ctx);
     // A disable must clear the old future deadline, even without a frame gap.
     buzz_pc::FramePacer pacer;
-    check(pacer.deadline(100,true)==100);
-    check(pacer.deadline(101,false)==101&&pacer.next_ns==0);
-    check(pacer.deadline(102,true)==102);
+    check(pacer.deadline(100,30)==100);
+    check(pacer.deadline(101,0)==101&&pacer.next_ns==0);
+    check(pacer.deadline(102,30)==102);
     const auto period=buzz_pc::FramePacer::period_ns;
     // A one-ms overrun must not move every subsequent deadline one ms later.
-    check(pacer.deadline(102+period+1000000,true)==102+period+1000000);
-    check(pacer.deadline(102+2*period-1000000,true)==102+2*period);
+    check(pacer.deadline(102+period+1000000,30)==102+period+1000000);
+    check(pacer.deadline(102+2*period-1000000,30)==102+2*period);
     // Long frames and menu pauses discard debt instead of running a burst.
-    check(pacer.deadline(1000000000,true)==1000000000);
-    check(pacer.deadline(1000000001,true)==1033333333);
+    check(pacer.deadline(1000000000,30)==1000000000);
+    check(pacer.deadline(1000000001,30)==1033333333);
+    // 60 FPS uses a different period, and switching discards the old schedule.
+    constexpr uint64_t step60=1000000000ull/60;
+    check(pacer.deadline(1000000002,60)==1000000002);
+    check(pacer.deadline(1000000003,60)==1000000002+step60);
+    check(pacer.deadline(1000000004,30)==1000000004);
+    check(pacer.deadline(1000000005,0)==1000000005&&pacer.next_ns==0);
     // A varying render workload averaging 32 ms can sustain 30 FPS. The
     // SDK pacer's per-overrun rebase stretched this to ~28.8 FPS when capped.
     buzz_pc::FramePacer varying;
     ps3_host_pacer legacy{};
     uint64_t paced=1,old=1;
-    varying.deadline(paced,true);ps3_host_frame_deadline(&legacy,old,30);
+    varying.deadline(paced,30);ps3_host_frame_deadline(&legacy,old,30);
     for(unsigned i=0;i<600;++i) {
         const uint64_t work=(i&1)?36000000:28000000;
-        paced=varying.deadline(paced+work,true);
+        paced=varying.deadline(paced+work,30);
         old=ps3_host_frame_deadline(&legacy,old+work,30);
     }
     check(paced>=20000000000ull&&paced<20004000000ull);
@@ -58,6 +64,11 @@ int main() { try {
     ps3_host_set_frame_limit(30);
     std::thread other([&]{ppu_context c{};reset_hook(&c);});other.join();
     check(resets==9);
-    std::cout<<"PASS guest frame hook, real 30 FPS pacing, register preservation, disable/resume and stall deadlines\n";
+    check(ps3_host_set_frame_limit(60));
+    const auto start60=Clock::now();
+    for(unsigned i=0;i<7;++i)reset_hook(&ctx);
+    check(Clock::now()-start60>=std::chrono::milliseconds(99));
+    check(resets==16&&std::memcmp(&ctx,&original,sizeof(ctx))==0);
+    std::cout<<"PASS guest frame hook, real 30/60 FPS pacing, register preservation, live cap switches and stall deadlines\n";
     return 0;
 } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 1;} }

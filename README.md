@@ -39,8 +39,10 @@ in its entirety by this repository's MIT license. See
   update, validate exact executable hashes, then generate and build locally.
   Preparation sessions can be cancelled and resumed.
 - **In-game PC settings and developer launcher:** select prepared copies, map/test
-  controls, adjust volume, fullscreen, window size and the optional 30 FPS lock.
+  controls, adjust volume, fullscreen, window size and the 30 / 60 / Uncapped frame limit.
   Escape / START pauses gameplay while the settings menu is open on Vulkan.
+  The tabbed menu supports buzzer navigation and an optional top-right
+  FPS/draw-count/resolution overlay, disabled by default.
 - **Display and texture options:** internal rendering from 720p to 4K, bilinear
   or AMD FSR 1 presentation, PNG texture replacements, and optional automatic
   Real-ESRGAN texture upscaling. See [display and texture packs](#display-and-texture-packs).
@@ -279,10 +281,10 @@ wizard builds locally; neither downloads game content. A background start is ena
 game window before using keyboard controls. See [launcher guide](docs/pc-launcher.md).
 
 The game also has an **Escape / controller START** PC settings menu for
-volume, a 30 FPS lock, fullscreen, controllers and restart-only offline mode.
+volume, a 30 / 60 / Uncapped frame limit, fullscreen, controllers and restart-only offline mode.
 It shares per-build settings with the native launcher. On Vulkan the game is
 paused while the menu is open (guest clock, vblank and audio held); on the
-D3D12 fallback the quiz keeps running. The optional 30 FPS lock paces the game's
+D3D12 fallback the quiz keeps running. The optional 30/60 FPS cap paces the game's
 CPU thread and is off by default; see [frame pacing](docs/frame-pacing.md).
 R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
 blue/orange/green/yellow. Windows physical Buzz HID is experimental and
@@ -452,6 +454,7 @@ See the [documentation index](docs/README.md) for runtime architecture and file-
   Review/redact local paths and any game-derived data before sharing logs.
 
 [Developer scripts and tests](docs/development.md) ·
+[CI coverage and artifacts](docs/ci.md) ·
 [Contribution rules](CONTRIBUTING.md) ·
 [Publication audit/scope](docs/publication.md) ·
 [Third-party licenses](THIRD_PARTY_NOTICES.md)

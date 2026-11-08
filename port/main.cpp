@@ -381,7 +381,8 @@ static void present_guest_frame(void)
      * Vulkan or host pacing enabled, deliver its completion now instead of adding a
      * second wait for the next synthetic vblank. TickFlip only completes an
      * executed FIFO flip; it does not manufacture a completion or skip fences. */
-    if (g_rsx_early_flip || ps3_host_get_frame_limit() == 30) cellGcmTickFlip();
+    const unsigned frame_limit=ps3_host_get_frame_limit();
+    if (g_rsx_early_flip || frame_limit==30 || frame_limit==60) cellGcmTickFlip();
     /* This thread increments and guest threads read, so interlocked rather
      * than a volatile ++, which on arm64 is neither atomic nor a fence. */
     [[maybe_unused]] const auto frame=InterlockedIncrement(&g_frames_presented);

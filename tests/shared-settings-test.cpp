@@ -33,10 +33,10 @@ int main(){try {
     check(input_config(imported).background_gamepads,"Preserve focused/background controller policy");
     check(read_text(json)==original_json,"Read-only import preserves legacy JSON");
 
-    imported.pc.volume_percent=72;imported.pc.fps_limit=0;imported.offline=true;imported.players[0].keys[0]="F8";
+    imported.pc.volume_percent=72;imported.pc.fps_limit=60;imported.offline=true;imported.players[0].keys[0]="F8";
     save_shared_settings(root,imported);
     auto reloaded=load_settings(root);
-    check(reloaded.pc.volume_percent==72&&reloaded.pc.fps_limit==0&&reloaded.pc.offline&&reloaded.offline,"Launcher changes are shared with the game");
+    check(reloaded.pc.volume_percent==72&&reloaded.pc.fps_limit==60&&reloaded.pc.offline&&reloaded.offline,"Launcher changes are shared with the game");
     check(reloaded.players[0].keys[0]=="F8"&&reloaded.pads[1].buttons[0]=="START","Controller changes survive a new load");
     check(read_text(json)==original_json,"Canonical save leaves legacy labels and paths untouched");
 

@@ -1,6 +1,7 @@
 #include "pc_overlay.h"
 #include "pc_menu_model.h"
 #include "pc_runtime.h"
+#include "pc_performance.h"
 #include "buzzer_hid_win32.h"
 #include "phone_server.h"
 #include "../third_party/qrcodegen/qrcodegen.hpp"
@@ -9,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -73,9 +75,10 @@ constexpr bool host_pause=true;
 constexpr bool host_pause=false;
 #endif
 buzz_pc::MenuPadNavigation pad_navigation;
-bool test_mode=false,pause_test=false,frame_limit_test=false;
+bool test_mode=false,pause_test=false,frame_limit_test=false,performance_test=false,tabs_test=false;
 uint64_t test_delay_ms=0;
 bool menu_ui_enabled=true;
+buzz_pc::PerformanceSample performance_sample;
 unsigned test_stage=0;
 uint64_t first_frame=0;
 int binding_target=0, binding_button=-1;
@@ -177,11 +180,20 @@ void act(buzz_pc::MenuAction action) {
     using buzz_pc::MenuAction;using buzz_pc::MenuPage;
     if(action==MenuAction::toggle||action==MenuAction::back||action==MenuAction::up||action==MenuAction::down){navigate(action);return;}
     if(!menu.open()||binding_button>=0)return;
+    if(menu.tabs_focused()){navigate(action);return;}
     const int row=menu.selection(),direction=action==MenuAction::left?-1:1;
     const bool accept=action==MenuAction::accept;
+    const int setting=menu.setting_row(row);
+    if(menu.root()&&setting>=buzz_pc::row_save){
+        if(!accept)return;
+        if(setting==buzz_pc::row_save)save_all();
+        else if(setting==buzz_pc::row_return)navigate(MenuAction::toggle);
+        else if(setting==buzz_pc::row_quit)menu.show(MenuPage::quit_confirm);
+        return;
+    }
     if(menu.page()==MenuPage::quit_confirm) {
         if(!accept)return;
-        if(row==0)menu.show(MenuPage::settings);
+        if(row==0)menu.back();
 #ifdef _WIN32
         else PostMessageW(window,WM_CLOSE,0,0);
 #else
@@ -194,9 +206,29 @@ void act(buzz_pc::MenuAction action) {
         else if(row==1&&!accept){preferences.phone_port=unsigned(std::clamp(int(preferences.phone_port)+direction,1024,65535));apply_live();}
         else if(row==2&&accept)buzz_phone::host().set_locked(!phone_status.locked);
         else if(row==3&&accept){buzz_phone::host().reset();status="New pairing code created. All phone sessions released.";}
-        else if(row>=4&&row<=11&&accept)buzz_phone::host().kick(unsigned(row-4));
-        else if(row==12&&accept)save_all();
-        else if(row==13&&accept)menu.show(MenuPage::settings);
+        else if(row==4&&accept)menu.show(MenuPage::phone_seats);
+        return;
+    }
+    if(menu.page()==MenuPage::phone_seats) {
+        if(row<8&&accept)buzz_phone::host().kick(unsigned(row));
+        else if(row==8&&accept)menu.back();
+        return;
+    }
+    if(menu.page()==MenuPage::pad_assignments) {
+        if(row==4&&accept)menu.back();
+        else if(row<4) {
+            int old=input.pad_player[row];
+            int next=(old+1+direction+int(input.players)+1)%(int(input.players)+1)-1;
+            for(int i=0;i<4;++i)if(i!=row&&next>=0&&input.pad_player[i]==next)input.pad_player[i]=old;
+            input.pad_player[row]=next;apply_input();
+        }
+        return;
+    }
+    if(menu.page()==MenuPage::controller_options) {
+        if(row==0&&accept){input.pad_buttons=buzz_input::defaults().pad_buttons;input.gamepads=true;apply_input();}
+        else if(row==1&&!accept){input.pulse_ms=unsigned(std::clamp(int(input.pulse_ms)+direction*10,10,5000));apply_input();}
+        else if(row==2){input.background_gamepads=!input.background_gamepads;apply_input();}
+        else if(row==3&&accept)menu.back();
         return;
     }
     if(menu.page()==MenuPage::bindings) {
@@ -215,50 +247,38 @@ void act(buzz_pc::MenuAction action) {
         } else if(row==6&&accept) {
             save_all();
         } else if(row==7&&accept) {
-            menu.show(MenuPage::controllers);
+            menu.back();
         }
         return;
     }
     if(menu.page()==MenuPage::settings) {
         using namespace buzz_pc;
-        if(row==row_volume&&!accept){preferences.volume_percent=unsigned(std::clamp(int(preferences.volume_percent)+direction*5,0,100));apply_live();}
-        else if(row==row_frame_lock){preferences.fps_limit=preferences.fps_limit?0:30;apply_live();}
-        else if(row==row_display_mode){preferences.fullscreen=!preferences.fullscreen;apply_live();}
-        else if(row==row_window_size) {
+        if(setting==row_volume&&!accept){preferences.volume_percent=unsigned(std::clamp(int(preferences.volume_percent)+direction*5,0,100));apply_live();}
+        else if(setting==row_frame_lock){preferences.fps_limit=buzz_pc::next_frame_limit(preferences.fps_limit,direction);apply_live();}
+        else if(setting==row_performance_overlay){preferences.performance_overlay=!preferences.performance_overlay;apply_live();fprintf(stderr,"[pc-menu] performance overlay=%d\n",buzz_pc_performance_overlay_enabled());}
+        else if(setting==row_display_mode){preferences.fullscreen=!preferences.fullscreen;apply_live();}
+        else if(setting==row_window_size) {
             const auto size=next_window_size({preferences.window_width,preferences.window_height},direction);
             preferences.window_width=size.width;preferences.window_height=size.height;apply_live();
             if(preferences.fullscreen&&status.rfind("Applied",0)==0)status="Window size applies in windowed mode. Borderless uses the desktop resolution.";
         }
-        else if(row==row_render_scale){preferences.render_scale=next_render_scale(preferences.render_scale,direction);apply_live();}
-        else if(row==row_upscaler) {
+        else if(setting==row_render_scale){preferences.render_scale=next_render_scale(preferences.render_scale,direction);apply_live();}
+        else if(setting==row_upscaler) {
             preferences.upscaler=preferences.upscaler==Upscaler::fsr1?Upscaler::bilinear:Upscaler::fsr1;apply_live();
             if(preferences.upscaler==Upscaler::fsr1&&status.rfind("Applied",0)==0)
                 status="FSR 1 sharpens when the window is larger than the internal resolution.";
         }
-        else if(row==row_sharpness&&!accept){preferences.fsr_sharpness=unsigned(std::clamp(int(preferences.fsr_sharpness)+direction*10,0,100));apply_live();}
-        else if(row==row_texture_replace){preferences.texture_replace=!preferences.texture_replace;apply_live();}
-        else if(row==row_texture_dump){preferences.texture_dump=!preferences.texture_dump;apply_live();}
-        else if(row==row_texture_auto){preferences.texture_auto_upscale=!preferences.texture_auto_upscale;apply_live();}
-        else if(row==row_offline){preferences.offline=!preferences.offline;apply_live();}
-        else if(row==row_controllers&&accept)menu.show(MenuPage::controllers);
-        else if(row==row_phones&&accept)menu.show(MenuPage::phones);
-        else if(row==row_save&&accept)save_all();
-        else if(row==row_return&&accept)navigate(MenuAction::toggle);
-        else if(row==row_quit&&accept)menu.show(MenuPage::quit_confirm);
+        else if(setting==row_sharpness&&!accept){preferences.fsr_sharpness=unsigned(std::clamp(int(preferences.fsr_sharpness)+direction*10,0,100));apply_live();}
+        else if(setting==row_texture_replace){preferences.texture_replace=!preferences.texture_replace;apply_live();}
+        else if(setting==row_texture_dump){preferences.texture_dump=!preferences.texture_dump;apply_live();}
+        else if(setting==row_texture_auto){preferences.texture_auto_upscale=!preferences.texture_auto_upscale;apply_live();}
+        else if(setting==row_offline){preferences.offline=!preferences.offline;apply_live();}
     }else {
         if(row==0){input.gamepads=!input.gamepads;apply_input();}
-        else if(row==1&&accept){input.pad_buttons=buzz_input::defaults().pad_buttons;input.gamepads=true;apply_input();}
-        else if(row>=2&&row<=5) {
-            int slot=row-2,old=input.pad_player[slot];
-            int next=(old+1+direction+int(input.players)+1)%(int(input.players)+1)-1;
-            for(int i=0;i<4;++i)if(i!=slot&&next>=0&&input.pad_player[i]==next)input.pad_player[i]=old;
-            input.pad_player[slot]=next;apply_input();
-        }else if(row==6&&!accept){input.pulse_ms=unsigned(std::clamp(int(input.pulse_ms)+direction*10,10,5000));apply_input();}
-        else if(row==7){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
-        else if(row==8){input.background_gamepads=!input.background_gamepads;apply_input();}
-        else if(row==9&&accept){binding_target=0;menu.show(MenuPage::bindings);}
-        else if(row==10&&accept)save_all();
-        else if(row==11&&accept)menu.show(MenuPage::settings);
+        else if(row==1&&accept)menu.show(MenuPage::pad_assignments);
+        else if(row==2&&accept){binding_target=0;menu.show(MenuPage::bindings);}
+        else if(row==3){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
+        else if(row==4&&accept)menu.show(MenuPage::controller_options);
     }
 }
 // Key values are the portable saved binding codes (Win32 VK numbers).
@@ -269,6 +289,12 @@ void key_down(unsigned key,bool repeated){
         if(!repeated&&!binding_pad()&&key>0&&key<=255)
             assign_binding(input.keys[unsigned(binding_target)],key==8?0u:key);
         return;
+    }
+    if(menu.open()) {
+        if(const unsigned button=buzz_pc::buzzer_menu_key(input,key)){
+            if(!repeated||button!=1)act(buzz_pc::buzzer_menu_action(button));
+            return;
+        }
     }
     if(key==38)act(MenuAction::up);else if(key==40)act(MenuAction::down);
     else if(key==37)act(MenuAction::left);else if(key==39)act(MenuAction::right);
@@ -398,9 +424,9 @@ void controller() {
     }
     uint16_t buttons=0;for(unsigned i=0;i<4;++i)buttons|=buzz_input_host_pad_buttons(i);
     const auto physical=buzz_input_host_physical_buttons();
-    // Physical handsets have no START. Open with Escape, then use the familiar
-    // blue/orange up/down, yellow/green adjust and red confirm; Back/Return rows
-    // remain reachable without inventing a delayed gameplay chord.
+    // Same five colours on every page. At the tab strip yellow/green change
+    // tab, red enters; up from the first option returns to the strip.
+    // Escape/START opens the menu; no gameplay button chord is reserved.
     if(physical&1)buttons|=0x200;
     if(physical&16)buttons|=1;if(physical&8)buttons|=2;
     if(physical&2)buttons|=4;if(physical&4)buttons|=8;
@@ -411,17 +437,32 @@ void controller() {
 }
 std::string row_label(int row) {
     using buzz_pc::MenuPage;
+    const int setting=menu.setting_row(row);
+    if(menu.root()&&setting>=buzz_pc::row_save)
+        return setting==buzz_pc::row_save?"SAVE SETTINGS":setting==buzz_pc::row_return?"RESUME GAME":"QUIT GAME...";
     if(menu.page()==MenuPage::quit_confirm)return row==0?"KEEP PLAYING":"QUIT GAME";
     if(menu.page()==MenuPage::phones) {
         if(row==0)return std::string("HOST PHONE BUZZERS: ")+(phone_status.running?"ON":preferences.phone_buzzers?"ON [unavailable]":"OFF");
         if(row==1)return "HTTP PORT: "+std::to_string(preferences.phone_port);
         if(row==2)return std::string("JOINING: ")+(phone_status.locked?"LOCKED":"OPEN");
         if(row==3)return "NEW CODE / REMOVE ALL PHONES";
-        if(row==12)return "SAVE SETTINGS";
-        if(row==13)return "BACK";
-        const auto player=unsigned(row-4);const auto& seat=phone_status.seats[player];
+        return "MANAGE PAIRED PHONES  >";
+    }
+    if(menu.page()==MenuPage::phone_seats) {
+        if(row==8)return "BACK";
+        const auto player=unsigned(row);const auto& seat=phone_status.seats[player];
         if(player>=buzz_input_players())return "P"+std::to_string(player+1)+": unavailable (4-slot mode)";
         return "P"+std::to_string(player+1)+": "+(seat.reserved?seat.name+(seat.online?" [online]":" [away]")+" - REMOVE":"available");
+    }
+    if(menu.page()==MenuPage::pad_assignments) {
+        if(row==4)return "BACK";
+        return "PAD "+std::to_string(row+1)+(buzz_input_host_pad_connected(unsigned(row))?" [connected]":" [not connected]")+"  >  "+(input.pad_player[row]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[row]+1));
+    }
+    if(menu.page()==MenuPage::controller_options) {
+        if(row==0)return "USE R1 + D-PAD PRESET";
+        if(row==1)return "TAP RETENTION                  "+std::to_string(input.pulse_ms)+" ms";
+        if(row==2)return std::string("BACKGROUND GAMEPADS      ")+(input.background_gamepads?"ON":"OFF");
+        return "BACK";
     }
     if(menu.page()==MenuPage::bindings) {
         if(row==0)return binding_pad()?"EDIT PAD "+std::to_string(binding_pad_slot()+1)
@@ -443,9 +484,10 @@ std::string row_label(int row) {
     if(menu.page()==MenuPage::settings) {
         using namespace buzz_pc;
         const auto size=[](unsigned w,unsigned h){return std::to_string(w)+"x"+std::to_string(h);};
-        switch(row) {
+        switch(setting) {
             case row_volume:return "VOLUME                                      "+std::to_string(preferences.volume_percent)+"%";
-            case row_frame_lock:return std::string("30 FPS FRAME LOCK                   ")+(preferences.fps_limit?"ON":"OFF");
+            case row_frame_lock:return "FRAME LIMIT                         "+(preferences.fps_limit?std::to_string(preferences.fps_limit)+" FPS":std::string("UNCAPPED"));
+            case row_performance_overlay:return std::string("PERFORMANCE OVERLAY                 ")+(preferences.performance_overlay?"ON":"OFF");
             case row_display_mode:return std::string("DISPLAY MODE        ")+(preferences.fullscreen?"BORDERLESS (DESKTOP)":"WINDOWED");
             case row_window_size: {
                 std::string value=!preferences.window_width?"DEFAULT 1280x720":size(preferences.window_width,preferences.window_height);
@@ -466,19 +508,24 @@ std::string row_label(int row) {
             case row_texture_dump:return std::string("DUMP TEXTURES [restart]  ")+(preferences.texture_dump?"ON":"OFF");
             case row_texture_auto:return std::string("AUTO TEXTURE UPSCALING [restart]  ")+(preferences.texture_auto_upscale?"ON":"OFF");
             case row_offline:return std::string("OFFLINE MODE [restart]              ")+(preferences.offline?"ON":"OFF");
-            case row_controllers:return "CONTROLLERS  >";case row_phones:return "PHONE BUZZERS  >";case row_save:return "SAVE SETTINGS";case row_return:return "RETURN TO GAME";default:return "QUIT GAME...";
+            default:return "";
         }
     }
     switch(row) {
         case 0:return std::string("GAME CONTROLLERS                   ")+(input.gamepads?"ON":"OFF");
-        case 1:return "USE R1 + D-PAD PRESET";
-        case 6:return "TAP RETENTION                             "+std::to_string(input.pulse_ms)+" ms";
-        case 7:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
-        case 8:return std::string("BACKGROUND GAMEPADS  ")+(input.background_gamepads?"ON":"OFF");
-        case 9:return "KEYBOARD AND PAD BINDINGS  >";
-        case 10:return "SAVE CONTROLLER SETTINGS";case 11:return "BACK";
-        default:{unsigned slot=unsigned(row-2);return "PAD "+std::to_string(slot+1)+(buzz_input_host_pad_connected(slot)?" [connected]":" [not connected]")+"  >  "+(input.pad_player[slot]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[slot]+1));}
+        case 1:return "ASSIGN CONTROLLERS TO PLAYERS  >";
+        case 2:return "KEYBOARD AND PAD BINDINGS  >";
+        case 3:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
+        default:return "ADVANCED CONTROLLER OPTIONS  >";
     }
+}
+bool row_adjustable(int row) {
+    const int setting=menu.setting_row(row);
+    return (menu.page()==buzz_pc::MenuPage::settings&&(setting==buzz_pc::row_volume||setting==buzz_pc::row_frame_lock||setting==buzz_pc::row_window_size||setting==buzz_pc::row_render_scale||setting==buzz_pc::row_sharpness))||
+        (menu.page()==buzz_pc::MenuPage::controller_options&&row==1)||
+        (menu.page()==buzz_pc::MenuPage::pad_assignments&&row<4)||
+        (menu.page()==buzz_pc::MenuPage::bindings&&row==0)||
+        (menu.page()==buzz_pc::MenuPage::phones&&row==1);
 }
 void draw_phone_pairing() {
     if(!phone_status.running){ImGui::TextWrapped("Enable Host phone buzzers to display the QR code.");return;}
@@ -529,41 +576,63 @@ void draw_menu() {
     auto& io=ImGui::GetIO();auto size=io.DisplaySize;
     const float ui=menu_scale(size.y);
     ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0,0),size,IM_COL32(4,5,20,200));
-    const float width=std::min(size.x-30,920.0f*ui),height=std::min(size.y-30,760.0f*ui);
+    const float width=std::min(size.x-30,920.0f*ui),height=std::min(size.y-30,700.0f*ui);
     ImGui::SetNextWindowPos(ImVec2((size.x-width)*.5f,(size.y-height)*.5f));ImGui::SetNextWindowSize(ImVec2(width,height));
     ImGui::PushStyleColor(ImGuiCol_WindowBg,ImVec4(.045f,.035f,.12f,.98f));
     ImGui::Begin("Buzz PC settings",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoMove);
     auto p=ImGui::GetCursorScreenPos();const auto available=ImGui::GetContentRegionAvail();
     ImGui::GetWindowDrawList()->AddRectFilledMultiColor(p,ImVec2(p.x+available.x,p.y+64*ui),IM_COL32(145,20,255,255),IM_COL32(75,35,180,255),IM_COL32(45,30,120,255),IM_COL32(100,30,210,255));
     const bool phones=menu.page()==buzz_pc::MenuPage::phones;
-    if(phones)phone_status=buzz_phone::host().status();
-    ImGui::SetCursorScreenPos(ImVec2(p.x+18*ui,p.y+14*ui));ImGui::TextUnformatted(phones?"BUZZ!  /  PHONE BUZZERS":menu.page()==buzz_pc::MenuPage::controllers?"BUZZ!  /  CONTROLLERS":menu.page()==buzz_pc::MenuPage::bindings?"BUZZ!  /  BINDINGS":"BUZZ!  /  PC SETTINGS");
+    if(menu.tab()==buzz_pc::MenuTab::phones)phone_status=buzz_phone::host().status();
+    ImGui::SetCursorScreenPos(ImVec2(p.x+18*ui,p.y+14*ui));ImGui::TextUnformatted("BUZZ!  /  PC SETTINGS");
     ImGui::SetCursorScreenPos(ImVec2(p.x,p.y+78*ui));
+    // Real model-driven tabs, shared by mouse, keyboard, pad and five-button
+    // handset navigation. No ImGui tab-bar focus or keyboard-only shortcuts.
+    const int tab_count=int(buzz_pc::MenuTab::count);
+    const float tab_width=(available.x-(tab_count-1)*ImGui::GetStyle().ItemSpacing.x)/tab_count;
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,ImVec2(4*ui,6*ui));
+    for(int tab=0;tab<tab_count;++tab){
+        const bool active=int(menu.tab())==tab;
+        ImGui::PushStyleColor(ImGuiCol_Button,active?ImVec4(.48f,.12f,.86f,1):ImVec4(.12f,.13f,.24f,1));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize,active&&menu.tabs_focused()?2*ui:0);
+        if(ImGui::Button(buzz_pc::menu_tab_names[tab],ImVec2(tab_width,38*ui))&&binding_button<0){menu.set_tab(buzz_pc::MenuTab(tab));status.clear();}
+        ImGui::PopStyleVar();ImGui::PopStyleColor();if(tab+1<tab_count)ImGui::SameLine();
+    }
+    ImGui::PopStyleVar();
     if(menu.page()==buzz_pc::MenuPage::controllers) {
         const unsigned receivers=unsigned(buzz_input_physical_connected(0))+unsigned(buzz_input_physical_connected(1));
         ImGui::TextDisabled("Buzz USB: %u receiver(s) | hardware-unverified%s",receivers,buzz_hid_host_registered()?"":" | unavailable");
         if(receivers>1&&input.players==4)ImGui::TextWrapped("Receiver 2 needs eight buzzer slots (restart).");
     }
-    if(phones) {
-        ImGui::BeginChild("pairing",ImVec2(std::max(160.0f*ui,available.x*.36f),-100*ui));draw_phone_pairing();ImGui::EndChild();ImGui::SameLine();
+    if(!menu.root()){
+        const auto page=menu.page();
+        ImGui::TextDisabled("%s",page==buzz_pc::MenuPage::bindings?"KEYBOARD / PAD BINDINGS":
+            page==buzz_pc::MenuPage::pad_assignments?"ASSIGN CONTROLLERS":
+            page==buzz_pc::MenuPage::controller_options?"ADVANCED CONTROLLER OPTIONS":
+            page==buzz_pc::MenuPage::phone_seats?"PAIRED PHONES":"QUIT GAME?");
     }
-    ImGui::BeginChild("options",ImVec2(0,-100*ui));
+    const float body_height=std::max(45*ui,ImGui::GetContentRegionAvail().y-(menu.root()?155:105)*ui);
+    if(phones&&phone_status.running) {
+        ImGui::BeginChild("pairing",ImVec2(std::max(160.0f*ui,available.x*.36f),body_height));draw_phone_pairing();ImGui::EndChild();ImGui::SameLine();
+    }
+    ImGui::BeginChild("options",ImVec2(0,body_height));
     static int last_selection=-1;static buzz_pc::MenuPage last_page=buzz_pc::MenuPage::settings;
-    const bool scroll_selection=menu.selection()!=last_selection||menu.page()!=last_page;
-    const int rows=menu.rows();
+    static buzz_pc::MenuTab last_tab=buzz_pc::MenuTab::general;
+    const bool scroll_selection=menu.selection()!=last_selection||menu.page()!=last_page||menu.tab()!=last_tab;
+    if(menu.page()!=last_page||menu.tab()!=last_tab)ImGui::SetScrollY(0);
+    const int rows=menu.option_rows();
     const float row_height=std::clamp((ImGui::GetContentRegionAvail().y-rows*ImGui::GetStyle().ItemSpacing.y)/rows,27.0f*ui,41.0f*ui);
     // Fixed-height buttons must still leave enough room for the font. The
     // default 9px vertical padding clips 22px text in compact 27px rows.
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,ImVec2(16*ui,std::max(0.0f,(row_height-ImGui::GetFontSize())*.5f)));
     for(int row=0;row<rows;++row) {
-        ImGui::PushID(row);const bool selected=menu.selection()==row;
+        ImGui::PushID(row);const bool selected=!menu.tabs_focused()&&menu.selection()==row;
         ImGui::PushStyleColor(ImGuiCol_Button,selected?ImVec4(.48f,.12f,.86f,1):ImVec4(.12f,.13f,.24f,1));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,ImVec4(.48f,.22f,.78f,1));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,ImVec4(.67f,.28f,.96f,1));
         auto label=row_label(row);
-        const bool adjustable=(menu.page()==buzz_pc::MenuPage::settings&&(row==buzz_pc::row_volume||row==buzz_pc::row_window_size||row==buzz_pc::row_render_scale||row==buzz_pc::row_sharpness))||
-            (menu.page()==buzz_pc::MenuPage::controllers&&row==6)||
-            (menu.page()==buzz_pc::MenuPage::bindings&&row==0)||(phones&&row==1);
+        const bool adjustable=row_adjustable(row);
+        const auto page_before=menu.page();const auto tab_before=menu.tab();
         const float adjust_width=44*ui,space=ImGui::GetStyle().ItemSpacing.x;
         if(adjustable){
             if(ImGui::Button("-",ImVec2(adjust_width,row_height))){menu.select(row);act(buzz_pc::MenuAction::left);}
@@ -574,17 +643,59 @@ void draw_menu() {
         if(selected&&scroll_selection)ImGui::SetScrollHereY(.5f);
         if(adjustable){ImGui::SameLine();if(ImGui::Button("+",ImVec2(adjust_width,row_height))){menu.select(row);act(buzz_pc::MenuAction::right);}}
         ImGui::PopStyleColor(3);ImGui::PopID();
+        if(!menu.open()||menu.page()!=page_before||menu.tab()!=tab_before)break;
     }
-    last_selection=menu.selection();last_page=menu.page();
+    last_selection=menu.selection();last_page=menu.page();last_tab=menu.tab();
     ImGui::PopStyleVar();
     ImGui::EndChild();
-    if(phones&&!phone_status.error.empty())ImGui::TextWrapped("%s",phone_status.error.c_str());
+    if(menu.root()){
+        const float button_width=(ImGui::GetContentRegionAvail().x-2*ImGui::GetStyle().ItemSpacing.x)/3;
+        const int first=menu.option_rows();
+        for(int i=0;i<3;++i){
+            const bool selected=!menu.tabs_focused()&&menu.selection()==first+i;
+            ImGui::PushStyleColor(ImGuiCol_Button,selected?ImVec4(.48f,.12f,.86f,1):ImVec4(.12f,.13f,.24f,1));
+            const auto label=row_label(first+i);
+            const auto page_before=menu.page();
+            if(ImGui::Button(label.c_str(),ImVec2(button_width,40*ui))){menu.select(first+i);act(buzz_pc::MenuAction::accept);}
+            ImGui::PopStyleColor();
+            if(!menu.open()||menu.page()!=page_before)break;
+            if(i<2)ImGui::SameLine();
+        }
+    }
     if(!status.empty())ImGui::TextWrapped("%s",status.c_str());
+    else if(phones&&!phone_status.error.empty())ImGui::TextWrapped("%s",phone_status.error.c_str());
     else ImGui::TextDisabled(pause_guest&&host_pause?"The game is paused while this menu is open.":"Game continues running while this menu is open.");
-    if(buzz_input_physical_connected(0)||buzz_input_physical_connected(1))ImGui::TextDisabled("Buzz: blue/orange up/down, yellow/green adjust, red select");
-    else ImGui::TextDisabled("Arrows / D-pad: navigate & adjust   A / R1: select   B: back");
-    ImGui::TextDisabled("ESC / START: return to game    Renderer: %s",overlay_api==PS3_HOST_OVERLAY_VULKAN?"Vulkan":"D3D12");
+    ImGui::TextDisabled(menu.tabs_focused()?"Tabs: YELLOW / GREEN = previous / next   RED = enter":
+        "Buzz: BLUE / ORANGE = up / down   YELLOW / GREEN = adjust   RED = select");
+    ImGui::TextDisabled("BLUE above first option: tabs   Arrows / D-pad also work   ESC / START: resume");
     ImGui::End();ImGui::PopStyleColor();
+}
+void draw_performance(const ps3_host_overlay_frame& frame) {
+    // A draw-list only HUD: no window, focus, mouse or controller navigation.
+    const auto& io=ImGui::GetIO();
+    const float scale=menu_scale(io.DisplaySize.y),font_size=18.0f*scale;
+    const bool paused=ps3_host_get_paused()!=0;
+    performance_sample.update(menu_ticks(),frame.game_frame,paused);
+    if(performance_test&&test_stage==3&&performance_sample.ready) {
+        fprintf(stderr,"[pc-menu] test: performance HUD fps=%.1f draws=%u render=%ux%u output=%ux%u\n",
+            performance_sample.fps,frame.draw_calls,frame.render_width,frame.render_height,frame.width,frame.height);
+        ++test_stage;
+    }
+    char fps[64],text[256];
+    if(paused)std::snprintf(fps,sizeof fps,"FPS  --  (paused)");
+    else if(performance_sample.ready)std::snprintf(fps,sizeof fps,"FPS  %.1f",performance_sample.fps);
+    else std::snprintf(fps,sizeof fps,"FPS  --");
+    std::snprintf(text,sizeof text,"%s  /  %s\nDraw calls  %u / frame\nRender  %u x %u\nOutput  %u x %u",
+        frame.api==PS3_HOST_OVERLAY_VULKAN?"Vulkan":"D3D12",fps,frame.draw_calls,
+        frame.render_width,frame.render_height,frame.width,frame.height);
+    auto* font=ImGui::GetFont();
+    const auto extent=font->CalcTextSizeA(font_size,FLT_MAX,0,text);
+    const float pad=10*scale,margin=12*scale;
+    const ImVec2 high(io.DisplaySize.x-margin,margin+extent.y+2*pad);
+    const ImVec2 low(std::max(margin,high.x-extent.x-2*pad),margin);
+    auto* draw=ImGui::GetForegroundDrawList();
+    draw->AddRectFilled(low,high,IM_COL32(8,9,24,215),7*scale);
+    draw->AddText(font,font_size,ImVec2(low.x+pad,low.y+pad),IM_COL32(235,242,255,255),text);
 }
 void test_actions() {
     // Explicit test mode only; this is internal menu input, never desktop input.
@@ -592,15 +703,52 @@ void test_actions() {
     const auto now=menu_ticks();if(!first_frame)first_frame=now;
     if(now-first_frame<test_delay_ms)return;
     const auto elapsed=now-first_frame-test_delay_ms;
+    if(tabs_test) {
+        // Exercise the real configured-key handler, not desktop input. The
+        // same colour actions drive physical handsets; no hardware is assumed.
+        const auto press=[](unsigned color,unsigned count=1,unsigned player=0){
+            for(unsigned i=0;i<count;++i)key_down(input.keys[player][color],false);
+        };
+        const auto verify=[](bool ok,const char* step){fprintf(stderr,"[pc-menu] test: tabs %s %s\n",step,ok?"PASS":"FAILED");};
+        if(test_stage==0&&elapsed>=1000){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
+        if(test_stage==1&&elapsed>=2500){press(2);verify(menu.tab()==buzz_pc::MenuTab::display&&menu.tabs_focused(),"Display");press(0);press(4);++test_stage;}
+        if(test_stage==2&&elapsed>=4000){press(2);verify(menu.tab()==buzz_pc::MenuTab::textures,"Textures");press(0);press(4);++test_stage;}
+        if(test_stage==3&&elapsed>=5500){
+            press(2);press(0);press(3);press(0);verify(menu.page()==buzz_pc::MenuPage::pad_assignments,"Assignments");
+            press(3,4);press(0);verify(menu.page()==buzz_pc::MenuPage::controllers,"Controls-back");press(4);++test_stage;
+        }
+        if(test_stage==4&&elapsed>=7000){
+            press(2);press(0);press(3,4);press(0);verify(menu.page()==buzz_pc::MenuPage::phone_seats,"Phone-seats");
+            press(3,8);press(0);verify(menu.page()==buzz_pc::MenuPage::phones,"Phones-back");press(4);++test_stage;
+        }
+        if(test_stage==5&&elapsed>=8500){press(2);press(0);press(4,1,1);verify(menu.tab()==buzz_pc::MenuTab::general&&menu.tabs_focused(),"Player-2-keys");press(0);++test_stage;}
+        if(test_stage==6&&elapsed>=10000){
+            press(3,2);press(0);press(3,2);press(0);press(3);press(0);
+            verify(!menu.open()&&buzz_pc_performance_overlay_enabled(),"HUD-save-resume");++test_stage;
+        }
+        return;
+    }
+    if(performance_test) {
+        if(test_stage==0&&elapsed>=1000){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
+        if(test_stage==1&&elapsed>=2000){menu.select_setting(buzz_pc::row_performance_overlay);act(buzz_pc::MenuAction::accept);++test_stage;}
+        if(test_stage==2&&elapsed>=3000){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
+        if(test_stage==4&&elapsed>=12000){navigate(buzz_pc::MenuAction::toggle);menu.select_setting(buzz_pc::row_performance_overlay);act(buzz_pc::MenuAction::accept);++test_stage;}
+        if(test_stage==5&&elapsed>=13000){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
+        if(test_stage==6&&elapsed>=15000){navigate(buzz_pc::MenuAction::toggle);menu.select_setting(buzz_pc::row_performance_overlay);act(buzz_pc::MenuAction::accept);save_all();++test_stage;}
+        if(test_stage==7&&elapsed>=16000){navigate(buzz_pc::MenuAction::toggle);++test_stage;fprintf(stderr,"[pc-menu] test: performance toggle OFF/ON/save completed\n");}
+        return;
+    }
     if(frame_limit_test) {
         // Repeated live changes through the real menu, with no settings save.
         const unsigned phase=unsigned(elapsed/15000);
         if(test_stage<=phase) {
-            const unsigned limit=(phase&1)?30:0;
+            constexpr unsigned limits[]={0,30,60};
+            const unsigned limit=limits[phase%3];
             navigate(buzz_pc::MenuAction::toggle);
-            if(preferences.fps_limit!=limit){menu.select(buzz_pc::row_frame_lock);act(buzz_pc::MenuAction::accept);}
+            menu.select_setting(buzz_pc::row_frame_lock);
+            for(unsigned i=0;i<3&&preferences.fps_limit!=limit;++i)act(buzz_pc::MenuAction::accept);
             navigate(buzz_pc::MenuAction::toggle);
-            fprintf(stderr,"[pc-menu] test: frame limit=%u elapsed=%llums\n",limit,elapsed);
+            fprintf(stderr,"[pc-menu] test: frame limit=%u active=%u elapsed=%llums\n",limit,ps3_host_get_frame_limit(),elapsed);
             test_stage=phase+1;
         }
         return;
@@ -613,17 +761,20 @@ void test_actions() {
     }
     if(test_stage==0&&elapsed>=2500){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
     if(test_stage==1&&elapsed>=3500){menu.select(0);act(buzz_pc::MenuAction::left);++test_stage;}
-    if(test_stage==2&&elapsed>=4500){menu.select(buzz_pc::row_frame_lock);act(buzz_pc::MenuAction::accept);++test_stage;}
+    if(test_stage==2&&elapsed>=4500){menu.select_setting(buzz_pc::row_frame_lock);act(buzz_pc::MenuAction::accept);++test_stage;}
     if(test_stage==3&&elapsed>=5500){input.pulse_ms=260;save_all();++test_stage;}
     if(test_stage==4&&elapsed>=9000){key_down(27,false);++test_stage;}
     if(test_stage==5&&elapsed>=9500){key_down(27,false);++test_stage;}
-    if(test_stage==6&&elapsed>=10500){menu.select(buzz_pc::row_controllers);act(buzz_pc::MenuAction::accept);++test_stage;}
+    if(test_stage==6&&elapsed>=10500){menu.set_tab(buzz_pc::MenuTab::controllers);menu.enter_options();++test_stage;}
     if(test_stage==7&&elapsed>=11500){menu.select(menu.rows()-1);++test_stage;fprintf(stderr,"[pc-menu] test: controllers page, last row selected\n");}
     if(test_stage==8&&elapsed>=13000){key_down(8,false);key_down(27,false);++test_stage;fprintf(stderr,"[pc-menu] test: keyboard close/reopen and controller page completed\n");}
 }
 void draw(const ps3_host_overlay_frame* frame) {
     if(failed)return;window=static_cast<decltype(window)>(frame->window);
-    test_actions();controller();if(!menu.open())return;
+    test_actions();controller();
+    const bool show_performance=buzz_pc_performance_overlay_enabled();
+    if(!show_performance)performance_sample.reset();
+    if(!menu.open()&&!show_performance)return;
     if(!initialized&&!init(*frame)){release_resources();failed=true;menu.close();pause_events(false);capture();buzz_input_enable_menu(false);fprintf(stderr,"[pc-menu] overlay init FAILED\n");return;}
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
     if(frame->api==PS3_HOST_OVERLAY_VULKAN) {
@@ -634,7 +785,7 @@ void draw(const ps3_host_overlay_frame* frame) {
         ImGui_ImplSDL2_NewFrame();
 #endif
         auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
-        ImGui::NewFrame();draw_menu();ImGui::Render();
+        ImGui::NewFrame();if(menu.open())draw_menu();if(show_performance)draw_performance(*frame);ImGui::Render();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),static_cast<VkCommandBuffer>(frame->commands));
         return;
     }
@@ -642,7 +793,7 @@ void draw(const ps3_host_overlay_frame* frame) {
 #ifdef _WIN32
     ImGui_ImplDX12_NewFrame();ImGui_ImplWin32_NewFrame();
     auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
-    ImGui::NewFrame();draw_menu();ImGui::Render();
+    ImGui::NewFrame();if(menu.open())draw_menu();if(show_performance)draw_performance(*frame);ImGui::Render();
     auto commands=static_cast<ID3D12GraphicsCommandList*>(frame->commands);
     commands->SetDescriptorHeaps(1,&descriptors);D3D12_CPU_DESCRIPTOR_HANDLE rtv{frame->rtv};commands->OMSetRenderTargets(1,&rtv,FALSE,nullptr);
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),commands);
@@ -662,7 +813,9 @@ void buzz_pc_overlay_register(){
     const char* pause=getenv("BUZZ_PC_MENU_PAUSE");pause_guest=!(pause&&std::string(pause)=="0");
     const char* test=getenv("BUZZ_PC_MENU_TEST");
     frame_limit_test=test&&std::string(test)=="frame-limit";
-    test_mode=test&&(std::string(test)=="1"||std::string(test)=="pause"||frame_limit_test);pause_test=test_mode&&std::string(test)=="pause";
+    performance_test=test&&std::string(test)=="performance";
+    tabs_test=test&&std::string(test)=="tabs";
+    test_mode=test&&(std::string(test)=="1"||std::string(test)=="pause"||frame_limit_test||performance_test||tabs_test);pause_test=test_mode&&std::string(test)=="pause";
     if(const char* delay=getenv("BUZZ_PC_MENU_TEST_DELAY_MS"))test_delay_ms=strtoull(delay,nullptr,10);
     const ps3_host_overlay_hooks hooks{message,menu_ui_enabled?draw:nullptr,shutdown};ps3_host_set_overlay(&hooks);
     buzz_input_enable_menu(menu_ui_enabled);

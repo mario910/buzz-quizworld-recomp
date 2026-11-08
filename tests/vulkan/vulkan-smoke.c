@@ -2,6 +2,7 @@
 #include "rsx_vulkan_backend.h"
 #include "rsx_shader_spirv.h"
 #include "ps3emu/ps3_ftrace.h"
+#include "ps3emu/host_overlay.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,13 @@ unsigned char* vm_base=NULL;
 struct smoke_fentry {uint64_t address;void* function;const char* name;};
 const struct smoke_fentry function_table[]={{0,NULL,NULL}};
 const uint64_t function_table_count=0;
+static unsigned overlay_frames=0,overlay_invalid=0;
+static void overlay_draw(const ps3_host_overlay_frame* f){
+    ++overlay_frames;
+    if(!f||f->api!=PS3_HOST_OVERLAY_VULKAN||f->game_frame!=overlay_frames||
+       f->draw_calls!=0||f->render_width!=96||f->render_height!=64||!f->width||!f->height)
+        overlay_invalid=1;
+}
 static void env(const char* name,const char* value){
 #ifdef _WIN32
     _putenv_s(name,value);
@@ -55,6 +63,7 @@ int main(int argc,char** argv){
     env("PS3RECOMP_VK_WINDOW",window?"1":"0");
     env("PS3RECOMP_VK_PRESENT_READBACK",(no_readback||force_dump||once_dump)?"0":"1");
     env("RSX_WINDOW_BACKGROUND","1");
+    if(window){const ps3_host_overlay_hooks hooks={NULL,overlay_draw,NULL};ps3_host_set_overlay(&hooks);}
     env("PS3RECOMP_VK_GUEST_PROGRAMS","0");env("PS3RECOMP_RSX_ENGINE","vtable");
     if(!rsx_hlsl_to_spirv_available()){fprintf(stderr,"Shader translator is a stub\n");return 1;}
     static const char vs[]="float4 main(float4 p : ATTR0) : SV_Position { return p; }";
@@ -86,6 +95,9 @@ int main(int argc,char** argv){
         if(rsx_vulkan_backend_pump_messages()){rsx_vulkan_backend_shutdown();return 1;}
     }
     rsx_vulkan_backend_shutdown();
+    if(window&&(overlay_frames!=3||overlay_invalid)){
+        fprintf(stderr,"Host overlay frame sequence/resolution/draw statistics mismatch\n");return 1;
+    }
     if(dump){
         FILE* f=fopen(dump,"rb");char header[32]={0};
         const char* expected="P6\n96 64\n255\n";

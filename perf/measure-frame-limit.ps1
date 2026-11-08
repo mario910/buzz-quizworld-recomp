@@ -1,6 +1,6 @@
 # Matched frame timing, no captures or desktop input. Private settings leave
 # the player's saved preferences intact; mute affects device output only.
-param([ValidateSet(0,30)][int]$Limit=30,[switch]$LiveSwitches,
+param([ValidateSet(0,30,60)][int]$Limit=30,[switch]$LiveSwitches,
       [ValidateSet('Language','MainMenu')][string]$Scene='MainMenu',
       [ValidateRange(30,3600)][int]$Seconds=120,
       [ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Tag=(Get-Date -Format 'yyyyMMdd-HHmmss'),
@@ -31,7 +31,7 @@ try {
     & .\scripts\run-windows.ps1 -Seconds $Seconds -MenuBootstrap -SkipVideo -Mute -Background -BuildDirectory $BuildDirectory |
         Tee-Object -FilePath ($prefix+'.log')
     if($LASTEXITCODE){throw 'Frame-limit measurement failed'}
-    Write-Output "Frame timings: $prefix.csv (exclude boot/transitions; live mode alternates 0/30 every 15 seconds)"
+    Write-Output "Frame timings: $prefix.csv (exclude boot/transitions; live mode cycles uncapped/30/60 every 15 seconds)"
 } finally {
     foreach($key in $keys){[Environment]::SetEnvironmentVariable($key,$previous[$key],'Process')}
     Pop-Location

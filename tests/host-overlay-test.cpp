@@ -8,7 +8,10 @@ void check(bool ok){if(!ok)throw std::runtime_error("Overlay hook regression");}
 int message(void* window,unsigned m,uintptr_t w,intptr_t l){
     check(window==nullptr&&m==42&&w==123&&l==-7);++messages;return 1;
 }
-void draw(const ps3_host_overlay_frame* frame){check(frame&&frame->width==1280&&frame->height==720);++draws;}
+void draw(const ps3_host_overlay_frame* frame){
+    check(frame&&frame->width==1280&&frame->height==720);
+    check(frame->game_frame==42&&frame->draw_calls==321&&frame->render_width==1920&&frame->render_height==1080);++draws;
+}
 void shutdown(){++shutdowns;}
 }
 int main(){try {
@@ -18,6 +21,7 @@ int main(){try {
     const ps3_host_overlay_hooks hooks{message,draw,shutdown};ps3_host_set_overlay(&hooks);
     check(ps3_host_overlay_enabled());check(ps3_host_overlay_message(nullptr,42,123,-7)==1);
     ps3_host_overlay_frame frame{};frame.width=1280;frame.height=720;
+    frame.game_frame=42;frame.draw_calls=321;frame.render_width=1920;frame.render_height=1080;
     ps3_host_overlay_draw(&frame);ps3_host_overlay_shutdown();
     check(messages==1&&draws==1&&shutdowns==1);
     ps3_host_set_overlay(nullptr);check(!ps3_host_overlay_enabled());

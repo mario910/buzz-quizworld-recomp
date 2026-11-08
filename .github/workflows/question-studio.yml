@@ -1,24 +1,33 @@
 name: Question Studio
 on:
   push:
+    branches: [main]
     paths: ['studio/**', 'scripts/build-question-studio.ps1', '.github/workflows/question-studio.yml']
   pull_request:
     paths: ['studio/**', 'scripts/build-question-studio.ps1', '.github/workflows/question-studio.yml']
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Install Qt on Linux
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build qt6-base-dev qt6-declarative-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libqt6svg6-dev qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-dialogs qml6-module-qt-labs-platform qml6-module-qtquick-templates qml6-module-qtqml-workerscript espeak-ng ffmpeg
+          sudo apt-get install -y ninja-build libgl1-mesa-dev libopengl-dev qt6-base-dev qt6-declarative-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libqt6svg6-dev qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-dialogs qml6-module-qt-labs-platform qml6-module-qtquick-templates qml6-module-qtqml-workerscript espeak-ng ffmpeg
       - name: Install Qt on Windows
         if: runner.os == 'Windows'
         shell: pwsh

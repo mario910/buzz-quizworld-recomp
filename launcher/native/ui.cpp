@@ -311,8 +311,11 @@ void game_tab(App& app,SDL_Window* window) {
     ImGui::Separator();ImGui::TextUnformatted("Shared game preferences");
     int volume=int(app.settings.pc.volume_percent);ImGui::SetNextItemWidth(240);
     if(ImGui::SliderInt("Master volume",&volume,0,100,"%d%%")){app.settings.pc.volume_percent=unsigned(volume);app.settings.pc_configured=true;}
-    bool cap=app.settings.pc.fps_limit!=0;
-    if(ImGui::Checkbox("30 FPS frame lock",&cap)){app.settings.pc.fps_limit=cap?30:0;app.settings.pc_configured=true;}
+    int cap=app.settings.pc.fps_limit==30?0:app.settings.pc.fps_limit==60?1:2;
+    ImGui::SetNextItemWidth(240);
+    if(ImGui::Combo("Frame limit",&cap,"30 FPS\0" "60 FPS\0" "Uncapped\0")){
+        app.settings.pc.fps_limit=buzz_pc::frame_limit_presets[cap];app.settings.pc_configured=true;
+    }
     if(ImGui::Checkbox("Host phone buzzers over local Wi-Fi",&app.settings.pc.phone_buzzers))app.settings.pc_configured=true;
     if(app.settings.pc.phone_buzzers) {
         int port=int(app.settings.pc.phone_port);ImGui::SetNextItemWidth(160);

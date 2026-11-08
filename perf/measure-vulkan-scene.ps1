@@ -13,7 +13,7 @@
 param([ValidateSet('Menu','Round')][string]$Scene = 'Menu',
       [Parameter(Mandatory)][ValidatePattern('^[a-zA-Z0-9_-]+$')][string]$Tag,
       [ValidateRange(30,3600)][int]$Seconds = 100, [ValidateRange(10,3600)][int]$RoundSeconds = 120,
-      [string]$Env = '', [switch]$Shots, [ValidateSet(0,30)][int]$Limit = 0,
+      [string]$Env = '', [switch]$Shots, [ValidateSet(0,30,60)][int]$Limit = 0,
       [string]$PhaseLog = '',
       [string]$CpuBinding = '', [string]$CpuOutput = '',
       [double[]]$CpuWindow = @(),
