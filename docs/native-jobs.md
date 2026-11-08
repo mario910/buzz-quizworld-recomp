@@ -58,6 +58,36 @@ The optional checked Image 39 FP adapter replaces arithmetic helpers while
 retaining the instruction flow, register bank and I/O. It is not a native
 whole-job driver. The arithmetic and descriptor paths below are independent.
 
+`SPURS_NATIVE_IMAGE39_FP=0` remains the established PC baseline. In a build
+containing this adapter, `1` selects native round-toward-zero arithmetic with
+exceptional-value repair; `2` additionally compares the first 65,536 vectors
+per arithmetic operation against an independent integer oracle. These bounded
+checks do not check every subsequent call. The implementation shares
+[`native_image40_fp.h`](../port/native_image40_fp.h); it retains the lifted
+control flow and does not replace the complete Image39 job. Explicit environment
+values take precedence over the Android standalone preset.
+
+A November 8, 2026 PC experiment used one frozen candidate EXE with FP OFF/ON
+and an unchanged reference14 EXE, in the order reference/OFF/ON/ON/OFF/reference.
+All six runs used a locked, disconnected session, explicit HighQoS, a
+1024x576 window and the same 45..60-second animated-menu interval. The private
+pool-lease experiment was OFF throughout. OFF averaged 45.55 FPS and ON 47.35
+FPS, with 3.36% less process CPU time per presented frame. Individual OFF runs
+were 46.71/44.39 FPS versus ON 47.38/47.32; the reference was 37.70/37.41.
+Both pairs favored ON, but the variable effect size requires confirmation.
+Total process CPU consumption over the interval stayed similar. P99 improved
+from 28.25 to 26.37 ms, which still fails a stable 45 FPS target.
+
+The same candidate passed 1,310,720 checked arithmetic lanes in a menu sample
+and OFF/checked/ON replay of 81 complete captured jobs. Seven jobs were exact;
+74 retained the baseline's concurrent-input differences, with zero failed jobs
+and identical ordered-transfer summaries. A separate 500-second native-FP run
+qualified all five text-question measurement windows and visibly reached the
+next-round category selection. Its final image did not show scores. This is
+functional/progression evidence, not paired gameplay FPS, scoring or full-match
+qualification. The PC default remains unchanged; none of these measurements
+establish an Android hardware gain.
+
 `BUZZ_IMAGE39_NATIVE_BOUNDS` is an experimental, default-OFF replacement for
 the pinned EU 1.00 `0x05C0`/`0x0750` object-visibility loop. Its
 [host implementation](../port/native_image39_bounds.cpp) reads object bounds
