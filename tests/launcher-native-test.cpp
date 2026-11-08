@@ -118,12 +118,18 @@ int main(int argc,char** argv) {
         // Spawn this native test executable, not a shell or a game. Literal
         // argument, UTF8 cwd, environment and redirected output must survive.
         auto executable=fs::absolute(path(argv[0]));
+        check(executable_running(executable),"Find own executable without a shell");
+        check(!executable_running(temp/"not-a-running-game"),"Do not confuse another executable with this build");
         auto probe=temp/path("literal ą & !.txt");
         const auto argument=path("literal argument ą & ! \"quoted\" end\\");
         LaunchPlan process{executable,argument,temp,probe,temp/"stderr.txt",{},{{"BUZZ_SYNTHETIC_TOKEN","native-only"}}};
         {Child child;child.start(process);auto deadline=SDL_GetTicks()+10000;while(child.running()&&SDL_GetTicks()<deadline)SDL_Delay(10);int code=0;if(child.running())child.stop_owned();check(!child.running(&code)&&code==0,"Native child process exit");}
         auto report=Json::parse(read_text(probe));
-        check(report.at("argument")==utf8(argument)&&report.at("cwd")==utf8(temp)&&report.at("token")=="native-only","Direct spawn, literal UTF8 args, cwd, environment and logs");
+        check(report.at("argument")==utf8(argument),"Literal UTF8 child arguments");
+        // macOS resolves /var to /private/var in getcwd. Compare directory
+        // identity, not the textual spelling of an equivalent host path.
+        check(fs::equivalent(path(report.at("cwd").get<std::string>()),temp),"Native child working directory");
+        check(report.at("token")=="native-only","Native child environment and redirected logs");
         rejects([&]{validate_build(s,temp);});
         std::cout<<"PASS native settings, parser parity, hashes, profiles, defaults and snapshots\n";
         return 0;

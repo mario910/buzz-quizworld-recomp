@@ -46,7 +46,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev
-      - name: Configure
+      # Match the game's Windows toolchain; SDK fixtures use C11 atomics.
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        run: cmake -S launcher/native -B build-ci/launcher -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+      - name: Configure Linux/macOS
+        if: runner.os != 'Windows'
         run: cmake -S launcher/native -B build-ci/launcher -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
       - name: Build
         run: cmake --build build-ci/launcher --parallel 3

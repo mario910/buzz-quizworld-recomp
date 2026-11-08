@@ -5,6 +5,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <tlhelp32.h>
+#elif defined(__APPLE__)
+#include <libproc.h>
 #endif
 
 namespace buzz_launcher {
@@ -23,6 +25,22 @@ bool executable_running(const fs::path& exe) {
         CloseHandle(p);if(found)break;
     }while(Process32NextW(snapshot,&entry));
     CloseHandle(snapshot);return found;
+#elif defined(__APPLE__)
+    // macOS has no /proc filesystem. Query executable paths directly, without
+    // launching ps/pgrep or confusing another prepared copy with this one.
+    const int bytes=proc_listpids(PROC_ALL_PIDS,0,nullptr,0);
+    if(bytes<=0)throw std::runtime_error("Cannot enumerate running game processes");
+    std::vector<pid_t> pids(static_cast<size_t>(bytes)/sizeof(pid_t)+64);
+    const int count=proc_listpids(PROC_ALL_PIDS,0,pids.data(),static_cast<int>(pids.size()*sizeof(pid_t)));
+    if(count<=0)throw std::runtime_error("Cannot enumerate running game processes");
+    for(size_t i=0;i<static_cast<size_t>(count)/sizeof(pid_t);++i) {
+        if(pids[i]<=0)continue;
+        std::array<char,PROC_PIDPATHINFO_MAXSIZE> name{};
+        if(proc_pidpath(pids[i],name.data(),static_cast<uint32_t>(name.size()))<=0)continue;
+        std::error_code ec;auto image=fs::weakly_canonical(fs::path(name.data()),ec);
+        if(!ec&&image==target)return true;
+    }
+    return false;
 #else
     for(auto& entry:fs::directory_iterator("/proc")) {
         auto id=entry.path().filename().string();if(id.empty()||id.find_first_not_of("0123456789")!=std::string::npos)continue;
