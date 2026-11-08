@@ -59,7 +59,7 @@ jobs:
         run: ctest --test-dir build-ci/launcher --output-on-failure --timeout 60
       - name: Verify Apple Silicon artifact
         if: runner.os == 'macOS'
-        run: lipo -verify_arch arm64 build-ci/launcher/BuzzLauncher
+        run: lipo build-ci/launcher/BuzzLauncher -verify_arch arm64
       - name: Stage launcher and licenses only
         run: cmake --install build-ci/launcher --prefix dist-launcher
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
