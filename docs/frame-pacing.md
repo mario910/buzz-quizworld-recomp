@@ -1,10 +1,11 @@
 # Frame pacing
 
-The frame limit is a live host setting: **30 FPS, 60 FPS or Uncapped**
-(`fps_limit=30`, `60` or `0`). It is independent of Vulkan present mode.
+The desktop game defaults to **30 FPS**. The live frame limit offers
+**30 FPS, 60 FPS or Uncapped** (`fps_limit=30`, `60` or `0`). It is
+independent of Vulkan present mode.
 Mailbox prevents a FIFO backlog but does not itself impose a frame cap.
 Select it in General > Frame limit or the native launcher, then Save settings
-to retain it. Existing 30/uncapped files retain their previous meaning.
+to retain it. The game uses your saved setting on startup.
 
 `port/frame_limit.cpp` places its pacer at the real `cellGcmResetFlipStatus`
 import (NID `0xB2E761D4`). Buzz calls it once after its frame wait, before

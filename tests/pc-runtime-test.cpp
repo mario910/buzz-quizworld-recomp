@@ -17,12 +17,15 @@ int main(){try {
     struct RestoreDirectory {fs::path previous=fs::current_path();~RestoreDirectory(){fs::current_path(previous);}} restore_directory;
     fs::current_path(root);
     buzz_pc::Preferences p;p.volume_percent=37;p.fullscreen=true;p.offline=false;
-    {std::ofstream out(file,std::ios::binary);out<<buzz_pc::serialize(p);}
 #ifdef _WIN32
     check(_wputenv_s(L"BUZZ_PC_SETTINGS",file.c_str())==0);
 #else
     check(setenv("BUZZ_PC_SETTINGS",file.c_str(),1)==0);
 #endif
+    check(!fs::exists(file));
+    check(buzz_pc_runtime_init()&&buzz_pc_requested_preferences().fps_limit==30&&ps3_host_get_frame_limit()==30);
+    check(!fs::exists(file));
+    {std::ofstream out(file,std::ios::binary);out<<buzz_pc::serialize(p);}
     check(buzz_pc_runtime_init());
     check(ps3_host_get_volume()==37&&ps3_host_get_frame_limit()==30&&ps3_host_get_fullscreen()==1);
     check(buzz_pc_requested_preferences()==p&&std::string(getenv("BUZZ_OFFLINE"))=="0");
@@ -36,7 +39,8 @@ int main(){try {
     check(std::string(getenv("BUZZ_OFFLINE"))=="0"); // no fake live PSN switch
     check(read(file)==buzz_pc::serialize(p));
     check(buzz_pc_performance_overlay_enabled());
-    check(buzz_pc_runtime_init());check(std::string(getenv("BUZZ_OFFLINE"))=="1"&&buzz_pc_performance_overlay_enabled());
+    check(buzz_pc_runtime_init()&&buzz_pc_requested_preferences().fps_limit==0&&ps3_host_get_frame_limit()==0);
+    check(std::string(getenv("BUZZ_OFFLINE"))=="1"&&buzz_pc_performance_overlay_enabled());
     p.performance_overlay=false;check(buzz_pc_apply_preferences(p,false).accepted&&!buzz_pc_performance_overlay_enabled());
     buzz_pc_phone_initialize(4,[](unsigned,uint8_t,uint8_t,bool){});
     check(!buzz_phone::host().status().running);

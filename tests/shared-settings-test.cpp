@@ -17,7 +17,7 @@ int main(){try {
     legacy.paths["game_root"]="disc";
     atomic_text(json,settings_json(legacy).dump());const auto original_json=read_text(json);
     auto fresh=load_settings(root);
-    check(!fresh.pc_configured&&fresh.pc.fps_limit==0,"Legacy JSON must not implicitly change the presentation mode");
+    check(!fresh.pc_configured&&fresh.pc.fps_limit==30,"Use the desktop default cap when there are no saved PC preferences");
     check(!fs::exists(pc)&&!fs::exists(input),"Loading must not create canonical files");
 
     buzz_pc::Preferences preferences;preferences.volume_percent=43;preferences.offline=false;preferences.fullscreen=true;

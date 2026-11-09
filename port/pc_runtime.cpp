@@ -57,9 +57,10 @@ bool buzz_pc_runtime_init() {
     try {
         std::lock_guard lock(apply_mutex);
         buzz_pc::Preferences p;
-        // No settings file: leave the SDK's existing presentation/vsync path
-        // untouched. Its absence is not a new implicit frame limiter.
+#ifdef __ANDROID__
+        // Keep Android's existing startup pacing.
         p.fps_limit=0;
+#endif
         const char* offline=getenv("BUZZ_OFFLINE");p.offline=!offline||std::string(offline)!="0";
         preferences_file=fs::current_path()/"pc-settings.ini";
 #ifdef _WIN32
@@ -85,6 +86,11 @@ bool buzz_pc_runtime_init() {
             // Read once by the renderer when it creates its targets.
             ps3_host_set_render_scale(p.render_scale);
         }
+#ifndef __ANDROID__
+        else {
+            ps3_host_set_frame_limit(p.fps_limit);
+        }
+#endif
         // Read once by the renderer's first texture upload. Defaults apply
         // without a settings file too: an empty or missing folder costs nothing.
         {

@@ -79,7 +79,6 @@ std::string sha256(const fs::path& p) {
 }
 std::string sha256_text(const std::string& s) { return picosha2::hash256_hex_string(s); }
 Settings::Settings() {
-    pc.fps_limit=0; // No implicit change from the SDK's legacy vsync path.
     const char* keys[4][5]={{"Space","4","3","2","1"},{"Q","W","E","R","T"},{"A","S","D","F","G"},{"Z","X","C","V","B"}};
     for(int i=0;i<8;++i) { players[i].name="Player "+std::to_string(i+1);for(int b=0;b<5;++b)players[i].keys[b]=i<4?keys[i][b]:"NONE"; }
     for(int i=0;i<4;++i)pads[i].player=i;

@@ -761,7 +761,14 @@ void test_actions() {
     }
     if(test_stage==0&&elapsed>=2500){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
     if(test_stage==1&&elapsed>=3500){menu.select(0);act(buzz_pc::MenuAction::left);++test_stage;}
-    if(test_stage==2&&elapsed>=4500){menu.select_setting(buzz_pc::row_frame_lock);act(buzz_pc::MenuAction::accept);++test_stage;}
+    if(test_stage==2&&elapsed>=4500){
+        menu.select_setting(buzz_pc::row_frame_lock);
+        for(unsigned i=0;i<3;++i){
+            act(buzz_pc::MenuAction::accept);
+            if(preferences.fps_limit==30)break;
+        }
+        ++test_stage;
+    }
     if(test_stage==3&&elapsed>=5500){input.pulse_ms=260;save_all();++test_stage;}
     if(test_stage==4&&elapsed>=9000){key_down(27,false);++test_stage;}
     if(test_stage==5&&elapsed>=9500){key_down(27,false);++test_stage;}

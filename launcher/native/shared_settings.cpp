@@ -34,7 +34,7 @@ Settings load_shared_settings(const fs::path& root,const Settings& fallback) {
         check(buzz_pc::parse(*pc,s.pc,error),error);
         s.offline=s.pc.offline;s.pc_configured=true;
     }else {
-        s.pc=buzz_pc::Preferences{};s.pc.fps_limit=0;s.pc.offline=s.offline;s.pc_configured=false;
+        s.pc=buzz_pc::Preferences{};s.pc.offline=s.offline;s.pc_configured=false;
     }
     if(input) {
         auto c=input_config(s);check(buzz_input::parse_config(*input,c,error),error);

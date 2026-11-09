@@ -210,7 +210,7 @@ The runtime now connects volume to the shared audio mixer and borderless/fullscr
 and the 0/30/60 FPS cap to D3D12 host controls. To seed preferences without the menu,
 copy `config/pc-settings.example.ini` to the selected build's `runtime/pc-settings.ini`
 or pass an explicit `BUZZ_PC_SETTINGS` path. It is loaded once, never polled.
-Without a file, the existing SDK presentation/vsync behaviour remains unchanged.
+The desktop game defaults to 30 FPS and applies a saved cap at startup.
 Save settings writes `runtime/pc-settings.ini` and `runtime/input-settings.ini`
 for the selected build. Volume/cap/display mode/window size and controller
 mappings apply live; network policy and internal resolution remain restart-only.

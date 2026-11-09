@@ -39,7 +39,8 @@ in its entirety by this repository's MIT license. See
   update, validate exact executable hashes, then generate and build locally.
   Preparation sessions can be cancelled and resumed.
 - **In-game PC settings and developer launcher:** select prepared copies, map/test
-  controls, adjust volume, fullscreen, window size and the 30 / 60 / Uncapped frame limit.
+  controls, adjust volume, fullscreen, window size and the frame limit.
+  The desktop game starts at 30 FPS by default. Select 60 FPS or Uncapped in the menu.
   Escape / START pauses gameplay while the settings menu is open on Vulkan.
   The tabbed menu supports buzzer navigation and an optional top-right
   FPS/draw-count/resolution overlay, disabled by default.
