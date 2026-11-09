@@ -137,20 +137,23 @@ on the port, not required for playing a prepared copy.
 
 1. Download **BuzzPrepare-windows-x64.zip** from
    [GitHub Releases](https://github.com/mario910/buzz-quizworld-recomp/releases),
-   extract the entire ZIP to a short writable path and open **Prepare-Buzz.cmd**.
+   extract the entire ZIP to a short writable path and open **BuzzSetup.exe**.
    The package includes the compiled wizard and pinned build sources. It runs
    without Git or a separate source download.
 2. Use the wizard's buttons for missing system tools. Select your ISO or
    disc dump, firmware PUP or `dev_flash`, and a private key file if the inputs
    are encrypted. Leave **Game update** empty for the optimized EU/US 1.00 build.
    See [game and firmware inputs](docs/game-import.md).
-3. Click **Prepare dist**. The wizard installs any missing project-local build
+3. Click **Prepare game**. BuzzSetup installs any missing project-local build
    dependencies, identifies your game version, then builds the corresponding
-   Vulkan executable. When **Play from dist** becomes available, click it to
-   start the game. You can also open **Launch-Buzz.cmd** on subsequent runs.
+   Vulkan executable. Use **Play Buzz!** to start the game, including on
+   subsequent visits. **Open game folder** shows the portable copy in
+   `build-files/dist/`.
 
-If interrupted, select the existing session in `runtime/setup/sessions/`
-and the same inputs, then click **Prepare dist** again.
+If interrupted, open **Advanced options** and select the existing session in
+`build-files/runtime/setup/sessions/`. Select the same inputs and click
+**Prepare game** again. Advanced options also holds the optional game update
+and the system tools checklist.
 
 ### Guided preparation from a checkout
 
@@ -162,22 +165,22 @@ and the same inputs, then click **Prepare dist** again.
    ```
 
 2. On Windows, [build the wizard locally](preparation/README.md#developer-build)
-   and open **Prepare-Buzz.cmd**, or open the release wizard and choose your
-   checkout under **Build sources**. On Linux run **`./bin/BuzzPrepare`** from
+   and open **`dist-preparation/bin/BuzzSetup.exe`**, or open the release app and choose your
+   checkout under **Advanced options → Build sources**. On Linux run **`./bin/BuzzPrepare`** from
    the package or [build the wizard locally](preparation/README.md#linux-developer-build).
    On Ubuntu 22.04/24.04 install `libqt6widgets6` and the distro’s OpenSSL 3
-   runtime if they are missing. Select your checkout under **Build sources**
+   runtime if they are missing. Select your checkout under **Advanced options → Build sources**
    if the wizard did not locate it.
 3. Resolve missing dependencies using the buttons in the wizard. Select your
    ISO or disc dump, firmware PUP or `dev_flash`, and, if needed, your local
    key file. **For EU/US 1.00, leave Game update empty.** Only select an update
    PKG/EBOOT when intentionally preparing the separate EU 1.02 profile.
    See [game and firmware inputs](docs/game-import.md).
-4. Click **Prepare dist**. The wizard installs any missing local build
+4. Click **Prepare game**. The wizard installs any missing local build
    dependencies and builds the matching Vulkan
    executable in an isolated session under `runtime/setup/sessions/`. If
    interrupted, select that session and the same inputs to resume.
-5. When preparation reports **Completed**, click **Play from dist**, or open
+5. When preparation reports **Ready to play**, click **Play Buzz!**, or open
    **`dist/BuzzQuizWorldRecomp.exe`** on Windows or
    **`./dist/BuzzQuizWorldRecomp`** on Linux. Keep the `runtime/` directory
    and any packaged libraries beside the executable when moving the folder. Open PC settings with
@@ -348,7 +351,7 @@ git submodule update --init --recursive
 ```
 
 For a manual build, run `scripts/Build-Buzz.ps1 -Jobs 6` again, then
-`Launch-Buzz.cmd`. For the guided route, run `Prepare-Buzz.cmd` and start a
+`Launch-Buzz.cmd`. For the guided route, open BuzzSetup and start a
 **new preparation session** to build the updated source. Resuming an old session
 continues its recorded stages and source snapshot; it does not refresh a
 completed build to the latest checkout. Saves/settings belong to each build's

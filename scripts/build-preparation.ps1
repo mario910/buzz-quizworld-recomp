@@ -41,7 +41,7 @@ if ($LASTEXITCODE) { throw 'Preparation tests failed.' }
 $dist = Join-Path $projectRoot 'dist-preparation'
 & $cmake --install $build --prefix $dist
 if ($LASTEXITCODE) { throw 'Preparation installation failed.' }
-$wizard = Join-Path $dist 'bin/BuzzPrepare.exe'
+$wizard = Join-Path $dist 'bin/BuzzSetup.exe'
 & (Join-Path $QtPrefix 'bin/windeployqt.exe') --release --no-translations --no-compiler-runtime $wizard
 if ($LASTEXITCODE) { throw 'Qt deployment failed.' }
 if (-not $env:VCToolsRedistDir) { throw 'The Visual C++ redistributable files are missing from the C++ workload.' }

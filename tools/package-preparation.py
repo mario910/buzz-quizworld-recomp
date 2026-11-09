@@ -15,15 +15,15 @@ PACKAGE = "BuzzPrepare-windows-x64.zip"
 QT_SOURCE = "qtbase-everywhere-src-6.8.3.tar.xz"
 QT_SHA256 = "56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80"
 PORT_PATHS = (
-    "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md", "Prepare-Buzz.cmd", "Launch-Buzz.cmd",
+    "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
     "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
     "preparation/CMakeLists.txt", "preparation/README.md", "preparation/src", "tools",
     "third_party/cpp-httplib", "third_party/qrcodegen",
 )
 SUBMODULES = ("ps3recomp", "third_party/zlib")
 WIZARD_FILES = (
-    "BuzzPrepare.exe", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll",
-    "platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll",
+    "BuzzSetup.exe", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll",
+    "platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll", "imageformats/qico.dll",
     "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll",
     "vcruntime140.dll", "vcruntime140_1.dll",
 )
@@ -52,7 +52,7 @@ def add_sources(archive, repo, ref, prefix="", paths=()):
                 raise ValueError(f"Unexpected source archive entry: {prefix}{member.name}")
             name = prefix + member.name
             with sources.extractfile(member) as stream:
-                archive.writestr(f"BuzzPrepare/{name}", stream.read())
+                archive.writestr(f"BuzzPrepare/build-files/{name}", stream.read())
             names.append(name)
     return names
 
@@ -76,10 +76,10 @@ def package(qt_source, output):
                 files.extend(add_sources(archive, module_root, pin, prefix=module + "/"))
             if len({name.casefold() for name in files}) != len(files):
                 raise ValueError("The source trees contain paths that collide on Windows.")
-            archive.writestr("BuzzPrepare/release-sources.json", json.dumps(
+            archive.writestr("BuzzPrepare/build-files/release-sources.json", json.dumps(
                 {"revision": revision, "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
             for name in WIZARD_FILES:
-                archive.write(ROOT / "dist-preparation/bin" / name, f"BuzzPrepare/dist-preparation/bin/{name}")
+                archive.write(ROOT / "dist-preparation/bin" / name, f"BuzzPrepare/{name}")
             with tarfile.open(qt_source, "r:xz") as source:
                 for member in source:
                     if member.isfile() and member.name.startswith("qtbase-everywhere-src-6.8.3/LICENSES/"):

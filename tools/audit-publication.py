@@ -89,7 +89,10 @@ def audit(repo, ref, profile, scope="history"):
             contents = reader.stdout.read(size)
             if len(contents) != size or reader.stdout.read(1) != b"\n":
                 raise ValueError("Truncated git blob response")
-            allowed_binary = profile == "sdk" and path in {"packaging/macos/icon_1024.png", "packaging/macos/ps3recomp.icns"}
+            allowed_binary = (
+                profile == "sdk" and path in {"packaging/macos/icon_1024.png", "packaging/macos/ps3recomp.icns"}
+                or profile == "port" and path == "preparation/src/buzz-setup.ico"
+            )
             if b"\0" in contents and not allowed_binary:
                 issues.append({"path": path, "reason": "unexpected binary blob; manual provenance review required"})
             for pattern in SECRETS:

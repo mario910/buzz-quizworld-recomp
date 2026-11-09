@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/setup">
+        <file>buzz-setup.ico</file>
+        <file>wizard.qss</file>
+    </qresource>
+</RCC>

@@ -5,7 +5,8 @@ It executes no Python or external decryption/extraction program. Windows AES
 uses system BCrypt; Linux AES uses OpenSSL Crypto. SHA/HMAC are implemented
 through Qt Core, and section decompression uses the pinned zlib submodule.
 
-Open `BuzzPrepare` without arguments for the graphical wizard. Full game
+Open `BuzzSetup.exe` on Windows or `BuzzPrepare` without arguments on Linux
+for the graphical wizard. Full game
 preparation targets Windows and Linux x86-64. The wizard checks the host and offers
 dependency installation, accepts local game and firmware inputs, then uses
 the Python import and generation pipeline, with PowerShell build commands on Windows, to build a
@@ -64,8 +65,8 @@ Initialize `ps3recomp` and `third_party/zlib`. Windows requires MSVC, CMake/Ninj
 and Qt 6.2+ Core/Widgets/Test; `scripts/build-preparation.ps1 -QtPrefix <Qt MSVC prefix>`
 configures, builds and runs native tests. The developer helper can use a preexisting
 tool environment for CMake/Ninja, but the resulting binary does not need it.
-The helper deploys the Windows wizard and its Qt dependencies to
-`dist-preparation/bin/BuzzPrepare.exe`.
+The helper deploys `dist-preparation/bin/BuzzSetup.exe` as a Windows GUI
+application and `dist-preparation/bin/BuzzPrepare.exe` for native CLI commands.
 
 ## Windows release package
 
@@ -76,6 +77,9 @@ GitHub Release assets. Non-tag runs expose the Windows package as a workflow
 artifact. The package uses shared Qt 6.8.3 libraries, and its `licenses/Qt/`
 directory contains the upstream license texts. The Qt DLLs can be replaced
 with compatible versions built from the corresponding source.
+
+Open `BuzzSetup.exe` at the top of the extracted package. Its bundled sources
+and private build output are under `build-files/`.
 
 To reproduce the package locally, build with the official Qt 6.8.3 MSVC
 2022 x64 distribution from the commit you want to package. Download
