@@ -2,7 +2,8 @@
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x00400000" android:required="true" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
-    <application android:label="Buzz! Quiz World" android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
+    <application android:label="Buzz! Quiz World" android:icon="@mipmap/buzz_icon"
+        android:allowBackup="false" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
         <activity android:name="org.buzzrecomp.game.BuzzActivity" android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|density|locale|layoutDirection|fontScale|touchscreen|colorMode">

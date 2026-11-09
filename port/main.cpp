@@ -415,6 +415,15 @@ static void present_guest_frame(void)
     }
 }
 
+#ifdef _WIN32
+static BOOL CALLBACK set_game_window_icon(HWND window, LPARAM icon)
+{
+    SendMessageW(window, WM_SETICON, ICON_BIG, icon);
+    SendMessageW(window, WM_SETICON, ICON_SMALL, icon);
+    return TRUE;
+}
+#endif
+
 static DWORD WINAPI frame_clock(LPVOID)
 {
     SetThreadDescription(GetCurrentThread(), L"RSX worker (FIFO + renderer)");
@@ -437,6 +446,12 @@ static DWORD WINAPI frame_clock(LPVOID)
     }
 #endif
     int rsx_ok = (rsx_backend_init(WINDOW_WIDTH, WINDOW_HEIGHT, title) == 0);
+#ifdef _WIN32
+    if (rsx_ok) {
+        if (const auto icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1)))
+            EnumThreadWindows(GetCurrentThreadId(), set_game_window_icon, reinterpret_cast<LPARAM>(icon));
+    }
+#endif
     fprintf(stderr, "[rsx] %s backend init %s\n", RSX_BACKEND_NAME,
             rsx_ok ? "OK -- window open" : "FAILED");
 #if defined(__linux__) && defined(BUZZ_STANDALONE)

@@ -91,7 +91,10 @@ def audit(repo, ref, profile, scope="history"):
                 raise ValueError("Truncated git blob response")
             allowed_binary = (
                 profile == "sdk" and path in {"packaging/macos/icon_1024.png", "packaging/macos/ps3recomp.icns"}
-                or profile == "port" and path == "preparation/src/buzz-setup.ico"
+                or profile == "port" and path in {
+                    "preparation/src/buzz-setup.ico",
+                    "android/app/src/main/res/drawable-nodpi/buzz_foreground.png",
+                }
             )
             if b"\0" in contents and not allowed_binary:
                 issues.append({"path": path, "reason": "unexpected binary blob; manual provenance review required"})

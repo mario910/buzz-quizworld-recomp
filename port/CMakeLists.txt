@@ -409,6 +409,14 @@ if(ANDROID)
 else()
     add_executable(${PROJECT_NAME} ${game_sources})
 endif()
+if(WIN32)
+    enable_language(RC)
+    set(game_icon "${CMAKE_CURRENT_SOURCE_DIR}/../preparation/src/buzz-setup.ico")
+    set(game_icon_rc "${CMAKE_CURRENT_BINARY_DIR}/game_icon.rc")
+    configure_file(game_icon.rc.in "${game_icon_rc}" @ONLY)
+    set_source_files_properties("${game_icon_rc}" PROPERTIES OBJECT_DEPENDS "${game_icon}")
+    target_sources(${PROJECT_NAME} PRIVATE "${game_icon_rc}")
+endif()
 if(BUZZ_EXPERIMENTAL_VULKAN)
     target_compile_definitions(${PROJECT_NAME} PRIVATE BUZZ_EXPERIMENTAL_VULKAN=1)
 endif()
@@ -798,22 +806,20 @@ endif()
 # ---------------------------------------------------------------------------
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(${PROJECT_NAME} PRIVATE
-        -Wall -Wextra -Wno-unused-parameter
-        -fno-strict-aliasing
+        "$<$<COMPILE_LANGUAGE:C,CXX>:-Wall;-Wextra;-Wno-unused-parameter;-fno-strict-aliasing>"
         # The lift spells PPC arithmetic as signed C arithmetic, which must wrap;
         # without this, clang exploits overflow UB (e.g. folds "x*x < 0" to false).
-        -fwrapv
+        "$<$<COMPILE_LANGUAGE:C,CXX>:-fwrapv>"
     )
 elseif(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
-        /W3 /wd4100 /wd4244 /wd4267
-        /Zc:__cplusplus         # report correct __cplusplus value
+        "$<$<COMPILE_LANGUAGE:C,CXX>:/W3;/wd4100;/wd4244;/wd4267;/Zc:__cplusplus>"
         # ppu_recomp.h defines PPU_FENCE, the lowering of the guest's
         # sync/lwsync/eieio/isync, and in C that is <stdatomic.h>. The lifter
         # writes C++ by default, but --single-file writes ppu_recomp.c, and a
         # port that took it would not compile without this. The runtime's own
         # build already carries the same flag for the same reason.
-        /experimental:c11atomics
+        "$<$<COMPILE_LANGUAGE:C,CXX>:/experimental:c11atomics>"
     )
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         _CRT_SECURE_NO_WARNINGS
