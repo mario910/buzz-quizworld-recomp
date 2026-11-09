@@ -108,5 +108,6 @@ jobs:
         run: |
           sha256sum --check SHA256SUMS.txt
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
-            --notes 'Download BuzzPrepare-windows-x64.zip, extract it, and open BuzzSetup.exe. Choose your game and firmware in the app, then select Prepare game. The Qt source archive is provided for the bundled Qt libraries.' \
+            --title "BuzzSetup $TAG" \
+            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. Use the firmware and key file buttons or select your own files. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries.' \
             BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz
