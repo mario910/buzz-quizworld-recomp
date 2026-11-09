@@ -1,10 +1,14 @@
 # Built-in game and firmware preparation
 
-Open BuzzPrepare to prepare your own game and firmware. The importer
+Open BuzzSetup on Windows or BuzzPrepare on Linux to prepare your own game and firmware. The importer
 reads the files directly; it does not start RPCS3, scetool, or another
 decryption executable. Building still requires the development tools listed
 in README. Open the game directly from `dist/BuzzQuizWorldRecomp.exe` on Windows or
 `dist/BuzzQuizWorldRecomp` on Linux.
+
+Use **Download PS3 firmware** in BuzzSetup to open PlayStation's download page.
+Select the downloaded `PS3UPDAT.PUP` with **PUP…**. **Key file guide** opens the
+instructions below.
 
 Choose your game ISO/dump, firmware PUP or installed `dev_flash`, an optional
 update PKG/EBOOT, and a private local key file for encrypted inputs. A key
@@ -53,8 +57,9 @@ To set up the importer manually:
    key=<64-byte PUP HMAC value as 128 hexadecimal characters>
    ```
 
-3. Open BuzzPrepare. The wizard selects `runtime/keys/ps3.keys`
-   automatically. If you store the file elsewhere, choose it in **Local keys (if encrypted)**, or pass its full path with `--keys` on the command line.
+3. Open BuzzSetup. The wizard selects `runtime/keys/ps3.keys` from its build
+   sources folder automatically. If you store the file elsewhere, choose it
+   under **Decryption keys**, or pass its full path with `--keys` on the command line.
 
 These are manually obtained input files. The app does not contact those sites
 or download keys. Keep the resulting key file in the ignored directory or

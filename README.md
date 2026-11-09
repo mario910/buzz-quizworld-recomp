@@ -141,11 +141,15 @@ on the port, not required for playing a prepared copy.
    extract the entire ZIP to a short writable path and open **BuzzSetup.exe**.
    The package includes the compiled wizard and pinned build sources. It runs
    without Git or a separate source download.
-2. Use the wizard's buttons for missing system tools. Select your ISO or
-   disc dump, firmware PUP or `dev_flash`, and a private key file if the inputs
-   are encrypted. Leave **Game update** empty for the optimized EU/US 1.00 build.
-   See [game and firmware inputs](docs/game-import.md).
-3. Click **Prepare game**. BuzzSetup installs any missing project-local build
+2. Select your ISO or disc dump, firmware PUP or `dev_flash`, and a key file
+   for encrypted inputs. **Download PS3 firmware** opens PlayStation's download
+   page and **Key file guide** shows how to obtain and prepare `ps3.keys`.
+   Leave **Game update** empty for the optimized EU/US 1.00 build.
+3. Use the buttons shown for any missing Windows tools. In Visual Studio
+   Installer, select **Desktop development with C++** and include a Windows
+   SDK. BuzzSetup checks again when you return. **Recheck tools** is also
+   available while tools are missing.
+4. Click **Prepare game**. BuzzSetup checks the tools again and installs any missing project-local build
    dependencies, identifies your game version, then builds the corresponding
    Vulkan executable. Use **Play Buzz!** to start the game, including on
    subsequent visits. **Open game folder** shows the portable copy in

@@ -7,6 +7,7 @@
 #include <QDesktopServices>
 #include <QIcon>
 #include <QLibrary>
+#include <QLocale>
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -100,6 +101,7 @@ class Wizard final : public QWidget {
     QCheckBox upscaler{"Download the optional Real-ESRGAN texture upscaler"};
     QLineEdit *project{}, *game{}, *firmware{}, *keys{}, *update{}, *resume{};
     QPushButton *check{}, *setup{}, *submodules{}, *prepare{}, *play{}, *openGame{}, *pythonInstall{}, *gitInstall{}, *vsInstall{}, *linuxInstall{}, *cancel{};
+    QPushButton *vsDownload{}, *recheckSystem{};
     QString powershell, python, git, winget, vsInstaller;
     QString packageManager;
     QStringList packageArgs;
@@ -134,7 +136,9 @@ class Wizard final : public QWidget {
             file->setAccessibleName("Choose file for " + name);
             layout->addWidget(file);
             connect(file, &QPushButton::clicked, this, [this, path, name, filter] {
-                const auto selected = QFileDialog::getOpenFileName(this, name, path->text(), filter);
+                const auto start = path->text().isEmpty()
+                    ? QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) : path->text();
+                const auto selected = QFileDialog::getOpenFileName(this, name, start, filter);
                 if (!selected.isEmpty()) path->setText(selected);
             });
         }
@@ -156,6 +160,13 @@ class Wizard final : public QWidget {
         layout.addWidget(result);
         connect(result, &QPushButton::clicked, this, action);
         return result;
+    }
+
+    void openPage(const QUrl& url) {
+        if (!QDesktopServices::openUrl(url)) {
+            log.appendPlainText("Could not open the page in your browser. Open this address manually:\n" + url.toString());
+            details.setChecked(true);
+        }
     }
 
     QString root() const {
@@ -194,8 +205,9 @@ class Wizard final : public QWidget {
         progress.hide();
         guidance->setText(ready ? "Play Buzz! or open the game folder to find your local copy."
             : !problem.isEmpty() ? problem
-            : hasInputs() ? "Ready to prepare your game. Keep this window open while it builds."
-                          : "Choose your game disc and firmware above to continue.");
+            : !hasInputs() ? "Choose your game disc and firmware above to continue."
+            : !localToolsReady ? "Prepare game will install the local build dependencies first."
+                               : "Ready to prepare your game. Keep this window open while it builds.");
     }
 
     void refreshLinux(QProcessEnvironment environment) {
@@ -331,9 +343,13 @@ class Wizard final : public QWidget {
                 compiler = probe.exitCode() == 0 && !probe.readAllStandardOutput().trimmed().isEmpty();
         }
         bool sdk = false;
-        const QDir kits(environment.value("ProgramFiles(x86)") + "/Windows Kits/10/Include");
-        for (const auto& version : kits.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
-            sdk |= kits.exists(version + "/um/Windows.h") && kits.exists(version + "/ucrt/stdio.h");
+        const QDir kits(environment.value("ProgramFiles(x86)") + "/Windows Kits/10");
+        for (const auto& version : QDir(kits.filePath("Include")).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            const auto include = "Include/" + version;
+            const auto lib = "Lib/" + version;
+            sdk |= kits.exists(include + "/um/Windows.h") && kits.exists(include + "/ucrt/stdio.h") &&
+                   kits.exists(lib + "/um/x64/kernel32.lib") && kits.exists(lib + "/ucrt/x64/ucrt.lib");
+        }
         const bool vulkan = QFileInfo(environment.value("SystemRoot") + "/System32/vulkan-1.dll").isFile();
         bool cpu = false;
 #if defined(Q_OS_WIN) && defined(Q_PROCESSOR_X86_64)
@@ -355,25 +371,30 @@ class Wizard final : public QWidget {
         if (supported && !(compiler && sdk))
             status.setText(status.text() + "\nIn Visual Studio Installer, select Desktop development with C++ and a Windows SDK.");
         if (supported && !cpu) status.setText(status.text() + "\nThe game requires AVX2 and FMA.");
-        if (supported && winget.isEmpty()) status.setText(status.text() + "\nWinGet is unavailable. Install missing system tools manually.");
+        if (supported && winget.isEmpty()) status.setText(status.text() + "\nUse the download pages for any missing tools.");
         if (!bundled && git.isEmpty()) status.setText(status.text() + "\nGit is required for source checkouts.");
         if (bundled && !sources) status.setText(status.text() + "\nExtract the complete BuzzPrepare ZIP before running it.");
         if (existingDist) status.setText(status.text() + "\nMove the existing dist folder to prepare another copy.");
-        pythonInstall->setEnabled(supported && !winget.isEmpty() && !basePython);
+        const bool needsPython = supported && !basePython && !tools;
+        const bool needsBuildTools = supported && !(compiler && sdk);
+        pythonInstall->setText(winget.isEmpty() ? "Download 64-bit Python" : "Install 64-bit Python");
+        pythonInstall->setEnabled(needsPython);
         submodules->setVisible(!bundled);
         gitInstall->setEnabled(supported && !winget.isEmpty() && git.isEmpty());
-        vsInstall->setText(vsInstaller.isEmpty() ? "Install Visual Studio C++ Build Tools and Windows SDK"
-                                                 : "Open Visual Studio Installer for C++ tools and Windows SDK");
-        vsInstall->setEnabled(supported && (!winget.isEmpty() || !vsInstaller.isEmpty()) && !(compiler && sdk));
+        vsInstall->setText(vsInstaller.isEmpty() ? "Install C++ Build Tools and Windows SDK"
+                                                 : "Open Visual Studio Installer");
+        vsInstall->setEnabled(needsBuildTools && (!winget.isEmpty() || !vsInstaller.isEmpty()));
         submodules->setEnabled(supported && gitCheckout && !sources && !git.isEmpty());
         setup->setEnabled(supported && sources && basePython && !powershell.isEmpty());
         prepare->setEnabled(supported && (bundled || (gitCheckout && !git.isEmpty())) && sources &&
                             (tools || setup->isEnabled()) && compiler && sdk && cpu && vulkan && !existingDist &&
                             controlFiles.isValid() && !powershell.isEmpty() && hasInputs());
         const bool ready = supported && checkout && QFileInfo(gameExe()).isFile();
-        pythonInstall->setVisible(!ready && !basePython && pythonInstall->isEnabled());
+        pythonInstall->setVisible(!ready && needsPython);
         gitInstall->setVisible(!ready && !bundled && gitInstall->isEnabled());
         vsInstall->setVisible(!ready && vsInstall->isEnabled());
+        vsDownload->setVisible(!ready && needsBuildTools);
+        recheckSystem->setVisible(!ready && (needsPython || needsBuildTools));
         QString problem;
         if (!supported || !cpu)
             problem = "Preparation requires a Windows x64 PC with AVX2 and FMA.";
@@ -385,8 +406,11 @@ class Wizard final : public QWidget {
             problem = "Move the incomplete dist folder aside before preparing another copy.";
         else if (!controlFiles.isValid())
             problem = "BuzzSetup needs a writable temporary folder.";
-        else if (!(basePython && compiler && sdk))
-            problem = "Install the missing tools shown below. Advanced options shows the complete checklist.";
+        else if (needsBuildTools)
+            problem = "C++ Build Tools or the Windows SDK are missing. In Visual Studio Installer, "
+                      "select Desktop development with C++ and include a Windows SDK.";
+        else if (needsPython)
+            problem = "Install 64-bit Python 3.11 or later. If installing manually, add Python to PATH.";
         else if (!vulkan)
             problem = "Install a Vulkan-capable driver for your graphics card.";
         else if (powershell.isEmpty() || (!bundled && git.isEmpty()))
@@ -460,7 +484,7 @@ class Wizard final : public QWidget {
     }
 
     void install(const QString& id, const QStringList& extra = {}) {
-        start(winget, QStringList{"install", "--exact", "--source", "winget", "--id", id} + extra);
+        start(winget, QStringList{"install", "--exact", "--source", "winget", "--disable-interactivity", "--id", id} + extra);
     }
 
     void closeEvent(QCloseEvent* event) override {
@@ -519,6 +543,16 @@ public:
         game = pathRow(*inputForm, "Game disc", "Disc images (*.iso)", true, "ISO or folder containing PS3_GAME", "ISO…");
         firmware = pathRow(*inputForm, "Firmware", "PS3 firmware (*.pup)", true, "PS3UPDAT.PUP or dev_flash folder", "PUP…");
         keys = pathRow(*inputForm, "Decryption keys", "All files (*)", false, "Required for encrypted files only");
+        auto* inputHelp = new QHBoxLayout;
+        inputCard->addLayout(inputHelp);
+        button(*inputHelp, "Download PS3 firmware", [this] {
+            const auto locale = QLocale::system().language() == QLocale::Polish ? "pl-pl" : "en-us";
+            openPage(QUrl(QString("https://www.playstation.com/%1/support/hardware/ps3/system-software/").arg(locale)));
+        });
+        button(*inputHelp, "Key file guide", [this] {
+            openPage(QUrl("https://github.com/mario910/buzz-quizworld-recomp/blob/main/docs/game-import.md#where-to-find-the-keys"));
+        });
+        inputHelp->addStretch();
 
         auto* prepareCard = card(*page, "card");
         prepareTitle = label({}, "section");
@@ -565,12 +599,17 @@ public:
         advancedForm->parentWidget()->hide();
         connect(advanced, &QCheckBox::toggled, advancedForm->parentWidget(), &QWidget::setVisible);
 
-        pythonInstall = button(*dependencies, "Install Python", [this] { install("Python.Python.3.12"); });
+        pythonInstall = button(*dependencies, "Install 64-bit Python", [this] {
+            if (winget.isEmpty())
+                openPage(QUrl("https://www.python.org/downloads/windows/"));
+            else
+                install("Python.Python.3.12");
+        });
         gitInstall = button(*dependencies, "Install Git", [this] { install("Git.Git"); });
         vsInstall = button(*dependencies, "Install Visual Studio C++ Build Tools and Windows SDK", [this] {
             if (vsInstaller.isEmpty())
                 install("Microsoft.VisualStudio.2022.BuildTools",
-                        {"--override", "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"});
+                        {"--override", "--passive --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"});
             else if (!QProcess::startDetached(vsInstaller, {})) {
                 log.appendPlainText("Could not open Visual Studio Installer.");
                 details.setChecked(true);
@@ -590,7 +629,15 @@ public:
                 start(pkexec, QStringList{packageManager} + packageArgs);
             }
         });
-        for (auto* control : {pythonInstall, gitInstall, vsInstall}) control->setVisible(windowsHost);
+        auto* systemHelp = new QHBoxLayout;
+        dependencies->addLayout(systemHelp);
+        vsDownload = button(*systemHelp, "Download Build Tools from Microsoft", [this] {
+            openPage(QUrl("https://learn.microsoft.com/en-us/visualstudio/releases/2022/release-history"));
+        });
+        recheckSystem = button(*systemHelp, "Recheck tools", [this] { refresh(); });
+        systemHelp->addStretch();
+        for (auto* control : {pythonInstall, gitInstall, vsInstall, vsDownload, recheckSystem})
+            control->setVisible(windowsHost);
         linuxInstall->setVisible(linuxHost);
 
         prepare = button(*actions, "Prepare game", [this] {
@@ -645,6 +692,10 @@ public:
         recheck.setSingleShot(true);
         recheck.setInterval(250);
         connect(&recheck, &QTimer::timeout, this, [this] { refresh(); });
+        connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+            if (state == Qt::ApplicationActive && recheckSystem->isVisible() && !busy)
+                recheck.start();
+        });
         for (auto* field : {project, game, firmware})
             connect(field, &QLineEdit::textChanged, this, [this] { recheck.start(); });
         hideConsole(process);
