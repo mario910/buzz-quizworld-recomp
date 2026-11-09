@@ -63,8 +63,9 @@ Owning a disc is not a blanket exception to copyright or anti-circumvention
 law. Use files you are entitled to use, follow the rules in your jurisdiction,
 and obtain legal advice if you need a legal opinion. This project does not
 supply game/update/firmware downloads or fetch per-disc/license keys. The
-preparation wizard imports locally supplied firmware/update files and prepares
-a local executable in-process; this does not change the
+wizard can fetch shared system keysets from the pinned sources listed in
+[the import guide](docs/game-import.md). It imports locally supplied
+firmware/update files and prepares a local executable in-process; this does not change the
 rights associated with those inputs or the generated output.
 
 Buzz!, PlayStation and other product names belong to their respective owners.

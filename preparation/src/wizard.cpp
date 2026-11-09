@@ -1,4 +1,5 @@
 #include "wizard.h"
+#include "crypto.h"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -22,6 +23,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -41,6 +45,20 @@
 #include <QWidget>
 
 namespace {
+struct KeySource {
+    const char* url;
+    qsizetype size;
+    const char* sha256;
+};
+
+constexpr KeySource systemKeys{
+    "https://raw.githubusercontent.com/bucanero/ArtemisPS3/d79b41e525e20251bd0d919100039ac0a6433956/ArtemisPS3-PRX/data/keys",
+    24549, "61ad6e1fb93504886b6e490fef749eed7eb409adc79089311d9a41dec67bf484"};
+constexpr KeySource firmwareHmac{
+    "https://raw.githubusercontent.com/Sonyk/ps3keys/52b76dbc2f4a45d7898e68ec6ff5b512b67d658f/pup-hmac",
+    64, "0ac9eb5ba3b1aa9ea2fbe9578552dd537b4ed20b348a3d6d4f612413426f4727"};
+constexpr auto downloadedKeysPath = "runtime/keys/downloaded/ps3.keys";
+
 bool hasSources(const QDir& dir) {
     return dir.exists("tools/prepare-game.py") && dir.exists("scripts/Setup-Buzz.ps1");
 }
@@ -94,6 +112,7 @@ class Wizard final : public QWidget {
     QProgressBar progress;
     QPlainTextEdit log;
     QCheckBox details{"Show activity log"};
+    QNetworkAccessManager keyDownloads;
     QProcess process;
     QTimer recheck;
     QTemporaryDir controlFiles;
@@ -102,6 +121,7 @@ class Wizard final : public QWidget {
     QLineEdit *project{}, *game{}, *firmware{}, *keys{}, *update{}, *resume{};
     QPushButton *check{}, *setup{}, *submodules{}, *prepare{}, *play{}, *openGame{}, *pythonInstall{}, *gitInstall{}, *vsInstall{}, *linuxInstall{}, *cancel{};
     QPushButton *vsDownload{}, *recheckSystem{};
+    QPushButton* downloadKeysButton{};
     QString powershell, python, git, winget, vsInstaller;
     QString packageManager;
     QStringList packageArgs;
@@ -203,6 +223,7 @@ class Wizard final : public QWidget {
         prepare->setVisible(!ready);
         cancel->hide();
         progress.hide();
+        downloadKeysButton->setEnabled(!root().isEmpty() && hasSources(QDir(root())));
         guidance->setText(ready ? "Play Buzz! or open the game folder to find your local copy."
             : !problem.isEmpty() ? problem
             : !hasInputs() ? "Choose your game disc and firmware above to continue."
@@ -418,8 +439,7 @@ class Wizard final : public QWidget {
         showState(ready, problem);
     }
 
-    void start(const QString& program, const QStringList& args, const QString& activity = "Installing dependencies…") {
-        if (busy) return;
+    void begin(const QString& activity) {
         busy = true;
         for (auto* control : findChildren<QPushButton*>()) control->setEnabled(false);
         for (auto* field : {project, game, firmware, keys, update, resume}) field->setEnabled(false);
@@ -427,8 +447,59 @@ class Wizard final : public QWidget {
         jobs.setEnabled(false);
         guidance->setText(activity);
         progress.show();
+    }
+
+    void start(const QString& program, const QStringList& args, const QString& activity = "Installing dependencies…") {
+        if (busy) return;
+        begin(activity);
         process.setWorkingDirectory(QFileInfo(root()).isDir() ? root() : QDir::homePath());
         process.start(program, args);
+    }
+
+    void fetchKeySource(KeySource source, std::function<void(QByteArray)> next) {
+        QNetworkRequest request{QUrl(source.url)};
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+        request.setRawHeader("Accept-Encoding", "identity");
+        auto* reply = keyDownloads.get(request);
+        reply->setReadBufferSize(source.size + 1);
+        connect(reply, &QNetworkReply::readyRead, this, [reply, source] {
+            if (reply->bytesAvailable() > source.size) reply->abort();
+        });
+        QTimer::singleShot(15000, reply, [reply] {
+            if (!reply->isFinished()) reply->abort();
+        });
+        connect(reply, &QNetworkReply::finished, this, [this, reply, source, next = std::move(next)] {
+            reply->deleteLater();
+            if (reply->error() != QNetworkReply::NoError ||
+                reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 200) {
+                done("Could not download the PS3 key sources. Retry or browse for a local key file.");
+                return;
+            }
+            auto bytes = reply->readAll();
+            if (bytes.size() != source.size ||
+                QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex() != source.sha256) {
+                done("The PS3 key source did not match the verified download. Browse for a local key file.");
+                return;
+            }
+            next(std::move(bytes));
+        });
+    }
+
+    void downloadKeys() {
+        if (busy || root().isEmpty() || !hasSources(QDir(root()))) return;
+        begin("Downloading shared PS3 keys…");
+        fetchKeySource(systemKeys, [this](QByteArray database) {
+            fetchKeySource(firmwareHmac, [this, database = std::move(database)](QByteArray hmac) {
+                try {
+                    const auto output = QDir(root()).filePath(downloadedKeysPath);
+                    prepare::atomicWrite(root(), output, prepare::systemKeyFile(database, hmac));
+                    keys->setText(QDir::toNativeSeparators(output));
+                    done("PS3 key file downloaded and selected.", true);
+                } catch (const std::exception& error) {
+                    done(QString::fromUtf8(error.what()));
+                }
+            });
+        });
     }
 
     void done(const QString& result, bool success = false) {
@@ -549,9 +620,7 @@ public:
             const auto locale = QLocale::system().language() == QLocale::Polish ? "pl-pl" : "en-us";
             openPage(QUrl(QString("https://www.playstation.com/%1/support/hardware/ps3/system-software/").arg(locale)));
         });
-        button(*inputHelp, "Key file guide", [this] {
-            openPage(QUrl("https://github.com/mario910/buzz-quizworld-recomp/blob/main/docs/game-import.md#where-to-find-the-keys"));
-        });
+        downloadKeysButton = button(*inputHelp, "Download key file", [this] { downloadKeys(); });
         inputHelp->addStretch();
 
         auto* prepareCard = card(*page, "card");
@@ -577,8 +646,15 @@ public:
         advancedForm->addLayout(options);
         project = pathRow(*options, "Build sources", {}, true);
         project->setText(findCheckout());
-        const auto defaultKeys = root() + "/runtime/keys/ps3.keys";
-        if (!root().isEmpty() && QFileInfo(defaultKeys).isFile()) keys->setText(defaultKeys);
+        if (!root().isEmpty()) {
+            const QDir source(root());
+            const auto manual = source.filePath("runtime/keys/ps3.keys");
+            const auto downloaded = source.filePath(downloadedKeysPath);
+            if (QFileInfo(manual).isFile())
+                keys->setText(manual);
+            else if (QFileInfo(downloaded).isFile())
+                keys->setText(downloaded);
+        }
         update = pathRow(*options, "Game update", "PS3 updates (*.pkg *.bin *.elf)", false,
                          "Leave empty for the original 1.00 disc");
         resume = pathRow(*options, "Resume session", {}, true, "Folder from runtime/setup/sessions");

@@ -62,7 +62,7 @@ is written by this implementation stage.
 ## Developer build
 
 Initialize `ps3recomp` and `third_party/zlib`. Windows requires MSVC, CMake/Ninja
-and Qt 6.2+ Core/Widgets/Test; `scripts/build-preparation.ps1 -QtPrefix <Qt MSVC prefix>`
+and Qt 6.2+ Core/Network/Widgets/Test; `scripts/build-preparation.ps1 -QtPrefix <Qt MSVC prefix>`
 configures, builds and runs native tests. The developer helper can use a preexisting
 tool environment for CMake/Ninja, but the resulting binary does not need it.
 The helper deploys `dist-preparation/bin/BuzzSetup.exe` as a Windows GUI
@@ -98,7 +98,7 @@ The game and firmware translations are built privately on the player's PC.
 On Ubuntu 22.04/24.04 install `build-essential cmake ninja-build qt6-base-dev
 libssl-dev`, then run `bash scripts/build-preparation-linux.sh`. The installed
 wizard is `dist-preparation/linux/bin/BuzzPrepare`. The Linux GUI needs Qt 6
-Widgets and OpenSSL 3 at runtime. Its package buttons cover APT, DNF and pacman,
+Widgets, Qt 6 Network and OpenSSL 3 at runtime. Its package buttons cover APT, DNF and pacman,
 with a terminal command available when graphical elevation is unavailable.
 Install the appropriate Vulkan driver for your GPU through your distribution.
 

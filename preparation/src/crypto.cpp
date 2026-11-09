@@ -270,4 +270,27 @@ QVector<RootKey> KeyStore::candidates(int category, int kind, int revision) cons
     });
     return result;
 }
+QByteArray systemKeyFile(const QByteArray &database, const QByteArray &pupHmac) {
+    require(pupHmac.size() == 64, "The firmware HMAC file has an unexpected length.");
+    const auto keys = KeyStore::parse(database);
+    require(!keys.candidates(1, 4, 0).isEmpty() && !keys.candidates(1, 8, 0).isEmpty() &&
+                !keys.candidates(3, 0, 0).isEmpty(),
+            "The system key database is missing a required key family.");
+    QJsonArray roots;
+    for (const auto &root : keys.roots) {
+        if ((root.category == 1 && (root.kind == 4 || root.kind == 8)) ||
+            (root.category == 3 && root.kind == 0)) {
+            roots.append(QJsonObject{{"category", root.category}, {"self_type", root.kind},
+                                     {"revision", root.revision},
+                                     {"erk", QString::fromLatin1(root.key.toHex())},
+                                     {"riv", QString::fromLatin1(root.iv.toHex())}});
+        }
+    }
+    const QJsonObject named{
+        {"pup_hmac", QString::fromLatin1(pupHmac.toHex())},
+        {"np_klic_key", QString::fromLatin1(keys.namedKey("np_klic_key", 16).toHex())},
+        {"np_klic_free", QString::fromLatin1(keys.namedKey("np_klic_free", 16).toHex())},
+    };
+    return QJsonDocument(QJsonObject{{"format", 1}, {"roots", roots}, {"named", named}}).toJson();
+}
 } // namespace prepare

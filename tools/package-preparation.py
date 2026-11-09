@@ -22,8 +22,9 @@ PORT_PATHS = (
 )
 SUBMODULES = ("ps3recomp", "third_party/zlib")
 WIZARD_FILES = (
-    "BuzzSetup.exe", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll",
+    "BuzzSetup.exe", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Widgets.dll",
     "platforms/qwindows.dll", "styles/qmodernwindowsstyle.dll", "imageformats/qico.dll",
+    "tls/qschannelbackend.dll",
     "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll",
     "vcruntime140.dll", "vcruntime140_1.dll",
 )

@@ -24,4 +24,5 @@ class KeyStore {
     QByteArray namedKey(const QString &name, int size) const;
     QVector<RootKey> candidates(int category, int kind, int revision) const;
 };
+QByteArray systemKeyFile(const QByteArray &database, const QByteArray &pupHmac);
 } // namespace prepare

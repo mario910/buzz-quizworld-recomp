@@ -278,6 +278,25 @@ class ImportTest final : public QObject {
                     "\nerk=" + keys().roots[0].key.toHex() + "\nriv=" + keys().roots[0].iv.toHex() + "\n";
         QCOMPARE(KeyStore::parse(text).roots.size(), 2);
     }
+    void assemblesOnlyRequiredSystemKeys() {
+        auto source = QJsonDocument::fromJson(readFile(fixture("test-keys.json"))).object();
+        auto roots = source["roots"].toArray();
+        auto other = roots.at(0).toObject();
+        other["category"] = 1;
+        other["self_type"] = 5;
+        roots.append(other);
+        source["roots"] = roots;
+        const auto database = QJsonDocument(source).toJson();
+        const QByteArray pupHmac(64, 'x');
+        const auto assembled = KeyStore::parse(systemKeyFile(database, pupHmac));
+        QCOMPARE(assembled.namedKey("pup_hmac", 64), pupHmac);
+        QCOMPARE(assembled.namedKey("np_klic_key", 16), keys().namedKey("np_klic_key", 16));
+        QCOMPARE(assembled.namedKey("np_klic_free", 16), keys().namedKey("np_klic_free", 16));
+        QCOMPARE(assembled.roots.size(), keys().roots.size());
+        QVERIFY(assembled.candidates(1, 5, 0).isEmpty());
+        QVERIFY_EXCEPTION_THROWN(systemKeyFile(database, pupHmac.left(63)), std::runtime_error);
+        QVERIFY_EXCEPTION_THROWN(systemKeyFile(R"({"format":1})", pupHmac), std::runtime_error);
+    }
     void authenticatesPupAndPublishesValidatedFirmware() {
         QTemporaryDir temp;
         const auto home = temp.filePath("home");

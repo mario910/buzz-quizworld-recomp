@@ -7,13 +7,16 @@ in README. Open the game directly from `dist/BuzzQuizWorldRecomp.exe` on Windows
 `dist/BuzzQuizWorldRecomp` on Linux.
 
 Use **Download PS3 firmware** in BuzzSetup to open PlayStation's download page.
-Select the downloaded `PS3UPDAT.PUP` with **PUP…**. **Key file guide** opens the
-instructions below.
+Select the downloaded `PS3UPDAT.PUP` with **PUP…**. Click **Download key file**
+to obtain and select the shared PS3 system keys. The wizard checks the SHA-256
+of both pinned source files, keeps the entries used by the importer, and
+adds the firmware HMAC. It saves the result under
+`runtime/keys/downloaded/ps3.keys` in the build sources folder.
 
 Choose your game ISO/dump, firmware PUP or installed `dev_flash`, an optional
 update PKG/EBOOT, and a private local key file for encrypted inputs. A key
 file at `runtime/keys/ps3.keys` is selected automatically when the wizard
-opens. The importer never downloads keys, games or firmware. Key values are
+opens, followed by the downloaded file if the manual file is absent. Key values are
 not put in logs, preparation ledgers or source snapshots. The ledger stores
 the key file's path and SHA-256 to detect changes on resume.
 
@@ -61,11 +64,10 @@ To set up the importer manually:
    sources folder automatically. If you store the file elsewhere, choose it
    under **Decryption keys**, or pass its full path with `--keys` on the command line.
 
-These are manually obtained input files. The app does not contact those sites
-or download keys. Keep the resulting key file in the ignored directory or
-outside the repository; do not commit it. A fresh clone needs its own local
-key-file setup. Disc-sector keys (`.dkey`) and account-license files (`.rap` or
-`.rif`) serve different purposes and cannot replace this key file.
+Keep your key file in the ignored directory or outside the repository. The
+download button uses the raw ArtemisPS3 and Sonyk files listed above.
+Disc-sector keys (`.dkey`) and account-license files (`.rap` or `.rif`) serve
+different purposes and cannot replace this key file.
 
 ## Private key-file formats
 

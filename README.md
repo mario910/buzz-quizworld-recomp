@@ -110,7 +110,8 @@ another version to build. DLC is not required for the tested configuration.
 **RPCS3 is not required for preparation or play.** The preparation wizard
 extracts your firmware PUP and optional update PKG and decrypts your EBOOT
 directly in the app, inside a private session. Encrypted SELF/PUP inputs need
-your private local decryption key file; keys are not bundled or downloaded.
+a local decryption key file. Use **Download key file** in BuzzSetup to obtain
+the shared PS3 system keys from the pinned sources, or select a file you prepared.
 Already prepared `dev_flash` and `EBOOT.elf` can be used without a key file.
 See [built-in game and firmware import](docs/game-import.md#where-to-find-the-keys) for key sources and formats,
 command-line usage and validation. Still-encrypted disc images are
@@ -143,7 +144,7 @@ on the port, not required for playing a prepared copy.
    without Git or a separate source download.
 2. Select your ISO or disc dump, firmware PUP or `dev_flash`, and a key file
    for encrypted inputs. **Download PS3 firmware** opens PlayStation's download
-   page and **Key file guide** shows how to obtain and prepare `ps3.keys`.
+   page and **Download key file** prepares and selects a local `ps3.keys`.
    Leave **Game update** empty for the optimized EU/US 1.00 build.
 3. Use the buttons shown for any missing Windows tools. In Visual Studio
    Installer, select **Desktop development with C++** and include a Windows
@@ -173,7 +174,7 @@ and the system tools checklist.
    and open **`dist-preparation/bin/BuzzSetup.exe`**, or open the release app and choose your
    checkout under **Advanced options → Build sources**. On Linux run **`./bin/BuzzPrepare`** from
    the package or [build the wizard locally](preparation/README.md#linux-developer-build).
-   On Ubuntu 22.04/24.04 install `libqt6widgets6` and the distro’s OpenSSL 3
+   On Ubuntu 22.04/24.04 install `libqt6widgets6`, `libqt6network6` and the distro’s OpenSSL 3
    runtime if they are missing. Select your checkout under **Advanced options → Build sources**
    if the wizard did not locate it.
 3. Resolve missing dependencies using the buttons in the wizard. Select your
