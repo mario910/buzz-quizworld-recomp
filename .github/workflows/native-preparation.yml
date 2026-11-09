@@ -2,9 +2,10 @@ name: Native preparation
 on:
   push:
     branches: [main]
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', '.github/workflows/native-preparation.yml']
+    tags: ['v*']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -53,11 +54,52 @@ jobs:
       - name: Build, test and package Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/build-preparation.ps1 -QtPrefix "${{ github.workspace }}/qt/6.8.3/msvc2022_64" -Jobs 4
+        run: |
+          ./scripts/build-preparation.ps1 -QtPrefix "$env:GITHUB_WORKSPACE/qt/6.8.3/msvc2022_64" -Jobs 4
+          $output = New-Item -ItemType Directory -Path dist-preparation/release
+          $qtSource = Join-Path $output.FullName 'qtbase-everywhere-src-6.8.3.tar.xz'
+          curl.exe --fail --location --retry 3 --output $qtSource "https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.tar.xz"
+          if ($LASTEXITCODE) { throw 'Qt source download failed' }
+          python tools/package-preparation.py --qt-source $qtSource --output $output.FullName
+          if ($LASTEXITCODE) { throw 'Windows package failed' }
+      - name: Test the extracted Windows package without Git or Qt on PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $python = (Get-Command python).Source
+          $fixture = "$env:GITHUB_WORKSPACE/preparation/tests/fixtures/iso-0-0.fixture"
+          Expand-Archive -LiteralPath dist-preparation/release/BuzzPrepare-windows-x64.zip -DestinationPath "$env:RUNNER_TEMP/prepare-smoke"
+          Set-Location -LiteralPath "$env:RUNNER_TEMP/prepare-smoke/BuzzPrepare"
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          & $python -c "from pathlib import Path; from tempfile import TemporaryDirectory; from launcher.setup_pipeline import copy_sources; scratch = TemporaryDirectory(); copy_sources(Path.cwd(), Path(scratch.name)); scratch.cleanup()"
+          if ($LASTEXITCODE) { throw 'Packaged source snapshot failed' }
+          & ./dist-preparation/bin/BuzzPrepare.exe --inspect-iso $fixture
+          if ($LASTEXITCODE) { throw 'Packaged executable failed' }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: runner.os == 'Windows'
         with:
           name: BuzzPrepare-windows-x64
-          path: dist-preparation/
+          path: dist-preparation/release/
           if-no-files-found: error
           retention-days: 14
+  release-windows:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: BuzzPrepare-windows-x64
+          path: assets
+      - name: Publish Windows preparation release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        working-directory: assets
+        run: |
+          sha256sum --check SHA256SUMS.txt
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
+            --notes 'Download BuzzPrepare-windows-x64.zip, extract it, and run Prepare-Buzz.cmd. The wizard prepares a private playable copy from your own game and firmware. The Qt source archive is provided for the bundled Qt libraries.' \
+            BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz

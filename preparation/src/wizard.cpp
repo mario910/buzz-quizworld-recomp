@@ -61,6 +61,8 @@ class Wizard final : public QWidget {
     const bool windowsHost = QSysInfo::kernelType() == "winnt";
     bool supported = false;
     bool busy = false;
+    bool localToolsReady = false;
+    bool prepareAfterSetup = false;
 
     bool verifyPython(const QString& program, const QString& code) const {
         if (program.isEmpty()) return false;
@@ -138,6 +140,7 @@ class Wizard final : public QWidget {
             "assert all(version(name.strip()) == pin.split(';', 1)[0].strip() for name, pin in "
             "(line.split('==', 1) for line in Path('requirements.txt').read_text().splitlines() "
             "if '==' in line and ';' not in line and not line.lstrip().startswith('#')))");
+        localToolsReady = tools;
         const bool compiler = !locate("clang").isEmpty() && !locate("clang++").isEmpty() && !locate("c++").isEmpty();
         const bool buildTools = !locate("patch").isEmpty();
         const bool sdl = succeeds(locate("pkg-config"), {"--exists", "sdl2 >= 2.0.18"});
@@ -173,7 +176,8 @@ class Wizard final : public QWidget {
         linuxInstall->setEnabled(supported && !packageManager.isEmpty());
         submodules->setEnabled(supported && checkout && !sources && !git.isEmpty());
         setup->setEnabled(supported && sources && basePython);
-        prepare->setEnabled(supported && checkout && sources && tools && cpu && compiler && buildTools && sdl && loader &&
+        prepare->setEnabled(supported && checkout && sources && (tools || setup->isEnabled()) &&
+                            cpu && compiler && buildTools && sdl && loader &&
                             !git.isEmpty() && !existingDist && controlFiles.isValid() &&
                             QFileInfo::exists(game->text()) && QFileInfo::exists(firmware->text()));
         cancel->setEnabled(false);
@@ -223,6 +227,8 @@ class Wizard final : public QWidget {
                                        "(line.split('==', 1) for line in Path('requirements.txt').read_text().splitlines() "
                                        "if '==' in line and not line.lstrip().startswith('#')))");
         const bool gitCheckout = checkout && QFileInfo::exists(dir.filePath(".git"));
+        const bool bundled = checkout && !gitCheckout && dir.exists("release-sources.json");
+        localToolsReady = tools;
         const auto vsDirectory = environment.value("ProgramFiles(x86)") + "/Microsoft Visual Studio/Installer/";
         const auto vswhere = vsDirectory + "vswhere.exe";
         vsInstaller = QFileInfo(vsDirectory + "setup.exe").isFile() ? vsDirectory + "setup.exe" : QString{};
@@ -248,10 +254,11 @@ class Wizard final : public QWidget {
         const bool existingDist = checkout && dir.exists("dist");
         const auto mark = [](bool ok) { return ok ? "OK" : "missing"; };
         status.setText(supported
-            ? QString("Windows x64 | PowerShell %1 | Git %2 | Python %3 | C++ %4 | Windows SDK %5\n"
-                      "Source checkout %6 | submodules %7 | local Python environment %8 | Vulkan loader %9")
-                  .arg(mark(!powershell.isEmpty()), mark(!git.isEmpty()), mark(basePython),
-                       mark(compiler), mark(sdk), mark(gitCheckout), mark(sources), mark(tools), mark(vulkan))
+            ? QString("Windows x64 | PowerShell %1 | Python %2 | C++ %3 | Windows SDK %4\n"
+                      "Build sources %5 | local Python environment %6 | Vulkan loader %7")
+                  .arg(mark(!powershell.isEmpty()), mark(basePython), mark(compiler), mark(sdk),
+                       bundled && sources ? "included in this package" : mark(sources && gitCheckout),
+                       mark(tools), mark(vulkan))
             : QString("%1 (%2). Full game preparation requires Windows or Linux x64.")
                   .arg(QSysInfo::prettyProductName(), QSysInfo::currentCpuArchitecture()));
         if (supported && !vulkan) status.setText(status.text() + "\nInstall your GPU vendor’s Vulkan-capable driver, then recheck.");
@@ -259,16 +266,21 @@ class Wizard final : public QWidget {
             status.setText(status.text() + "\nIn Visual Studio Installer, select Desktop development with C++ and a Windows SDK.");
         if (supported && !cpu) status.setText(status.text() + "\nThe game requires AVX2 and FMA.");
         if (supported && winget.isEmpty()) status.setText(status.text() + "\nWinGet is unavailable. Install missing system tools manually.");
+        if (!bundled && git.isEmpty()) status.setText(status.text() + "\nGit is required for source checkouts.");
+        if (bundled && !sources) status.setText(status.text() + "\nExtract the complete BuzzPrepare ZIP before running it.");
         if (existingDist) status.setText(status.text() + "\nMove the existing dist folder to prepare another copy.");
         pythonInstall->setEnabled(supported && !winget.isEmpty() && !basePython);
+        gitInstall->setVisible(windowsHost && !bundled);
+        submodules->setVisible(!bundled);
         gitInstall->setEnabled(supported && !winget.isEmpty() && git.isEmpty());
         vsInstall->setText(vsInstaller.isEmpty() ? "Install Visual Studio C++ Build Tools and Windows SDK"
                                                  : "Open Visual Studio Installer for C++ tools and Windows SDK");
         vsInstall->setEnabled(supported && (!winget.isEmpty() || !vsInstaller.isEmpty()) && !(compiler && sdk));
         submodules->setEnabled(supported && gitCheckout && !sources && !git.isEmpty());
         setup->setEnabled(supported && sources && basePython && !powershell.isEmpty());
-        prepare->setEnabled(supported && gitCheckout && sources && tools && compiler && sdk && cpu && vulkan && !existingDist &&
-                            controlFiles.isValid() && !git.isEmpty() && !powershell.isEmpty() &&
+        prepare->setEnabled(supported && (bundled || (gitCheckout && !git.isEmpty())) && sources &&
+                            (tools || setup->isEnabled()) && compiler && sdk && cpu && vulkan && !existingDist &&
+                            controlFiles.isValid() && !powershell.isEmpty() &&
                             QFileInfo::exists(game->text()) && QFileInfo::exists(firmware->text()));
         cancel->setEnabled(false);
         play->setEnabled(supported && checkout && QFileInfo::exists(gameExe()));
@@ -285,7 +297,7 @@ class Wizard final : public QWidget {
         process.start(program, args);
     }
 
-    void done(const QString& result) {
+    void done(const QString& result, bool success = false) {
         log.appendPlainText(result);
         busy = false;
         for (auto* control : findChildren<QPushButton*>()) control->setEnabled(true);
@@ -293,6 +305,40 @@ class Wizard final : public QWidget {
         upscaler.setEnabled(true);
         jobs.setEnabled(true);
         refresh();
+        const bool continuePreparation = prepareAfterSetup;
+        prepareAfterSetup = false;
+        if (continuePreparation && success) {
+            if (localToolsReady && prepare->isEnabled())
+                startPreparation();
+            else
+                log.appendPlainText("Preparation could not start. Check the dependencies and input paths above.");
+        }
+    }
+
+    void startSetup() {
+        if (linuxHost) {
+            start(python, {root() + "/tools/setup-linux.py"});
+            return;
+        }
+        start(powershell, {"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
+                           root() + "/scripts/Setup-Buzz.ps1", "-Python", python, "-BuildOnly"});
+    }
+
+    void startPreparation() {
+        QStringList args{root() + "/tools/prepare-game.py", "--dist", "--game",
+                         QDir::toNativeSeparators(QFileInfo(game->text()).absoluteFilePath()),
+                         "--firmware", QDir::toNativeSeparators(QFileInfo(firmware->text()).absoluteFilePath())};
+        if (!keys->text().isEmpty()) args << "--keys" << QFileInfo(keys->text()).absoluteFilePath();
+        if (!update->text().isEmpty()) args << "--update" << QFileInfo(update->text()).absoluteFilePath();
+        if (upscaler.isChecked()) args << "--upscaler";
+        if (!resume->text().isEmpty()) args << "--resume" << QFileInfo(resume->text()).absoluteFilePath();
+        args << "--jobs" << QString::number(jobs.value()) << "--cancel-file" << cancelFile();
+        if (QFile::exists(cancelFile()) && !QFile::remove(cancelFile())) {
+            log.appendPlainText("Could not reset the cancellation marker.");
+            return;
+        }
+        start(toolPython(), args);
+        cancel->setEnabled(busy);
     }
 
     void install(const QString& id, const QStringList& extra = {}) {
@@ -315,7 +361,7 @@ public:
         supported = (windowsHost || linuxHost) && QSysInfo::currentCpuArchitecture() == "x86_64";
         status.setWordWrap(true);
         form.addRow(&status);
-        project = pathRow("Source checkout", {}, true);
+        project = pathRow("Build sources", {}, true);
         project->setText(findCheckout());
         check = button("Recheck dependencies", [this] { refresh(); });
         pythonInstall = button("Install Python with WinGet", [this] { install("Python.Python.3.12"); });
@@ -345,14 +391,7 @@ public:
         submodules = button("Download source submodules", [this] {
             start(git, {"submodule", "update", "--init", "--recursive"});
         });
-        setup = button("Install or repair local build dependencies", [this] {
-            if (linuxHost) {
-                start(python, {root() + "/tools/setup-linux.py"});
-                return;
-            }
-            start(powershell, {"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
-                               root() + "/scripts/Setup-Buzz.ps1", "-Python", python, "-BuildOnly"});
-        });
+        setup = button("Install or repair local build dependencies", [this] { startSetup(); });
         game = pathRow("Game ISO or dump", "Disc images (*.iso)", true);
         firmware = pathRow("Firmware PUP or dev_flash", "PS3 firmware (*.pup)", true);
         keys = pathRow("Local keys (if encrypted)", "All files (*)", false);
@@ -367,20 +406,13 @@ public:
         prepare = button("Prepare dist", [this] {
             refresh();
             if (!prepare->isEnabled()) return;
-            QStringList args{root() + "/tools/prepare-game.py", "--dist", "--game",
-                             QDir::toNativeSeparators(QFileInfo(game->text()).absoluteFilePath()),
-                             "--firmware", QDir::toNativeSeparators(QFileInfo(firmware->text()).absoluteFilePath())};
-            if (!keys->text().isEmpty()) args << "--keys" << QFileInfo(keys->text()).absoluteFilePath();
-            if (!update->text().isEmpty()) args << "--update" << QFileInfo(update->text()).absoluteFilePath();
-            if (upscaler.isChecked()) args << "--upscaler";
-            if (!resume->text().isEmpty()) args << "--resume" << QFileInfo(resume->text()).absoluteFilePath();
-            args << "--jobs" << QString::number(jobs.value()) << "--cancel-file" << cancelFile();
-            if (QFile::exists(cancelFile()) && !QFile::remove(cancelFile())) {
-                log.appendPlainText("Could not reset the cancellation marker.");
-                return;
+            if (localToolsReady) {
+                startPreparation();
+            } else {
+                prepareAfterSetup = true;
+                log.appendPlainText("Installing local build dependencies before preparation…");
+                startSetup();
             }
-            start(toolPython(), args);
-            cancel->setEnabled(true);
         });
         cancel = button("Cancel preparation", [this] {
             QFile marker(cancelFile());
@@ -409,7 +441,8 @@ public:
             log.insertPlainText(QString::fromUtf8(process.readAll()));
         });
         connect(&process, &QProcess::finished, this, [this](int code, QProcess::ExitStatus exit) {
-            done(exit == QProcess::NormalExit && code == 0 ? "Completed." : QString("Operation failed (%1).").arg(code));
+            const bool success = exit == QProcess::NormalExit && code == 0;
+            done(success ? "Completed." : QString("Operation failed (%1).").arg(code), success);
         });
         connect(&process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
             if (error == QProcess::FailedToStart) done(process.errorString());

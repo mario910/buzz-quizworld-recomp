@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal DisableDelayedExpansion
 set "wizard=%~dp0dist-preparation\bin\BuzzPrepare.exe"
 if not exist "%wizard%" (
     echo BuzzPrepare.exe is missing. Extract the BuzzPrepare package here.

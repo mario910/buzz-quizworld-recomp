@@ -315,6 +315,24 @@ def stage_update_content(source, workspace, cancel, log):
 
 def copy_sources(project, destination):
     """Copy public working source, not .git, VFS, binaries or private analyses."""
+    bundled = project / "release-sources.json"
+    if bundled.is_file() and not (project / ".git").exists():
+        reject_links_below(project, bundled)
+        manifest = json.loads(bundled.read_text(encoding="utf-8"))
+        files = manifest.get("files") if isinstance(manifest, dict) else None
+        if not isinstance(files, list) or not files or not all(isinstance(name, str) for name in files):
+            raise ValueError("Invalid build source list. Extract the complete BuzzPrepare ZIP.")
+        for name in files:
+            relative = Path(*(safe_component(part) for part in name.split("/")))
+            original, dest = project / relative, destination / relative
+            reject_links_below(project, original)
+            reject_links_below(destination, dest)
+            if not original.is_file():
+                raise ValueError(f"Missing bundled build source: {name}. Extract the complete BuzzPrepare ZIP.")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(original, dest)
+        return
+
     for source, target in ((project, destination), (project / "ps3recomp", destination / "ps3recomp"),
                            (project / "third_party/zlib", destination / "third_party/zlib")):
         names = subprocess.check_output(["git", "-C", str(source), "ls-files", "-z", "--cached", "--others", "--exclude-standard"]).split(b"\0")

@@ -9,6 +9,7 @@ either, or the following separately licensed components.
 |---|---|---|
 | [ps3recomp](https://github.com/sp00nznet/ps3recomp), Ned Heller / sp00nznet and contributors | `ps3recomp/LICENSE` (MIT), except separately licensed components | Runtime, lifters, port scaffolding; our normal fork `master` is pinned as a submodule; inherited-history caveat in `docs/publication.md` |
 | zlib, Jean-loup Gailly and Mark Adler | `third_party/zlib/LICENSE` (zlib) | Native decompression |
+| Qt Base 6.8.3, The Qt Company and contributors | LGPL-3.0 for the shared Qt libraries used by BuzzPrepare. See `licenses/Qt/` in the Windows package and the matching `qtbase-everywhere-src-6.8.3.tar.xz` release asset. | Windows preparation wizard |
 | FFmpeg ATRAC3/ATRAC3plus decoders, extracted via PPSSPP | `ps3recomp/third_party/at3_standalone/COPYING.LGPLv2.1`, per-file notices and `README.txt` (LGPL-2.1-or-later; some shims have their own notices) | SDK codec component; compiled into the runtime |
 | stb_image, Sean Barrett and contributors | license text inside `ps3recomp/libs/codec/stb_image.h` (MIT or public domain) | SDK image decoding |
 | stb_truetype, Sean Barrett and contributors | license text inside `ps3recomp/libs/font/stb_truetype.h` (MIT or public domain) | SDK font support |

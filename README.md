@@ -19,7 +19,7 @@ is still in progress. This is a research
 port, not a finished remaster: frame pacing, visual issues and online play need
 more work.
 
-**Source only. You must supply your own game and firmware; a game update is optional.**
+**You must supply your own game and firmware. A game update is optional.**
 No ISO, EBOOT, firmware, game assets, questions, decryption keys, generated
 game/firmware translations or ready-to-play executable are provided. The
 build generates translations locally; the resulting game is **not** covered
@@ -119,8 +119,9 @@ entitled to use under the rules in your jurisdiction.
 ## Build prerequisites
 
 The prepared game needs Windows 10/11 or Linux x86-64, a Vulkan-capable
-GPU driver, and AVX2/FMA. Linux also needs the SDL2 runtime. Preparation also needs Git and
+GPU driver, and AVX2/FMA. Linux also needs the SDL2 runtime. Preparation needs
 free disk space for generation, compilation and a local copy of the game.
+Git is needed when preparing from a checkout.
 On Windows it uses Python 3.11+ and Visual Studio 2022 C++ tools with a
 Windows SDK. On Linux it uses Python 3.10+, Clang, CMake, Ninja and SDL2
 development files. The wizard checks these and can help install them.
@@ -128,11 +129,30 @@ development files. The wizard checks these and can help install them.
 ## Build and play
 
 Choose **guided preparation** or **command-line preparation** below. Both
-build a private, standalone Vulkan copy in the checkout's `dist/` folder.
+build a private, standalone Vulkan copy in `dist/` next to the build sources.
 The separate [manual developer build](#manual-developer-build) is for working
 on the port, not required for playing a prepared copy.
 
-### Guided preparation
+### Windows x64 quick start
+
+1. Download **BuzzPrepare-windows-x64.zip** from
+   [GitHub Releases](https://github.com/mario910/buzz-quizworld-recomp/releases),
+   extract the entire ZIP to a short writable path and open **Prepare-Buzz.cmd**.
+   The package includes the compiled wizard and pinned build sources. It runs
+   without Git or a separate source download.
+2. Use the wizard's buttons for missing system tools. Select your ISO or
+   disc dump, firmware PUP or `dev_flash`, and a private key file if the inputs
+   are encrypted. Leave **Game update** empty for the optimized EU/US 1.00 build.
+   See [game and firmware inputs](docs/game-import.md).
+3. Click **Prepare dist**. The wizard installs any missing project-local build
+   dependencies, identifies your game version, then builds the corresponding
+   Vulkan executable. When **Play from dist** becomes available, click it to
+   start the game. You can also open **Launch-Buzz.cmd** on subsequent runs.
+
+If interrupted, select the existing session in `runtime/setup/sessions/`
+and the same inputs, then click **Prepare dist** again.
+
+### Guided preparation from a checkout
 
 1. Clone the source and its pinned submodules:
 
@@ -141,22 +161,20 @@ on the port, not required for playing a prepared copy.
    cd buzz-quizworld-recomp
    ```
 
-2. Use a packaged **BuzzPrepare** for your system, or
-   [build the wizard locally](preparation/README.md#developer-build).
-   Its executable is **not included in the source checkout**.
-   On Windows open **`bin/BuzzPrepare.exe`** in the extracted package.
-   On Linux run **`./bin/BuzzPrepare`** from the extracted
-   package. On Ubuntu 22.04/24.04 install `libqt6widgets6` and the distro’s
-   OpenSSL 3 runtime if they are missing.
-   Select **Source checkout** if the wizard did not locate it. On Windows,
-   `Prepare-Buzz.cmd` is a shortcut to `dist-preparation/bin/BuzzPrepare.exe`;
-   it requires that packaged or locally built wizard to exist first.
+2. On Windows, [build the wizard locally](preparation/README.md#developer-build)
+   and open **Prepare-Buzz.cmd**, or open the release wizard and choose your
+   checkout under **Build sources**. On Linux run **`./bin/BuzzPrepare`** from
+   the package or [build the wizard locally](preparation/README.md#linux-developer-build).
+   On Ubuntu 22.04/24.04 install `libqt6widgets6` and the distro’s OpenSSL 3
+   runtime if they are missing. Select your checkout under **Build sources**
+   if the wizard did not locate it.
 3. Resolve missing dependencies using the buttons in the wizard. Select your
    ISO or disc dump, firmware PUP or `dev_flash`, and, if needed, your local
    key file. **For EU/US 1.00, leave Game update empty.** Only select an update
    PKG/EBOOT when intentionally preparing the separate EU 1.02 profile.
    See [game and firmware inputs](docs/game-import.md).
-4. Click **Prepare dist**. The wizard generates and builds the matching Vulkan
+4. Click **Prepare dist**. The wizard installs any missing local build
+   dependencies and builds the matching Vulkan
    executable in an isolated session under `runtime/setup/sessions/`. If
    interrupted, select that session and the same inputs to resume.
 5. When preparation reports **Completed**, click **Play from dist**, or open

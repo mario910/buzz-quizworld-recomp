@@ -9,7 +9,7 @@ Open `BuzzPrepare` without arguments for the graphical wizard. Full game
 preparation targets Windows and Linux x86-64. The wizard checks the host and offers
 dependency installation, accepts local game and firmware inputs, then uses
 the Python import and generation pipeline, with PowerShell build commands on Windows, to build a
-standalone Vulkan distribution in the source checkout's `dist/`. Native
+standalone Vulkan distribution in `dist/` beside the build sources. Native
 command-line import and analysis remain available on Windows and Linux.
 UDF-only discs still need a native reader; the native CLI supports
 ISO9660/Joliet bridges, including hybrid UDF images with a readable bridge.
@@ -66,6 +66,30 @@ configures, builds and runs native tests. The developer helper can use a preexis
 tool environment for CMake/Ninja, but the resulting binary does not need it.
 The helper deploys the Windows wizard and its Qt dependencies to
 `dist-preparation/bin/BuzzPrepare.exe`.
+
+## Windows release package
+
+The **Native preparation** workflow tests the wizard and packages it with the
+committed build sources and pinned submodules. Pushing a new `v*` tag publishes
+the tested Windows ZIP, SHA-256 checksums and matching Qt source archive as
+GitHub Release assets. Non-tag runs expose the Windows package as a workflow
+artifact. The package uses shared Qt 6.8.3 libraries, and its `licenses/Qt/`
+directory contains the upstream license texts. The Qt DLLs can be replaced
+with compatible versions built from the corresponding source.
+
+To reproduce the package locally, build with the official Qt 6.8.3 MSVC
+2022 x64 distribution from the commit you want to package. Download
+[qtbase-everywhere-src-6.8.3.tar.xz](https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.tar.xz)
+and run:
+
+```powershell
+python tools/package-preparation.py --qt-source <path-to-qt-source-archive> --output dist-preparation/release
+```
+
+The release contains only BuzzPrepare, its support libraries and build sources.
+The game and firmware translations are built privately on the player's PC.
+
+## Linux developer build
 
 On Ubuntu 22.04/24.04 install `build-essential cmake ninja-build qt6-base-dev
 libssl-dev`, then run `bash scripts/build-preparation-linux.sh`. The installed

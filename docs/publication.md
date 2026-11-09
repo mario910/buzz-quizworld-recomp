@@ -9,6 +9,10 @@
 - zlib: its existing separately licensed upstream submodule.
 - No native game executable, generated translations, asset package, captured
   jobs, firmware, personal paths configuration or private working notes.
+- Windows preparation releases contain the compiled BuzzPrepare wizard, its
+  support libraries, matching Qt source, and the port and pinned submodule
+  source files used to build the game locally. See the
+  [Windows packaging workflow](../preparation/README.md#windows-release-package).
 
 The port has private local branches and ignored research output. A normal
 explicit-ref push does not publish them. **Do not use `git push --all`,

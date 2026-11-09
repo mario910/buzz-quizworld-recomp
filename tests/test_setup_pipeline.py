@@ -54,6 +54,25 @@ class SetupTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_source_snapshot_from_release_without_git(self):
+        workspace = self.root / "runtime/setup/workspace"
+        listed = ("tools/prepare-game.py", "ps3recomp/LICENSE", "third_party/zlib/LICENSE")
+        for name in listed:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(name, encoding="utf-8")
+        (self.root / "buzz-paths.json").write_text("private paths", encoding="utf-8")
+        manifest = self.root / "release-sources.json"
+        manifest.write_text(json.dumps({"files": listed}), encoding="utf-8")
+        with patch.object(pipeline.subprocess, "check_output", side_effect=AssertionError("Git was invoked")):
+            pipeline.copy_sources(self.root, workspace)
+        self.assertEqual({path.relative_to(workspace).as_posix()
+                          for path in workspace.rglob("*") if path.is_file()}, set(listed))
+
+        manifest.write_text(json.dumps({"files": ["../outside"]}), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            pipeline.copy_sources(self.root, workspace)
+
     def test_publish_distribution_is_local_and_keeps_existing_copy(self):
         workspace = self.root / "workspace"
         exe = workspace / "build/BuzzQuizWorldRecomp.exe"
