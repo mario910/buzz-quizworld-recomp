@@ -15,13 +15,18 @@ root = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--fallback", type=Path, default=root / "analysis/native-image40/spu_recomp.c")
 parser.add_argument("--output", type=Path, required=True, help="Fresh private adapter directory")
+parser.add_argument("--in-place", action="store_true",
+                    help="Replace only the hash-checked fallback in its own private directory")
 args = parser.parse_args()
 base = args.fallback.resolve()
 out = args.output.resolve()
 private = (root / "analysis/native-geometry/phase4").resolve()
-if not out.is_relative_to(private) or out == private:
+if args.in_place:
+    if out != base.parent or base != root / "analysis/native-image40/spu_recomp.c":
+        raise SystemExit("In-place wrapping is restricted to analysis/native-image40/spu_recomp.c")
+elif not out.is_relative_to(private) or out == private:
     raise SystemExit("Output must be a fresh subdirectory of analysis/native-geometry/phase4")
-if out.exists():
+if out.exists() and not args.in_place:
     raise SystemExit("Refusing to overwrite existing adapter/evidence")
 raw = (root / "port/spu/buzz_job_abe1/spu_recomp.c").read_bytes()
 fallback = base.read_bytes()
@@ -59,9 +64,10 @@ if not sites["spu_wrch"] or not sites["spu_rdch"]:
 source = re.sub(r"\bSPU_IB_DISPATCH\b", "buzz_geometry_job_indirect", source)
 source = source.replace("g_spu_trampoline_fn = spu_indirect_branch;",
                         "g_spu_trampoline_fn = buzz_geometry_job_indirect_target(ctx);")
-out.mkdir(parents=True)
+out.mkdir(parents=True, exist_ok=args.in_place)
 (out / "spu_recomp.c").write_text(source, encoding="utf-8", newline="\n")
-shutil.copyfile(base.parent / "spu_recomp.h", out / "spu_recomp.h")
+if not args.in_place:
+    shutil.copyfile(base.parent / "spu_recomp.h", out / "spu_recomp.h")
 (out / "adapter.json").write_text(json.dumps({
     "abi": 1, "reference_sha256": raw_sha, "fallback_sha256": fallback_sha,
     "fallback": str(base), "channel_sites": sites,

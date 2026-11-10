@@ -7,6 +7,9 @@
 #include "../third_party/qrcodegen/qrcodegen.hpp"
 #include "ps3emu/host_overlay.h"
 #include "ps3emu/host_controls.h"
+#ifdef __ANDROID__
+extern "C" void buzz_android_menu_pause(int paused);
+#endif
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -113,7 +116,14 @@ void release_resources() {
 }
 void pause_events(bool open) {
     if(!pause_guest)return;
-    if(host_pause)ps3_host_set_paused(open);
+    if(host_pause) {
+#ifdef __ANDROID__
+        buzz_android_menu_pause(open);
+        return; // The combined Android pause owner publishes sysutil events.
+#else
+        ps3_host_set_paused(open);
+#endif
+    }
     const int slots=open?cellSysutilBroadcastEvent(SYSUTIL_SYSTEM_MENU_OPEN,0)+cellSysutilBroadcastEvent(SYSUTIL_DRAWING_BEGIN,0)
                         :cellSysutilBroadcastEvent(SYSUTIL_DRAWING_END,0)+cellSysutilBroadcastEvent(SYSUTIL_SYSTEM_MENU_CLOSE,0);
     fprintf(stderr,"[pc-menu] sysutil %s queued (%d callback event(s))\n",open?"SYSTEM_MENU_OPEN+DRAWING_BEGIN":"DRAWING_END+SYSTEM_MENU_CLOSE",slots);

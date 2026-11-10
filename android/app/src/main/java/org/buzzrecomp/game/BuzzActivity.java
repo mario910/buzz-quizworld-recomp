@@ -30,7 +30,7 @@ import java.util.UUID;
 
 public class BuzzActivity extends SDLActivity {
     private static final int IMPORT_DRIVER = 41;
-    private boolean nativeReady, recovering, surfaceAvailable;
+    private boolean nativeReady, recovering, surfaceAvailable, activityResumed, windowFocused;
     private int player, held;
     private FrameLayout panel;
     private LinearLayout buzzer;
@@ -42,12 +42,110 @@ public class BuzzActivity extends SDLActivity {
     private static native long nativeFrames();
     private static native void nativeSurfaceReady(boolean ready);
     private static native void nativeMenu();
+    private static native boolean nativeDiagnosticCpuMask(int mask);
+    private static native boolean nativeDiagnosticSamples(String file);
+    private static native void nativeDiagnosticAudioMode(int mode);
+    private static native void nativeDiagnosticSkipIntro();
     private SharedPreferences preferences() { return getSharedPreferences("android", MODE_PRIVATE); }
     private File pending() { return new File(getFilesDir(), "gpu-driver.pending"); }
+    private void updateNativeVisibility() {
+        if (nativeReady) nativeSurfaceReady(surfaceAvailable && activityResumed && windowFocused);
+    }
+
+    // Opt-in, debug-only device runs must end even if SDL/the guest stops
+    // making progress. Do not call JNI, the UI thread or log/file flushes on
+    // this deadline path: any of those may be the subsystem being diagnosed.
+    private void armDiagnosticTimeout() {
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) return;
+        int seconds = getIntent().getIntExtra("buzz_test_seconds", 0);
+        if (seconds == 0) return; // Ordinary play has no watchdog.
+        // Up to 5 minutes: reaching the studio with scripted input takes ~2.
+        if (seconds < 5 || seconds > 300) throw new IllegalArgumentException("buzz_test_seconds must be 5..300");
+        final int ownPid = Process.myPid();
+        final long deadline = android.os.SystemClock.elapsedRealtime() + seconds * 1000L;
+        Thread watchdog = new Thread(() -> {
+            long remaining;
+            while ((remaining = deadline - android.os.SystemClock.elapsedRealtime()) > 0)
+                android.os.SystemClock.sleep(Math.min(remaining, 500));
+            Process.killProcess(ownPid);
+        }, "BuzzTestDeadline");
+        watchdog.setDaemon(true);
+        watchdog.start();
+        android.util.Log.i("Buzz", "Diagnostic process deadline armed: " + seconds + " seconds");
+    }
 
     @Override public void loadLibraries() {
         super.loadLibraries();
         nativeReady = true;
+        if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            if (getIntent().getBooleanExtra("buzz_test_timeline", false)) {
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) < 50)
+                    throw new IllegalArgumentException("Timeline diagnostic requires a bounded run of at least 50 seconds");
+                nativeSetenv("PS3_FTRACE", "32:10:" + new File(getFilesDir(), "diagnostic-timeline.txt").getAbsolutePath());
+                nativeSetenv("PS3_FTRACE_MIN_US", "10");
+                nativeSetenv("PS3_FTRACE_CAP", "500000");
+            }
+            if (getIntent().hasExtra("buzz_test_job_workers")) {
+                int workers = getIntent().getIntExtra("buzz_test_job_workers", 0);
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0 || workers < 1 || workers > 4)
+                    throw new IllegalArgumentException("Worker diagnostic requires a bounded run and 1..4 workers");
+                nativeSetenv("SPURS_JOB_LIST_WORKERS", Integer.toString(workers));
+                android.util.Log.i("Buzz", "Diagnostic job-list workers: " + workers);
+            }
+            if (getIntent().hasExtra("buzz_test_idle_ms")) {
+                int idleMs = getIntent().getIntExtra("buzz_test_idle_ms", -1);
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0 || idleMs < 0 || idleMs > 16)
+                    throw new IllegalArgumentException("FIFO idle diagnostic requires a bounded run and 0..16 ms");
+                nativeSetenv("BUZZ_GCM_IDLE_MS", Integer.toString(idleMs));
+                android.util.Log.i("Buzz", "Diagnostic FIFO idle timeout: " + idleMs + " ms");
+            }
+            // Scripted buzzer presses: the shared virtual-buzzer mailbox, read
+            // from files/test-input.txt ("<sequence>:<hex mask>\n"; write it
+            // with run-as), so a bounded run can reach the studio unattended.
+            if (getIntent().getBooleanExtra("buzz_test_input_file", false)) {
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0)
+                    throw new IllegalArgumentException("Input mailbox diagnostic requires a bounded run");
+                File mailbox = new File(getFilesDir(), "test-input.txt");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(mailbox)) {
+                    out.write("0:0\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                } catch (java.io.IOException error) {
+                    throw new IllegalStateException("Cannot create the input mailbox", error);
+                }
+                nativeSetenv("BUZZ_TEST_INPUT_FILE", mailbox.getAbsolutePath());
+            }
+            // Further diagnostic environment, "NAME=value;NAME=value", applied
+            // before the runtime caches its options (e.g. SPU_INTERP_STATS=1).
+            String env = getIntent().getStringExtra("buzz_test_env");
+            if (env != null && !env.isEmpty()) {
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0)
+                    throw new IllegalArgumentException("Diagnostic environment requires a bounded run");
+                for (String pair : env.split(";")) {
+                    int eq = pair.indexOf('=');
+                    if (eq <= 0) throw new IllegalArgumentException("buzz_test_env expects NAME=value pairs");
+                    nativeSetenv(pair.substring(0, eq), pair.substring(eq + 1));
+                    android.util.Log.i("Buzz", "Diagnostic environment: " + pair);
+                }
+            }
+            if (getIntent().getBooleanExtra("buzz_test_skip_intro", false)) {
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0)
+                    throw new IllegalArgumentException("Intro diagnostic requires a bounded run");
+                nativeDiagnosticSkipIntro();
+            }
+            if (getIntent().hasExtra("buzz_test_audio_mode")) {
+                int audioMode = getIntent().getIntExtra("buzz_test_audio_mode", -1);
+                if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0 || audioMode < 0 || audioMode > 2)
+                    throw new IllegalArgumentException("Audio diagnostic mode requires a bounded run and mode 0..2");
+                nativeDiagnosticAudioMode(audioMode);
+            }
+            int mask = getIntent().getIntExtra("buzz_test_cpu_mask", 0);
+            if (mask != 0 && (getIntent().getIntExtra("buzz_test_seconds", 0) == 0 ||
+                    !nativeDiagnosticCpuMask(mask)))
+                throw new IllegalArgumentException("Diagnostic CPU mask requires a bounded run and available CPUs");
+            if (getIntent().getBooleanExtra("buzz_test_pc_samples", false) &&
+                    (getIntent().getIntExtra("buzz_test_seconds", 0) == 0 ||
+                     !nativeDiagnosticSamples(new File(getFilesDir(), "diagnostic-pc-samples.bin").getAbsolutePath())))
+                throw new IllegalArgumentException("Native sampling requires a bounded run and an unused profiler signal");
+        }
         recovering = pending().exists();
         if (recovering) { preferences().edit().remove("driver").commit(); pending().delete(); }
         String selected = preferences().getString("driver", "");
@@ -68,19 +166,20 @@ public class BuzzActivity extends SDLActivity {
         return new SDLSurface(context) {
             @Override public void surfaceCreated(SurfaceHolder holder) {
                 super.surfaceCreated(holder);
-                surfaceAvailable = true; nativeSurfaceReady(true);
+                surfaceAvailable = true; updateNativeVisibility();
             }
             @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
                 super.surfaceChanged(holder, format, width, height);
-                surfaceAvailable = true; nativeSurfaceReady(true);
+                surfaceAvailable = true; updateNativeVisibility();
             }
             @Override public void surfaceDestroyed(SurfaceHolder holder) {
-                surfaceAvailable = false; nativeSurfaceReady(false);
+                surfaceAvailable = false; updateNativeVisibility();
                 super.surfaceDestroyed(holder);
             }
         };
     }
     @Override protected void onCreate(Bundle state) {
+        armDiagnosticTimeout();
         super.onCreate(state);
         if (!nativeReady || mLayout == null) return;
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -228,15 +327,20 @@ public class BuzzActivity extends SDLActivity {
             .setNegativeButton("Later", null).show();
     }
     @Override protected void onPause() {
-        if (nativeReady) nativeSurfaceReady(false);
+        activityResumed = false;
+        updateNativeVisibility();
         release(); super.onPause();
     }
     @Override protected void onResume() {
         super.onResume();
-        if (nativeReady) nativeSurfaceReady(surfaceAvailable);
+        activityResumed = true;
+        windowFocused = hasWindowFocus();
+        updateNativeVisibility();
     }
     @Override public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
+        windowFocused = focus;
+        updateNativeVisibility();
         if (!focus) release();
         else getWindow().getDecorView().setSystemUiVisibility(5894);
     }

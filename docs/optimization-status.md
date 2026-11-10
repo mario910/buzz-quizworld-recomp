@@ -163,9 +163,12 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 
 | Switch | Source default | Meaning / defining source |
 |---|---|---|
+| `BUZZ_ANDROID_SHADER_CONTEXT_CHECKS` | `OFF` | Run expensive SPIRV-Tools debug IR consistency checks ([source](../port/CMakeLists.txt)) |
 | `BUZZ_EXPERIMENTAL_VULKAN` | `OFF` | Developer-only Vulkan game build; keep outside build-windows ([source](../port/CMakeLists.txt)) |
 | `PORT_ENABLE_SPU` | `ON` | Compile and register the title's lifted SPU images ([source](../port/CMakeLists.txt)) |
 | `PORT_IMAGE7_COMPARE` | `OFF` | Compare Image 7 against its exact oracle on Android ([source](../port/CMakeLists.txt)) |
+| `PORT_AUDIO_COMPRESSOR_NEON` | `OFF` | Scoped checked NEON arithmetic in the reviewed audio DSP leaves ([source](../port/CMakeLists.txt)) |
+| `BUZZ_ANDROID_LIMIT_EXPORTS` | `ON` | Expose only the Android JNI/SDL entry points, not lifted code or static dependency internals ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_LS_DEBUG_HOOKS` | `${spu_probe_default}` | Keep SPU_LS_WATCH/SPU_SMC_WATCH probes in lifted SPU images ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_SPU_FLOAT` | `OFF` | Native RZ/FMA for the audited single-precision geometry image only ([source](../port/CMakeLists.txt)) |
 | `PORT_RTZ_RESULT_GUARD` | `OFF` | Experimental result classification instead of operand exponent checks; same exact lane repair ([source](../port/CMakeLists.txt)) |
@@ -173,6 +176,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_STANDALONE` | `OFF` | Build for the prepared distribution layout ([source](../port/CMakeLists.txt)) |
 | `BUZZ_DISC_COMPLETION` | `OFF` | Enable the validated original disc completion mode ([source](../port/CMakeLists.txt)) |
 | `PORT_GEOMETRY_HOST_NEON` | `OFF` | Use the native host SoA geometry pipeline on ARM64 ([source](../port/CMakeLists.txt)) |
+| `PORT_ANDROID_GEOMETRY_COMPARE` | `OFF` | Check ARM64 whole geometry jobs against their retained I/O shadow (slow diagnostic) ([source](../port/CMakeLists.txt)) |
 | `PORT_OPTIMIZE_PPU_HOT_PATHS` | `ON` | Optimize PPU bridge and profiled job-poll TU ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_JOB_DEFAULTS` | `${native_job_default_candidate}` | Embed the approved native/Vulkan runtime profile in the qualified EXE ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_SEQUENTIAL` | `OFF` | Bulk-validated sequential geometry index decoding ([source](../port/CMakeLists.txt)) |
@@ -190,6 +194,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_SPU_INPUTS` | `empty` | Input files to scan for all embedded SPU ELF programs (semicolon-separated decrypted ELF/PRX/data paths) ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_OPT` | `-O2` | Optimization level of the lifted SPU TUs ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_JOB_PROFILE` | `eu100-vulkan-native-v1` | Identity of the reviewed disc native runtime profile ([source](../port/CMakeLists.txt)) |
+| `PORT_ANIMATION_JOB_DEFAULT` | `empty` | Animation job mode override: empty inherits profile, 0 retained, 1 native, 2 compare ([source](../port/CMakeLists.txt)) |
 | `BUZZ_RSX_METHOD_FASTPATH` | `OFF` | Experimental compact FIFO method dispatch loop ([source](../cmake/BuzzFifoMethods.cmake)) |
 | `BUZZ_RSX_PARK_WAKE` | `OFF` | Wake RSX when DMA replaces its observed parked jump ([source](../cmake/BuzzFifoParkWake.cmake)) |
 | `BUZZ_RSX_READY_CHECK` | `OFF` | Avoid sleeping when a completed FIFO drain has new work ([source](../cmake/BuzzFifoReady.cmake)) |

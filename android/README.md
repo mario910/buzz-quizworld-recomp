@@ -351,3 +351,158 @@ presentations/time plus P95/P99, not a screenshot's one-second counter. Menus
 have camera-dependent costs. Movies may repeat decoded frames while presentation
 FPS exceeds 60: check unique movie-frame progress and audio synchronization.
 Full-round/scoring/input/audio validation is a separate step from menu FPS.
+
+### Bounded debug-device diagnostics
+
+Additional opt-in diagnostics (never shipping defaults):
+`--ei buzz_test_job_workers 1..4` changes the existing SPURS list-worker count;
+`--ez buzz_test_timeline true` captures the existing dependency timeline for
+seconds 32–42, with a 500,000-span cap. The latter requires a bounded process
+deadline of at least 50 seconds. The trace is app-private
+`files/diagnostic-timeline.txt`; inspect it with the SDK's `tools/ftrace_report.py`.
+Neither diagnostic is a clean FPS benchmark. CPU affinity is applied to the
+foreground SDL/game thread after surface/focus readiness, not to Android's UI
+or the Java watchdog; unavailable masks abort the diagnostic rather than
+silently using a subset.
+
+The whole image40 animation pipeline can now be compiled on Android ARM64,
+using the shared NEON vectors, checked exceptional-lane repair and restored
+FPCR/FPSR. It remains opt-in, outside reference29. In a prepared EU 1.00
+workspace, first regenerate `generate-image40-native.py`, then run:
+
+```sh
+"$PYTHON" tools/codegen/generate-animation-job-runtime.py \
+  --fallback analysis/native-image40/spu_recomp.c \
+  --output analysis/native-image40 --in-place
+```
+
+Only the exact pinned private fallback may be wrapped in place. Configure the
+existing NDK CMake build with `PORT_ANIMATION_JOB_DEFAULT=2` for native/original
+whole-job I/O checks, or `1` for native execution without duplicate checking.
+An explicit `BUZZ_ANIMATION_JOB` environment value still wins. Bare Android
+builds do not acquire the qualified desktop native-job defaults. Regenerating
+the ordinary image40 source restores the old adapter.
+
+`generate-audio-compressor.py --include-atrac` additionally emits two private,
+hash-bound ATRAC filter blocks. Select their `spu_recomp.c` with the optional
+`PORT_AUDIO_ATRAC_SOURCE`; it requires the compressor wrapper configuration.
+The original remains the fallback. This is not an approximate or replacement
+audio decoder. The host sanitizer suite also checks these blocks; native ARM
+checks include all GPR/LS state, tail continuations and FPCR/FPSR restoration.
+Successful correctness checks have **not** established a whole-game FPS gain.
+
+Fresh Android installations now start with a 30 FPS presentation limit. Saved
+settings still take precedence, including an explicit uncapped selection.
+Desktop defaults are unchanged. This limits presentation, not guest simulation
+speed, and does not establish a sustained gameplay performance result.
+
+Android also creates a private `files/runtime/spirv-cache` folder and enables
+the SDK's existing `PS3RECOMP_SPIRV_CACHE`. This is separate from the D3D shader
+cache. Shader text/stage, translator build and glslang version qualify disk
+entries; invalid entries are recompiled. Writes are immediate and atomic, so
+a diagnostic process kill does not discard all successful translations.
+An explicit environment override (even an empty value to disable it) wins.
+The cache is disposable, contains game-derived data, and must not be bundled
+with distributions. A warm cache reduces repeated shader translation, not
+driver pipeline creation or all first-visit shader stutter.
+
+Debug APKs accept an optional process deadline, independent of SDL, the guest,
+and the render loop:
+
+```sh
+adb shell am start -n org.buzzrecomp.game/.BuzzActivity --ei buzz_test_seconds 35
+```
+
+The process terminates at the deadline (5–60 seconds); ordinary launches and
+non-debuggable APKs do not arm it. This is not a thermal monitor. Also run a
+device-local thermal supervisor for stress tests, recording CPU/GPU sensors
+rather than treating battery temperature as SoC temperature. Do not raise a
+stop threshold just to finish a failed benchmark.
+
+For a matched menu scene, `--ez buzz_test_skip_intro true` uses the existing
+desktop startup-only video skip. It requires a bounded debug run; real media
+calls return at the first menu. Do not use it to qualify movie playback.
+`--ei buzz_test_idle_ms N` (0..16) selects the existing FIFO idle retry timeout
+for that bounded debug process only. It does not change saved preferences or
+normal defaults. Zero can busy-poll; do not use it as a battery-friendly preset.
+Always wake/unlock the device before a visible-game test: starting an Activity
+over ADB does not wake a sleeping handheld. On dual-screen devices explicitly
+select the game's physical display when capturing, rather than relying on
+`screencap`'s default display.
+
+For a bounded debug run only, `--ei buzz_test_cpu_mask 7` constrains new native
+workers to CPUs 0–2, **if those CPUs are available**. CPU numbering and capacity
+are device-specific: this is a diagnostic comparison, not a shipping affinity
+policy or a claim about unrestricted performance.
+
+`--ez buzz_test_pc_samples true` records 100 CPU-Hz instruction-pointer samples
+in internal `files/diagnostic-pc-samples.bin`, plus a `.maps` snapshot. It
+requires the deadline and an unused SIGPROF/ITIMER_PROF, and adds overhead.
+Symbolize against the exact matching unstripped `libmain.so`; preserve that ELF
+before rebuilding. The binary has an 8-byte `BZWPC001` header, a little-endian
+64-bit image base, then 16-byte `{uint64_t pc; uint32_t tid, reserved;}` records.
+It also enables the POSIX `AUDIO_RATE` diagnostic (blocks/s and queue depth).
+No device security settings or driver replacement are required.
+
+`--ei buzz_test_audio_mode 0|1|2` selects original/local-native/compare mode
+in an APK built with the experimental audio DSP adapters. It requires a
+bounded debug run. Compare mode keeps original results and checks at most
+16 complete contexts per entry; it is not a performance mode. PC sampling
+also reports SPIR-V translation/memory-hit/disk-hit counters every five seconds.
+Avoid live ADB screenshots during a performance/thermal measurement; capture
+separately, preferably with the guest paused.
+
+Android pause state combines surface readiness, resumed/focused Activity and
+the native settings menu. Returning from the background cannot unpause an open
+menu, and closing that menu cannot resume a hidden Activity. Surface lifetime
+exclusion remains in place. This is not a generic suspend of every guest thread.
+
+`BUZZ_ANDROID_LIMIT_EXPORTS` defaults ON for Android. The link version script
+exports only `SDL_main` and this Activity's JNI entry points; SDL and GPU-hook
+libraries keep their own exports. Audit the matching unstripped `libmain.so`
+with `tests/check-android-exports.py --readelf PATH_TO_NDK_LLVM_READELF ELF`.
+
+`BUZZ_ANDROID_SHADER_CONTEXT_CHECKS` defaults OFF. This selects SPIRV-Tools'
+own `SPIRV_CHECK_CONTEXT` build option: its costly developer-only IR def-use
+reconstruction/comparison was sampled on the render thread during first-visit
+shader compilation in Debug APKs. Shader legalization/optimization and the
+Vulkan binding contract remain enabled and unchanged. Set the option ON when
+investigating the shader compiler itself. Desktop builds are unaffected.
+
+The POSIX audio thread now waits for SDL queue space *before* mixing/notifying
+the guest. If no audio device exists, it uses a monotonic 256/48000-second
+clock instead of 2 ms polling, dropping missed deadlines rather than bursting.
+Windows/WASAPI behavior is unchanged. The pure fallback-clock test is:
+
+```sh
+cc -std=c11 -Wall -Wextra -Werror ps3recomp/libs/audio/tests/test_audio_block_clock.c -o /tmp/audio-clock-test
+/tmp/audio-clock-test
+```
+
+### Experimental scoped audio DSP adapters
+
+These are **OFF by default**, separate from reference29. See
+[the Thor investigation](../docs/thor-diagnostics.md) for qualification limits.
+The generator accepts only the audited canonical 1.00 source hashes and leaves
+all other functions unchanged. Nine selected leaves retain instruction/store
+order, exact exceptional-lane repair, original reciprocal/interpolation helpers,
+and original fallback for external LS or enabled LS debug hooks. Host FPCR/FPSR
+is restored on every exit; no whole-image FP mode or audio disable is used.
+
+Generate from a prepared EU 1.00 workspace, then select these CMake cache values
+in that workspace's existing Android native build directory:
+
+```sh
+python3 tools/codegen/generate-audio-compressor.py --workspace "$WORKSPACE" --include-mixer
+# Extra CMake arguments (keep the existing Android toolchain/profile arguments):
+# -DPORT_AUDIO_COMPRESSOR_SOURCE="$WORKSPACE/analysis/native-audio-compressor/spu_recomp.c"
+# -DPORT_AUDIO_MIXER_SOURCE="$WORKSPACE/analysis/native-audio-mixer/spu_recomp.c"
+# -DPORT_AUDIO_COMPRESSOR_NEON=ON
+# Complete-state host validation (ASan/UBSan; not ARM64 NEON qualification):
+sh tests/scripts/test-audio-dsp-host.sh "$WORKSPACE"
+```
+
+`BUZZ_AUDIO_COMPRESSOR=0` rolls back to original functions without regenerating
+inputs. Clear both source cache values and set `PORT_AUDIO_COMPRESSOR_NEON=OFF`
+to remove the experiment from a rebuild. APKs built without these adapters
+retain the original audio path regardless of diagnostic mode selection.

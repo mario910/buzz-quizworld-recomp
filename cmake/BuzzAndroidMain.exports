@@ -1,0 +1,7 @@
+{
+  global:
+    SDL_main;
+    Java_org_buzzrecomp_game_*;
+  local:
+    *;
+};

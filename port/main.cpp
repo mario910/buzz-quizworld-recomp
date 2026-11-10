@@ -761,11 +761,21 @@ static int report_replay_interpreter_counts()
 }
 extern "C" void buzz_print_runtime_defaults();
 #ifdef __ANDROID__
+extern "C" int buzz_android_apply_diagnostic_affinity();
 extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv)
 #else
 int main(int argc, char** argv)
 #endif
 {
+#ifdef __ANDROID__
+    if(!buzz_android_apply_diagnostic_affinity()) {
+        // No Vulkan driver has run: a rejected diagnostic CPU constraint is
+        // not evidence that the selected app-private driver crashed.
+        if(const char* pending=std::getenv("BUZZ_ANDROID_GPU_PENDING"))std::remove(pending);
+        std::fprintf(stderr,"[boot] requested diagnostic CPU mask unavailable; game not started\n");
+        return 3;
+    }
+#endif
     if (argc == 2 && strcmp(argv[1], "--runtime-defaults") == 0) {
         buzz_print_runtime_defaults();
         return 0;

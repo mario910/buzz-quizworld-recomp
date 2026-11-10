@@ -12,6 +12,21 @@ BNI __m128i _mm_loadu_si128(const __m128i* p){return vld1q_u32((const uint32_t*)
 BNI void _mm_storeu_si128(__m128i* p,__m128i a){vst1q_u32((uint32_t*)p,a);}
 BNI __m256i _mm256_loadu_si256(const __m256i* p){return {vld1q_u32((const uint32_t*)p),vld1q_u32((const uint32_t*)p+4)};}
 BNI void _mm256_storeu_si256(__m256i* p,__m256i a){vst1q_u32((uint32_t*)p,a.lo);vst1q_u32((uint32_t*)p+4,a.hi);}
+// AVX mask load/store must not touch masked-off lanes, including the tail
+// past a bounded clip/curve stream. A full NEON load followed by a select
+// would overread that stream (and can cross a protected page).
+BNI __m256i _mm256_maskload_epi32(const int* p,__m256i mask){
+    uint32_t bits[8],value[8]{};
+    _mm256_storeu_si256((__m256i*)bits,mask);
+    for(unsigned lane=0;lane<8;++lane)if(bits[lane]>>31)memcpy(value+lane,p+lane,4);
+    return _mm256_loadu_si256((const __m256i*)value);
+}
+BNI void _mm256_maskstore_epi32(int* p,__m256i mask,__m256i value){
+    uint32_t bits[8],words[8];
+    _mm256_storeu_si256((__m256i*)bits,mask);
+    _mm256_storeu_si256((__m256i*)words,value);
+    for(unsigned lane=0;lane<8;++lane)if(bits[lane]>>31)memcpy(p+lane,words+lane,4);
+}
 #define _mm256_load_si256 _mm256_loadu_si256
 #define _mm256_store_si256 _mm256_storeu_si256
 BNI __m256i _mm256_set1_epi32(int x){return {vdupq_n_u32(x),vdupq_n_u32(x)};}

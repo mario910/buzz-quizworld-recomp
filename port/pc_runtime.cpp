@@ -56,11 +56,26 @@ void apply_live(const buzz_pc::Preferences& p) {
 bool buzz_pc_runtime_init() {
     try {
         std::lock_guard lock(apply_mutex);
-        buzz_pc::Preferences p;
 #ifdef __ANDROID__
-        // Keep Android's existing startup pacing.
-        p.fps_limit=0;
+        // The SDK's Vulkan translator has a versioned disk cache, separate
+        // from RSX_SHADER_CACHE_DIR (the D3D shader cache). Without this setup
+        // Android repeated glslang/legalization work on every cold process.
+        // An explicit override, including an empty string to disable, wins.
+        if (!std::getenv("PS3RECOMP_SPIRV_CACHE")) {
+            const auto directory = fs::current_path()/"spirv-cache";
+            std::error_code error;
+            fs::create_directories(directory, error);
+            if (!error && fs::is_directory(directory, error)) {
+                if (setenv("PS3RECOMP_SPIRV_CACHE", directory.c_str(), 0) == 0)
+                    std::fprintf(stderr,"[spirv-cache] Android disk cache: %s\n",directory.c_str());
+            } else {
+                std::fprintf(stderr,"[spirv-cache] Cannot create cache directory; using the memory cache\n");
+            }
+        }
 #endif
+        buzz_pc::Preferences p;
+        // Without a settings file every platform starts at the game's 30 FPS
+        // target (Preferences' default); an explicit file still wins, even 0.
         const char* offline=getenv("BUZZ_OFFLINE");p.offline=!offline||std::string(offline)!="0";
         preferences_file=fs::current_path()/"pc-settings.ini";
 #ifdef _WIN32
@@ -86,11 +101,13 @@ bool buzz_pc_runtime_init() {
             // Read once by the renderer when it creates its targets.
             ps3_host_set_render_scale(p.render_scale);
         }
-#ifndef __ANDROID__
         else {
+#ifdef __ANDROID__
+            apply_live(p);
+#else
             ps3_host_set_frame_limit(p.fps_limit);
-        }
 #endif
+        }
         // Read once by the renderer's first texture upload. Defaults apply
         // without a settings file too: an empty or missing folder costs nothing.
         {

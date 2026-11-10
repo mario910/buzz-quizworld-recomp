@@ -12,6 +12,9 @@
 #ifndef BUZZ_NATIVE_JOB_DEFAULT
 #define BUZZ_NATIVE_JOB_DEFAULT 0
 #endif
+#ifndef BUZZ_ANIMATION_JOB_DEFAULT
+#define BUZZ_ANIMATION_JOB_DEFAULT BUZZ_NATIVE_JOB_DEFAULT
+#endif
 
 namespace {
 std::atomic<int> option{-1};
@@ -24,7 +27,7 @@ extern "C" int buzz_animation_job_mode()
     if(mode<0) {
         const char* text=std::getenv("BUZZ_ANIMATION_JOB");
         if(text && (text[0]<'0'||text[0]>'2'||text[1]))std::abort();
-        mode=text?text[0]-'0':BUZZ_NATIVE_JOB_DEFAULT;
+        mode=text?text[0]-'0':BUZZ_ANIMATION_JOB_DEFAULT;
         option.store(mode,std::memory_order_relaxed);
     }
     return mode;
@@ -39,13 +42,22 @@ extern "C" void buzz_animation_job_report()
 #if BUZZ_ANIMATION_JOB_AVAILABLE
 #include "native_animation_job.h"
 #include "spu_dma.h"
+#if defined(__aarch64__)
+#include "spu_arm_fp_state.h"
+#endif
 extern "C" uint8_t g_vm_page_bitmap[65536/8];
 
 namespace {
 struct FloatEnvironment {
+#if defined(__aarch64__)
+    buzz_arm_fp_state previous=buzz_arm_fp_save();
+    FloatEnvironment(){buzz_arm_fp_enter_rtz(previous);}
+    ~FloatEnvironment(){buzz_arm_fp_restore(previous);}
+#else
     unsigned previous=_mm_getcsr();
     FloatEnvironment(){_mm_setcsr((previous&~_MM_ROUND_MASK)|_MM_ROUND_TOWARD_ZERO|0x8040);}
     ~FloatEnvironment(){_mm_setcsr(previous);}
+#endif
 };
 struct Workspace {
     buzz::AnimationNativeJobWorkspace work;
@@ -144,11 +156,11 @@ struct Init {
     Init() {
         const int mode=buzz_animation_job_mode();
         if(mode && !BUZZ_ANIMATION_JOB_AVAILABLE) {
-            std::fprintf(stderr,"[animation-job] requires the pinned job adapter and checked AVX2/FMA/RTZ/result-guard build\n");
+            std::fprintf(stderr,"[animation-job] requires the pinned job adapter and checked ARM64 NEON or AVX2/FMA/RTZ/result-guard build\n");
             std::abort();
         }
         if(mode) {
-            std::fprintf(stderr,"[animation-job] mode=%d (0 retained lift,1 native,2 native-retained whole-job I/O compare; build default=%d)\n",mode,BUZZ_NATIVE_JOB_DEFAULT);
+            std::fprintf(stderr,"[animation-job] mode=%d (0 retained lift,1 native,2 native-retained whole-job I/O compare; build default=%d)\n",mode,BUZZ_ANIMATION_JOB_DEFAULT);
             std::atexit(buzz_animation_job_report);
         }
     }
