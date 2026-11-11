@@ -790,8 +790,11 @@ set_property(SOURCE native_geometry_job_flow.cpp APPEND PROPERTY COMPILE_DEFINIT
     "BUZZ_GEOMETRY_HOST_COMMANDS=$<BOOL:${BUZZ_GEOMETRY_HOST_COMMANDS}>"
     "BUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$<BOOL:${BUZZ_GEOMETRY_ZERO_VERTEX_PADDING}>"
     "BUZZ_GEOMETRY_CULL_COMPACT=$<BOOL:${BUZZ_GEOMETRY_CULL_COMPACT}>")
+# The flow TU is built on every desktop target and includes the AVX2/SSSE3
+# geometry helpers whatever geometry adapter is selected (a Stage F or
+# reference image-41 build too), so it always needs the SPU ISA flags there.
 if(geometry_job_native_setup_available OR
-   (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUZZ_STANDALONE AND PORT_SPU_ISA STREQUAL "avx2"))
+   (NOT ANDROID AND PORT_SPU_ISA STREQUAL "avx2"))
     # The native setup uses the same u128 integer helpers as its lifted
     # callees. Keep their reviewed ISA/optimization flags; the PPU-wide /O1
     # and baseline ISA would turn byte shuffles into scalar loops here.

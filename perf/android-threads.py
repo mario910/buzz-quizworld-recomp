@@ -17,6 +17,7 @@ snaps = sorted((float(os.path.basename(f)[6:-4]), f)
                for f in glob.glob(os.path.join(a.run, "**", "tasks-*.txt"), recursive=True))
 t0 = snaps[0][0]
 snaps = [s for s in snaps if a.start <= s[0] - t0 <= a.end and os.path.getsize(s[1])]
+if len(snaps) < 2: raise SystemExit('no task snapshots in that window (run stopped early?)')
 (ta, fa), (tb, fb) = snaps[0], snaps[-1]
 
 def parse(f):

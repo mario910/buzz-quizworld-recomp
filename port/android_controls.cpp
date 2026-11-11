@@ -227,6 +227,8 @@ extern "C" void buzz_android_apply_cpu_policy() {
     // used until it returns. Require the result to hold for 200 ms, since the
     // foreground task profile can still land just after focus.
     unsigned observed=0,stable=0;
+    cpu_set_t admitted;
+    CPU_ZERO(&admitted);
     for(unsigned attempt=0;attempt<40 && stable<4;++attempt) {
         cpu_set_t actual;
         CPU_ZERO(&actual);
@@ -238,6 +240,7 @@ extern "C" void buzz_android_apply_cpu_policy() {
             if(cpu<32)observed|=1u<<cpu;
         }
         stable=good?stable+1:0;
+        if(good)admitted=actual;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     if(stable<4) {
@@ -249,7 +252,10 @@ extern "C" void buzz_android_apply_cpu_policy() {
     }
     {
         std::lock_guard lock(cpu_policy_mutex);
-        cpu_policy_set=selected;
+        // Keep what the foreground cpuset admitted, not the whole request: the
+        // Thor withholds CPU 5 from the app, and forcing it back on after a
+        // resume made the game reach 80 C in 40 s instead of running 80+ s.
+        cpu_policy_set=admitted;
         cpu_policy_foreign=process_threads();
         const pid_t self=gettid();      // this thread carries the mask to the workers it creates
         cpu_policy_foreign.erase(std::remove(cpu_policy_foreign.begin(),cpu_policy_foreign.end(),self),cpu_policy_foreign.end());

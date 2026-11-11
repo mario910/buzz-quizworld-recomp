@@ -39,6 +39,13 @@ inline CpuPolicy choose_cpu_policy(const unsigned* capacity, size_t count)
     // Homogeneous CPUs: nothing to choose. Fewer than three performance
     // cores: the game cannot live on them alone, so keep every core.
     if (fast == count || fast < 3) return policy;
+    // A single prime core above at least four regular performance cores is
+    // left out too (with three, the game needs it). Sustained, it is the hottest core: on the Thor the game
+    // with it reached 80 C in 52 s, throttled it to 2.0 GHz and ran slower
+    // (10.5 vs 15.3 FPS, same window) than without it on 3/4/6 (95 s, 75 C).
+    unsigned at_best = 0, top = 0;
+    for (size_t i = 0; i < count; ++i) if (capacity[i] == best) { ++at_best; top = unsigned(i); }
+    if (at_best == 1 && fast >= 5) { mask &= ~(uint64_t(1) << top); --fast; }
     policy.mask = mask;
     // Lanes share those cores with the audio SPU, the RSX worker, the PPU
     // threads and the object chain: one lane per core up to five cores (the
