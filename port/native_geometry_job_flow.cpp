@@ -10,6 +10,7 @@
 #include "spu_neon_rtz.h"
 #endif
 #include "native_geometry_pipeline.h"
+#include "geometry_repeat_stats.h"
 #if !defined(BUZZ_GEOMETRY_LS_DRIVER) || defined(BUZZ_GEOMETRY_HOST_NEON)
 #include <cstdio>
 #include "native_geometry_commands.h"
@@ -2215,6 +2216,7 @@ extern "C" void buzz_geometry_job_native_start(spu_context* ctx, const buzz_geom
             buzz_geometry_job_native_fail(ctx,reason);
     }
 #endif
+    buzz::note_geometry_repeat(*ctx,setup.entry);   // diagnostic, off unless requested
     buzz::commit_geometry_job_setup(*ctx,setup);
     buzz::materialize_geometry_job_initial_call(*ctx, setup);
     if (!buzz::initialize_geometry_context(*ctx, setup.initialization, state, &reason))

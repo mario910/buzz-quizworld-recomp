@@ -435,6 +435,30 @@ workers to CPUs 0–2, **if those CPUs are available**. CPU numbering and capaci
 are device-specific: this is a diagnostic comparison, not a shipping affinity
 policy or a claim about unrestricted performance.
 
+Ordinary launches apply a **default CPU placement** on CPUs that have both
+efficiency and at least three performance cores (read from `cpu_capacity`):
+the game's native threads stay on the performance cores and three SPURS list
+workers are used (four from six performance cores up). The log line
+`CPU policy: ...` (logcat tag `Buzz`, and `game-error.log`) says what was
+applied. The mask is put back after a return from the background. CPUs
+without efficiency cores are left alone. `--es buzz_test_env
+BUZZ_ANDROID_CPU_POLICY=0` (bounded debug run) restores Android's own
+scheduling and four workers for comparison; a diagnostic CPU mask replaces
+the policy; an explicit `buzz_test_job_workers` is kept. The rule itself is
+`port/android_cpu_policy.h`, tested by `tests/android-cpu-policy-test.cpp`.
+It was derived from AYN Thor measurements ([investigation](../docs/thor-diagnostics.md))
+and has not yet been run as a default on a device.
+
+`--ez buzz_test_input_file true` (bounded debug run) points the virtual
+buzzer's test mailbox at app-private `files/test-input.txt`; write
+`<sequence>:<hex mask>` lines with `run-as` to press buttons without touching
+the screen (`perf/android-press.sh`; player 1: red 1, yellow 2, green 4,
+orange 8, blue 10). `--es buzz_test_env "NAME=value;NAME=value"` sets further
+diagnostic environment before the runtime reads its options.
+`perf/android-menu.sh` combines these with a device-local supervisor
+(`perf/android-supervisor.sh`: temperature limit, deadline, per-thread CPU and
+cpufreq samples) into a matched main-menu measurement.
+
 `--ez buzz_test_pc_samples true` records 100 CPU-Hz instruction-pointer samples
 in internal `files/diagnostic-pc-samples.bin`, plus a `.maps` snapshot. It
 requires the deadline and an unused SIGPROF/ITIMER_PROF, and adds overhead.

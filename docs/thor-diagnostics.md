@@ -432,3 +432,140 @@ and compare matching conditions;
 little-core diagnostics cannot establish full-device performance or a fix for
 the original stall. Do not disable audio, alter SPU rounding globally, lower
 resolution or remove the thermal guard to manufacture a speed result.
+
+## 2026-11-09: write guard, DMA ordering, core placement (device runs)
+
+Main menu after the startup video skip, Turnip, 30 FPS cap, device-local
+supervisor at 80 C. `perf/android-menu.sh` reaches the menu with scripted
+presses (`buzz_test_input_file`) and reports seconds 62–92; one run per row.
+
+| Build / configuration | Menu FPS | Process CPU |
+| --- | --- | --- |
+| Before, CPUs 0–4, 4 workers (38–58 s window, guard at 59 s) | 5.55 | 3.2 cores |
+| POSIX job-binary write guard, same window | 6.00 | 3.1 cores |
+| + thread names, CPUs 0–4, 4 workers | 6.47 | 3.0 cores |
+| CPUs 0–4, 3 workers | 6.93 | 2.85 cores |
+| + DMA ordering fences, CPUs 3/4/6, 3 workers (three runs) | 9.43–9.73 | 2.8 cores |
+
+- **Job-binary write guard.** A cache hit in the SPU job fingerprint cache
+  compared the whole job binary (~59 KB for geometry) on every dispatch on
+  POSIX; Windows already used a page write guard. It was 4.5% of all samples
+  (about a fifth of each lane) and is 0.8% with the guard.
+- **Hang at SPURS event flag `0x701EB380`** (also probe24). One run on the
+  performance cores stopped presenting after an RSX FIFO "bad word" resync: a
+  float where a command belonged. SPU DMA PUTs are plain copies; arm64 gives
+  other cores no ordering between two of them, so a consumer could follow the
+  later PUT (a JUMP, a completion word) into bytes the earlier one had not
+  made visible. `spu_dma.h` now issues a release fence before a PUT's bytes
+  and an acquire fence before a GET's (nothing on x86). Three repeats of the
+  failing configuration ran to their deadline with no resync. One failure
+  before and none in three after is evidence, not proof.
+- **Core placement.** The app's threads may use CPUs 0–4 and 6 here (a request
+  for 0x78 reads back 0x58). CPUs 0–2 are the efficiency cores. Keeping the
+  game on 3/4/6 with three workers gave the best result so far.
+- Rejected: `SPURS_POOL_SPIN_US=200` with `SPURS_JTS_SPIN_US=200` (6.33 FPS for
+  10% more CPU).
+
+## 2026-11-10: where the frame goes (offline analysis, no device)
+
+Inputs: the DWARF-callgraph simpleperf profile of the menu from 2026-11-09
+(build ID `64bde348…`, CPUs 0–4, four workers, 5,722 samples at 300 Hz, thread
+names), the per-thread CPU of the CPUs 3/4/6 runs, and a **PC twin**: the same
+EU 1.00 native pipeline (`host-groups-v1` geometry, `host-soa-v1` animation)
+built for Windows in a prepared workspace, same menu, on a Ryzen 7 9800X3D.
+The unstripped library matching the profile was rebuilt reproducibly (same
+build ID). Scripts: `perf/android-threads.py`; category tables come from
+`simpleperf report --csv` with the matching `libmain.so`.
+
+### The three usable performance cores are saturated
+
+CPUs 3/4/6, three workers, 9.7 FPS (103 ms per frame): 2.78 of 3.0 cores busy.
+
+| Thread | Share of one core | CPU per frame |
+| --- | --- | --- |
+| Three list workers (geometry) | 3 × 37% | 114 ms |
+| MultiStream audio SPU | 55% (constant) | 57 ms |
+| Chain `701EB500` (object visibility, animation, serial) | 34% | 35 ms |
+| PPU threads, video decode for the menu monitors | ~30% | ~31 ms |
+| RSX worker | 24% | 25 ms |
+
+The PC twin without idle polling runs the same scene at 64.6 FPS on 4.5
+cores: 69 ms of CPU per frame against the Thor's 287 ms. Per thread the Thor's
+performance cores take 3.6–3.8 times as long for SPU-style work (workers
+31.7 → 114 ms, chain 9.2 → 35 ms, audio 15% → 55% of a core) and 2.2 times
+for the scalar RSX worker. The PC needs about 2.1 of its cores for 30 FPS;
+at that ratio the Thor would need seven to eight performance cores and has
+four plus one prime. **No setting gets this scene to 30 FPS on this SoC; it
+needs roughly 2.5 times less CPU work per frame and all five fast cores.**
+The S25 Ultra's 19.5 FPS is consistent with the same model (cores about
+twice as fast).
+
+Frame time follows the serial chain: PPU main → chain `701EB500` on its own
+thread → the geometry lists on the workers; the RSX worker runs alongside.
+
+### What the workers spend their time on (profile, share of worker CPU)
+
+- Native geometry math 50%: skinning 9%, projection 15%, culling 5%, vertex
+  emit 5%, index decode 4%, input capture 5%, object transform 4%.
+- Publishing a job's output through the emulated SPU channels 23%: ring
+  allocation with GETLLAR/PUTLLC under the global lock-line lock (which
+  `sched_yield`s under contention between workers), DMA PUTs, reservation
+  register/unregister/notify, a `calloc` per notify.
+- Per-job staging in `run_spurs_job_context` about 4%: the 59 KB job binary
+  is copied into the local store for every job and the regions are zeroed.
+- `sigsetjmp`/`longjmp` around every job 2.8% (two `rt_sigprocmask` calls
+  through ART's sigchain: bionic's `setjmp` saves the signal mask).
+- Thread-local access 3.8% (every access is a `tlsdesc_resolver_dynamic` call
+  in a dlopen'ed library; the SPU trampoline variable is one).
+- Remaining lifted image-41 code 9%.
+
+Chain `701EB500` is half overhead: trampoline/step hooks 16%, thread-local
+access 10%, DMA and lock-line 10%, copies 9%.
+
+### Measured and ruled out
+
+- **Compiler flags.** Hot paths (SDK runtime, lifted SPU, native geometry
+  flow, audio adapters) are built `-O2`; `-O1` applies to the lifted PPU and
+  thin wrappers only.
+- **Surround mixing.** Reporting a stereo-only audio output makes the title
+  configure two channels, but it still opens an eight-channel port and the
+  audio SPU thread's CPU does not change (PC twin, 15.2% vs 15.4%).
+- **Reusing a previous frame's geometry output.**
+  `BUZZ_GEOMETRY_REPEAT_STATS=1` (diagnostic) on the PC twin: 1,500–2,600 jobs
+  per frame, 5.2 KB of input each; inputs byte-identical to a job of the two
+  previous frames 2.7%; identical apart from the palette 2.7%; identical
+  vertex/index data with different viewport/object matrices 99.9%. The meshes
+  repeat, the matrices do not: whole-output reuse cannot pay in this scene;
+  only caching of decoded mesh inputs could (index and stream decode, about
+  12% of worker CPU).
+
+### Changes made without the device (need a device run)
+
+- **Default CPU placement** (`port/android_cpu_policy.h`): on a CPU with
+  efficiency cores and at least three performance cores (by `cpu_capacity`),
+  the game's native threads are kept on the performance cores and three list
+  workers are used (four from six performance cores up). The mask is restored
+  on the native threads after a return from the background, when Android's
+  cpuset move resets it. Homogeneous CPUs (Snapdragon 8 Elite) are untouched.
+  `BUZZ_ANDROID_CPU_POLICY=0` turns it off; a diagnostic CPU mask replaces it;
+  an explicit `buzz_test_job_workers` is kept. Host test:
+  `tests/android-cpu-policy-test.cpp`.
+- SDK: `_setjmp`/`_longjmp` for the SPU halt on POSIX (no signal-mask system
+  calls per job); semaphore wait/post read their diagnostic switches once;
+  PPU and SPU host threads name themselves on POSIX.
+- `perf/android-supervisor.sh` records each cpufreq policy's current
+  frequency, so thermal frequency limits show up in the next runs.
+
+### Next device session
+
+1. Ordinary launch (no mask): confirm the `CPU policy` log line, the menu FPS
+   against 9.4–9.7, temperatures, and that adb stays responsive.
+2. Frequencies of policies 3 and 7 while hot: a clamp below 2.8 GHz would
+   explain part of the 3.6× ratio.
+3. `--es buzz_test_env SPURS_MERGE_EXTRA_IMAGES=39,36,34,38` (existing opt-in:
+   the chain's one-job lists run on the workers). It cannot help while every
+   core is saturated; it should once CPUs 5 and 7 are available, and on
+   devices with spare fast cores.
+4. The studio itself: the save data with three profiles is staged; the route
+   takes about three minutes and the supervisor's 80 C limit has so far
+   stopped runs on CPUs 0–4 before it.

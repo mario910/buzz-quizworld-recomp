@@ -90,6 +90,7 @@ public class BuzzActivity extends SDLActivity {
                 if (getIntent().getIntExtra("buzz_test_seconds", 0) == 0 || workers < 1 || workers > 4)
                     throw new IllegalArgumentException("Worker diagnostic requires a bounded run and 1..4 workers");
                 nativeSetenv("SPURS_JOB_LIST_WORKERS", Integer.toString(workers));
+                nativeSetenv("BUZZ_ANDROID_JOB_WORKERS_EXPLICIT", "1");   // the CPU policy keeps it
                 android.util.Log.i("Buzz", "Diagnostic job-list workers: " + workers);
             }
             if (getIntent().hasExtra("buzz_test_idle_ms")) {

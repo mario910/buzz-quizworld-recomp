@@ -762,6 +762,8 @@ static int report_replay_interpreter_counts()
 extern "C" void buzz_print_runtime_defaults();
 #ifdef __ANDROID__
 extern "C" int buzz_android_apply_diagnostic_affinity();
+extern "C" void buzz_android_apply_cpu_policy();
+extern "C" const char* buzz_android_cpu_policy_summary();
 extern "C" __attribute__((visibility("default"))) int SDL_main(int argc, char** argv)
 #else
 int main(int argc, char** argv)
@@ -775,6 +777,8 @@ int main(int argc, char** argv)
         std::fprintf(stderr,"[boot] requested diagnostic CPU mask unavailable; game not started\n");
         return 3;
     }
+    // Ordinary launches: keep the heavy threads off the efficiency cores.
+    buzz_android_apply_cpu_policy();
 #endif
     if (argc == 2 && strcmp(argv[1], "--runtime-defaults") == 0) {
         buzz_print_runtime_defaults();
@@ -942,6 +946,9 @@ int main(int argc, char** argv)
     printf("=== Buzz! Quiz World experimental PS3Recomp runner ===\n");
     fprintf(stderr, "[boot] diagnostic logs: %s\n",
             live_logs ? "unbuffered (debug override)" : "64 KiB buffers, 5 s flush");
+#ifdef __ANDROID__
+    fprintf(stderr, "[boot] %s\n", buzz_android_cpu_policy_summary());
+#endif
 
     if (!alloc_guest_vm()) {
         fprintf(stderr, "ERROR: could not allocate the guest address space\n");

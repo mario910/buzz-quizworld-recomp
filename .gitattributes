@@ -1,2 +1,4 @@
 # Unified diff context lines deliberately contain a single space.
 /cmake/BuzzLinuxVulkan.patch -whitespace
+# Shell scripts run on Linux, WSL and Android devices: never CRLF.
+*.sh text eol=lf

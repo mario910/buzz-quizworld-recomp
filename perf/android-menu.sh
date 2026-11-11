@@ -31,7 +31,14 @@ import csv, sys, os
 rows = list(csv.DictReader(open(os.path.join(sys.argv[1], 'frame-times.csv'))))
 win = [r for r in rows if 62000 <= float(r['elapsed_ms']) < 92000]
 iv = sorted(float(r['interval_ms']) for r in win)
-temps = [int(l.split()[1]) for l in open(os.path.join(sys.argv[1], 'buzz-run', 'temps.txt'))]
+rows_t = [l.split() for l in open(os.path.join(sys.argv[1], 'buzz-run', 'temps.txt'))]
+head = rows_t[0][4:] if rows_t and rows_t[0][0] == '#' else []
+rows_t = [r for r in rows_t if r[0] != '#']
+temps = [int(r[1]) for r in rows_t]
+t0 = float(rows_t[0][0]) if rows_t else 0
+inwin = [r for r in rows_t if 62 <= float(r[0]) - t0 <= 92 and len(r) > 3]
+if inwin and head:
+    print('mean frequency in window: ' + ', '.join(f"{name} {sum(int(r[3 + i]) for r in inwin) / len(inwin) / 1e6:.2f} GHz" for i, name in enumerate(head)))
 if win: print(f"menu 62-92 s: {len(win)/30:.2f} FPS, median {iv[len(iv)//2]:.1f} ms, p95 {iv[int(len(iv)*.95)]:.1f} ms; max temp {max(temps)/1000:.1f} C")
 else: print("no frames in window; last elapsed", rows[-1]['elapsed_ms'] if rows else None)
 PY
