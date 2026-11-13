@@ -370,6 +370,13 @@ static int output_option(const char* name, int maximum_value = 1)
     if (!std::strcmp(name, "BUZZ_GEOMETRY_JOB_COMMANDS") || !std::strcmp(name, "BUZZ_GEOMETRY_JOB_COMMAND_PUBLISH") ||
         !std::strcmp(name, "BUZZ_GEOMETRY_JOB_EMIT") || !std::strcmp(name, "BUZZ_GEOMETRY_JOB_FULL_COMMANDS"))
         return commands_group();
+    // BUZZ_GEOMETRY_STAGE_OVERRIDE=1: honor the individual native stage
+    // switches (e.g. BUZZ_GEOMETRY_JOB_BLEND_SCATTER) outside legacy mode.
+    static const bool stage_override = [] {
+        const char* value = std::getenv("BUZZ_GEOMETRY_STAGE_OVERRIDE");
+        return value && value[0] == '1' && !value[1];
+    }();
+    if (stage_override) return raw_output_option(name, maximum_value);
     return 0;
 }
 extern "C" int buzz_geometry_job_publish_enabled()
@@ -1271,10 +1278,15 @@ extern "C" void buzz_geometry_job_replay_case(const char* path)
     replay_case=path;
 }
 
+extern "C" void spurs_job_flush_lazy_zero(void);
+extern "C" void spurs_job_binary_clean_below(uint32_t offset);
 extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn reference,
                                       buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn supports)
 {
     const int mode = buzz_geometry_job_mode();
+    // Staging may defer clearing the output/scratch/stack regions; any
+    // execution of the original code first completes that clear.
+    if (mode != 1) spurs_job_flush_lazy_zero();
     if (!mode) { buzz_geometry_job_audit_run(ctx, reference); return; }
     ++native_attempted;
     // Only JOB1 calls supports/native contiguously on the same context.
@@ -1291,7 +1303,9 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
             ctx->list_stall_mask ? "entry: list stall" : g_spu_trampoline_fn ? "entry: pending trampoline" : "entry: image/pc/debug";
         buzz_geometry_job_fallback_reason(why);
     }
-    if (!entry_ok || !supports(ctx)) { admission_owner=nullptr; ++native_fallback; reference(ctx); return; }
+    if (!entry_ok || !supports(ctx)) {
+        admission_owner=nullptr; ++native_fallback; spurs_job_flush_lazy_zero(); reference(ctx); return;
+    }
     if (mode == 2) {
         if (audit_pair(ctx, reference, native, true)) { ++native_compared; ++native_executed; }
         else ++native_fallback;
@@ -1301,6 +1315,9 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
     // execution. Only paired checking needs to synchronously drain a job.
     native(ctx);
     ++native_executed;
+    // A native image-41 job writes only its globals at 0xE502 and up
+    // (all corpora); the binary below 0xE400 stays intact for the next job.
+    spurs_job_binary_clean_below(0xe400);
 }
 
 extern "C" void buzz_geometry_job_audit_report()

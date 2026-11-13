@@ -241,6 +241,46 @@ Lower `--jobs` if compilation runs out of memory. For interruption/resume,
 reuse the same inputs with `--resume <session-directory>`; see
 [import and resume options](docs/game-import.md). Source inputs are not modified.
 
+For Linux development, `tools/build-linux.py build --native-jobs` opts a
+supported original-disc 1.00 workspace into the hash-checked desktop geometry,
+animation and image adapters. Run it from the preparation session's
+`workspace/`, using the same tool environment as preparation. Optional
+`--renderer-cpu` and `--media-cpu` switches select the renderer CPU paths and
+the pinned video/audio leaves; `--geometry-cpu` selects further geometry
+experiments and requires `--native-jobs`. These are Linux experiments, not a
+promise of Windows performance or stable 30 FPS. Compare frozen binaries and
+inspect menu and round rendering before selecting a profile. The build
+manifest records the selected options. `--zen2-tune` tests `-O3 -mtune=znver2`
+on the runtime and small native host paths, retaining strict floating-point
+options and the existing generated PPU build. `--spurs-input-clear` and
+`--spu-job-return` expose separate staging/completion experiments. All three
+are off by default; passing correctness checks does not establish a speedup.
+`--pgo-profile FILE` additionally consumes a private merged Clang profile for
+scoped runtime/native optimization and requires `--native-jobs`. Omitting it
+explicitly disables PGO; the build manifest records the profile hash when used.
+See [training scope and measured limits](docs/optimization-status.md#steam-deck-runtimenative-profile-guided-optimization).
+`--geometry-zero-padding` additionally requires `--native-jobs` and selects the
+experimental [unindexed vertex alignment policy](docs/geometry-vertex-padding.md).
+It preserves logical vertices/indices but changes unused alignment bytes;
+paired job mode 2 retains the old policy, so qualify mode 1 with the separate
+formatter/output oracle as well. Fresh capture fixtures accept `--sampled`;
+this preserves their numerical/admission checks but does not claim coverage of
+the full fixed-size qualification corpus.
+`--dma-diagnostics-optin` makes the pinned DMA poison logging scan opt-in.
+Set `BUZZ_DMA_POISON_SCAN=1` to restore that diagnostic in such a build.
+DMA copies, validation, coherence and notifications are unchanged. The option
+is off by default; benchmark it independently on the target machine.
+`--geometry-index-cache` selects the content-verified decoded index cache alone
+and requires `--native-jobs`. Complete source bytes and codec tables are checked
+on every lookup; `BUZZ_INDEX_CACHE=0` restores uncached decoding at runtime.
+The cache fixture accepts `--sampled` for smaller private corpora while retaining
+mutation/collision checks; it does not claim full-corpus coverage in that mode.
+`--geometry-scalar-gather` separately tests ordinary indexed loads for culling
+instead of AVX2 gather instructions, preserving the same eight words and strict
+floating-point operations. It requires `--native-jobs` and defaults off.
+Rebuilding a workspace does not
+replace an existing portable `dist/` copy.
+
 ### Manual developer build
 
 This Windows route keeps source/build outputs and uses the native developer

@@ -11,7 +11,7 @@ struct GeometryHostVertexRecipe {
     bool ready = false;
 };
 struct GeometryHostVertexTail {
-    uint32_t position[3]{};
+    uint32_t position[4]{};   // [3] only covers zero-padded 13..15-byte tails
     bool ready = false;
 };
 // Only alignment bytes after the final logical vertex are synthesized. The
@@ -24,7 +24,7 @@ inline bool prepare_geometry_host_zero_vertex_tail(const GeometryHostInputRecipe
     const auto& output=recipe.output;
     const uint64_t logical=uint64_t(input.vertices)*output.stride;
     if(!recipe.ready || !input.vertices || input.vertices>4096 || output.vertices!=input.vertices ||
-       !output.stride || output.stride>64 || output.bytes<logical || output.bytes-logical>12 || (output.bytes&15)) {
+       !output.stride || output.stride>64 || output.bytes<logical || output.bytes-logical>15 || (output.bytes&15)) {
         if(reason)*reason="host zero vertex alignment span";return false;
     }
     result={};result.ready=true;if(reason)*reason=nullptr;return true;
@@ -50,7 +50,9 @@ inline bool read_geometry_host_vertex_recipe(const spu_context& c, const Geometr
     if (position.offset || position.slot || position.storage != 2 || position.components != 3 ||
         input.field[0].semantic != 1 || input.field[0].storage != 2 || input.field[0].components != 3)
         return reject("host vertex publication layout: position");
-    if (output.bytes - output.vertices*output.stride > 12)
+    // At most 15 alignment bytes (16-byte aligned output). The exact tail
+    // helper formats one extra XYZ position and still admits only 12.
+    if (output.bytes - output.vertices*output.stride > 15)
         return reject("host vertex publication layout: padding");
     uint64_t occupied = 0;
     for (unsigned field = 0; field < output.fields; ++field) {
@@ -78,6 +80,8 @@ inline bool prepare_geometry_host_vertex_tail(const spu_context& c, const Geomet
     if (recipe.output.bytes == e.vertices*recipe.output.stride) {
         tail.ready = true; result = tail; if (reason) *reason = nullptr; return true;
     }
+    if (recipe.output.bytes - e.vertices*recipe.output.stride > 12)
+        return reject("host vertex publication layout: padding");
     const uint64_t source = uint64_t(input.field[0].source) + uint64_t(e.vertices)*input.field[0].stride;
     const uint64_t io_end = uint64_t(e.io_lsa)+e.io_bytes;
     if (source < e.io_lsa || source+12 > io_end || io_end > SPU_LS_SIZE)

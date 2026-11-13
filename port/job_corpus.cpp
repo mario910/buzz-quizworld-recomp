@@ -348,10 +348,27 @@ spu_context* g_replay_ctx = nullptr;
 std::vector<uint32_t> g_steps; /* BUZZ_REPLAY_STEPS: the step order of a job */
 bool g_trace_steps = false;
 
+/* BUZZ_REPLAY_DUMP_PC=<hex> (diagnostic): write the complete SPU state
+ * (gpr then LS) the first time the replayed job reaches that PC, to
+ * BUZZ_REPLAY_DUMP_DIR/<job>.pc<hex>.bin. Used to build native preconditions. */
+uint32_t g_dump_pc = 0;
+bool g_dumped = false;
+std::string g_dump_name;
 void replay_step(spu_context* ctx, uint32_t pc)
 {
     buzz_geometry_job_step(ctx, pc);
-    if (ctx == g_replay_ctx) g_steps.push_back(pc);
+    if (ctx == g_replay_ctx) {
+        if (g_trace_steps) g_steps.push_back(pc);
+        if (g_dump_pc && pc == g_dump_pc && !g_dumped) {
+            g_dumped = true;
+            const char* dir = getenv("BUZZ_REPLAY_DUMP_DIR");
+            char hex[16]; snprintf(hex, sizeof hex, "%X", pc);
+            const std::string out = std::string(dir ? dir : ".") + "/" + g_dump_name + ".pc" + hex + ".bin";
+            if (FILE* f = fopen(out.c_str(), "wb")) {
+                fwrite(ctx->gpr, sizeof ctx->gpr, 1, f); fwrite(ctx->ls, SPU_LS_SIZE, 1, f); fclose(f);
+            }
+        }
+    }
 }
 double g_run_seconds[2];  /* culled (one transfer), drawn */
 unsigned g_runs[2];
@@ -410,6 +427,45 @@ std::vector<Seed> seeds_of(const Job& job)
     return seeds;
 }
 
+extern "C" void spurs_job_set_lazy_zero(uint8_t* ls, uint32_t begin, uint32_t end);
+/* BUZZ_REPLAY_POISON_LAZY=1 (validation): fill the range that staging defers
+ * clearing for image 41 with 0xCD and register it as pending, as a pooled lane
+ * holding a previous job's bytes would. Native jobs must not depend on it;
+ * fallbacks clear it first. Same arithmetic as run_spurs_job_context. */
+void replay_poison_lazy(spu_context* ctx, int image)
+{
+    // =1: image 41 (the default lazy image); =<n>: image n (with n listed in
+    // SPURS_JOB_LAZY_ZERO_IMAGES for the run).
+    static const int poison_image = [] {
+        const char* e = getenv("BUZZ_REPLAY_POISON_LAZY");
+        if (!e || !*e) return 0;
+        const int n = atoi(e); return n == 1 ? 41 : n; }();
+    spurs_job_set_lazy_zero(nullptr, 0, 0);
+    if (!poison_image || image != poison_image) return;
+    const uint8_t* ls = ctx->ls;
+    auto be16 = [&](uint32_t a) { return uint32_t(ls[a]) << 8 | ls[a + 1]; };
+    auto be32 = [&](uint32_t a) { return be16(a) << 16 | be16(a + 2); };
+    const uint32_t desc = SPU_LS_SIZE - 0x400, ctxl = desc - 0x40;
+    auto align1k = [](uint32_t v) { return (v + 1023u) & ~1023u; };
+    const uint32_t size_bin = be16(desc + 0x08) << 4, n_dma = be16(desc + 0x0A) / 8u;
+    const uint32_t size_io = be32(desc + 0x14), size_out = be32(desc + 0x18);
+    uint32_t size_stk = be16(desc + 0x1C) << 4; const uint32_t size_scr = be16(desc + 0x1E) << 4;
+    if (!size_stk) size_stk = 8192u; // JOB_STACK_DEFAULT
+    uint32_t p = align1k(size_bin); const uint32_t io = p;
+    p += align1k(size_io); p += align1k(size_out); p += align1k(size_scr + size_stk);
+    if (io != be32(ctxl + 0x00) || p > SPU_LS_SIZE) { fprintf(stderr, "[replay] poison: layout mismatch\n"); return; }
+    uint32_t cur = io;
+    for (uint32_t i = 0; i < n_dma; ++i) {
+        const uint32_t sz = be32(desc + 0x30 + i * 8) & 0x7FFFu, ea = be32(desc + 0x34 + i * 8);
+        if (!sz || !ea) continue;
+        cur += (sz + 15u) & ~15u;
+    }
+    const uint32_t from = cur + 256u < p ? cur + 256u : p;
+    if (from >= p) return;
+    memset(ctx->ls + from, 0xCD, p - from);
+    spurs_job_set_lazy_zero(ctx->ls, from, p);
+}
+
 int replay_job(const std::string& path, const Job& job, const std::vector<Seed>& seeds,
                spu_context* ctx, bool report_input_diffs)
 {
@@ -423,16 +479,31 @@ int replay_job(const std::string& path, const Job& job, const std::vector<Seed>&
     ctx->image_id = job.image;
     memcpy(ctx->gpr, job.entry.data(), sizeof(ctx->gpr));
     memcpy(ctx->ls, job.entry.data() + sizeof(ctx->gpr), SPU_LS_SIZE);
+    replay_poison_lazy(ctx, job.image);
     g_replay.clear();
     g_replay_data.clear();
     g_replay_ctx = ctx;
     g_steps.clear();
-    g_spu_step_observer = g_trace_steps ? replay_step :
+    if (const char* e = getenv("BUZZ_REPLAY_DUMP_PC")) g_dump_pc = (uint32_t)strtoul(e, nullptr, 16);
+    g_dumped = false;
+    g_dump_name = path.substr(path.find_last_of("/\\") + 1);
+    g_spu_step_observer = (g_trace_steps || g_dump_pc) ? replay_step :
         (buzz_geometry_job_audit_enabled() || buzz_geometry_job_mode() == 2 || buzz_animation_job_mode() == 2) ? buzz_geometry_job_step : nullptr;
     double start = seconds_now();
     spurs_job_run_prepared(entry, job.image, ctx);
     const int drawn = job.transfers.size() > 1;
     g_run_seconds[drawn] += seconds_now() - start;
+    { // BUZZ_REPLAY_BINARY_DIRTY=1: lowest binary-area byte the job changed.
+        static const bool on = [] { const char* e = getenv("BUZZ_REPLAY_BINARY_DIRTY"); return e && e[0] == '1'; }();
+        if (on) {
+            const uint8_t* entry_ls = job.entry.data() + sizeof(ctx->gpr);
+            const uint32_t size_bin = (uint32_t(entry_ls[SPU_LS_SIZE - 0x400 + 8]) << 8 | entry_ls[SPU_LS_SIZE - 0x400 + 9]) << 4;
+            uint32_t low = size_bin, high = 0;
+            for (uint32_t i = 0; i < size_bin && i < SPU_LS_SIZE; ++i)
+                if (ctx->ls[i] != entry_ls[i]) { if (i < low) low = i; high = i + 1; }
+            fprintf(stderr, "[binary-dirty] image=%d size=%05X low=%05X high=%05X\n", job.image, size_bin, low, high);
+        }
+    }
     g_runs[drawn]++;
     g_replay_ctx = nullptr;
     g_spu_step_observer = nullptr;
@@ -531,8 +602,14 @@ std::vector<std::string> corpus_files(const std::string& where)
 #else
     DIR* d = opendir(where.c_str());
     if (!d) return {where};
-    while (dirent* e = readdir(d))
-        if (strstr(e->d_name, ".bjc.gz")) files.push_back(where + "/" + e->d_name);
+    while (dirent* e = readdir(d)) {
+        // Capture metadata ends in .bjc.gz.json; it is not a second job.
+        const size_t length = strlen(e->d_name);
+        constexpr size_t suffix_length = sizeof(".bjc.gz") - 1;
+        if (length >= suffix_length &&
+            !strcmp(e->d_name + length - suffix_length, ".bjc.gz"))
+            files.push_back(where + "/" + e->d_name);
+    }
     closedir(d);
 #endif
     return files;

@@ -17,6 +17,10 @@ constexpr Default defaults[] = {
 #define BUZZ_COMMON_DEFAULTS_ONLY
 #endif
 #include "runtime_defaults.inc"
+#ifdef BUZZ_DESKTOP_IMAGE39_NATIVE
+// Deck ABBA 2026-11-13 (bounds + requests + checked FP): heavy menu +2.5%, reveal +3.3%.
+X(SPURS_NATIVE_IMAGE39_FP, "1")
+#endif
 #if defined(BUZZ_SPURS_IDLE_SPIN_US) && BUZZ_SPURS_IDLE_SPIN_US >= 0
 #define BUZZ_SPURS_STRINGIFY_IMPL(value) #value
 #define BUZZ_SPURS_STRINGIFY(value) BUZZ_SPURS_STRINGIFY_IMPL(value)

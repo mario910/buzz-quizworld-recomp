@@ -2183,8 +2183,14 @@ extern "C" int buzz_geometry_job_native_eligible(const spu_context* ctx)
     if (!buzz_geometry_job_legacy_enabled() && (!host_pipeline ||
         !buzz_geometry_job_publication_enabled() || !buzz_geometry_job_commands_enabled())) return 0;
     bool supported=buzz::read_geometry_job_setup(*ctx,prepared_job,&reason,!host_pipeline);
-    if(supported && host_pipeline)
-        supported=buzz::prepare_geometry_host_job(*ctx,prepared_job.entry,worker_host_job(),&reason);
+    if(supported && host_pipeline) {
+        // A blend-stream job runs its original blend on this context during
+        // preparation (reads only); a rejection restores the entry state.
+        buzz::geometry_host_blend_request()={const_cast<spu_context*>(ctx),&prepared_job};
+        { NativePipelineScope scope(const_cast<spu_context*>(ctx));   // native blend stages
+          supported=buzz::prepare_geometry_host_job(*ctx,prepared_job.entry,worker_host_job(),&reason); }
+        buzz::geometry_host_blend_request()={};
+    }
     else if(supported && buzz_geometry_host_output_enabled())
         supported=buzz::read_geometry_host_output_recipe(*ctx,prepared_job.entry,prepared_host_output,&reason);
 #endif
@@ -2210,8 +2216,14 @@ extern "C" void buzz_geometry_job_native_start(spu_context* ctx, const buzz_geom
     if(reuse){setup=prepared_job;if(host)host_output=prepared_host_output;}
     else {
         if(!buzz::read_geometry_job_setup(*ctx,setup,&reason,!host_pipeline))buzz_geometry_job_native_fail(ctx,reason);
-        if(host_pipeline && !buzz::prepare_geometry_host_job(*ctx,setup.entry,worker_host_job(),&reason))
-            buzz_geometry_job_native_fail(ctx,reason);
+        if(host_pipeline) {
+            buzz::geometry_host_blend_request()={ctx,&setup};
+            bool prepared;
+            { NativePipelineScope scope(ctx);   // native blend stages
+              prepared=buzz::prepare_geometry_host_job(*ctx,setup.entry,worker_host_job(),&reason); }
+            buzz::geometry_host_blend_request()={};
+            if(!prepared)buzz_geometry_job_native_fail(ctx,reason);
+        }
         if(host && !buzz::read_geometry_host_output_recipe(*ctx,setup.entry,host_output,&reason))
             buzz_geometry_job_native_fail(ctx,reason);
     }

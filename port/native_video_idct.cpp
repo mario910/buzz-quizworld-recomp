@@ -4,16 +4,21 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <new>
 
 extern "C" void buzz_video_idct_run(spu_context* ctx, void (*reference)(spu_context*), void (*native)(spu_context*))
 {
     static const int mode = [] { const char* s = std::getenv("BUZZ_VIDEO_IDCT"); return s ? std::atoi(s) : 1; }();
     if (!mode) { reference(ctx); return; }
     if (mode != 2) { buzz_spu_scoped_rtz(ctx, native); return; }
-    // Diagnostic mode keeps reference results. Each thread owns its shadow.
-    struct Shadow { spu_context context; };
-    static thread_local Shadow shadow;
-    auto* copy = &shadow.context;
+    // Allocate only in diagnostic mode. A full context in static TLS consumes
+    // about 266 KiB of every Linux pthread's requested stack, including the
+    // 1 MiB SPURS workers, even when comparison is disabled.
+    static thread_local std::unique_ptr<spu_context> shadow;
+    if (!shadow) shadow.reset(new (std::nothrow) spu_context);
+    if (!shadow) { reference(ctx); return; }
+    auto* copy = shadow.get();
     std::memcpy(copy, ctx, sizeof(*copy));
     copy->ls = copy->ls_store;
     std::memcpy(copy->ls, ctx->ls, SPU_LS_SIZE);

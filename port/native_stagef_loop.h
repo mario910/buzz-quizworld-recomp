@@ -23,6 +23,15 @@
  */
 #include <immintrin.h>
 
+static inline long stagef_log_increment(volatile long* counter)
+{
+#ifdef _MSC_VER
+    return _InterlockedIncrement(counter);
+#else
+    return __atomic_add_fetch(counter, 1, __ATOMIC_RELAXED);
+#endif
+}
+
 // Canonical algorithm inputs -> reviewed compiler register allocation. Only
 // vertex-input reads use this map; architectural state is never renumbered.
 static inline unsigned stagef_vertex_reg(unsigned reg)
@@ -152,7 +161,7 @@ static int buzz_stagef_native_loop(spu_context* ctx)
             const uint32_t o0 = out[k], o1 = out[k] + 64u * (uint32_t)groups;
             if (o0 < i1 + 16 && i0 < o1) {
                 static volatile long shown;
-                if (getenv("BUZZ_STAGEF_OVERLAP_LOG") && _InterlockedIncrement(&shown) <= 6)
+                if (getenv("BUZZ_STAGEF_OVERLAP_LOG") && stagef_log_increment(&shown) <= 6)
                     fprintf(stderr, "[stagef] overlap: groups=%d start=%d in=%05X,%05X,%05X,%05X out=%05X,%05X,%05X,%05X\n",
                             groups, start, in[0], in[1], in[2], in[3], out[0], out[1], out[2], out[3]);
                 buzz_stagef_fallback_reason = 3; return 0;

@@ -62,7 +62,9 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial)
 }
 int main()
 {
+#ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);
+#endif
     auto native=std::make_unique<spu_context>(),reference=std::make_unique<spu_context>();
     for(unsigned trial=0;trial<4096;++trial){seed(*native,trial);compare(*native,*reference,trial);}
     const uint32_t bits[]={0,0x80000000,1,0x007fffff,0x00800000,0x3f800000,0xbf800000,0x3f000000,0x7f800000,0xff800000,0x7fc00001,0x7fffffff,0xffffffff,0x12345678,0x89abcdef,0x80000001};

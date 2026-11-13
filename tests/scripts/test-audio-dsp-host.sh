@@ -4,10 +4,16 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 workspace=${1:?Usage: sh tests/scripts/test-audio-dsp-host.sh PREPARED_EU100_WORKSPACE}
 workspace=$(CDPATH='' cd -- "$workspace" && pwd)
+audio_generator_flags=
+audio_compiler_flags=
+if [ "${2:-}" = --x86-rtz ]; then
+    audio_generator_flags=--x86-rtz
+    audio_compiler_flags='-mavx2 -mfma -frounding-math -DBUZZ_AUDIO_TEST_X86_RTZ=1'
+fi
 out=$(mktemp -d)
 trap 'rm -f -- "$out/test" "$out/wrapper" "$out/atrac"; rmdir -- "$out"' EXIT
-python3 "$root/tools/codegen/generate-audio-compressor.py" --workspace "$workspace" --include-mixer --include-atrac
-"${CC:-cc}" -O2 -g -ffp-contract=off -DSPU_LS_DEBUG_HOOKS=0 -DSPU_LS_FAST=1 \
+python3 "$root/tools/codegen/generate-audio-compressor.py" --workspace "$workspace" --include-mixer --include-atrac $audio_generator_flags
+"${CC:-cc}" $audio_compiler_flags -O2 -g -ffp-contract=off -DSPU_LS_DEBUG_HOOKS=0 -DSPU_LS_FAST=1 \
     -fsanitize=address,undefined -I"$workspace/ps3recomp/runtime/spu" -I"$workspace/ps3recomp/include" \
     "$workspace/analysis/native-audio-compressor/kernel.c" \
     "$workspace/analysis/native-audio-compressor/oracle.c" \
@@ -17,7 +23,7 @@ python3 "$root/tools/codegen/generate-audio-compressor.py" --workspace "$workspa
     "$workspace/analysis/native-audio-mixer/baseline.c" \
     "$root/tests/audio-compressor-test.c" -lm -o "$out/test"
 "$out/test"
-"${CC:-cc}" -O2 -g -ffp-contract=off -DSPU_LS_DEBUG_HOOKS=0 -DSPU_LS_FAST=1 \
+"${CC:-cc}" $audio_compiler_flags -O2 -g -ffp-contract=off -DSPU_LS_DEBUG_HOOKS=0 -DSPU_LS_FAST=1 \
     -fsanitize=address,undefined -I"$workspace/ps3recomp/runtime/spu" -I"$workspace/ps3recomp/include" \
     "$workspace/analysis/native-audio-atrac/kernel.c" "$workspace/analysis/native-audio-atrac/oracle.c" \
     "$root/tests/audio-atrac-test.c" -lm -o "$out/atrac"

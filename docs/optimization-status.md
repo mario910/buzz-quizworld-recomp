@@ -24,6 +24,65 @@ menu and Turnip: reference29 19.52 FPS, deferred-clip 19.42 FPS; P95 78.14 versu
 is not achieved by this profile. A faster isolated kernel does not establish
 higher game FPS. Private traces/APKs remain outside Git.
 
+## Steam Deck scoped audio arithmetic experiment
+
+`tools/build-linux.py build --media-cpu --audio-x86-rtz` enables checked native
+single-precision arithmetic only inside the generated audio kernels. It saves
+and restores MXCSR around each kernel, retains exact exceptional-value repair,
+and leaves channel operations and the rest of each SPU image unchanged. It is
+OFF by default and requires the AVX2/FMA native profile. CMake rejects a mismatch
+between the generated kernels and `BUZZ_AUDIO_X86_RTZ`; the definitions must be
+set before the forced helper-header include.
+
+The x86 qualification includes 8,800 complete-state synthetic comparisons,
+address/undefined-behavior sanitizer checks, caller FP-state restoration and
+176 live comparisons across all 11 kernels. Microbenchmarks improve over the
+existing localized software-arithmetic kernels. On the Steam Deck, two matched
+menu pairs reduced CPU time per frame from 165.80 to 160.78 ms (3.0%), while
+mean FPS changed only from 24.83 to 24.92 (0.35%). That FPS difference is too
+small to establish a meaningful improvement. One capped comparison improved from 22.87 to 23.22 FPS and reduced CPU time
+per frame from 174.89 to 167.58 ms; this is still well below the 30 FPS target. These checks do not establish stable 30 FPS or full gameplay
+qualification. Run `tests/scripts/test-audio-dsp-host.sh WORKSPACE --x86-rtz` and
+`tests/scripts/test-audio-x86-includes.py WORKSPACE` against a private prepared
+workspace. The local Steam Deck optimized rebuild profile enables this option
+after a clean 310-second run reached a scored answer and the normal rebuild
+reproduced the tested executable exactly. Omit `--audio-x86-rtz` on the next
+build to restore the default path.
+
+## Steam Deck runtime/native profile-guided optimization
+
+`tools/build-linux.py build --native-jobs --pgo-profile FILE` consumes a private
+merged Clang instrumentation profile for the runtime and selected native job
+translation units. The normal build explicitly sets PGO to OFF when this argument
+is omitted, clearing any previous training/use configuration. The build manifest
+records the profile SHA-256. Large generated PPU/SPU translation units keep their
+existing compilation policy, and strict FP, native result repairs and job
+synchronization remain enabled.
+
+The optional `BUZZ_PGO_MODE=GENERATE` CMake configuration uses IR instrumentation
+with atomic counters. Training profiles remain private. The Linux close path
+explicitly writes the profile before `_Exit`; USE/OFF builds omit that hook and
+the instrumentation runtime. Training slows execution and is not FPS evidence.
+The local profile covers the animated menu, player setup, studio introduction
+and an active timed question. A compiler/source change requires requalification;
+a profile hash alone does not establish performance or compatibility.
+
+Two matched candidate/control pairs at 1280x720 and 100% render scale improved
+uncapped mean FPS from 25.28 to 27.50 (+8.8%), CPU time per frame from 158.76 to
+143.19 ms (-9.8%), and p99 frame time from 67.94 to 63.17 ms. One valid capped
+pair improved mean FPS from 22.20 to 23.67 (+6.6%) and p99 from 71.14 to 66.60 ms.
+An earlier capped control stalled before the measurement window and is excluded;
+its logs are retained. These results remain below stable 30 FPS and do not prove
+steady gameplay performance. All 512 captured current-policy jobs replayed
+exactly; a live paired run checked 89,932 geometry and 17,462 animation jobs
+with zero failures and no reported video/audio mismatch.
+The normal Linux rebuild reproduced the benchmarked executable byte-for-byte.
+A separate capped 370-second diagnostic run reached timed questions and result
+screens, exited cleanly, and recorded zero native failures; its score remained
+zero, so this is not evidence of a successful scored answer or clean gameplay
+FPS. The local Deck rebuild profile selects the tested PGO profile with the
+previous executable backed up.
+
 ## Shared retained changes (no separate opt-in switch)
 
 These run when their enclosing backend/native path is available. Unsupported
@@ -186,6 +245,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_COARSE_CLIP` | `OFF` | Reject offscreen geometry jobs and admit bounded native projection ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_LAZY_ATTRIBUTES` | `OFF` | Defer rigid geometry attributes until triangles survive culling ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_BATCHED` | `OFF` | Eight-lane packed geometry delta decoding ([source](../port/CMakeLists.txt)) |
+| `BUZZ_GEOMETRY_SCALAR_GATHER` | `OFF` | Use ordinary indexed loads for geometry culling ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_CACHE` | `OFF` | Content-verified cache of decoded geometry indices ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_HOST_COMMANDS` | `OFF` | Build and publish geometry command packets with host integer control ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_ZERO_VERTEX_PADDING` | `OFF` | Zero unindexed vertex alignment bytes instead of evaluating a padding vertex ([source](../port/CMakeLists.txt)) |
@@ -195,10 +255,13 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_SPU_OPT` | `-O2` | Optimization level of the lifted SPU TUs ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_JOB_PROFILE` | `eu100-vulkan-native-v1` | Identity of the reviewed disc native runtime profile ([source](../port/CMakeLists.txt)) |
 | `PORT_ANIMATION_JOB_DEFAULT` | `empty` | Animation job mode override: empty inherits profile, 0 retained, 1 native, 2 compare ([source](../port/CMakeLists.txt)) |
+| `BUZZ_AUDIO_X86_RTZ` | `OFF` | Use generated scoped checked x86 audio kernels ([source](../cmake/BuzzAudioX86Rtz.cmake)) |
+| `BUZZ_DMA_DIAGNOSTICS_OPTIN` | `OFF` | Make the DMA poison logging scan opt-in ([source](../cmake/BuzzDmaDiagnostics.cmake)) |
 | `BUZZ_RSX_METHOD_FASTPATH` | `OFF` | Experimental compact FIFO method dispatch loop ([source](../cmake/BuzzFifoMethods.cmake)) |
 | `BUZZ_RSX_PARK_WAKE` | `OFF` | Wake RSX when DMA replaces its observed parked jump ([source](../cmake/BuzzFifoParkWake.cmake)) |
 | `BUZZ_RSX_READY_CHECK` | `OFF` | Avoid sleeping when a completed FIFO drain has new work ([source](../cmake/BuzzFifoReady.cmake)) |
 | `BUZZ_IMAGE39_NATIVE_BOUNDS` | `OFF` | Use the admitted EU100 host object-bounds driver ([source](../cmake/BuzzImage39Bounds.cmake)) |
+| `BUZZ_PGO_MODE` | `OFF` | Scoped runtime/native PGO: OFF, GENERATE, USE ([source](../cmake/BuzzPgo.cmake)) |
 | `BUZZ_PPU_WORD_WAIT` | `OFF` | Experimental portable DMA notification for registered PPU busy-word waits ([source](../cmake/BuzzPpuWordWait.cmake)) |
 | `BUZZ_PPU_WORD_WAIT_TRACE` | `OFF` | Diagnostic PPU wait and exact-word DMA timeline ([source](../cmake/BuzzPpuWordWait.cmake)) |
 | `BUZZ_RENDERER_CONSTANT_RANGES` | `OFF` | Clear only previously active shader constants ([source](../cmake/BuzzRendererConstantRanges.cmake)) |
@@ -218,6 +281,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_PRODUCER_DEPENDENCY_TRACE` | `OFF` | Trace DMA publications and FIFO park addresses (diagnostics only) ([source](../cmake/BuzzRendererWait.cmake)) |
 | `BUZZ_SPU_JOB_RETURN` | `OFF` | Complete admitted SPURS job-manager returns on the native driver stack ([source](../cmake/BuzzSpuJobReturn.cmake)) |
 | `BUZZ_SPURS_EXECUTION_TRACE` | `OFF` | Diagnostic SPURS execution CPU counters and native-thread channel waits ([source](../cmake/BuzzSpursExecutionTrace.cmake)) |
+| `BUZZ_SPURS_INPUT_CLEAR` | `OFF` | Skip clearing SPURS input bytes immediately overwritten by staging ([source](../cmake/BuzzSpursInputClear.cmake)) |
 | `BUZZ_SPURS_POOL_LAYOUT` | `OFF` | Separate SPURS polling and bookkeeping cache lines ([source](../cmake/BuzzSpursPoolLayout.cmake)) |
 | `BUZZ_SPURS_POOL_AUTO_SPIN_US` | `-1` | Automatic SPURS worker poll on 12+ logical CPUs (-1: SDK policy, 0..1000 us) ([source](../cmake/BuzzSpursPoolSpin.cmake)) |
 | `BUZZ_SPURS_IDLE_SPIN_US` | `-1` | Experimental SPURS idle polling in microseconds (-1: SDK policy, 0..1000: override) ([source](../cmake/BuzzSpursWaits.cmake)) |
@@ -227,6 +291,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_VK_UNIFORM_REUSE` | `OFF` | Reuse identical immutable constants within a draw batch ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_VK_DRAW_STATE` | `OFF` | Reuse exact draw state within one render pass ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_WINDOWS_TIMER_REUSE` | `OFF` | Experimental reusable high-resolution syscall timer ([source](../cmake/BuzzWindowsTimer.cmake)) |
+| `BUZZ_ZEN2_TUNE` | `OFF` | Tune Linux x86-64 runtime and native host paths for Zen 2 with -O3 ([source](../cmake/BuzzZen2Tune.cmake)) |
 
 ## Android properties
 

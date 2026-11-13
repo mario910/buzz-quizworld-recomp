@@ -83,7 +83,8 @@ static void compare_zero_padding(const spu_context& entry,spu_context& reference
     ++jobs;logical_bytes+=logical;padding_bytes+=recipe.output.bytes-logical;padded_jobs+=recipe.output.bytes!=logical;
 }
 static void report_zero_padding() {
-    assert(jobs>=7167 && new_tail_admissions>=632 && full_new_admissions>0 && changed_padding_bytes>0);
+    assert((sampled_corpus ? (jobs>0 && new_tail_admissions>0) :
+        (jobs>=7167 && new_tail_admissions>=632)) && full_new_admissions>0 && changed_padding_bytes>0);
     printf("PASS zero vertex alignment: %u visible jobs, %llu exact logical vertex bytes, %llu zero padding bytes, %u padded jobs, %u prior tail-only rejects admitted; guarded ends and nine layout rejects\n",
         jobs,(unsigned long long)logical_bytes,(unsigned long long)padding_bytes,padded_jobs,new_tail_admissions);
     printf("PASS full zero-padding producer: %u original index/logical-vertex outputs, %u newly admitted; no architectural writes; differences confined to %llu unindexed alignment bytes\n",full_jobs,full_new_admissions,(unsigned long long)changed_padding_bytes);

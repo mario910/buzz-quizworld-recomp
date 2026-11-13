@@ -31,6 +31,7 @@
 /* The lifter's generated header, which declares ppu_context and the function
  * table. It comes first: everything below is written against that struct. */
 #include <chrono>
+#include <cstdlib>
 #include "vblank_clock.h"
 #include <filesystem>
 #include <thread>
@@ -125,6 +126,7 @@ static LONG WINAPI buzz_crash_report(EXCEPTION_POINTERS* exception)
 #include <sys/file.h>
 #include <unistd.h>
 #include <sys/mman.h>   /* mmap: the guest arena, see alloc_guest_vm */
+#include <sys/prctl.h>
 #endif
 
 #ifdef _WIN32
@@ -424,6 +426,31 @@ static BOOL CALLBACK set_game_window_icon(HWND window, LPARAM icon)
 }
 #endif
 
+#if defined(BUZZ_PGO_GENERATE)
+extern "C" int __llvm_profile_write_file(void);
+#endif
+
+static void exit_closed_window()
+{
+    fprintf(stderr, "[host] Game window closed; exiting experimental process.\n");
+#if defined(__linux__) && !defined(__ANDROID__)
+    // Guest/SPURS workers still own global storage. Running C++ static
+    // destructors here races their live vectors (notably the paired job
+    // recorder). Until workers can be joined, end the process without
+    // destroying that storage. Preserve buffered logs and frame timings.
+    fflush(nullptr);
+#if defined(BUZZ_PGO_GENERATE)
+    // _Exit bypasses the profile runtime atexit handler. Workers remain live;
+    // their instrumentation counters use atomic updates in training builds.
+    if (__llvm_profile_write_file() != 0)
+        fprintf(stderr, "[pgo] Failed to write training profile.\n");
+#endif
+    std::_Exit(0);
+#else
+    exit(0);
+#endif
+}
+
 static DWORD WINAPI frame_clock(LPVOID)
 {
     SetThreadDescription(GetCurrentThread(), L"RSX worker (FIFO + renderer)");
@@ -544,8 +571,7 @@ static DWORD WINAPI frame_clock(LPVOID)
          * frame under the menu. Ticks are not caught up afterwards. */
         if (rsx_ok && ps3_host_get_paused()) {
             if (rsx_backend_pump() != 0) {
-                fprintf(stderr,"[host] Game window closed; exiting experimental process.\n");
-                exit(0);
+                exit_closed_window();
             }
             rsx_backend_redisplay();
             Sleep(16);
@@ -638,8 +664,7 @@ static DWORD WINAPI frame_clock(LPVOID)
                  * the entire PPU/SPURS workload alive invisibly. Match the
                  * runner's existing sys_process_exit lifetime: closing this
                  * experimental host window ends this process as well. */
-                fprintf(stderr,"[host] Game window closed; exiting experimental process.\n");
-                exit(0);
+                exit_closed_window();
             }
             /* Present on a guest flip. A present on a fixed clock can catch the
              * drain mid-frame and flash a partial one. Before the first flip
@@ -867,6 +892,12 @@ int main(int argc, char** argv)
     /* Configure streams before their first use. Buffers must outlive all
      * guest/worker threads, including normal exit's final flush. A forced
      * kill may lose the tail; live crash debugging can opt out explicitly. */
+#if defined(__linux__) && !defined(__ANDROID__)
+    /* BUZZ_TIMER_SLACK_NS: timer slack for every thread created from here
+     * (inherited). Guest polls such as usleep(15) otherwise sleep ~65 us. */
+    if (const char* slack = getenv("BUZZ_TIMER_SLACK_NS"); slack && *slack)
+        prctl(PR_SET_TIMERSLACK, strtoul(slack, nullptr, 10), 0, 0, 0);
+#endif
     static char stdout_buffer[64 * 1024];
     static char stderr_buffer[64 * 1024];
     const char* unbuffered = getenv("BUZZ_UNBUFFERED_LOG");

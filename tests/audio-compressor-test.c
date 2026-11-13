@@ -1,5 +1,8 @@
 #define _GNU_SOURCE
 #include "spu_context.h"
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+#include <immintrin.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,7 +126,15 @@ int main(int argc, char** argv) {
 #ifdef __ANDROID__
             const buzz_arm_fp_state before_fp = buzz_arm_fp_save();
 #endif
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+            const unsigned before_mxcsr = 0x1f80u | ((n & 3) << 13) | ((n & 4) ? 0x8040u : 0u) | (n & 31);
+            _mm_setcsr(before_mxcsr);
+#endif
             local(&candidate);
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+            if (candidate.ls == candidate.ls_store && _mm_getcsr() != before_mxcsr) abort();
+            _mm_setcsr(0x1f80u);
+#endif
 #ifdef __ANDROID__
             const buzz_arm_fp_state after_fp = buzz_arm_fp_save();
             if (before_fp.fpcr != after_fp.fpcr || before_fp.fpsr != after_fp.fpsr) {

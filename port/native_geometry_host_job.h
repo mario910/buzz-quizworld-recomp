@@ -6,8 +6,18 @@
 #include "native_geometry_host_index_output.h"
 #include "native_geometry_coarse_clip.h"
 #include "native_geometry_job.h"
+#include "native_geometry_host_blend.h"
 
 namespace buzz {
+// Set by the eligibility caller for the duration of one preparation: the
+// mutable job context and setup that a blend-stream job needs. Other callers
+// leave it null and blend jobs keep the whole lifted flow.
+struct GeometryHostBlendRequest { spu_context* context = nullptr; const GeometryJobSetup* setup = nullptr; };
+inline GeometryHostBlendRequest& geometry_host_blend_request()
+{
+    static thread_local GeometryHostBlendRequest request;
+    return request;
+}
 struct GeometryHostJobWorkspace {
     GeometryHostInputData data;
     GeometryHostSkinWorkspace skin_workspace;
@@ -28,17 +38,32 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
     w.ready=false;
     w.bounded_projection=false;
     // The outer driver can fetch additional weighted blend streams after
-    // ordinary attributes. Those jobs need the complete lifted flow until
-    // their host data operation is supported; the base streams alone are
-    // not the job's input, even when its primary descriptor is recognized.
-    if (geometry_job_be32(e.user.data()+8)&0xffff) {
+    // ordinary attributes (native_geometry_host_blend.h). Without a mutable
+    // context from the eligibility caller they keep the complete lifted flow.
+    const bool blend=(geometry_job_be32(e.user.data()+8)&0xffff)!=0;
+    const GeometryHostBlendRequest request=geometry_host_blend_request();
+    if (blend && (!request.context || request.context!=&c || !request.setup)) {
         if(reason)*reason="host job additional blend streams";return false;
     }
     if (!read_geometry_host_input_recipe(c,e,w.input,reason) ||
         !read_geometry_host_vertex_recipe(c,e,w.input,w.vertices,reason) ||
         !read_geometry_host_skin_recipe(c,e,w.input,w.skin,reason)) return false;
-    const bool deferred=LazyAttributes && !w.skin.active;
-    if(deferred) {
+    const bool deferred=LazyAttributes && !w.skin.active && !blend;
+    if(blend && !admit_geometry_host_blend(*request.setup,w.input,reason))return false;
+    // The original fills vertex alignment bytes from an extra formatted
+    // position of its blended, renormalized tables. Under the zero-padding
+    // policy (only unindexed alignment bytes, see geometry-vertex-padding.md)
+    // those bytes are zero for every job; otherwise blend jobs with alignment
+    // bytes keep the lift. Decided from the recipe, before any blend transfer.
+    if(blend && !ZeroVertexPadding &&
+       w.vertices.output.bytes!=w.vertices.output.vertices*w.vertices.output.stride) {
+        if(reason)*reason="host blend vertex padding";return false;
+    }
+    if(blend) {
+        if(!capture_geometry_host_inputs(c,w.input,w.data,reason))return false;
+        if(!run_geometry_host_blend(*request.context,*request.setup,w.input,w.data,reason) ||
+           !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason))return false;
+    } else if(deferred) {
         if(!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,w.input,w.data,reason) ||
            !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,e,w.input,w.data,w.skin_workspace,reason))return false;
     } else if(!capture_geometry_host_inputs(c,w.input,w.data,reason) ||
@@ -84,6 +109,7 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
         end+(w.indices.triangles?w.vertices.output.bytes:0)>io_end || io_end>SPU_LS_SIZE) {
         if(reason)*reason="host job final publication span";return false;
     }
+
     w.ready=true;if(reason)*reason=nullptr;return true;
 }
 inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntry& e,

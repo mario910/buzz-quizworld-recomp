@@ -14,6 +14,9 @@
 using namespace buzz;
 static void drain(spu_context*, uint32_t);
 static std::string current_case;
+// Fresh device captures can exercise the oracle without pretending to be the
+// complete, fixed-size qualification corpus. Numerical/admission checks stay on.
+static bool sampled_corpus;
 static uint32_t original_cull[5];static bool observed_cull;
 static void observe_original_cull(spu_context* c,unsigned pc)
 {
@@ -51,7 +54,9 @@ static void drain(spu_context* c, uint32_t stop)
 }
 int main(int argc, char** argv)
 {
-    assert(argc == 2);
+    assert(argc == 2 || (argc == 3 && !strcmp(argv[2], "--sampled")));
+    sampled_corpus = argc == 3;
+    if (sampled_corpus) puts("SAMPLED corpus: full-corpus inventory coverage is not claimed");
 #ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
@@ -205,7 +210,7 @@ int main(int argc, char** argv)
     const uint64_t corpus_clip_values = clip_values;
     const uint64_t corpus_kept_indices=kept_indices,corpus_padding_bytes=padding_bytes,corpus_nonzero_padding=nonzero_padding,
         corpus_equal_index=padding_equal_index,corpus_equal_entry=padding_equal_entry;const unsigned corpus_fully_culled=fully_culled;
-    assert(jobs == 19508 && skinned && have_weighted && have_object);
+    assert((sampled_corpus ? jobs > 0 : jobs == 19508) && skinned && have_weighted && have_object);
     constexpr uint32_t special[] = {0,0x80000000,1,0x007fffff,0x00800000,0x3f800000,0xbf800000,0x7f7fffff,
         0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff,0x7fc12345,0x3f000000,0xbf000000};
     uint64_t corner_values = 0;
@@ -345,7 +350,8 @@ int main(int argc, char** argv)
         assert(!indices->ready&&!memcmp(before.get(),entry.get(),sizeof(*entry)));
         assert(!memcmp(indices->component,index_before->component,sizeof indices->component)&&indices->triangles==index_before->triangles&&indices->maximum_index==index_before->maximum_index&&indices->final_group_kept==index_before->final_group_kept);
     }
-    assert(captured==19399 && jobs==19508 && fallback.size()==1);
+    assert(sampled_corpus ? (captured > 0 && captured <= jobs) :
+        (captured==19399 && jobs==19508 && fallback.size()==1));
     for(const auto& [mode,count]:modes)printf("Observed cull mode%u:%u jobs\n",mode,count);
     printf("PASS host cull composed pipeline:%u jobs/%llu kept indices/%u fully culled;stable order;8 exact mask-FNMS truth cases\n",captured,
         static_cast<unsigned long long>(corpus_kept_indices),corpus_fully_culled);

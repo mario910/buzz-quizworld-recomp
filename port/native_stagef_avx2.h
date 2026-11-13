@@ -139,8 +139,16 @@ static inline v8 v8_frsqest(v8 a)
     v8 rexp = _mm256_sub_epi32(v8_set(190), _mm256_srli_epi32(_mm256_add_epi32(e, v8_set(1)), 1));
     rexp = _mm256_blendv_epi8(rexp, v8_set(255), _mm256_cmpeq_epi32(e, _mm256_setzero_si256()));
     const v8 idx = _mm256_and_si256(_mm256_srli_epi32(a, 18), v8_set(0x3F));
+#if defined(__aarch64__)
     const v8 frac = _mm256_and_si256(_mm256_i32gather_epi32((const int*)spu_frsqest_fraction_lut, idx, 4),
                                      v8_set(0x7FFFFF));
+#else
+    /* Same 64 words as the gather, from registers (Zen 2 gathers are slow). */
+    const v8 bit32 = _mm256_srai_epi32(_mm256_slli_epi32(idx, 26), 31);
+    const v8 frac = _mm256_and_si256(_mm256_blendv_epi8(v8_lookup32(spu_frsqest_fraction_lut, idx),
+                                                        v8_lookup32(spu_frsqest_fraction_lut + 32, idx), bit32),
+                                     v8_set(0x7FFFFF));
+#endif
     return _mm256_or_si256(_mm256_slli_epi32(_mm256_and_si256(rexp, v8_set(0xFF)), 23), frac);
 }
 /* fi: the SSE4.1 formula of spu_helpers.h, eight lanes */

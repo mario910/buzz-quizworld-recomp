@@ -7,7 +7,8 @@
 #include <cstdio>
 using namespace buzz;
 int main(int argc,char** argv) {
-    assert(argc==2);
+    const bool sampled=argc==3 && !strcmp(argv[2],"--sampled");
+    assert(argc==2 || sampled);
     auto c=std::make_unique<spu_context>();
     auto expected=std::make_unique<GeometryHostIndexData>();
     auto actual=std::make_unique<GeometryHostIndexData>();
@@ -70,8 +71,10 @@ int main(int argc,char** argv) {
         auto malformed=e;malformed.io_bytes=UINT32_MAX;assert(!compare(malformed));assert(compare(e));++mutations;
         malformed=e;malformed.index_count=4;assert(!compare(malformed));assert(compare(e));++mutations;
     }
-    assert(jobs==19508 && admitted);
-    assert(collision_sets==32 && collisions==448);
+    assert((sampled ? jobs>0 : jobs==19508) && admitted);
+    assert(sampled ? (collision_sets>0 && collisions==14*collision_sets) :
+                     (collision_sets==32 && collisions==448));
+    if(sampled) puts("SAMPLED corpus: full-corpus inventory coverage is not claimed");
     printf("Geometry index cache: %u corpus jobs, %u admitted, %u mutations; cold/warm/poisoned outputs PASS\n",jobs,admitted,mutations);
     printf("Geometry index cache: %u same-fingerprint sets, %u valid payload variants/evictions PASS\n",collision_sets,collisions);
 }

@@ -120,9 +120,14 @@ void native(spu_context* ctx)
 }
 #endif
 
+extern "C" void spurs_job_flush_lazy_zero(void);
+extern "C" void spurs_job_binary_clean_below(uint32_t offset);
 extern "C" void buzz_animation_job_run(spu_context* ctx,void (*reference)(spu_context*))
 {
     const int mode=buzz_animation_job_mode();
+    // Staging may defer clearing the output/scratch/stack regions; any
+    // execution of the original code first completes that clear.
+    if(mode!=1)spurs_job_flush_lazy_zero();
     if(!mode){reference(ctx);return;}
     ++attempted;
 #if BUZZ_ANIMATION_JOB_AVAILABLE
@@ -142,6 +147,8 @@ extern "C" void buzz_animation_job_run(spu_context* ctx,void (*reference)(spu_co
         }
         if(prepare(ctx)){
             native(ctx);
+            // The native image-40 job never writes its binary area (corpus).
+            spurs_job_binary_clean_below(0xffffffffu);
             const auto n=++executed;
             if(n==256 || n%5000==0)std::fprintf(stderr,"[animation-job/host-pipeline] native %llu (owner count)\n",n);
             return;
@@ -149,6 +156,7 @@ extern "C" void buzz_animation_job_run(spu_context* ctx,void (*reference)(spu_co
     }
 #endif
     ++fallback;
+    spurs_job_flush_lazy_zero();
     reference(ctx);
 }
 namespace {

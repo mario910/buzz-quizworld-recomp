@@ -16,7 +16,47 @@ struct GeometryHostSkinWorkspace {
     alignas(16) uint32_t object[12];
     // Original packed palette words, little-endian and ready for AVX2 gather.
     alignas(32) uint32_t coefficient[12][256];
+    // The same words matrix-major (12 used of 16): one row load per lane
+    // replaces a gather per coefficient on x86 (Zen 2 gathers are microcoded).
+    alignas(32) uint32_t row[256][16];
 };
+#if defined(__AVX2__) && !defined(__aarch64__)
+#define BUZZ_GEOMETRY_SKIN_ROWS 1
+// out[c] lane l = row[lane_index[l]][c]: the exact words
+// _mm256_i32gather_epi32(coefficient[c], index, 4) returns.
+inline void geometry_skin_rows8(const uint32_t (*row)[16], const uint32_t* lane_index, v8* out)
+{
+    __m256 r[8]; __m128 h[8];
+    for (unsigned l = 0; l < 8; ++l) {
+        const float* at = reinterpret_cast<const float*>(row[lane_index[l]]);
+        r[l] = _mm256_load_ps(at); h[l] = _mm_load_ps(at + 8);
+    }
+    const __m256 t0=_mm256_unpacklo_ps(r[0],r[1]), t1=_mm256_unpackhi_ps(r[0],r[1]);
+    const __m256 t2=_mm256_unpacklo_ps(r[2],r[3]), t3=_mm256_unpackhi_ps(r[2],r[3]);
+    const __m256 t4=_mm256_unpacklo_ps(r[4],r[5]), t5=_mm256_unpackhi_ps(r[4],r[5]);
+    const __m256 t6=_mm256_unpacklo_ps(r[6],r[7]), t7=_mm256_unpackhi_ps(r[6],r[7]);
+    const __m256 s0=_mm256_shuffle_ps(t0,t2,_MM_SHUFFLE(1,0,1,0)), s1=_mm256_shuffle_ps(t0,t2,_MM_SHUFFLE(3,2,3,2));
+    const __m256 s2=_mm256_shuffle_ps(t1,t3,_MM_SHUFFLE(1,0,1,0)), s3=_mm256_shuffle_ps(t1,t3,_MM_SHUFFLE(3,2,3,2));
+    const __m256 s4=_mm256_shuffle_ps(t4,t6,_MM_SHUFFLE(1,0,1,0)), s5=_mm256_shuffle_ps(t4,t6,_MM_SHUFFLE(3,2,3,2));
+    const __m256 s6=_mm256_shuffle_ps(t5,t7,_MM_SHUFFLE(1,0,1,0)), s7=_mm256_shuffle_ps(t5,t7,_MM_SHUFFLE(3,2,3,2));
+    out[0]=_mm256_castps_si256(_mm256_permute2f128_ps(s0,s4,0x20));
+    out[1]=_mm256_castps_si256(_mm256_permute2f128_ps(s1,s5,0x20));
+    out[2]=_mm256_castps_si256(_mm256_permute2f128_ps(s2,s6,0x20));
+    out[3]=_mm256_castps_si256(_mm256_permute2f128_ps(s3,s7,0x20));
+    out[4]=_mm256_castps_si256(_mm256_permute2f128_ps(s0,s4,0x31));
+    out[5]=_mm256_castps_si256(_mm256_permute2f128_ps(s1,s5,0x31));
+    out[6]=_mm256_castps_si256(_mm256_permute2f128_ps(s2,s6,0x31));
+    out[7]=_mm256_castps_si256(_mm256_permute2f128_ps(s3,s7,0x31));
+    __m256 y[4];
+    for (unsigned k = 0; k < 4; ++k) y[k] = _mm256_insertf128_ps(_mm256_castps128_ps256(h[k]), h[k + 4], 1);
+    const __m256 u0=_mm256_unpacklo_ps(y[0],y[1]), u1=_mm256_unpackhi_ps(y[0],y[1]);
+    const __m256 u2=_mm256_unpacklo_ps(y[2],y[3]), u3=_mm256_unpackhi_ps(y[2],y[3]);
+    out[8]=_mm256_castps_si256(_mm256_shuffle_ps(u0,u2,_MM_SHUFFLE(1,0,1,0)));
+    out[9]=_mm256_castps_si256(_mm256_shuffle_ps(u0,u2,_MM_SHUFFLE(3,2,3,2)));
+    out[10]=_mm256_castps_si256(_mm256_shuffle_ps(u1,u3,_MM_SHUFFLE(1,0,1,0)));
+    out[11]=_mm256_castps_si256(_mm256_shuffle_ps(u1,u3,_MM_SHUFFLE(3,2,3,2)));
+}
+#endif
 inline bool geometry_host_skin_codec_matches(const spu_context& c, bool object)
 {
     struct Quad { unsigned at, modes; uint32_t word[4]; };
@@ -190,6 +230,7 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
             const auto word=geometry_job_be32(c.ls + recipe.palette + matrix * 48 + coefficient * 4);
             workspace.coefficient[coefficient][matrix]=word;
+            workspace.row[matrix][coefficient]=word;
             if constexpr(Bounded) if((word&0x7fffffff)>largest_palette)largest_palette=word&0x7fffffff;
         }
     const bool bounded_palette=Bounded && largest_palette<=0x4e800000;
@@ -215,20 +256,28 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
             contributes[influence] = _mm256_movemask_ps(_mm256_castsi256_ps(v8_nonzero(factor[influence]))) != 0;
         }
         v8 blended[12];
+#if BUZZ_GEOMETRY_SKIN_ROWS
+        v8 fetched[4][12];
+        for (unsigned influence = 0; influence < 4; ++influence)
+            if (contributes[influence]) geometry_skin_rows8(workspace.row, indices[influence], fetched[influence]);
+#define BUZZ_SKIN_FETCH(influence, coefficient, source) fetched[influence][coefficient]
+#else
+#define BUZZ_SKIN_FETCH(influence, coefficient, source) _mm256_i32gather_epi32(source, index[influence], 4)
+#endif
         auto run=[&](auto tag) {
         constexpr bool Fast=decltype(tag)::value;
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
-            const auto* source = reinterpret_cast<const int*>(workspace.coefficient[coefficient]);
+            const auto* source = reinterpret_cast<const int*>(workspace.coefficient[coefficient]); (void)source;
             // Validate every index above even for zero weights. A wholly zero
             // influence has exact SPU product +0; FMA(+0, x, blended) preserves
             // the already canonical SPU accumulator, including extended x.
             blended[coefficient] = contributes[0]
-                ? (Fast ? geometry_bounded_mul(factor[0], _mm256_i32gather_epi32(source, index[0], 4))
-                        : v8_fm(factor[0], _mm256_i32gather_epi32(source, index[0], 4))) : _mm256_setzero_si256();
+                ? (Fast ? geometry_bounded_mul(factor[0], BUZZ_SKIN_FETCH(0, coefficient, source))
+                        : v8_fm(factor[0], BUZZ_SKIN_FETCH(0, coefficient, source))) : _mm256_setzero_si256();
             for (unsigned influence = 1; influence < 4; ++influence) if (contributes[influence])
                 blended[coefficient] = Fast
-                    ? geometry_bounded_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient])
-                    : v8_fma(factor[influence], _mm256_i32gather_epi32(source, index[influence], 4), blended[coefficient]);
+                    ? geometry_bounded_fma(factor[influence], BUZZ_SKIN_FETCH(influence, coefficient, source), blended[coefficient])
+                    : v8_fma(factor[influence], BUZZ_SKIN_FETCH(influence, coefficient, source), blended[coefficient]);
         }
         const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
         transform_geometry_host_weighted_value<Fast>(data.at(input, recipe.field[0], first / 8),blended,true,mask);
@@ -238,6 +287,7 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
         if constexpr(Bounded) {
             if(bounded_palette)run(std::true_type{});else run(std::false_type{});
         } else run(std::false_type{});
+#undef BUZZ_SKIN_FETCH
     }
     data.ready = true; if (reason) *reason = nullptr; return true;
 }

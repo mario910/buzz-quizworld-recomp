@@ -1,6 +1,9 @@
 /* Full-state gate for the two pinned ATRAC blocks, not an audio-codec replacement. */
 #define _GNU_SOURCE
 #include "spu_context.h"
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+#include <immintrin.h>
+#endif
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,7 +75,15 @@ int main(void)
         buzz_arm_fp_restore(selected);
         const buzz_arm_fp_state before=buzz_arm_fp_save();
 #endif
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+            const unsigned before_mxcsr = 0x1f80u | ((n & 3) << 13) | ((n & 4) ? 0x8040u : 0u) | (n & 31);
+            _mm_setcsr(before_mxcsr);
+#endif
         g_spu_trampoline_fn=NULL;native[entry](&candidate);
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+            if (candidate.ls == candidate.ls_store && _mm_getcsr() != before_mxcsr) abort();
+            _mm_setcsr(0x1f80u);
+#endif
 #ifdef __aarch64__
         const buzz_arm_fp_state after=buzz_arm_fp_save();
         assert(before.fpcr==after.fpcr&&before.fpsr==after.fpsr);

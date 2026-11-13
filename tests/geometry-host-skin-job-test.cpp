@@ -39,7 +39,12 @@ static void drain(spu_context* c, uint32_t stop)
 }
 int main(int argc, char** argv)
 {
-    assert(argc == 2);
+    assert(argc == 2 || argc == 3);
+    // Keep the historical corpus size as the default; smaller, explicitly
+    // counted captures must still include both weighted and object seeds.
+    char* count_end = nullptr;
+    const unsigned long expected_jobs = argc == 3 ? strtoul(argv[2], &count_end, 10) : 19508;
+    assert(expected_jobs && (argc != 3 || (count_end != argv[2] && !*count_end)));
 #ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
@@ -117,7 +122,7 @@ int main(int argc, char** argv)
         compared += compare_original(e, input, skin);
         if (jobs % 5000 == 0) printf("Host skin corpus progress: %u entries\n", jobs);
     }
-    assert(jobs == 19508 && skinned && have_weighted && have_object);
+    assert(jobs == expected_jobs && skinned && have_weighted && have_object);
     constexpr uint32_t special[] = {0,0x80000000,1,0x007fffff,0x00800000,0x3f800000,0xbf800000,0x7f7fffff,
         0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff,0x7fc12345,0x3f000000,0xbf000000};
     uint64_t corner_values = 0;

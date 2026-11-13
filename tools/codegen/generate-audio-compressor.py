@@ -15,14 +15,24 @@ PIN = 'c90383fcb4712df518ac193de96f858fb30ff30b776d410059aa3a3e3aa82ee0'
 ENTRIES = ('0002FF18', '000301D8')
 
 
-def generate(root, directory, pin, prefix, entries, output, tails=None):
+def generate(root, directory, pin, prefix, entries, output, tails=None, x86_rtz=False):
     raw = (directory / 'spu_recomp.c').read_bytes()
-    if hashlib.sha256(raw).hexdigest() != pin:
+    # Older MultiStream pins were recorded with Windows CRLF, while the
+    # embedded mixer pin uses LF. Accept either representation of the exact
+    # reviewed text, without accepting any instruction/content changes.
+    normalized = raw.replace(b'\r\n', b'\n')
+    if pin not in {hashlib.sha256(normalized).hexdigest(),
+                   hashlib.sha256(normalized.replace(b'\n', b'\r\n')).hexdigest()}:
         raise SystemExit(f'Unreviewed {output} lift; audit before generation')
-    source = raw.decode()
+    source = normalized.decode()
     kernel = '#include "spu_context.h"\n#include "spu_helpers.h"\n'
     oracle = kernel
     baseline = kernel
+    if x86_rtz:
+        kernel = ('#if defined(SPU_HELPERS_H) && (!defined(SPU_NATIVE_RTZ) || !defined(SPU_RTZ_RESULT_GUARD))\n'
+                  '#error \"Audio RTZ definitions must precede forced SPU helper includes\"\n#endif\n'
+                  '#define SPU_NATIVE_RTZ 1\n#define SPU_RTZ_RESULT_GUARD 1\n'
+                  '#include <immintrin.h>\n' + kernel)
     kernel += '#if defined(__aarch64__) && defined(BUZZ_AUDIO_COMPRESSOR_NEON)\n#include "spu_arm_fp_state.h"\n#include "spu_neon_rtz.h"\n#endif\n'
     for op in ('fa', 'fs', 'fm', 'fma', 'fms', 'fnms'):
         oracle += f'#define spu_{op} spu_{op}_ref\n'
@@ -62,6 +72,9 @@ def generate(root, directory, pin, prefix, entries, output, tails=None):
         local = re.sub(register, lambda m: f'r{m[1]}', body)
         flush = ''.join(f'        ctx->gpr[{n}] = r{n};\n' for n in sorted(written))
         flush += '#if defined(__aarch64__) && defined(BUZZ_AUDIO_COMPRESSOR_NEON)\n        buzz_arm_fp_restore(saved_fp);\n#endif\n'
+        baseline_flush = flush
+        if x86_rtz:
+            flush += '        _mm_setcsr(saved_mxcsr);\n'
         if tail_exits:
             for tail in tail_exits:
                 local = local.replace(tail, '{\n' + flush + tail[1:])
@@ -73,9 +86,26 @@ def generate(root, directory, pin, prefix, entries, output, tails=None):
         kernel += f'extern void {reference}(spu_context*);\nvoid {native}(spu_context* ctx) {{\n'
         kernel += f'    if (SPU_LS_DEBUG_HOOKS || ctx->ls != ctx->ls_store) {{ {reference}(ctx); return; }}\n'
         kernel += '#if defined(__aarch64__) && defined(BUZZ_AUDIO_COMPRESSOR_NEON)\n    const buzz_arm_fp_state saved_fp = buzz_arm_fp_save();\n    buzz_arm_fp_enter_rtz(saved_fp);\n#endif\n'
+        if x86_rtz:
+            kernel += ('    const unsigned saved_mxcsr = _mm_getcsr();\n'
+                       '    _mm_setcsr((saved_mxcsr & ~_MM_ROUND_MASK) | _MM_ROUND_TOWARD_ZERO | 0x8040);\n')
         kernel += declarations + local + '\n}\n'
         oracle += f'void buzz_audio_{entry}_oracle(spu_context* ctx) {{' + body + '\n}\n'
-        baseline += f'void buzz_audio_{entry}_baseline(spu_context* ctx) {{' + body + '\n}\n'
+        if x86_rtz:
+            # Compare timing with the already-selected localized software-FP
+            # kernel, not the slower original register-bank implementation.
+            baseline_body = re.sub(register, lambda m: f'r{m[1]}', body)
+            if tail_exits:
+                for tail in tail_exits:
+                    baseline_body = baseline_body.replace(tail, '{\n' + baseline_flush + tail[1:])
+            else:
+                baseline_body = baseline_body.replace('        SPU_RET(ctx);', baseline_flush + '        SPU_RET(ctx);')
+            baseline += f'extern void {reference}(spu_context*);\n'
+            baseline += f'void buzz_audio_{entry}_baseline(spu_context* ctx) {{\n'
+            baseline += f'    if (SPU_LS_DEBUG_HOOKS || ctx->ls != ctx->ls_store) {{ {reference}(ctx); return; }}\n'
+            baseline += declarations + baseline_body + '\n}\n'
+        else:
+            baseline += f'void buzz_audio_{entry}_baseline(spu_context* ctx) {{' + body + '\n}\n'
         wrapper = f'''
 extern void {native}(spu_context*);
 extern void buzz_audio_compressor_run(spu_context*, void (*)(spu_context*), void (*)(spu_context*), unsigned);
@@ -98,21 +128,22 @@ def main():
     parser.add_argument('--include-mixer', action='store_true')
     parser.add_argument('--include-atrac', action='store_true',
                         help='Generate two audited single-precision ATRAC filter blocks')
+    parser.add_argument('--x86-rtz', action='store_true', help='Experimental checked FMA kernels with scoped MXCSR; requires -mfma -frounding-math')
     args = parser.parse_args()
     root = args.workspace
     generate(root, root / 'analysis/mstream-modules/compressor', PIN,
-             'buzz_mstream_compressor', ENTRIES, 'native-audio-compressor')
+             'buzz_mstream_compressor', ENTRIES, 'native-audio-compressor', x86_rtz=args.x86_rtz)
     if args.include_mixer:
         generate(root, root / 'port/spu/spu_0001_at_0071D300',
                  'f198ca88edd7d30c393aa95656e5cb29ced60dedf393f128388373125a882e36',
                  'spu_0001_at_0071D300', ('0000B078','0000C758','0000C8D4','00004E00','00004F24','0000513C','000051F8'), 'native-audio-mixer',
                  {'0000B078':'0000B100','0000C758':'0000C7E0','0000C8D4':'0000C95C',
-                  '00004E00':('00004DC8','00004EEC'),'00004F24':'00004FF0','0000513C':None,'000051F8':'00004DA8'})
+                  '00004E00':('00004DC8','00004EEC'),'00004F24':'00004FF0','0000513C':None,'000051F8':'00004DA8'}, x86_rtz=args.x86_rtz)
     if args.include_atrac:
         generate(root, root / 'analysis/mstream-modules/atrac',
                  '0b864e850022c72359df119cd5aaff459f4efc5ac6c3ad5435c54b1abaa5a78e',
                  'buzz_mstream_atrac', ('00036538','00036710'), 'native-audio-atrac',
-                 {'00036538':'00036710','00036710':('000363E0','00036988','00036828')})
+                 {'00036538':'00036710','00036710':('000363E0','00036988','00036828')}, x86_rtz=args.x86_rtz)
 
 
 if __name__ == '__main__':

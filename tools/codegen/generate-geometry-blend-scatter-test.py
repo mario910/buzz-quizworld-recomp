@@ -23,10 +23,16 @@ def main():
     path = ROOT/"analysis/native-geometry/phase3/test-blend-scatter-reference.inc"
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(output,encoding="utf-8")
-    fixture = (ROOT/"analysis/native-geometry/snapshots/p1-all/pc_9148.bin").read_bytes()
-    if len(fixture)!=264192 or hashlib.sha256(fixture).hexdigest()!="99eea4d670679a82083ece36a8fdfdfde2b09a772d5d3bfca4da9cefd560fe1f":
-        raise SystemExit("Unreviewed private blend-scatter fixture")
-    (path.parent/"test-blend-scatter-fixture.bin").write_bytes(fixture)
+    # The blend test seeds its own complete synthetic states. This historical
+    # calibration is optional; if supplied, its existing pin remains enforced.
+    snapshot = ROOT/"analysis/native-geometry/snapshots/p1-all/pc_9148.bin"
+    if snapshot.exists():
+        fixture = snapshot.read_bytes()
+        if len(fixture)!=264192 or hashlib.sha256(fixture).hexdigest()!="99eea4d670679a82083ece36a8fdfdfde2b09a772d5d3bfca4da9cefd560fe1f":
+            raise SystemExit("Unreviewed private blend-scatter fixture")
+        (path.parent/"test-blend-scatter-fixture.bin").write_bytes(fixture)
+    else:
+        print("Historical calibration absent; synthetic blend tests only")
     print("Pinned blend-scatter codec oracle: 2 complete original blocks;root link return trapped")
 
 
