@@ -10,6 +10,10 @@
 #include "spu_pure_loop.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#if defined(__SSE4_1__)
+#include <immintrin.h>
+#endif
 
 int buzz_image39_request_mode = 1;
 static int buzz_image39_request_stats;
@@ -97,6 +101,29 @@ static int buzz_image39_prepare_request(spu_context* ctx, buzz_image39_request_p
 
     const u128 tick = spu_ai(spu_ls_read128(ctx, descriptor + 80), 1);
     u128 oldest = tick, oldest_index = spu_il(-1), found = spu_il(-1);
+#if defined(__SSE4_1__)
+    {
+        // Same lane-wise search on raw LS quadwords: byte-swap each word into
+        // its lane (lane j = SPU word j), age = words shifted down by one.
+        const __m128i swap = _mm_setr_epi8(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12);
+        __m128i k, o, oi, f;
+        memcpy(&k, &key, 16); memcpy(&o, &oldest, 16);
+        oi = _mm_set1_epi32(-1); f = oi;
+        __m128i ord = _mm_setzero_si128();
+        const __m128i one = _mm_set1_epi32(1);
+        const uint8_t* rec = ctx->ls + table._u32[0];
+        for (unsigned i = 0, n = used._u32[0]; i < n; ++i, rec += 16) {
+            const __m128i e = _mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)rec), swap);
+            const __m128i age = _mm_srli_si128(e, 4);
+            const __m128i earlier = _mm_cmpgt_epi32(o, age);
+            f = _mm_blendv_epi8(f, ord, _mm_cmpeq_epi32(e, k));
+            o = _mm_blendv_epi8(o, age, earlier);
+            oi = _mm_blendv_epi8(oi, ord, earlier);
+            ord = _mm_add_epi32(ord, one);
+        }
+        memcpy(&oldest, &o, 16); memcpy(&oldest_index, &oi, 16); memcpy(&found, &f, 16);
+    }
+#else
     for (unsigned i = 0; i < used._u32[0]; ++i) {
         const u128 entry = spu_ls_read128(ctx, table._u32[0] + 16 * i);
         const u128 ordinal = spu_il((int)i), age = spu_shlqbyi(entry, 4);
@@ -106,6 +133,7 @@ static int buzz_image39_prepare_request(spu_context* ctx, buzz_image39_request_p
         oldest = spu_selb(oldest, age, earlier);
         oldest_index = spu_selb(oldest_index, ordinal, earlier);
     }
+#endif
     const int miss = found._u32[0] == 0xffffffffu;
     const u128 room = spu_cgt(capacity, used);
     const u128 selected = miss ? spu_selb(oldest_index, used, room) : found;
@@ -121,7 +149,10 @@ static int buzz_image39_prepare_request(spu_context* ctx, buzz_image39_request_p
     plan->descriptor = descriptor; plan->output = output; plan->table = table._u32[0]; plan->stack = stack;
     plan->tick = tick; plan->used = spu_selb(used, spu_ai(used, 1), room);
     plan->selected = selected; plan->record = spu_shufb(key, tick, spu_ls_read128(ctx, 0x5D90));
-    plan->output_record = spu_shufb(key, address, spu_cwd(key, 4));
+    // = spu_shufb(key, address, spu_cwd(key, 4)): address with key word 0
+    // inserted at word ((key0 + 4) & 12) / 4, without the mask's store/reload.
+    plan->output_record = address;
+    plan->output_record._u32[((key._u32[0] + 4) >> 2) & 3] = key._u32[0];
     plan->address = address; plan->ea = ea; plan->stride = stride; plan->tag = tag;
     plan->pending = miss ? spu_shl(spu_il(1), tag) : spu_il(0); plan->miss = miss;
     return 1;

@@ -38,6 +38,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <map>
 
 #ifdef _WIN32
 #include <malloc.h>
@@ -410,18 +411,32 @@ struct Seed {
 std::vector<Seed> seeds_of(const Job& job)
 {
     std::vector<Seed> seeds;
+    // Bytes covered by earlier transfers, as merged [begin, end) intervals
+    // (64-bit ends: a transfer may touch the top of the address space).
+    std::map<uint64_t, uint64_t> covered;
+    auto is_covered = [&](uint64_t ea) {
+        auto it = covered.upper_bound(ea);
+        return it != covered.begin() && ea < std::prev(it)->second;
+    };
+    auto cover = [&](uint64_t b, uint64_t e) {
+        auto it = covered.upper_bound(b);
+        if (it != covered.begin() && std::prev(it)->second >= b) { --it; b = it->first; e = std::max(e, it->second); }
+        while (it != covered.end() && it->first <= e) { e = std::max(e, it->second); it = covered.erase(it); }
+        covered[b] = e;
+    };
     for (size_t n = 0; n < job.transfers.size(); n++) {
         const Transfer& t = job.transfers[n];
-        if (!is_read(t.kind)) continue;
-        const uint8_t* bytes = job.data.data() + t.offset;
-        for (uint32_t i = 0; i < t.size; i++) {
-            const uint32_t ea = t.ea + i;
-            bool seen = false;
-            for (size_t m = 0; m < n && !seen; m++) {
-                const Transfer& u = job.transfers[m];
-                seen = u.kind != 5 && ea - u.ea < u.size;
+        if (is_read(t.kind)) {
+            const uint8_t* bytes = job.data.data() + t.offset;
+            for (uint32_t i = 0; i < t.size; i++) {
+                const uint32_t ea = t.ea + i;
+                if (!is_covered(ea)) seeds.push_back({ea, bytes + i});
             }
-            if (!seen) seeds.push_back({ea, bytes + i});
+        }
+        if (t.kind != 5 && t.size) {
+            const uint64_t b = t.ea, e = b + t.size;
+            if (e > (1ull << 32)) { cover(b, 1ull << 32); cover(0, e - (1ull << 32)); }
+            else cover(b, e);
         }
     }
     return seeds;
