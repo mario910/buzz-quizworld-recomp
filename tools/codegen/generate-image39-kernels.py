@@ -61,6 +61,23 @@ for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
 """
     source = (source[:match.start()] + f"void {name}_reference(spu_context* ctx) {{"
               + body + "\n}\n" + wrapper + source[body_end + 2:])
+# Native command writers (port/native_image39_cmd.h), EU 1.00 only. The
+# lifted entry chunk is kept as _reference; its tail chunks are unchanged.
+SEMANTIC = (("4308", "buzz_i39_native_4308"),) if pc == "05C0" else ()
+for spc, native in SEMANTIC:
+    name = PREFIX + spc
+    match = re.search(rf"(?m)^void {name}\(spu_context\* ctx\) \{{", source)
+    if not match:
+        raise SystemExit(f"missing {name}")
+    body_end = source.index("\n}", match.end())
+    body = source[match.end():body_end]
+    wrapper = '\n#include "native_image39_cmd.h"\n' if spc == SEMANTIC[0][0] else ""
+    wrapper += f"""void {name}(spu_context* ctx) {{
+    if (!{native}(ctx)) {name}_reference(ctx);
+}}
+"""
+    source = (source[:match.start()] + f"void {name}_reference(spu_context* ctx) {{"
+              + body + "\n}\n" + wrapper + source[body_end + 2:])
 DEST.mkdir(parents=True, exist_ok=True)
 (DEST / "spu_recomp.c").write_text(source, encoding="utf-8", newline="\n")
 shutil.copyfile(SOURCE / "spu_recomp.h", DEST / "spu_recomp.h")
