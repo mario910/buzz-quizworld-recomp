@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 /* Private to one renderer consumer. A u16 index can address at most 65536
  * unique vertices, so stamp and first-use ordinal fit in one 32-bit entry.
@@ -15,6 +16,66 @@ typedef struct {
 } buzz_index_packed_scratch;
 
 typedef struct { const u8* bytes; u32 count; } buzz_index_span;
+
+#if defined(__x86_64__)
+#include <immintrin.h>
+#define BUZZ_INDEX_RANK_SIMD 1
+/* Big-endian u16 indices -> native u16, with min and max. The Deck's Zen 2
+ * always has SSSE3/SSE4.1; the build baseline is SSE2, so only this helper
+ * is compiled for them. */
+__attribute__((target("ssse3,sse4.1")))
+static void buzz_index_swap_minmax(const u8* src,u32 n,u16* dst,u32* lo_out,u32* hi_out)
+{
+    const __m128i swap=_mm_setr_epi8(1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14);
+    __m128i vmin=_mm_set1_epi16(-1),vmax=_mm_setzero_si128();
+    u32 i=0;
+    for(;i+8<=n;i+=8) {
+        const __m128i v=_mm_shuffle_epi8(_mm_loadu_si128((const __m128i*)(src+2u*i)),swap);
+        _mm_storeu_si128((__m128i*)(dst+i),v);
+        vmin=_mm_min_epu16(vmin,v);vmax=_mm_max_epu16(vmax,v);
+    }
+    vmin=_mm_minpos_epu16(vmin);
+    u32 lo=(u32)_mm_extract_epi16(vmin,0);
+    vmax=_mm_xor_si128(vmax,_mm_set1_epi16(-1));
+    vmax=_mm_minpos_epu16(vmax);
+    u32 hi=(u32)(0xFFFFu^(u32)_mm_extract_epi16(vmax,0));
+    if(n<8){lo=65535;hi=0;}
+    for(;i<n;++i) {
+        const u32 index=((u32)src[2*i]<<8)|src[2*i+1];
+        dst[i]=(u16)index;lo=index<lo?index:lo;hi=index>hi?index:hi;
+    }
+    if(*lo_out>lo)*lo_out=lo;
+    if(*hi_out<hi)*hi_out=hi;
+}
+#endif
+
+typedef struct {
+    u16 native[65536];  /* byte-swapped copy of the draw's indices */
+    u8 mark[65536];     /* indexed by index - lowest index */
+    u32 rank[65536];
+} buzz_index_rank_scratch;
+
+static inline buzz_index_rank_scratch* buzz_index_rank_storage(void)
+{
+    static buzz_index_rank_scratch scratch;
+    return &scratch;
+}
+
+static inline int buzz_index_rank_check(void)
+{
+    static int enabled=-1;
+    if(enabled<0){const char* p=getenv("BUZZ_INDEX_RANK_CHECK");enabled=p&&!strcmp(p,"1");}
+    return enabled;
+}
+
+static inline int buzz_index_rank_enabled(void)
+{
+    static int enabled=-1;
+    if(enabled<0){const char* p=getenv("BUZZ_INDEX_RANK");enabled=!(p&&!strcmp(p,"0"));
+        fprintf(stderr,"[rsx engine] ranked index remap=%d\n",enabled);}
+    return enabled;
+}
+
 
 static inline buzz_index_packed_scratch* buzz_index_packed_storage(void)
 {
@@ -34,9 +95,9 @@ static int buzz_index_packed_spans(buzz_index_packed_scratch* scratch,
         count+=spans[b].count;
     }
     if(count<4)return 0;
-    if(count>*capacity) {
+    if(count+1>*capacity) {
         u32 next=*capacity?*capacity:4096;
-        while(next<count)next*=2;
+        while(next<count+1)next*=2;
         rsx_vertex_ref* p=(rsx_vertex_ref*)realloc(*refs,(size_t)next*sizeof(*p));
         if(!p)return 0;
         *refs=p;*capacity=next;
@@ -46,6 +107,68 @@ static int buzz_index_packed_spans(buzz_index_packed_scratch* scratch,
         if(!p)return 0;
         remap->occurrence_to_unique=p;remap->occurrence_capacity=count;
     }
+#if BUZZ_INDEX_RANK_SIMD
+    /* Rank path: unique vertices in sorted order instead of first-use order,
+     * with no data-dependent branch (the first-use test mispredicts heavily).
+     * Every occurrence keeps its exact vertex. */
+    if(buzz_index_rank_enabled()) {
+        buzz_index_rank_scratch* rs=buzz_index_rank_storage();
+        u16* const native=rs->native;
+        u32 lo=65535,hi=0,total=0;
+        for(u32 b=0;b<span_count;++b) {
+            buzz_index_swap_minmax(spans[b].bytes,spans[b].count,native+total,&lo,&hi);
+            total+=spans[b].count;
+        }
+        const u32 range=hi-lo+1;
+        if(range<=4u*count+256u) {
+            u8* const mark=rs->mark;u32* const rank=rs->rank;
+            for(u32 i=0;i<count;++i)mark[native[i]-lo]=1;
+            rsx_vertex_ref* const output=*refs;
+            u32 unique=0;
+            for(u32 k=0;k<range;++k) {
+                rank[k]=unique;
+                output[unique].vertex_id=lo+k;output[unique].base_index=base;
+                unique+=mark[k];mark[k]=0;
+            }
+            u32* const occurrences=remap->occurrence_to_unique;
+            if(unique==count) {
+                /* No repeats: the caller draws refs in order, so keep the
+                 * occurrence order. */
+                for(u32 i=0;i<count;++i) {
+                    output[i].vertex_id=native[i];output[i].base_index=base;
+                    occurrences[i]=i;
+                }
+            } else {
+                for(u32 i=0;i<count;++i)occurrences[i]=rank[native[i]-lo];
+            }
+            *unique_count=unique;
+            if(buzz_index_rank_check()) {
+                static unsigned long long checked,bad;
+                int ok=1;u32 offset=0;
+                for(u32 b=0;b<span_count && ok;++b) {
+                    const u8* source=spans[b].bytes;
+                    for(u32 i=0;i<spans[b].count;++i) {
+                        const u32 index=((u32)source[2*i]<<8)|source[2*i+1];
+                        const u32 o=occurrences[offset+i];
+                        if(o>=unique || output[o].vertex_id!=index || output[o].base_index!=base ||
+                           (unique==count && o!=offset+i)){ok=0;break;}
+                        mark[index-lo]=1;
+                    }
+                    offset+=spans[b].count;
+                }
+                u32 distinct=0;
+                for(u32 k=0;k<range;++k){distinct+=mark[k];mark[k]=0;}
+                for(u32 u=0;u<unique && ok;++u)if(output[u].vertex_id<lo||output[u].vertex_id>hi)ok=0;
+                if(distinct!=unique)ok=0;
+                checked++;if(!ok)bad++;
+                if(!ok || (checked&4095)==0)
+                    fprintf(stderr,"[rsx engine] rank check draws=%llu bad=%llu last count=%u unique=%u range=%u\n",
+                        checked,bad,count,unique,range);
+            }
+            return 1;
+        }
+    }
+#endif
     if(scratch->generation>=65535) {
         memset(scratch->entries,0,sizeof scratch->entries);
         scratch->generation=0;

@@ -13,7 +13,7 @@ typedef struct {
     uint32_t capacity,cursor;
     int reset_required;
 } buzz_descriptor_pool;
-static buzz_descriptor_pool buzz_descriptor_pools[2];
+static buzz_descriptor_pool buzz_descriptor_pools[4];
 static int buzz_descriptor_batch_enabled(void) {
     static int enabled=-1;
     if(enabled<0) {
@@ -24,7 +24,7 @@ static int buzz_descriptor_batch_enabled(void) {
     return enabled;
 }
 static buzz_descriptor_pool* buzz_descriptor_find(VkDescriptorPool pool) {
-    if(pool)for(unsigned i=0;i<2;++i)if(buzz_descriptor_pools[i].pool==pool)return &buzz_descriptor_pools[i];
+    if(pool)for(unsigned i=0;i<4;++i)if(buzz_descriptor_pools[i].pool==pool)return &buzz_descriptor_pools[i];
     return NULL;
 }
 static void buzz_descriptor_forget(VkDescriptorPool pool) {
@@ -64,10 +64,10 @@ static void buzz_descriptor_destroy(VkDevice device,VkDescriptorPool pool,const 
 static VkResult buzz_descriptor_allocate(const VkDescriptorSetAllocateInfo* info,VkDescriptorSet* out) {
     buzz_descriptor_pending=NULL;
     if(!buzz_descriptor_batch_enabled())return pvkAllocateDescriptorSets(s_vk.device,info,out);
-    unsigned context=0;
-    if(info->descriptorPool==s_batch.context_pool[0] && info->descriptorPool)context=0;
-    else if(info->descriptorPool==s_batch.context_pool[1] && info->descriptorPool)context=1;
-    else return pvkAllocateDescriptorSets(s_vk.device,info,out);
+    unsigned context=4;
+    for(unsigned i=0;i<4;++i)
+        if(info->descriptorPool && info->descriptorPool==s_batch.context_pool[i]){context=i;break;}
+    if(context==4)return pvkAllocateDescriptorSets(s_vk.device,info,out);
     buzz_descriptor_pool* pool=&buzz_descriptor_pools[context];
     if(pool->pool!=info->descriptorPool) {
         free(pool->contents);free(pool->sets);memset(pool,0,sizeof *pool);

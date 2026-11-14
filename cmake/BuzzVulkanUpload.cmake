@@ -47,7 +47,7 @@ static void vk_swapchain_lost(void)
 ]=])
     endif()
     buzz_upload_replace("    int async_requested,async_ready;"
-        "    int async_requested,async_ready;\n    int upload_mode;\n    vk_buffer upload_ring[2];\n    VkDeviceSize upload_head[2];")
+        "    int async_requested,async_ready;\n    int upload_mode;\n    vk_buffer upload_ring[4];\n    VkDeviceSize upload_head[4];")
     buzz_upload_replace("    s_batch.context_inflight[i]=0;"
         "    s_batch.context_inflight[i]=0;\n    s_batch.upload_head[i]=0; /* fence completed */")
     buzz_upload_replace("        if(result){s_batch.failed=1;return -1;}"
@@ -57,8 +57,8 @@ static void vk_swapchain_lost(void)
     buzz_upload_replace("    if (tight > row_bytes) tight = row_bytes;\n    vk_buffer st = {0};"
         "    if (tight > row_bytes) tight = row_bytes;\n    const int queued=buzz_vk_upload_batch(img,layer,mip,x,y,z,w,h,tight,rows,src,row_bytes);\n    if(queued)return queued>0?0:-1;\n    vk_buffer st = {0};")
     # Device idle here also covers error cleanup; normal lifetime is fence-owned.
-    buzz_upload_replace("        vk_device_idle();\n        for(u32 i=0;i<2;i++){"
-        "        vk_device_idle();\n        for(u32 i=0;i<2;i++){\n            vk_destroy_buffer(&s_batch.upload_ring[i]);\n            s_batch.upload_head[i]=0;")
+    buzz_upload_replace("        vk_device_idle();\n        for(u32 i=0;i<4;i++){"
+        "        vk_device_idle();\n        for(u32 i=0;i<4;i++){\n            vk_destroy_buffer(&s_batch.upload_ring[i]);\n            s_batch.upload_head[i]=0;")
     buzz_upload_replace("static void vk_destroy_image(vk_image* im)"
         "#include \"vulkan_descriptor_writes.h\"\n\nstatic void vk_destroy_image(vk_image* im)")
     buzz_upload_replace("    pvkUpdateDescriptorSets(s_vk.device, n, w, 0, NULL);"
