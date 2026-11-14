@@ -56,18 +56,21 @@ void apply_live(const buzz_pc::Preferences& p) {
 bool buzz_pc_runtime_init() {
     try {
         std::lock_guard lock(apply_mutex);
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__linux__)
         // The SDK's Vulkan translator has a versioned disk cache, separate
         // from RSX_SHADER_CACHE_DIR (the D3D shader cache). Without this setup
         // Android repeated glslang/legalization work on every cold process.
         // An explicit override, including an empty string to disable, wins.
+        // Linux/Steam Deck (2026-11-14): the same work ran on the RSX thread
+        // whenever a shader first appeared; warm cache, menu 60-120 s: frames
+        // over 50 ms 12-13 -> 1-2, worst 100 -> 55 ms, boot stall 1.7 -> 0.35 s.
         if (!std::getenv("PS3RECOMP_SPIRV_CACHE")) {
             const auto directory = fs::current_path()/"spirv-cache";
             std::error_code error;
             fs::create_directories(directory, error);
             if (!error && fs::is_directory(directory, error)) {
                 if (setenv("PS3RECOMP_SPIRV_CACHE", directory.c_str(), 0) == 0)
-                    std::fprintf(stderr,"[spirv-cache] Android disk cache: %s\n",directory.c_str());
+                    std::fprintf(stderr,"[spirv-cache] disk cache: %s\n",directory.c_str());
             } else {
                 std::fprintf(stderr,"[spirv-cache] Cannot create cache directory; using the memory cache\n");
             }

@@ -1002,6 +1002,8 @@ endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzDmaDiagnostics.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzZen2Tune.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzPpuHot.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzSpuWrchWrap.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzAudioX86Rtz.cmake")
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzPgo.cmake")
