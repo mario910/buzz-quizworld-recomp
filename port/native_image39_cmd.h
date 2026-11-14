@@ -73,6 +73,26 @@ static inline void i39_wr(spu_context* ctx, uint32_t qa, uint32_t pos, uint32_t 
     memcpy(i39_q(ctx, qa) + (pos & 12), &b, 4);
 }
 static inline u128 i39_splat(uint32_t v) { u128 r; r._u32[0] = r._u32[1] = r._u32[2] = r._u32[3] = v; return r; }
+/* Word k / big-endian halfword k of the quadword at qa. */
+static inline uint32_t i39_w(spu_context* ctx, uint32_t qa, unsigned k) { return i39_be32(i39_q(ctx, qa) + 4 * k); }
+static inline uint32_t i39_h(spu_context* ctx, uint32_t qa, unsigned k)
+{
+    const uint8_t* q = i39_q(ctx, qa) + 2 * k;
+    return (uint32_t)q[0] << 8 | q[1];
+}
+/* ST(qa, shufb(v, LD(qa), cdd(pos))): doubleword (hi, lo) into slot pos & 8. */
+static inline void i39_wr_dw(spu_context* ctx, uint32_t qa, uint32_t pos, uint32_t hi, uint32_t lo)
+{
+    uint8_t* q = i39_q(ctx, qa) + (pos & 8);
+    const uint32_t a = __builtin_bswap32(hi), b = __builtin_bswap32(lo);
+    memcpy(q, &a, 4); memcpy(q + 4, &b, 4);
+}
+/* ST(qa, shufb(v, LD(qa), chd(pos))): halfword into slot pos & 14. */
+static inline void i39_wr_hw(spu_context* ctx, uint32_t qa, uint32_t pos, uint32_t v)
+{
+    uint8_t* q = i39_q(ctx, qa) + (pos & 14);
+    q[0] = (uint8_t)(v >> 8); q[1] = (uint8_t)v;
+}
 
 /* The lifted brsl: link, host call, drain to the return point. */
 static inline void i39_call(spu_context* ctx, void (*fn)(spu_context*), uint32_t ret)
@@ -153,6 +173,277 @@ static void i39_3ba8(spu_context* ctx, uint32_t a3, uint32_t p84, uint32_t a6)
         }
         ++i;
     } while (i != bound);
+}
+
+/* Descriptor request 0x3A10 at a reviewed return point: the native request
+ * driver (native_image39_request.h, later in this translation unit), else
+ * the lifted routine. The driver rejects before any mutation. Returns r3. */
+static int buzz_image39_native_request(spu_context* ctx);
+static inline u128 i39_request(spu_context* ctx, u128 desc, u128 key, u128 tag, u128 out, uint32_t ret)
+{
+    ctx->gpr[3] = desc; ctx->gpr[4] = key; ctx->gpr[5] = tag; ctx->gpr[6] = out;
+    ctx->gpr[0] = spu_link(ret);
+    if (!buzz_image39_native_request(ctx)) i39_call(ctx, buzz_job_c0bc_spu_func_00003A10, ret);
+    return ctx->gpr[3];
+}
+
+/* 0x3470: two cache requests per key (descriptors at 0x60B0 / 0x60A0, tag 9),
+ * returns the OR of their pending tag masks. */
+static int buzz_i39_native_3470(spu_context* ctx)
+{
+    if (!buzz_i39_cmd_admit(ctx)) return 0;
+    const u128 r0 = ctx->gpr[0], r1 = ctx->gpr[1];
+    u128 out1 = ctx->gpr[3], out2 = ctx->gpr[4], count = ctx->gpr[5], keys = ctx->gpr[6];
+    spu_ls_write128(ctx, r1._u32[0] + 0x10, r0);
+    ctx->gpr[1] = spu_ai(r1, -112);
+    u128 pending = spu_il(0);
+    do {
+        const u128 o1 = out1;
+        count = spu_ai(count, -1);
+        out1 = spu_ai(out1, 16);
+        pending = spu_or(pending, i39_request(ctx, spu_ls_read128(ctx, 0x60B0), spu_ls_read128(ctx, keys._u32[0]),
+                                              spu_il(9), o1, 0x34C4));
+        const u128 key2 = spu_rotqbyi(spu_ls_read128(ctx, keys._u32[0]), 4);
+        const u128 o2 = out2;
+        out2 = spu_ai(out2, 16);
+        keys = spu_ai(keys, 32);
+        pending = spu_or(pending, i39_request(ctx, spu_ls_read128(ctx, 0x60A0), key2, spu_il(9), o2, 0x34F0));
+    } while (count._u32[0] != 0);
+    ctx->gpr[3] = pending;
+    i39_return(ctx, r0, r1);
+    return 1;
+}
+
+/* 0x3768: per 128-byte record, a tag-3 request from the 0x60C0 cache for its
+ * key word, or a zero quad output when the key is 0. */
+static int buzz_i39_native_3768(spu_context* ctx)
+{
+    if (!buzz_i39_cmd_admit(ctx)) return 0;
+    const u128 r0 = ctx->gpr[0], r1 = ctx->gpr[1];
+    u128 n = ctx->gpr[3], src = ctx->gpr[4], out = ctx->gpr[5];
+    spu_ls_write128(ctx, r1._u32[0] + 0x10, r0);
+    ctx->gpr[1] = spu_ai(r1, -128);
+    u128 pending = spu_il(0);
+    do {
+        const uint32_t at = src._u32[0] + 4;
+        const u128 key = spu_rotqbyi(spu_ls_read128(ctx, at), (int)(at & 15));
+        const u128 o = out;
+        n = spu_ai(n, -1);
+        out = spu_ai(out, 16);
+        src = spu_ai(src, 128);
+        if (key._u32[0] != 0)
+            pending = spu_or(pending, i39_request(ctx, spu_ls_read128(ctx, 0x60C0), key, spu_il(3), o, 0x37C0));
+        else
+            spu_ls_write128(ctx, o._u32[0], spu_il(0));
+    } while (n._u32[0] != 0);
+    ctx->gpr[3] = pending;
+    i39_return(ctx, r0, r1);
+    return 1;
+}
+
+/* 0x3838: per object (or the shared one at 0x6110), unless its slot byte is
+ * 0xFF: two tag-3 requests (0x6070 / 0x6080 caches) keyed by its table entry,
+ * then up to four 0x6090 requests for the nonzero words below O+2836. */
+static int buzz_i39_native_3838(spu_context* ctx)
+{
+    if (!buzz_i39_cmd_admit(ctx)) return 0;
+    const u128 r0 = ctx->gpr[0], r1 = ctx->gpr[1];
+    u128 list = ctx->gpr[3], out1 = ctx->gpr[5], out2 = ctx->gpr[6];
+    u128 base4 = spu_ai(ctx->gpr[7], 48);
+    u128 shared = spu_ls_read128(ctx, 0x6110);
+    u128 left = spu_selb(spu_il(1), ctx->gpr[4], spu_ceqi(shared, 0));
+    spu_ls_write128(ctx, r1._u32[0] + 0x10, r0);
+    ctx->gpr[1] = spu_ai(r1, -256);
+    u128 pending = spu_il(0);
+    for (;;) {
+        const u128 obj = spu_selb(shared, spu_ls_read128(ctx, list._u32[0]), spu_ceqi(shared, 0));
+        const uint32_t O = obj._u32[0];
+        left = spu_ai(left, -1);
+        const uint32_t slot = i39_rotb(ctx, O + 1198, O + 1211);
+        if (slot != 0xFFu) {
+            const u128 entry = spu_ls_read128(ctx, O + slot * 96u + 1216u);
+            const u128 key2 = spu_rotqbyi(entry, 12);
+            u128 got = i39_request(ctx, spu_ls_read128(ctx, 0x6070), spu_rotqbyi(entry, 8), spu_il(3), out1, 0x3950);
+            got = spu_or(got, i39_request(ctx, spu_ls_read128(ctx, 0x6080), key2, spu_il(3), out2, 0x396C));
+            pending = spu_or(pending, got);
+            uint32_t at = O + 2836;
+            u128 o = base4;
+            for (int k = 0; k < 4; ++k) {
+                at -= 4;
+                const u128 key = spu_rotqbyi(spu_ls_read128(ctx, at), (int)(at & 15));
+                const u128 here = o;
+                o = spu_ai(o, -16);
+                if (key._u32[0] != 0)
+                    pending = spu_or(pending, i39_request(ctx, spu_ls_read128(ctx, 0x6090), key, spu_il(3), here, 0x39AC));
+            }
+        }
+        base4 = spu_ai(base4, 64);
+        if (left._u32[0] == 0) break;
+        list = spu_ai(list, 16);
+        shared = spu_ls_read128(ctx, 0x6110);
+        out1 = spu_ai(out1, 16);
+        out2 = spu_ai(out2, 16);
+    }
+    ctx->gpr[3] = pending;
+    i39_return(ctx, r0, r1);
+    return 1;
+}
+
+/* One list element of 0x35D8 / 0x3720: size word from the record, then the
+ * (masked) doubleword at e rewritten. */
+static inline void i39_list_element(spu_context* ctx, uint32_t e, uint32_t rec, u128 pattern, u128 mask)
+{
+    i39_wr(ctx, e + 4, e + 4, spu_ls_read128(ctx, rec + 0x10)._u32[0]);
+    const u128 x = spu_selb(spu_rotqbyi(spu_ls_read128(ctx, e), (int)(e & 15)), pattern, mask);
+    i39_wr_dw(ctx, e, e, x._u32[0], x._u32[1]);
+}
+
+/* 0x3530: clear the 128-byte list at a4, build one element per record (with
+ * a tag-2 cache request each, or one shared request when 0x6100 is set), then
+ * issue the list GET (lsa a3, list a4, a6 elements, tag 2). */
+static int buzz_i39_native_3530(spu_context* ctx)
+{
+    if (!buzz_i39_cmd_admit(ctx)) return 0;
+    const u128 r0 = ctx->gpr[0], r1 = ctx->gpr[1];
+    const u128 a3q = ctx->gpr[3], a4q = ctx->gpr[4], a5q = ctx->gpr[5], a6q = ctx->gpr[6], a7q = ctx->gpr[7];
+    const uint32_t a3 = a3q._u32[0], a4 = a4q._u32[0];
+    spu_ls_write128(ctx, r1._u32[0] + 0x10, r0);
+    ctx->gpr[1] = spu_ai(r1, -224);
+    const u128 zero = spu_il(0);
+    spu_ls_write128(ctx, a4 + 0x70, zero);
+    for (uint32_t o = 0; o < 0x70; o += 0x10) spu_ls_write128(ctx, a4 + o, zero);
+    const u128 key0 = spu_ls_read128(ctx, 0x6100);
+    const u128 pattern = spu_andbi(spu_fsmbi(0x1010), -128);
+    u128 pending;
+    if (key0._u32[0] == 0) {
+        const u128 mask = spu_ls_read128(ctx, 0x5DF0);
+        u128 e = a4q, rec = a7q, n = a6q, out = a5q;
+        pending = spu_il(0);
+        do {
+            const u128 o = out;
+            n = spu_ai(n, -1);
+            out = spu_ai(out, 16);
+            i39_list_element(ctx, e._u32[0], rec._u32[0], pattern, mask);
+            e = spu_ai(e, 8);
+            const u128 key = spu_rotqbyi(spu_ls_read128(ctx, rec._u32[0] + 0x10), 4);
+            rec = spu_ai(rec, 32);
+            pending = spu_or(pending, i39_request(ctx, spu_ls_read128(ctx, 0x6060), key, spu_il(2), o, 0x3630));
+        } while (n._u32[0] != 0);
+    } else {
+        pending = i39_request(ctx, spu_ls_read128(ctx, 0x6060), key0, spu_il(2), a5q, 0x36F8);
+        spu_ls_write128(ctx, 0x6110, spu_ls_read128(ctx, a5q._u32[0]));
+        const u128 mask = spu_ls_read128(ctx, 0x5DF0);
+        u128 e = a4q, rec = a7q, n = a6q;
+        do {
+            n = spu_ai(n, -1);
+            i39_list_element(ctx, e._u32[0], rec._u32[0], pattern, mask);
+            rec = spu_ai(rec, 32);
+            e = spu_ai(e, 8);
+        } while (n._u32[0] != 0);
+    }
+    /* 0x3638 */
+    const u128 size = spu_shli(a6q, 3);
+    if (!((a3 & 15) == 0 && (a4 & 7) == 0 && size._u32[0] <= 16384)) {
+        ctx->gpr[1] = spu_ai(r1, -224);
+        ctx->pc = 0x3638;
+        extern void spu_halt(spu_context*);
+        fprintf(stderr, "[spu] HALT-ASSERT heqi pc=0x0366C img=%d\n", ctx->image_id);
+        ctx->status = SPU_STATUS_STOPPED_BY_HALT;
+        spu_halt(ctx);
+        return 1;
+    }
+    spu_wrch(ctx, MFC_LSA, a3q);
+    spu_wrch(ctx, MFC_EAH, spu_il(0));
+    spu_wrch(ctx, MFC_EAL, a4q);
+    spu_wrch(ctx, MFC_Size, size);
+    spu_wrch(ctx, MFC_TagID, spu_il(2));
+    spu_wrch(ctx, MFC_Cmd, spu_il(68));
+    ctx->gpr[3] = pending;
+    i39_return(ctx, r0, r1);
+    return 1;
+}
+
+/* 0x0E10: DMA list/descriptor block at a3 from the records at a4/a5 and fixed
+ * LS state; 0x0B48 (issues the transfer) keeps its lifted body. */
+static int buzz_i39_native_0e10(spu_context* ctx)
+{
+    if (!buzz_i39_cmd_admit(ctx)) return 0;
+    const u128 r0 = ctx->gpr[0], r1 = ctx->gpr[1];
+    const u128 a3q = ctx->gpr[3], a4q = ctx->gpr[4], a5q = ctx->gpr[5];
+    const uint32_t a3 = a3q._u32[0], a4 = a4q._u32[0], a5 = a5q._u32[0];
+    spu_ls_write128(ctx, r1._u32[0] + 0x10, r0);
+    ctx->gpr[1] = spu_ai(r1, -96);
+
+    /* 0x0E10 */
+    {
+        const uint32_t h70_6 = i39_h(ctx, a4 + 0x70, 6), w70_0 = i39_w(ctx, a4 + 0x70, 0);
+        i39_wr_dw(ctx, a3 + 56, a3 + 8, h70_6, w70_0);
+        const uint32_t w10_0 = i39_w(ctx, a4 + 0x10, 0);
+        const uint32_t h10_2 = i39_h(ctx, a4 + 0x10, 2), h10_3 = i39_h(ctx, a4 + 0x10, 3);
+        i39_wr_dw(ctx, a3 + 0x40, a3, h10_2, w10_0);
+        i39_wr_dw(ctx, a3 + 72, a3 + 8, h10_3, w10_0 + h10_2);
+    }
+    const uint32_t w40_0 = i39_w(ctx, a4 + 0x40, 0);
+    uint32_t r30;
+    if (w40_0 == 0) {                                  /* 0x13B8 */
+        r30 = 0x10000000u;
+        i39_wr_dw(ctx, a3 + 0x50, a3, 0, 0);
+        i39_wr_dw(ctx, a3 + 88, a3 + 8, 0, 0);
+        i39_wr_dw(ctx, a3 + 0x60, a3, 0, 0);
+        i39_wr_dw(ctx, a3 + 104, a3 + 8, 0, 0);
+    } else {
+        r30 = 0x20000000u;
+        const uint32_t h2 = i39_h(ctx, a4 + 0x30, 2), h3 = i39_h(ctx, a4 + 0x30, 3);
+        const uint32_t h4 = i39_h(ctx, a4 + 0x30, 4), h5 = i39_h(ctx, a4 + 0x30, 5);
+        i39_wr_dw(ctx, a3 + 0x50, a3, h4, h2);
+        i39_wr_dw(ctx, a3 + 88, a3 + 8, h5, h3);
+        const uint32_t h6 = i39_h(ctx, a4 + 0x30, 6), h7 = i39_h(ctx, a4 + 0x30, 7);
+        i39_wr_dw(ctx, a3 + 0x60, a3, h6, w40_0);
+        i39_wr_dw(ctx, a3 + 104, a3 + 8, h7, w40_0 + h6);
+    }
+
+    /* 0x0FB0 */
+    {
+        const uint32_t g0 = i39_h(ctx, a4 + 0x20, 0), g1 = i39_h(ctx, a4 + 0x20, 1), g2 = i39_h(ctx, a4 + 0x20, 2);
+        const uint32_t w10_2 = i39_w(ctx, a4 + 0x10, 2);
+        i39_wr_dw(ctx, a3 + 0x70, a3, g0, w10_2);
+        i39_wr_dw(ctx, a3 + 120, a3 + 8, g1, g0 + w10_2);
+        i39_wr_dw(ctx, a3 + 0x80, a3, g2, g0 + w10_2 + g1);
+        const int m = i39_q(ctx, 0x60F0)[0] != 0;
+        const uint32_t g3 = i39_h(ctx, a4 + 0x20, 3), g4 = i39_h(ctx, a4 + 0x20, 4), g5 = i39_h(ctx, a4 + 0x20, 5);
+        const uint32_t w10_3 = i39_w(ctx, a4 + 0x10, 3);
+        i39_wr_dw(ctx, a3 + 136, a3 + 8, m ? 0 : g3, w10_3);
+        i39_wr_dw(ctx, a3 + 0x90, a3, m ? 0 : g4, g3 + w10_3);
+        i39_wr_dw(ctx, a3 + 152, a3 + 8, m ? 0 : g5, g3 + w10_3 + g4);
+        i39_wr_dw(ctx, a3 + 0xB0, a3, 0x10, i39_w(ctx, a5 + 0x10, 2));
+        i39_wr_dw(ctx, a3 + 184, a3 + 8, i39_w(ctx, a4 + 0x50, 2), i39_w(ctx, a4 + 0x60, 0));
+        i39_wr_dw(ctx, a3 + 0xC0, a3, i39_w(ctx, a4 + 0x50, 3), i39_w(ctx, a4 + 0x60, 1));
+        i39_wr_dw(ctx, a3 + 200, a3 + 8, i39_h(ctx, a4 + 0x70, 4), i39_w(ctx, a4 + 0x60, 2));
+        i39_wr_dw(ctx, a3 + 0xD0, a3, i39_h(ctx, a4 + 0x70, 5), i39_w(ctx, a4 + 0x60, 3));
+        i39_wr_dw(ctx, a3 + 0xA0, a3, i39_w(ctx, 0x61A0, 0), i39_w(ctx, 0x61A0, 1));
+        i39_wr(ctx, a3 + 220, a3 + 12, (uint32_t)i39_q(ctx, a4)[1] << 4);
+        i39_wr(ctx, a3 + 236, a3 + 12, r30 | i39_w(ctx, 0x61D0, 0));
+        i39_wr(ctx, a3 + 216, a3 + 8, i39_w(ctx, 0x61C0, 1));
+        if (i39_w(ctx, a5 + 0x10, 3) & 4u) {
+            ctx->gpr[3] = a3q; ctx->gpr[4] = a5q; ctx->gpr[5] = a4q;
+            i39_call(ctx, buzz_job_c0bc_spu_func_00000B48, 0x12C8);
+        }
+    }
+
+    /* 0x12C8 */
+    {
+        i39_wr_dw(ctx, a3 + 0xE0, a3, 0, i39_w(ctx, a4 + 0x40, 3));
+        i39_wr_hw(ctx, a3 + 248, a3 + 8, i39_h(ctx, 0x6230, 0));
+        const uint32_t p = i39_w(ctx, 0x6120, 0);
+        i39_wr_dw(ctx, a3, a3, 0, i39_w(ctx, p + 0x60, 0));
+        i39_wr_hw(ctx, a3 + 8, a3 + 8, i39_h(ctx, p + 0x60, 3));
+        i39_wr_hw(ctx, a3 + 10, a3 + 10, 168);
+        i39_wr(ctx, a3 + 0x10, a3, 1);
+        i39_wr(ctx, a3 + 20, a3 + 4, i39_w(ctx, a4 + 0x40, 1) + 208u);
+        i39_wr_hw(ctx, a3 + 30, a3 + 14, (i39_w(ctx, a4 + 0x40, 2) + 128u) & 0xFFFFu);
+    }
+    i39_return(ctx, r0, r1);
+    return 1;
 }
 
 /* 0x4308: per-object state/constant command writer. Children 0x4C68 and

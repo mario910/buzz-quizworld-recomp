@@ -63,7 +63,8 @@ for pc, native, kernel in sorted(KERNELS, key=lambda k: int(k[0], 16)):
               + body + "\n}\n" + wrapper + source[body_end + 2:])
 # Native command writers (port/native_image39_cmd.h), EU 1.00 only. The
 # lifted entry chunk is kept as _reference; its tail chunks are unchanged.
-SEMANTIC = (("4308", "buzz_i39_native_4308"),) if pc == "05C0" else ()
+SEMANTIC = (("0E10", "buzz_i39_native_0e10"), ("3470", "buzz_i39_native_3470"), ("3530", "buzz_i39_native_3530"),
+            ("3768", "buzz_i39_native_3768"), ("3838", "buzz_i39_native_3838"), ("4308", "buzz_i39_native_4308")) if pc == "05C0" else ()
 for spc, native in SEMANTIC:
     name = PREFIX + spc
     match = re.search(rf"(?m)^void {name}\(spu_context\* ctx\) \{{", source)
@@ -71,6 +72,7 @@ for spc, native in SEMANTIC:
         raise SystemExit(f"missing {name}")
     body_end = source.index("\n}", match.end())
     body = source[match.end():body_end]
+    # The first wrapper in file order carries the include (entries sorted by pc).
     wrapper = '\n#include "native_image39_cmd.h"\n' if spc == SEMANTIC[0][0] else ""
     wrapper += f"""void {name}(spu_context* ctx) {{
     if (!{native}(ctx)) {name}_reference(ctx);
