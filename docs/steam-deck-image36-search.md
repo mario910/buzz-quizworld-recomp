@@ -4,7 +4,8 @@ The bounded integer-search prototype improved the heavy-menu average from
 25.92 FPS for the installed build to 27.05 FPS in a six-run comparison. This
 is progress toward stable 30 FPS, not completion: most frame intervals still
 exceeded 33.34 ms. The reproducible adapter remains opt-in with
-`BUZZ_IMAGE36_SEARCH=1` pending actual-round qualification. The installed build
+`BUZZ_IMAGE36_SEARCH=1`. Actual-round output checks passed; live round timings
+remain limited by differing question and camera phases. The installed build
 is unchanged.
 
 ## Contract
@@ -93,7 +94,33 @@ per mode). All 667 complete ordered outputs and exit controls matched, with
 zero concurrent-input or failed-capture verdicts. Sequential replay means were
 118.76 us off and 82.92 us on. This adds round I/O coverage to the menu corpus;
 it does not establish a round FPS gain or identical live question sequences.
-Reversed, uninstrumented round timing remains pending.
+
+Four fresh 335-second runs used the same frozen executable in off/on/on/off
+order, the same scripted input and effective renderer settings, and one capture
+at 330 seconds. No compilation, tests or profilers overlapped these runs.
+Every measured frame row advanced the presented counter by one. The table
+reports fixed elapsed-time windows, not synchronized game-state intervals.
+
+| Arm | Search | Menu 40–70 s FPS | Round 240–300 s FPS | Late 300–320 s FPS | 306–315 s FPS / p95 ms / lowest 1 s FPS |
+|---|---|---:|---:|---:|---:|
+| A1 | off | 26.13 | 34.92 | 26.75 | 24.67 / 46.771 / 23 |
+| B1 | on | 26.83 | 34.95 | 27.50 | 25.33 / 46.359 / 23 |
+| B2 | on | 26.87 | 34.95 | 28.05 | 26.78 / 45.662 / 23 |
+| A2 | off | 25.70 | 35.35 | 26.35 | 24.44 / 50.043 / 21 |
+
+The menu means again favor enabled mode (26.85 versus 25.92 FPS). The main
+round window is effectively unchanged (34.95 versus 35.13). Both enabled late
+windows exceed the controls, but their magnitude is uncertain: the 330-second
+captures show different questions and camera phases, including one scoreboard
+view and other question views. All four have intact geometry and UI. The
+306–315-second window was an answer reveal in the separate diagnostic run;
+these timings alone do not prove an identical reveal interval in each arm.
+
+Process CPU per frame in the main round window was 96.09, 96.68, 97.52 and
+96.71 ms in run order. In the late window it was 141.48, 140.54, 131.58 and
+145.14 ms. The phase variation prevents attributing the late CPU difference
+entirely to this adapter. Stable 30 FPS is not achieved: menu and late-window
+averages remain below 30, and every enabled run has one-second bins below 30.
 
 ## Reproduction
 
@@ -107,5 +134,6 @@ Private evidence lives under
 `/home/deck/buzz/performance/optimization/codex-image36-search/`,
 `codex-image36-search-bulk/` and `codex-image36-search-final/`: source snapshots,
 hashes, sanitizer logs, replay outputs, frame CSVs, telemetry, screenshots and
-measurement scripts. Reversed round timing remains required before enabling
-the adapter by default.
+measurement scripts. `gameplay-comparison.json` and `gameplay-profiles.json`
+retain the long-run results and effective-settings check. The adapter remains
+opt-in while broader optimization and scene-matched qualification continue.
