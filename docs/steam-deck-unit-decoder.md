@@ -177,3 +177,7 @@ Private artifacts are in `codex-direction-combined/`. Candidate SHA-256 is
 The original headers and compiler settings were restored. The rebuilt prepared
 executable is byte-identical to the qualified reference (`630007cb…`); the SDK
 remains clean and the installed executable is unchanged (`189814d1…`).
+
+A subsequent [standalone GPU decoder study](steam-deck-gpu-unit-decoder.md)
+passed exhaustive arithmetic comparisons, but GPU roundtrip costs exceeded
+the CPU decoder at every tested batch size. It was not integrated.
