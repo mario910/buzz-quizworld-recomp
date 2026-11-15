@@ -8,16 +8,17 @@ without instrumentation. Guest GET != PUT can be a parked FIFO jump.
 """
 import argparse
 import bisect
+import hashlib
 import json
 from pathlib import Path
 import re
 import statistics
 
 
-def analyze(path):
+def analyze(path, vulkan_source=None):
     events = []
     header = ""
-    keep = {5, 6, 7, 8, 9, 100, 101, 102, 103, 104, 105, 106, 107, 108}
+    keep = {5, 6, 7, 8, 9, 100, 101, 102, 103, 104, 105, 106, 107, 108, 115, 116}
     with path.open(encoding="utf-8") as source:
         for line in source:
             if line.startswith("#"):
@@ -39,8 +40,38 @@ def analyze(path):
     lo, hi = flips[0], flips[-1]
     frames = len(flips) - 1
 
+    source_lines = []
+    source_identity = None
+    if vulkan_source:
+        source_bytes = vulkan_source.read_bytes()
+        source_lines = source_bytes.decode("utf-8").splitlines()
+        source_identity = {"path": str(vulkan_source),
+                           "sha256": hashlib.sha256(source_bytes).hexdigest()}
+
     def clipped(event):
         return max(0, min(hi, event[5]) - max(lo, event[4]))
+
+    calls = {}
+    for event in events:
+        kind, _, line, detail, start, end = event
+        if kind not in (115, 116) or end < lo or start >= hi:
+            continue
+        name = "synchronous_submit" if kind == 115 else "full_batch_flush"
+        key = f"{name}/line_{line}/{detail}"
+        if key not in calls:
+            source = source_lines[line-1].strip() if 0 < line <= len(source_lines) else None
+            tokens = ("vk_submit_and_wait(", "buzz_vk_submit_at(") if kind == 115 else ("vk_batch_flush(",)
+            # Annotate only plausible call lines. An unrelated or out-of-range
+            # line stays unresolved; source identity still requires its manifest.
+            if source and not any(token in source for token in tokens):
+                source = None
+            calls[key] = {"count": 0, "ms_per_frame": 0, "max_ms": 0,
+                          "line": line, "source": source,
+                          "flush_reason" if kind == 115 else "return_status": detail}
+        duration = clipped(event)
+        calls[key]["count"] += 1
+        calls[key]["ms_per_frame"] += duration / frames
+        calls[key]["max_ms"] = max(calls[key]["max_ms"], duration)
 
     names = {5: "semaphore_wait", 6: "semaphore_gave_up", 7: "fifo_drain",
              100: "rsx_idle", 101: "host_present", 102: "vulkan_fence",
@@ -123,6 +154,7 @@ def analyze(path):
     return {"trace": str(path), "frames": frames, "window_ms": hi-lo,
             "instrumented_frame_ms": (hi-lo)/frames, "spans": groups,
             "nested_fence_ms_per_frame": nested,
+            "vulkan_calls": calls, "vulkan_source": source_identity,
             "fifo_stop_counts": stop_counts,
             "idle_after_fifo_stop": idle_by_stop,
             "producer_kick_count": sum(e[0] == 108 and lo <= e[4] < hi for e in events),
@@ -134,6 +166,8 @@ def analyze(path):
                 "empty_before": sum(a[2] == a[3] for a, b in pairs),
                 "put_changed_during_wait": sum(a[2] != b[2] for a, b in pairs)},
             "notes": ["Nested fences are included in drain/present; do not add them.",
+                      "Vulkan caller spans overlap fences and each other; do not add them.",
+                      "Caller lines require the exact generated backend from the traced build.",
                       "CPU wait duration is not GPU busy time.",
                       "GET != PUT does not prove runnable work (parked jumps).",
                       "Use a separate trace-disabled run for FPS comparisons."]}
@@ -143,8 +177,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("trace", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--vulkan-source", type=Path,
+                        help="Exact buzz_rsx_vulkan_wait.c from the traced build")
     args = parser.parse_args()
-    result = json.dumps(analyze(args.trace), indent=2) + "\n"
+    result = json.dumps(analyze(args.trace, args.vulkan_source), indent=2) + "\n"
     if args.output:
         args.output.write_text(result, encoding="utf-8")
     print(result)

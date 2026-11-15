@@ -11,6 +11,11 @@ series, including refreshed renderer PGO, showed only small overlapping leads;
 the integration was archived without promotion. The feasibility findings below
 describe the earlier stage of that work.
 
+The later [texture retirement investigation](steam-deck-texture-retirement.md)
+identifies the synchronous upload/resource-release drains. A bounded deferred
+retirement prototype removes those calls but still measures below 30 FPS.
+Call-site attribution is now part of the optional renderer wait tracing.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256

@@ -18,7 +18,9 @@ enum {
     BUZZ_FT_PPU_PUBLICATION=111, /* native tid, address, size; filtered SDK hook */
     BUZZ_FT_DMA_WORD=112,        /* native tid, address, first word after DMA */
     BUZZ_FT_DMA_WORD_HIGH=113,   /* native tid, address+4, second word */
-    BUZZ_FT_FIFO_JUMP=114        /* address and non-self jump consumed */
+    BUZZ_FT_FIFO_JUMP=114,       /* address and non-self jump consumed */
+    BUZZ_FT_VK_SUBMIT_CALL=115,  /* a: generated source line; b: flush reason or UINT32_MAX */
+    BUZZ_FT_VK_FLUSH_CALL=116    /* a: generated source line; b: return status */
 };
 /* A diagnostic-only monotonic filter: watch lines observed at a wait, allowing
  * harmless hash collisions. Atomic registration avoids a cross-thread race.

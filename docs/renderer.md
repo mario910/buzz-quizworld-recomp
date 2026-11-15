@@ -328,6 +328,14 @@ idle spans to the last observed FIFO stop: caught up, flip, parked jump,
 semaphore, budget, unmapped or other. Older captures report unknown. This is
 diagnostic instrumentation only; keep it OFF for FPS measurements. A short
 instrumented trace can change scheduling and cannot replace a matched FPS run.
+Synchronous submissions and full batch drains also record their call sites
+(events 115/116). Pass `--vulkan-source /path/to/buzz_rsx_vulkan_wait.c` to
+annotate them with the exact generated source retained from that traced build.
+The report records the source hash; it cannot verify that a supplied file
+belongs to the binary. Submission details are the batch-flush reason, or
+`4294967295` for direct calls; full-drain details are the return status.
+These spans overlap each other and fence waits, so their durations must not
+be added. Normal builds compile none of this instrumentation.
 
 For CPU attribution, `perf/measure-process-work.py measure --include-rsx`
 adds the named FIFO/renderer thread to the existing process and SPURS pool

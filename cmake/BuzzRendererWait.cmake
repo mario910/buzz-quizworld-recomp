@@ -179,6 +179,45 @@ static inline VkResult buzz_vk_present(VkQueue queue,const VkPresentInfoKHR* pre
 #define pvkQueuePresentKHR(...) buzz_vk_present(__VA_ARGS__)
 ]=])
         string(REPLACE "${wait_anchor}" "${wait_hooks}\n${wait_anchor}" wait_text "${wait_text}")
+        # Distinguish an upload's own fence from the drain before it, and
+        # identify full resource-release drains. __LINE__ refers to this exact
+        # generated backend; retain it alongside the trace for attribution.
+        macro(buzz_wait_replace old new)
+            string(FIND "${wait_text}" "${old}" wait_found)
+            if(wait_found EQUAL -1)
+                message(FATAL_ERROR "Vulkan call-site instrumentation no longer matches SDK: ${old}")
+            endif()
+            string(REPLACE "${old}" "${new}" wait_text "${wait_text}")
+        endmacro()
+        buzz_wait_replace("static int vk_submit_and_wait(void)"
+            "static int buzz_vk_submit_impl(void)")
+        buzz_wait_replace("static int vk_batch_async_init(void)" [=[
+static int buzz_vk_submit_at(unsigned line, unsigned reason)
+{
+    const uint64_t start=buzz_wait_trace_begin();
+    const int result=buzz_vk_submit_impl();
+    buzz_wait_trace_end(BUZZ_FT_VK_SUBMIT_CALL,line,reason,start);
+    return result;
+}
+#define vk_submit_and_wait() buzz_vk_submit_at(__LINE__,UINT32_MAX)
+
+static int vk_batch_async_init(void)
+]=])
+        buzz_wait_replace("asynchronous?vk_batch_submit_async():vk_submit_and_wait()"
+            "asynchronous?vk_batch_submit_async():buzz_vk_submit_at(__LINE__,reason)")
+        buzz_wait_replace("static int vk_batch_flush(void);" [=[
+static int buzz_vk_flush_at(unsigned line);
+#define vk_batch_flush() buzz_vk_flush_at(__LINE__)
+]=])
+        buzz_wait_replace("static int vk_batch_flush(void) { return vk_batch_flush_as(0); }" [=[
+static int buzz_vk_flush_at(unsigned line)
+{
+    const uint64_t start=buzz_wait_trace_begin();
+    const int result=vk_batch_flush_as(0);
+    buzz_wait_trace_end(BUZZ_FT_VK_FLUSH_CALL,line,(uint32_t)result,start);
+    return result;
+}
+]=])
         set(wait_output "${CMAKE_CURRENT_BINARY_DIR}/buzz_rsx_vulkan_wait.c")
         file(CONFIGURE OUTPUT "${wait_output}" CONTENT "${wait_text}" @ONLY)
         get_target_property(wait_sources ps3recomp_runtime SOURCES)

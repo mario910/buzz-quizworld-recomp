@@ -62,7 +62,12 @@ whole lift before mutation.
 Freeze builds as `build-vulkan-*`; manifests must include `renderer` and the
 EXE hash. Keep the matching linker map and source binding. Preserve existing
 frozen builds, private evidence and original saves; give each run a fresh
-private save copy. Keep rendering, audio, resolution, frame cap, input timing
+private save copy. When restoring experimental source/header files, invalidate
+dependent objects or write them with current timestamps. Preserving an older
+timestamp can leave experimental object code in a successful incremental
+build. Check the rebuilt executable's identity; matching source contents and
+an unchanged build command alone do not prove restoration. Keep rendering,
+audio, resolution, frame cap, input timing
 and capture settings fixed between arms.
 
 Use the latest qualified build as the reference for further optimization,
