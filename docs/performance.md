@@ -11,6 +11,11 @@ Absolute FPS from different execution environments is not a shared baseline;
 the observed Codex/Claude difference has no established causal explanation.
 Do not infer an aggregate speedup by adding gains from overlapping changes.
 
+The [Deck clip-operation study](steam-deck-clip-operations.md) records a fresh
+per-thread CPU profile, exact projection experiments and their flat live FPS
+results. It distinguishes parallel worker cost from renderer/chain work and
+retains the complete correctness, compiler-profile and restoration evidence.
+
 The [RSX preparation study](rsx-preparation-study.md) records the CPU profile
 after native job completion, a rejected renderer-remap cache and its cache-fill
 coherence failure. Its diagnostic phase estimates are separate from timed FPS.

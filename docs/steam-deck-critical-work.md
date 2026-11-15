@@ -16,6 +16,12 @@ identifies the synchronous upload/resource-release drains. A bounded deferred
 retirement prototype removes those calls but still measures below 30 FPS.
 Call-site attribution is now part of the optional renderer wait tracing.
 
+The subsequent [exact clip-operation study](steam-deck-clip-operations.md)
+includes a fresh loss-free CPU sample and per-thread attribution. Two exact
+projection candidates, including refreshed native PGO, improved kernel timings
+but remained flat around 28 FPS in matched menu tests. A translation-only
+object-transform prototype is validated only at the kernel/captured-input level.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
