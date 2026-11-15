@@ -81,3 +81,23 @@ hit rate or performance result. It excluded 109 mutable blend jobs and 12
 unsupported-storage jobs. This differs from whole-job output reuse, which
 previous experiments ruled out. Any cache still needs full-byte validation,
 bounded memory, mutation tests and measurements including lookup/copy costs.
+
+Two private bounded-cache prototypes were subsequently measured on the reveal
+corpus. Both used four simulated workers assigned jobs round-robin, four-way
+sets, sampled fingerprints followed by complete metadata/input comparisons,
+and 64/128/256 cells per worker. Each cached result was compared byte-for-byte
+with the uncached kernel. This assignment is not evidence of actual lane
+placement or a live hit rate.
+
+- Decoder-only caching, after the first 1,000 jobs: uncached 1.90–1.95 us
+  versus cached 2.42–2.92 us per call. It retained about 9.9–16.7 MB of payloads
+  across the four caches. Complete contiguous input spans included unused
+  bytes, so its hit counts were lower than the canonical-input upper bound.
+- Object-transform caching, including decode and transform costs: uncached
+  3.84–4.08 us versus cached 4.56–4.72 us. Weighted and blend jobs did not enter
+  the object cache; lookup, fill and copy costs outweighed the saved work.
+
+Neither prototype entered the production tree or a live FPS test. The private
+`decode-cache-bench.cpp`, `object-cache-bench.cpp` and their logs preserve the
+implementations and measurements. These results reject these specific cache
+designs, not every possible reuse strategy.
