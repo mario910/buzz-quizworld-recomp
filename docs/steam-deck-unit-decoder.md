@@ -127,3 +127,53 @@ The streaming differences are small: 0.81%/1.28% for bounded directions alone
 and 0.69%/2.04% with fused interpolation, question/reveal respectively. These
 are separate runs from the decoder experiment; their gains cannot be added.
 Neither normal-transform variant has whole-job or live FPS qualification.
+
+
+## Combined native integration
+
+The bounded decoder, fused reciprocal-root interpolation and bounded object
+normalization were integrated into the two existing prepared host headers,
+without a runtime switch or a duplicate job pipeline. Tests compiled against
+the actual candidate headers passed the exhaustive packed-input, direct
+interpolation and bounded-direction checks above. The integrated direction
+fixture invokes the same candidate twice; its inherited log wording does not
+establish two different runtime modes.
+
+Only `native_geometry_job_flow.cpp` received a fresh compiler profile, trained
+with a 90-second menu and a 335-second scripted gameplay run. The training
+captures were inspected and showed an intact menu and scoreboard. The clean
+rebuild reported no stale-profile mismatch. Other translation units retained
+PGO6, and training instrumentation was removed before replay and timing.
+
+All 8,196 complete ordered transfer/exit files matched the retained reference,
+with the same original-capture verdicts documented in
+[DMA experiments](steam-deck-dma-experiments.md). Three requested repetitions
+produce 24,384 executions, including the existing failures that stop on their
+first attempt. This is differential parity, not proof that every retained
+capture matches its historical output.
+
+Four clean sequential 90-second menu runs compared frozen reference A against
+candidate B in ABBA order. Settings were 1280×720, 100% scale, uncapped mailbox,
+batch 512, two contexts, zero spin and image-36 search. FPS covers seconds
+40–70; process CPU covers 45–65; captures are at second 80. All frame deltas
+were one, all runs progressed beyond second 88, settings matched, and all four
+captures were inspected and intact. No build, profiler, replay or benchmark
+overlapped these measurements.
+
+| Arm | FPS | p95 interval ms | Lowest 1 s FPS | CPU ms/frame |
+| --- | ---: | ---: | ---: | ---: |
+| A1 | 28.033 | 44.359 | 22 | 155.706 |
+| B1 | 28.200 | 43.832 | 23 | 155.955 |
+| B2 | 28.067 | 44.172 | 24 | 155.970 |
+| A2 | 28.067 | 43.332 | 23 | 156.778 |
+
+Means were 28.050 FPS reference and 28.133 candidate. About 67.8% and 66.7%
+of intervals respectively exceeded 33.34 ms. The small difference does not
+establish a useful gain, and the stable 30 FPS objective is unmet. No further
+clean-round qualification or promotion was performed.
+
+Private artifacts are in `codex-direction-combined/`. Candidate SHA-256 is
+`93d01aabb26fef86fb0df513a917e410260e03dc4a0d685be5efedd840522ff2`.
+The original headers and compiler settings were restored. The rebuilt prepared
+executable is byte-identical to the qualified reference (`630007cb…`); the SDK
+remains clean and the installed executable is unchanged (`189814d1…`).
