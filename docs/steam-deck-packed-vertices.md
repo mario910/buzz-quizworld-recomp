@@ -129,6 +129,57 @@ Executable SHA-256 values:
 The prototype is archived rather than added to production. No generated game
 code, assets, captures, binaries or private training profiles are committed.
 
+## Combined implementation and presentation follow-up
+
+Combining compact packed vertices with VP packet batching and minimal bounded
+zero canonicalization did not establish a useful whole-game improvement. The
+three changed renderer translation units received fresh menu-on, round-on and
+menu-off profiles; the remaining units retained PGO6. All three implementations
+are archived under `performance/optimization/codex-frame-bundle/` outside the
+repository, with source hashes, fixtures, profiles and run manifests.
+
+The combination passed the bounded-position, skin and projection sanitizer
+fixtures, 194,308 VP packet/state cases in each of native and checked modes,
+28,834 packed-vertex CPU cases, and 1,728 actual GPU framebuffer pairs. Both
+initial and reprofiled executables reproduced the retained baseline's complete
+ordered DMA/exit files for 5,696 corpus entries (three repetitions requested;
+known recorded-output discrepancies stop repeats). The blend and padding
+corpora overlap the question corpus; these are not 5,696 unique jobs.
+
+A completed menu audit checked 225,563,389 packed vertices and 30,720 sampled
+VP states without a mismatch. A completed 335-second training round ended in
+an intact answer/score scene. Training timings are not performance evidence.
+
+The clean A1/C1/B1/B2/C2/A2 menu comparison used the same settings and timing
+window as above. A is the qualified reference; C retains geometry changes but
+disables VP packets and packing; B enables all three. All six captures were
+intact, and effective profiles matched.
+
+| Arm | FPS | Median ms | p95 ms | Aggregate CPU ms/frame |
+| --- | ---: | ---: | ---: | ---: |
+| A1 | 27.967 | 35.400 | 44.386 | 157.717 |
+| C1 | 27.933 | 35.150 | 44.238 | 156.951 |
+| B1 | 28.100 | 35.314 | 43.828 | 155.512 |
+| B2 | 28.433 | 34.879 | 43.472 | 153.520 |
+| C2 | 28.433 | 34.721 | 42.353 | 154.842 |
+| A2 | 28.133 | 35.022 | 43.943 | 156.735 |
+
+Means were A 28.050, C 28.183 and B 28.267 FPS. The 0.77% mean lead over A
+overlaps run variation, and frame-time tails remain above the target. The
+reprofiled combination SHA-256 is
+`09eeaa7a705f8dfbdf8c744aaa2800dca225f6bbd06aedad2bc9ed9dd2a0c4fb`.
+The combination remains unpromoted.
+
+A separate six-run presentation comparison used the unchanged reference for
+X11 windowed (A), native Wayland windowed (C), and native Wayland borderless
+fullscreen (B). Means were A 27.967, C 27.967 and B 28.233 FPS; fullscreen p95
+intervals were 42.890 and 43.462 ms. All six captures were intact at 1280×720,
+100% internal scale. Fullscreen used an aspect-fit blit into the Deck's
+1280×800 swapchain. Only private per-run settings changed. Evidence is under
+`performance/optimization/codex-display-mode/` outside the repository.
+This overlapping 0.95% mean lead does not justify changing presentation
+defaults or claiming stable 30 FPS. Neither series is pooled with earlier runs.
+
 Production source and the private build configuration were restored. The
 rebuilt workspace executable matches the qualified reference byte-for-byte.
 SDK pin `79efc280dad27271d5f68077acb0247df1e88dc7` remains clean. The installed
