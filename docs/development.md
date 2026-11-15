@@ -57,6 +57,12 @@ configuration. Other geometry flags are experiments, not cumulative upgrades.
 `BUZZ_IMAGE36=0` selects the lifted reference; `2` compares against it.
 Keep `SPURS_NATIVE_IMAGE39_FP=0` for the established correctness baseline.
 
+The separate EU 1.00 integer-search experiment is opt-in with
+`BUZZ_IMAGE36_SEARCH=1`; its default is off. This switch is independent of the
+FP-leaf mode above. See the [Deck search measurements](steam-deck-image36-search.md)
+for its contract and pending round qualification. Linux x86 checks use
+`python3 tests/scripts/test-image36-search.py --workspace /path/to/prepared/workspace`.
+
 ## Synthetic tests
 
 From the repository root, after Setup:

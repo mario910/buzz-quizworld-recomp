@@ -3,6 +3,7 @@
 The pinned original remains the oracle. Only the leaf is built with the
 audited RTZ helpers; no native arithmetic flag applies to the whole image.
 Output in ignored analysis/native-image36 derives from the user's lift.
+The EU 1.00 search adapter is separately runtime-gated and uses integer helpers.
 """
 
 from pathlib import Path as _Path
@@ -41,6 +42,31 @@ def extract(source, name=NAME, loop_pc="000006D8"):
     return match, end, body, core
 
 
+def bind_search(source):
+    """Retarget only entry edges, retaining original loop bodies/PGO identities."""
+    prefix = "buzz_job_14b4_spu_func_0000"
+    original = prefix + "15BC"
+    branch = ("if (ctx->gpr[17]._u32[0] == 0) { ctx->pc = 0x15BC; "
+              f"g_spu_trampoline_fn = {original}; return; }}")
+    table = f'{{ 0x000015BCu, {original}, "{original}" }}'
+    include = '#include "spu_helpers.h"'
+    if (source.count(original) != 5 or source.count(branch) != 1 or
+            source.count(table) != 1 or source.count(include) != 1):
+        raise ValueError("Image36 search entry edges changed; re-audit before binding")
+    blocks = []
+    for pc in ("15BC", "15A8"):
+        matches = list(re.finditer(rf"(?ms)^void {prefix}{pc}\(spu_context\* ctx\) \{{\n.*?^\}}", source))
+        if len(matches) != 1:
+            raise ValueError("Image36 search oracle block missing or duplicated")
+        blocks.append(matches[0].group())
+    includes = "".join(line + "\n" for line in source.splitlines() if line.startswith("#include"))
+    oracle = includes + "\n".join(blocks) + "\n"
+    source = source.replace(branch, branch.replace(original, "buzz_image36_search_15bc"))
+    source = source.replace(table, table.replace(original + ",", "buzz_image36_search_15bc,"))
+    source = source.replace(include, include + '\n#include "native_image36_search.h"')
+    return source, oracle
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", type=Path, default=ROOT, help="Checkout or prepared workspace with the SPU lift")
@@ -70,6 +96,9 @@ void {name}(spu_context* ctx) {{
 """
     lift = (source[:match.start()] + f"void {name}_reference(spu_context* ctx) {{"
             + body + "\n}\n" + wrapper + source[end + 2:])
+    search_reference = None
+    if source_hash == DISC_PIN:
+        lift, search_reference = bind_search(lift)
     includes = "".join(line + "\n" for line in source.splitlines() if line.startswith("#include"))
     exact = "".join(f"#define spu_{op} spu_{op}_ref\n" for op in ("fa", "fs", "fm", "fma", "fms", "fnms"))
     neon = '#ifdef BUZZ_IMAGE36_NEON\n#include "spu_neon_rtz.h"\n#endif\n'
@@ -80,6 +109,16 @@ void {name}(spu_context* ctx) {{
                            ("oracle_06d8.c", includes + exact + "\nvoid buzz_image36_06d8_oracle(spu_context* ctx) {" + core + "}\n")):
         (out / filename).write_text(text, encoding="utf-8", newline="\n")
     shutil.copyfile(source_dir / "spu_recomp.h", out / "spu_recomp.h")
+    search_headers = ("image36_search.h", "native_image36_search.h", "spu_pure_loop.h")
+    if search_reference is not None:
+        (out / "reference_search.c").write_text(search_reference, encoding="utf-8", newline="\n")
+        for filename in search_headers:
+            shutil.copyfile(ROOT / "port" / filename, out / filename)
+    else:
+        # An older supported FP leaf has no audited search binding. Never leave
+        # a stale EU 1.00 search oracle that could appear to validate that lift.
+        for filename in (*search_headers, "reference_search.c"):
+            (out / filename).unlink(missing_ok=True)
     print(f"Image36: profile-bound leaf 0x{int(pc,16):04X}, shared checked native RTZ -> {out}")
 
 
