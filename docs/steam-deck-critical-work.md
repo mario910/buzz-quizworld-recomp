@@ -22,6 +22,11 @@ projection candidates, including refreshed native PGO, improved kernel timings
 but remained flat around 28 FPS in matched menu tests. A translation-only
 object-transform prototype is validated only at the kernel/captured-input level.
 
+The [vectorized index follow-up](steam-deck-index-vector.md) also remained flat
+despite a 28% kernel gain and refreshed renderer profiling. A subsequent
+[command-thread profile](steam-deck-chain-copies.md) identifies small DMA-read
+callers and lengths as another candidate for investigation.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
