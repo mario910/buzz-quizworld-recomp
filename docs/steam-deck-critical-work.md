@@ -27,6 +27,10 @@ despite a 28% kernel gain and refreshed renderer profiling. A subsequent
 [command-thread profile](steam-deck-chain-copies.md) identifies small DMA-read
 callers and lengths as another candidate for investigation.
 
+A later [FIFO cursor isolation experiment](steam-deck-fifo-cursor.md) tested
+possible cache-line sharing without changing command behavior. It passed the
+targeted FIFO checks but remained neutral in clean menu timing and was removed.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
