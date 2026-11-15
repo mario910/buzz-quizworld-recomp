@@ -19,6 +19,35 @@ if(BUZZ_EXPERIMENTAL_VULKAN)
         endif()
         string(REPLACE "${old}" "${new}" upload_text "${upload_text}")
     endmacro()
+    # Surface format lists can exceed 64 entries (Wayland) or grow between
+    # the count and fill queries. Keep the pinned SDK and selection policy.
+    buzz_upload_replace("static int vk_create_swapchain(void)"
+        "#include \"vulkan_surface_formats.h\"\n\nstatic int vk_create_swapchain(void)")
+    buzz_upload_replace([=[
+    u32 nf = 0;
+    VK_CHECK(pvkGetPhysicalDeviceSurfaceFormatsKHR(s_vk.phys, s_vk.surface, &nf, NULL),
+             "vkGetPhysicalDeviceSurfaceFormatsKHR");
+    if (nf == 0) { VK_LOG("surface reports no formats\\n"); return -1; }
+    if (nf > 64) nf = 64;
+    VkSurfaceFormatKHR fmts[64];
+    VK_CHECK(pvkGetPhysicalDeviceSurfaceFormatsKHR(s_vk.phys, s_vk.surface, &nf, fmts),
+             "vkGetPhysicalDeviceSurfaceFormatsKHR");
+    /* UNORM, not SRGB: the offscreen target holds the guest's values as-is. */
+    VkSurfaceFormatKHR fmt = fmts[0];
+    if (nf == 1 && fmts[0].format == VK_FORMAT_UNDEFINED) {
+        fmt.format = VK_FORMAT_B8G8R8A8_UNORM;
+    } else {
+        static const VkFormat pref[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM };
+        int found = 0;
+        for (size_t k = 0; k < 2 && !found; k++)
+            for (u32 i = 0; i < nf; i++)
+                if (fmts[i].format == pref[k]) { fmt = fmts[i]; found = 1; break; }
+    }
+]=] [=[
+    VkSurfaceFormatKHR fmt;
+    VK_CHECK(buzz_vk_choose_surface_format(pvkGetPhysicalDeviceSurfaceFormatsKHR,
+             s_vk.phys, s_vk.surface, &fmt), "surface format enumeration");
+]=])
     if(WIN32)
         # Win32 WSI queries inherit the calling thread's DPI context, not the
         # per-monitor-aware HWND's. Keep physical pixels for the WHOLE query /
