@@ -529,6 +529,28 @@ int replay_job(const std::string& path, const Job& job, const std::vector<Seed>&
         g_trace_steps = false; /* first run of the job only */
     }
 
+    // Compare two current implementations even when an older capture uses a
+    // different approved padding policy. Dump the complete ordered transfer
+    // stream and exit controls before checking against the captured oracle.
+    // Caller owns the directory; this diagnostic never runs during game play.
+    if (const char* directory = getenv("BUZZ_REPLAY_OUTPUT_DIR")) {
+        const std::string output = std::string(directory) + "/" + g_dump_name + ".output";
+        FILE* file = fopen(output.c_str(), "wb");
+        if (!file) { fprintf(stderr,"[replay] cannot open output %s\n",output.c_str()); return 1; }
+        auto write = [&](const void* data, size_t size) { return fwrite(data,1,size,file)==size; };
+        const uint32_t count = uint32_t(g_replay.size());
+        bool ok = write(&count,sizeof count);
+        for (const Transfer& t : g_replay) {
+            const uint32_t fields[] = {t.kind,t.lsa,t.ea,t.size};
+            ok = write(fields,sizeof fields) && ok;
+            ok = write(g_replay_data.data()+t.offset,t.size) && ok;
+        }
+        const ExitState state = exit_of(ctx);
+        ok = write(&state,sizeof state) && ok;
+        if (fclose(file)) ok=false;
+        if (!ok) { fprintf(stderr,"[replay] cannot write output %s\n",output.c_str()); return 1; }
+    }
+
     int verdict = 0;
     unsigned input_diffs = 0;
     size_t n = job.transfers.size() < g_replay.size() ? job.transfers.size() : g_replay.size();
