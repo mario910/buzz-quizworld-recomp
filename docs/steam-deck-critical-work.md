@@ -31,6 +31,10 @@ A later [FIFO cursor isolation experiment](steam-deck-fifo-cursor.md) tested
 possible cache-line sharing without changing command behavior. It passed the
 targeted FIFO checks but remained neutral in clean menu timing and was removed.
 
+The [skinning preparation study](steam-deck-skin-preparation.md) tests recipe
+reuse and duplicate palette-store removal, and adds 1,500 exact current-menu
+job captures. Neither preparation prototype established a substantial gain.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
