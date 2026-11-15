@@ -62,3 +62,6 @@ The parser checks all 1,170 samples and their summed period count against
 perf's total before reporting copy-size attribution. The earlier failed parser
 attempt split register output on blank lines incorrectly; its corrected results
 are retained separately for the 199 Hz run and are not used above.
+
+The subsequent [bounded prefetch experiment](steam-deck-dma-prefetch.md)
+passed differential replay but has not established a net FPS improvement.

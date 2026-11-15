@@ -101,3 +101,7 @@ Neither prototype entered the production tree or a live FPS test. The private
 `decode-cache-bench.cpp`, `object-cache-bench.cpp` and their logs preserve the
 implementations and measurements. These results reject these specific cache
 designs, not every possible reuse strategy.
+
+A later [packed-direction arithmetic and table study](steam-deck-unit-decoder.md)
+validated all packed inputs but found that large exact magnitude tables slowed
+streaming captured workloads. Those variants also remain unintegrated.
