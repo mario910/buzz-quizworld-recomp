@@ -58,7 +58,11 @@ static inline void buzz_state_packet_apply(rsx_dispatch* rsx,rsx_state* state,
         const u32 word=(method-0x1f00)/4, lane=word&3;
         if(rsx) {
             const u32 slot=rsx->regs[0x1efc/4]+(word>>2);
-            if(slot<RSX_DSP_NUM_CONSTANTS)rsx->constants[slot][lane]=value;
+            if(slot<RSX_DSP_NUM_CONSTANTS) {
+                rsx->constants[slot][lane]=value;
+                /* Same extent bookkeeping as rsx_dispatch_method. */
+                if(slot>=g_rsx_dsp_constants_hw)rsx_dsp_constants_note(slot+1u);
+            }
         }
         const u32 slot=state->transform_constant_load+(word>>2);
         if(slot<RSX_MAX_VERTEX_CONSTANTS) {
