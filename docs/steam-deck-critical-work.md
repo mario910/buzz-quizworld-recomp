@@ -5,6 +5,12 @@ toward renderer vertex preparation. An exact GPU decoder has passed synthetic
 readback checks, but it is not integrated into the live vertex-input path and
 has no established FPS benefit.
 
+Follow-up: the [live packed vertex experiment](steam-deck-packed-vertices.md)
+subsequently passed vertex-input GPU parity and gameplay audits. Two menu
+series, including refreshed renderer PGO, showed only small overlapping leads;
+the integration was archived without promotion. The feasibility findings below
+describe the earlier stage of that work.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
