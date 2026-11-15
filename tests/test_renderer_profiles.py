@@ -40,6 +40,16 @@ class ProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.profile(LOG.replace('two-context asynchronous draw batches enabled', ''))
 
+    def test_current_numeric_context_marker_matches_legacy(self):
+        self.assertEqual(module.profile(LOG), module.profile(LOG.replace('two-context', '2-context')))
+
+    def test_other_or_conflicting_context_counts_are_rejected(self):
+        for count in (0, 1, 3, 4):
+            for log in (LOG.replace('two-context', f'{count}-context'),
+                        LOG + f'[RSX vulkan] {count}-context asynchronous draw batches enabled\n'):
+                with self.subTest(count=count, log=log), self.assertRaises(ValueError):
+                    module.profile(log)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -28,7 +28,9 @@ def profile(text):
         if len(values) != 1:
             raise ValueError(f'{key}: expected one effective value, found {values}')
         result[key] = values[0]
-    if '[RSX vulkan] two-context asynchronous draw batches enabled' not in text:
+    contexts = {'2' if value == 'two' else value for value in re.findall(
+        r'\[RSX vulkan\] (two|\d+)-context asynchronous draw batches enabled', text)}
+    if contexts != {'2'}:
         raise ValueError('two draw contexts not confirmed')
     result['draw_contexts'] = '2'
     return result
