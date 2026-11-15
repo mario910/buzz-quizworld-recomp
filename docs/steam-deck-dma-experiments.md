@@ -49,6 +49,31 @@ the added complexity. The candidate was not installed. Both experimental
 adapters were removed from the source; `diagnostic-shortcuts.patch` and the
 frozen generated sources preserve them for reproduction.
 
+## Grouped reservation checks
+
+A third candidate read eight reservation bits per bitmap byte instead of
+calling the single-line query for each 128-byte DMA span. It retained acquire
+loads, the locked copy on a hit, and the post-copy check/individual notifications
+for reservations created during an unlocked copy. Only images 38–41 used it.
+
+Validation passed 330,432 range/bit-mask comparisons under ASan/UBSan, 8,640
+transfer cases using real reservation code, and another 11,520 comparisons
+including 1,600 injected reservations immediately after a copy. Full replay
+outputs matched for all 8,196 captured jobs, with the same existing capture
+verdicts listed below.
+
+| Arm | FPS | Median interval ms | p95 interval ms |
+|---|---:|---:|---:|
+| A1, per-line | 25.97 | 37.893 | 46.811 |
+| B1, grouped | 25.63 | 38.628 | 47.542 |
+| B2, grouped | 26.00 | 38.143 | 45.512 |
+| A2, per-line | 25.70 | 38.401 | 46.467 |
+
+This used the same sequential 90-second ABBA protocol. Means were 25.83 FPS
+for the original and 25.82 for the candidate. The candidate was removed and
+not installed. `codex-dma-range/` retains its patch, header, synthetic tests,
+frozen generated sources, executable, qualification and live-run evidence.
+
 ## Replay qualification and existing capture differences
 
 Both candidates produced identical complete ordered DMA streams and exit
