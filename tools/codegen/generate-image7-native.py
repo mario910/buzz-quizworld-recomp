@@ -10,7 +10,8 @@ can be scoped to that function.
 
 Output (analysis/native-image7/):
   spu_recomp.c   the pinned lift; 0x8638 renamed ..._reference, a wrapper under
-                 the original name hands calls to buzz_image7_run (port code)
+                 the original name hands calls and its pinned layout PC to
+                 buzz_image7_run_layout (port code)
   kernel_8638.c  the same body as buzz_image7_8638_native, compiled with
                  SPU_NATIVE_RTZ (+ result guard): hardware ops under RZ, exact
                  lane repair as everywhere else in the lift
@@ -61,12 +62,12 @@ if exits != {image + "_spu_func_0000" + exit_pc}:
 
 wrapper = f"""
 extern void buzz_image7_8638_native(spu_context* ctx);
-extern void buzz_image7_run(spu_context* ctx, void (*reference)(spu_context*),
-                            void (*native)(spu_context*));
+extern void buzz_image7_run_layout(spu_context* ctx, void (*reference)(spu_context*),
+                                   void (*native)(spu_context*), unsigned layout_pc);
 extern int buzz_image7_mode;
 void {NAME}(spu_context* ctx) {{
     if (!buzz_image7_mode) {{ {NAME}_reference(ctx); return; }}
-    buzz_image7_run(ctx, {NAME}_reference, buzz_image7_8638_native);
+    buzz_image7_run_layout(ctx, {NAME}_reference, buzz_image7_8638_native, 0x{pc});
 }}
 """
 lift = (source[:match.start()] + f"void {NAME}_reference(spu_context* ctx) {{" + body + "\n}\n"

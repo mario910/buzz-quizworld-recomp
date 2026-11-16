@@ -169,6 +169,11 @@ behavior and further admission checks live in the linked CMake/header sources;
 - Image7/36, retained geometry and Stage F modes generally use `0` for the
   reference, `1` native and `2` compare/reference-result mode. Availability is
   decided by generated source/ISA options, not the mode variable alone.
+- Newly generated Image7 wrappers enable [exact SIMD video conversion](steam-deck-video-simd.md)
+  for the pinned `0x86B8` layout on AVX2/FMA builds with LS debug hooks disabled.
+  `BUZZ_IMAGE7_SIMD=0` retains the original native leaf; older wrappers, other
+  layouts and unsupported builds keep that leaf automatically. The measured
+  CPU saving does not establish stable 30+ FPS on Deck.
 - Image39's checked FP option changes arithmetic helpers, not the retained
   producer's instruction flow. The default-OFF native bounds option replaces
   admitted EU100 `0x05C0` calls; its hook otherwise retains the original.

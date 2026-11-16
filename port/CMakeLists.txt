@@ -874,6 +874,21 @@ if(PORT_VIDEO_IDCT_SOURCE)
 endif()
 if(PORT_IMAGE7_SOURCE)
     target_sources(${PROJECT_NAME} PRIVATE native_image7.cpp)
+    # This SIMD leaf is qualified only for the pinned 0x86B8 layout. Keep it
+    # separate from the wrapper's O1 flags and from generated-kernel PGO.
+    # Probed builds must retain every original LS access.
+    if(PORT_SPU_ISA MATCHES "^(avx2|avx512)$" AND NOT ANDROID AND NOT PORT_SPU_LS_DEBUG_HOOKS)
+        target_sources(${PROJECT_NAME} PRIVATE native_image7_simd.cpp)
+        set_property(SOURCE native_image7.cpp APPEND PROPERTY COMPILE_DEFINITIONS BUZZ_IMAGE7_SIMD_AVX2=1)
+        set_source_files_properties(native_image7_simd.cpp PROPERTIES
+            COMPILE_DEFINITIONS SPU_LS_DEBUG_HOOKS=0
+            COMPILE_OPTIONS "${spu_flags};-O3;-mfma")
+        if(MSVC)
+            set_property(SOURCE native_image7_simd.cpp APPEND PROPERTY COMPILE_OPTIONS /clang:-frounding-math /clang:-ffp-contract=off)
+        else()
+            set_property(SOURCE native_image7_simd.cpp APPEND PROPERTY COMPILE_OPTIONS -frounding-math -ffp-contract=off)
+        endif()
+    endif()
     if(ANDROID AND PORT_IMAGE7_COMPARE)
         set_property(SOURCE native_image7.cpp APPEND PROPERTY COMPILE_DEFINITIONS BUZZ_IMAGE7_COMPARE_DEFAULT=1)
     endif()
