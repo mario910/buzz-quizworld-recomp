@@ -7,6 +7,10 @@ predict an equivalent speedup. A separate exact translation-only shortcut
 now passes complete-preparation checks and reduces standalone preparation
 time by about 2–4%. No live FPS gain is established, and stable 30+ remains unmet.
 
+Follow-up: the [private live translation trial](steam-deck-translation-live.md)
+passes whole-job output comparisons but remains within menu timing variation.
+The shortcut was not promoted.
+
 ## Current-build delay study
 
 Ten 90-second runs use the same committed SIMD executable, SHA-256

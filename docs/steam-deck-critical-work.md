@@ -66,7 +66,10 @@ The [current job-sensitivity study](steam-deck-job-sensitivity.md) finds a
 repeatable menu slowdown from added post-image-41 delays, with much smaller
 image-39 effects. It also expands exact translation-only transform checks to
 complete preparation and fresh menu captures. Standalone preparation improves
-about 2–4%; whole-job/live FPS qualification is still pending.
+about 2–4%. The subsequent [live translation trial](steam-deck-translation-live.md)
+completes whole-job/live qualification: outputs match, but the small menu lead overlaps run-to-run
+variation and the shortcut is not promoted. Its separate borrowed-cache study
+also fails to beat recomputation with simulated per-worker caches.
 
 ## Current-build dependency evidence
 

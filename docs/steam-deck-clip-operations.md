@@ -170,8 +170,10 @@ remains private. These savings cannot be added to the projection percentages.
 
 The later [complete-preparation study](steam-deck-job-sensitivity.md) adds the
 current menu corpus, eager/deferred output comparisons and strict-padding
-checks. It measures roughly 2–4% less complete-preparation time. Live FPS
-qualification remains pending; the earlier kernel figures are not additive.
+checks. It measures roughly 2–4% less complete-preparation time; the earlier
+kernel figures are not additive.
+The subsequent [live trial](steam-deck-translation-live.md) passes whole-job
+comparisons but fails to establish a useful menu FPS gain. It is not promoted.
 
 ## Artifacts and restoration
 

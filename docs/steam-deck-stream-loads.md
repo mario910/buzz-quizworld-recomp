@@ -102,6 +102,11 @@ Neither prototype entered the production tree or a live FPS test. The private
 implementations and measurements. These results reject these specific cache
 designs, not every possible reuse strategy.
 
+The later [borrowed-buffer study](steam-deck-translation-live.md) removes
+transformed-result copies on both misses and hits. It still loses to
+recomputation with simulated per-worker caches. A single serial cache shows a
+modest, variable lead without synchronization costs; no live cache is promoted.
+
 A later [packed-direction arithmetic and table study](steam-deck-unit-decoder.md)
 validated all packed inputs but found that large exact magnitude tables slowed
 streaming captured workloads. Those variants also remain unintegrated.
