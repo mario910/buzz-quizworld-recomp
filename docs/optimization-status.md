@@ -172,6 +172,10 @@ but clean menu FPS does not improve. Production retains its full fence.
 The existing `SPURS_CHAIN_WORKERS` runtime option also stays off after the
 [Deck worker-reuse comparison](steam-deck-chain-workers.md): menu FPS falls
 from 28.92 to 28.65 and CPU time rises slightly in same-executable tests.
+The [x86 integer-helper experiment](steam-deck-spu-integer-simd.md) remains
+private: complete-state checks pass, but only a small isolated-loop gain is
+established. A [frozen private build](steam-deck-private-build.md) reproduces
+the retained Deck reference exactly for further experiments.
 
 - `BUZZ_GEOMETRY_JOB` selects the complete native job; `0` restores lifted
   execution. Per-stage `BUZZ_GEOMETRY_JOB_*` controls are legacy diagnostic
