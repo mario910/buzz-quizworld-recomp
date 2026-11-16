@@ -57,6 +57,11 @@ ordering with a faster isolated x86 barrier. Ordering stress, actual waiter
 fixtures and captured outputs pass, but both switched and direct builds fail
 to improve clean menu FPS. The original barrier remains in production.
 
+The [persistent chain-worker experiment](steam-deck-chain-workers.md) tests
+the existing runtime option without changing the executable. Queue stress and
+live progression checks pass, but menu FPS falls from 28.92 to 28.65 and CPU
+time rises slightly. The option stays off.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
