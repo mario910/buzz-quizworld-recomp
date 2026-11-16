@@ -52,6 +52,11 @@ passes 9,696 captured-job output comparisons but regresses matched menu FPS
 from 28.90 to 27.65. This cycle-sampled BOLT variant is rejected; the committed
 SIMD build remains the reference.
 
+The [full-barrier study](steam-deck-full-fence.md) retains DMA publication
+ordering with a faster isolated x86 barrier. Ordering stress, actual waiter
+fixtures and captured outputs pass, but both switched and direct builds fail
+to improve clean menu FPS. The original barrier remains in production.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
