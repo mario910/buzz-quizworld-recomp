@@ -1,3 +1,6 @@
+/* Not lifted fragments: spu_direct_hops.h redefines `return` for those. */
+#pragma push_macro("return")
+#undef return
 /* Image 39 (EU 1.00 C0BC) native command writers.
  *
  * Image 39 builds per-object RSX command buffers in local store: method
@@ -637,3 +640,4 @@ static int buzz_i39_native_4308(spu_context* ctx)
     i39_return(ctx, r0, r1);
     return 1;
 }
+#pragma pop_macro("return")

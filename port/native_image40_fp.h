@@ -1,3 +1,6 @@
+/* Not lifted fragments: spu_direct_hops.h redefines `return` for those. */
+#pragma push_macro("return")
+#undef return
 #ifndef BUZZ_NATIVE_IMAGE40_FP_H
 #define BUZZ_NATIVE_IMAGE40_FP_H
 /* Include AFTER the original helpers, in an audited single-precision TU. The owner sets RTZ,
@@ -80,3 +83,4 @@ IMAGE40_TERNARY(fnms, 5, spu_native_rtz_fma(a,b,c,0x80000000u,0))
 #define spu_fms image40_fms
 #define spu_fnms image40_fnms
 #endif
+#pragma pop_macro("return")

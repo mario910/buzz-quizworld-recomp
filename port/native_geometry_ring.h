@@ -4,7 +4,9 @@
 #pragma once
 #include "native_geometry_job.h"
 #include "spu_helpers.h"
+#include "spu_coherency.h"
 
+extern "C" { extern uint8_t* vm_base; }
 namespace buzz {
 struct GeometryRing {};
 struct GeometryRingContinuations { buzz_geometry_job_fn initial_report,shared_report; };
@@ -63,6 +65,10 @@ class GeometryRingAllocation {
         r[80]=spu_il(1344);r[3]=r[12];r[1]=spu_a(r[1],r[80]);const uint32_t sp=r[1]._u32[0];
         r[0]=load(sp+16);for(unsigned reg=80;reg<=96;++reg)r[reg]=load(sp-(reg-79)*16);r[126]=load(sp-288);
         SPU_RET(&c);
+    }
+    void register_lane_reservation()
+    {
+        spu_coh_reserve_late(&c,c.resv_valid?vm_base+c.resv_ea:nullptr);
     }
     uint32_t frontier(uint32_t pc)
     {
@@ -250,7 +256,13 @@ public:
         g_spu_trampoline_fn=nullptr;open();if(r[4]._u32[0]){direct();close();return 0;}
         r[39]=spu_ai(r[5],127);r[83]=spu_andi(r[39],-128);r[95]=rd(SPU_RdMachStat);r[2]=spu_ai(spu_link(0x3940),8);c.int_enable=0;
         r[96]=spu_ila(0xe600);r[37]=spu_shli(r[7],7);r[96]=spu_a(r[96],r[126]);r[38]=spu_ai(r[81],128);r[36]=r[96];r[93]=spu_a(r[37],r[38]);
-        wr(MFC_LSA,36);wr(MFC_EAL,93);r[4]=spu_il(208);r[35]=r[4];wr(MFC_Cmd,35);r[3]=rd(MFC_RdAtomicStat);
+        wr(MFC_LSA,36);wr(MFC_EAL,93);r[4]=spu_il(208);r[35]=r[4];
+        // The lane line is this lane's own: the reservation taken here ends in
+        // publish_lane's unconditional store or is replaced by a shared-line
+        // GETLLAR, so no holder is registered (spu_coherency.c). The two
+        // reporting continuations below hand it to original code and register
+        // it first.
+        spu_coh_set_holderless(1);wr(MFC_Cmd,35);spu_coh_set_holderless(0);r[3]=rd(MFC_RdAtomicStat);
         r[34]=load(0xe600);r[33]=load(0xe600);r[32]=spu_rotqbyi(r[34],8);r[31]=spu_ceq(r[32],r[33]);
         if(r[31]._u32[0]){shared_disabled();return 0;}
         r[94]=spu_a(r[83],r[83]);r[8]=load(0xe600);r[92]=spu_ila(0xe600);r[4]=load(0xe610);r[92]=spu_a(r[92],r[126]);
@@ -258,8 +270,8 @@ public:
         r[79]=spu_sf(r[8],r[88]);r[78]=spu_clgt(r[94],r[79]);if(r[78]._u32[0])return shared_then_reconsider();
         r[2]=load(0xe610);r[5]=spu_rotqbyi(r[2],8);
         if(r[5]._u32[0]){
-            r[6]=spu_clgt(r[8],r[5]);if(r[6]._u32[0])return frontier(0x3dd0);
-            r[11]=spu_clgt(r[5],r[88]);if(r[11]._u32[0])return frontier(0x3dd0);
+            r[6]=spu_clgt(r[8],r[5]);if(r[6]._u32[0]){register_lane_reservation();return frontier(0x3dd0);}
+            r[11]=spu_clgt(r[5],r[88]);if(r[11]._u32[0]){register_lane_reservation();return frontier(0x3dd0);}
         }
         if(!try_lane())return shared_then_reconsider();publish_lane(true);return 0;
     }

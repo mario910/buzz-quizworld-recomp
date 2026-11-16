@@ -1,3 +1,6 @@
+/* Not lifted fragments: spu_direct_hops.h redefines `return` for those. */
+#pragma push_macro("return")
+#undef return
 /* Included by the hash-pinned image39 Stage F generator. The descriptor
  * request in native_image39_request.h remains a separate I/O path. */
 #ifndef BUZZ_IMAGE39_NATIVE_BOUNDS
@@ -21,3 +24,4 @@ static int buzz_image39_native_05d0(spu_context* ctx)
     return 0;
 #endif
 }
+#pragma pop_macro("return")

@@ -1,3 +1,6 @@
+/* Not lifted fragments: spu_direct_hops.h redefines `return` for those. */
+#pragma push_macro("return")
+#undef return
 /* EU 1.00 C0BC descriptor requests. Admission/host planning precede all writes;
  * unsupported callers retain the entire 0x3A10 routine, including its frame.
  * Integer SIMD helpers preserve packed guest fields on both x86 and NEON. */
@@ -187,3 +190,4 @@ static int buzz_image39_native_request(spu_context* ctx)
 #else
 static int buzz_image39_native_request(spu_context* ctx) { (void)ctx; return 0; }
 #endif
+#pragma pop_macro("return")

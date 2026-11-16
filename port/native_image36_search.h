@@ -1,8 +1,13 @@
 /* Generated-lift adapter for the audited EU 1.00 image36 search.
- * BUZZ_IMAGE36_SEARCH=1 enables it; default off until live qualification.
+ * On by default since the 2026-11-16 Deck qualification (+1.8% heavy menu on
+ * top of direct hops); BUZZ_IMAGE36_SEARCH=0 keeps the original loop.
  * Pure private-LS search only: no DMA, channel, FP or publication changes.
  * Original block bodies and their PGO names stay intact. */
 #pragma once
+// Value-returning helpers and system headers below: not lifted fragments
+// (spu_direct_hops.h redefines `return` for those).
+#pragma push_macro("return")
+#undef return
 #include "image36_search.h"
 #include "spu_pure_loop.h"
 #include <stdlib.h>
@@ -18,10 +23,10 @@ static SPU_THREAD_LOCAL unsigned long long search_calls, search_native, search_s
 static int search_enabled(void) {
     int mode=search_mode;
     if(mode>=0)return mode;
-    const char* env=getenv("BUZZ_IMAGE36_SEARCH");mode=env && env[0]=='1';
+    const char* env=getenv("BUZZ_IMAGE36_SEARCH");mode=!(env && env[0]=='0');
     if(getenv("SPU_PCHIST"))mode=0;
     search_stats=getenv("BUZZ_IMAGE36_SEARCH_STATS")!=0;
-    fprintf(stderr,"[image36-search] mode=%d (experimental, default off)\n",mode);
+    fprintf(stderr,"[image36-search] mode=%d (default on; BUZZ_IMAGE36_SEARCH=0 disables)\n",mode);
     search_mode=mode;return mode;
 }
 static void search_report(void) {
@@ -76,3 +81,4 @@ void buzz_image36_search_15bc(spu_context* ctx) {
 #endif
     buzz_job_14b4_spu_func_000015BC(ctx);
 }
+#pragma pop_macro("return")
