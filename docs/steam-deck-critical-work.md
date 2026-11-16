@@ -47,6 +47,11 @@ production integration for image 7. Exhaustive byte, full-state and live checks
 pass. Matched production menus improve 28.47 to 28.85 FPS with 3.36% less CPU
 time per frame; stable 30+ FPS remains unachieved.
 
+The subsequent [post-link code-layout experiment](steam-deck-bolt-layout.md)
+passes 9,696 captured-job output comparisons but regresses matched menu FPS
+from 28.90 to 27.65. This cycle-sampled BOLT variant is rejected; the committed
+SIMD build remains the reference.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256

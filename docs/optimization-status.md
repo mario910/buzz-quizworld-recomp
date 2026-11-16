@@ -163,6 +163,10 @@ behavior and further admission checks live in the linked CMake/header sources;
 
 ## Native modes and diagnostics
 
+The private [Steam Deck BOLT experiment](steam-deck-bolt-layout.md) is not a
+build option or retained optimization. Its tested cycle-sampled layout passed
+captured-job comparisons but regressed clean menu FPS by 4.33%.
+
 - `BUZZ_GEOMETRY_JOB` selects the complete native job; `0` restores lifted
   execution. Per-stage `BUZZ_GEOMETRY_JOB_*` controls are legacy diagnostic
   routes, not a checklist to enable the host pipeline. See [native jobs](native-jobs.md).
