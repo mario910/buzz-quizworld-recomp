@@ -79,3 +79,33 @@ thin-triangle decision changed by approximate reciprocal projection. The
 [strict projection policy](geometry-projection-audits.md) now repairs that
 audit mismatch. Mode 2 continues to disable the MFC argument shortcut, so its
 successful strict run does not provide additional coverage of that shortcut.
+
+## Steam Deck measurement
+
+A same-executable OFF/ON/ON/OFF series at 1280×720 and 100% render scale
+used four 90-second menu runs, measuring FPS at 40–70 seconds and process CPU
+time at 45–65 seconds. The frozen executable was
+`630007cbc06f670ccef5d21cec7e41b8cf4ba148e1a48f8ed6f5cfa01fd0508d`.
+Effective renderer profiles matched; startup logs confirmed the intended
+argument-setup setting. No build, profiler or correctness test overlapped the
+runs. All four runs progressed past 88 seconds, with one presented frame per
+frame record, and all four 80-second readbacks were visually intact.
+
+| Arm | FPS | P95 frame ms | Minimum one-second FPS | CPU ms/frame |
+|---|---:|---:|---:|---:|
+| OFF A1 | 28.500 | 40.251 | 26 | 155.576 |
+| ON B1 | 28.467 | 40.897 | 24 | 156.555 |
+| ON B2 | 28.433 | 40.833 | 23 | 156.071 |
+| OFF A2 | 28.433 | 41.009 | 25 | 156.022 |
+
+Mean FPS was 28.467 OFF and 28.450 ON; mean process CPU time was 155.799
+and 156.313 ms/frame respectively. This does not establish a Deck performance
+benefit, and neither arm meets stable 30 FPS. The option remains OFF. These
+menu measurements do not add whole-job shortcut or actual-round correctness
+qualification. Recording and shadow modes still disable the shortcut.
+
+Private evidence is retained in
+`/home/deck/buzz/performance/optimization/codex-channel-setup/`, including
+run manifests, frame and CPU telemetry, effective-profile comparisons,
+startup logs, screenshots and `summary.json`. No executable or SDK change
+was needed for this series; the installed build was not changed.

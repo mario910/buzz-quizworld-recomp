@@ -35,6 +35,13 @@ The [skinning preparation study](steam-deck-skin-preparation.md) tests recipe
 reuse and duplicate palette-store removal, and adds 1,500 exact current-menu
 job captures. Neither preparation prototype established a substantial gain.
 
+The [geometry output study](steam-deck-output-layout.md) proves an exact CMP
+packing alternative and tests a dense vertex serializer. CMP arithmetic alone
+was nearly neutral; the store-layout candidate passed whole-job checks but
+did not improve clean menu FPS with refreshed geometry PGO and was removed.
+The existing [MFC argument shortcut](geometry-channel-setup.md#steam-deck-measurement)
+also remained neutral in a same-executable Deck menu comparison and stays OFF.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
