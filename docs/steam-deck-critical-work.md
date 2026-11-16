@@ -5,6 +5,11 @@ toward renderer vertex preparation. An exact GPU decoder has passed synthetic
 readback checks, but it is not integrated into the live vertex-input path and
 has no established FPS benefit.
 
+The later [round reproducibility study](steam-deck-round-seed.md) demonstrates
+that fixing the engine's initial seed still produces different questions,
+scores, and scene phases. Round timing windows require in-window scene
+verification; the private seed probe is not a deterministic benchmark.
+
 Follow-up: the [live packed vertex experiment](steam-deck-packed-vertices.md)
 subsequently passed vertex-input GPU parity and gameplay audits. Two menu
 series, including refreshed renderer PGO, showed only small overlapping leads;
