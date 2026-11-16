@@ -87,6 +87,9 @@ This is a proposed next experiment, not implemented or qualified here. Its
 changed admission and eviction behavior need full correctness checks, fresh
 profiling and clean live comparisons before any promotion.
 
+The [completed selective-cache experiment](steam-deck-index-cache-selective.md)
+passes correctness checks but shows no useful live gain and is not promoted.
+
 The diagnostic executable has SHA-256
 `8e6a43b6c7df7a3799d3e4fa78e194a09a0550dd4c5cad2004091a86a83588a2`.
 Its source changes only statistics around the already qualified private cache;
