@@ -144,3 +144,7 @@ Private artifacts are in
 installed executable, unchanged shared prepared executable and clean pinned SDK.
 `artifact-hashes.json` records source/profile/result identities. The shared
 prepared executable remains unqualified; no runtime candidate was installed.
+
+The [live counter and size-reuse diagnosis](steam-deck-index-cache-counters.md)
+finds fewer renderer instructions but more cycles and cache-miss events. It
+identifies a narrower admission policy to test; no FPS gain is claimed.
