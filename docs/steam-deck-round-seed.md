@@ -81,3 +81,65 @@ The installed executable remains
 `189814d1e5ad5372fbf16e7e302cc79c6e969b911a0c1d7089d413df833d7d50`.
 The SDK remains clean. No probe, game assets, generated source, screenshots,
 or binaries are promoted to production or committed.
+
+## Follow-up: tracing and reseeding at question selection
+
+A second private diagnostic locates the script callbacks for caching the
+current question (`0x138828`), caching the next (`0x138798`), promoting the cache
+to current (`0x1384C8`), and shuffling answers (`0x1372C0`). It also observes
+question/answer-plan names and speech IDs. Registered callbacks retain the
+original implementation and drain its trampoline before recording the result.
+
+For this pinned build, the manager reached through TOC `-0x4470` holds a cache
+object at `+0x68`. Its `+0x10` and `+0x14` pointers identify current and cached
+questions. Native getters establish the record's file number at `+0xA`, text
+number at `+0x22`, and speech ID at `+0x24`. The trace reads these fields and
+records monotonic timestamps; it does not infer identity from image similarity.
+
+Both 335-second trials additionally reset the two engine states and the
+thread-local seed fields immediately before each cache operation. The latter
+writes reproduce the seed routine reached through `0x5B64F8 -> 0x5887A0`.
+Selection `n`, starting at one, uses
+`0x12345678edcba987 + n * 0x9e3779b97f4a7c15`, modulo 2^64. This is a private
+benchmark experiment, not a production gameplay change.
+
+All five reseeds matched across runs. All four engine state words also matched
+after every corresponding selection. Nevertheless, three selected identities
+differed:
+
+| Selection | First run: file/text/speech | Second run: file/text/speech |
+| --- | --- | --- |
+| 1 | 12 / 774 / 137348 | 10 / 1249 / 138465 |
+| 2 | 11 / 3097 / 137427 | 11 / 3097 / 137427 |
+| 3 | 10 / 1381 / 139271 | 12 / 624 / 138969 |
+| 4 | 12 / 534 / 138864 | 10 / 2124 / 139197 |
+| 5 | 11 / 3091 / 137476 | 11 / 3091 / 137476 |
+
+This pattern is consistent with different preexisting file-selection ordering,
+but does not prove the cause or exclude another source of variation. Changing
+the seed at the cache boundary is still insufficient. The fifth question
+became current 112.550 versus 115.609 seconds after the first, a 3.059-second
+relative timing difference.
+
+At 306 seconds the screenshots show a musical-composer question in one run
+and a basketball-team question in the other. At 330 seconds both X11 captures
+show the same song-completion question and a score of one; the renderer's own
+330-second captures both show the green scoreboard with that score. Thus even
+matching final question/score observations do not establish matching content
+inside an earlier measurement window.
+
+All ten timed X11 captures and both renderer captures were inspected and
+rendered intact. The runs presented through 334.717 and 334.709 seconds,
+respectively, with presentation deltas of one and no checked fatal, mismatch,
+assertion, device-loss or Vulkan-error messages. Effective renderer settings
+match the preceding study. No FPS comparison is claimed for these instrumented
+runs, and the reseed probe is not retained in production.
+
+Artifacts are in
+`/home/deck/buzz/performance/optimization/codex-question-selection/`, including
+the probe source, frozen executable, build/restoration logs, captures,
+`analyze.py`, `question-events.json`, `audit.json`, `renderer-settings.json`,
+and `final-verification.json`. Diagnostic executable SHA-256:
+`80c5663c17dcf38e5829498e1e6526664a2015da771a4456afcedad350ac483a`.
+Both patched source files and Ninja flags were restored, the prepared binary
+again matches `630007cb…`, and the installed binary and clean SDK are unchanged.
