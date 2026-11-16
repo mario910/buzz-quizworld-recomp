@@ -129,6 +129,12 @@ cost. Its borrowed arm varies from 2.30% to 8.52% faster than its own control;
 the controls themselves vary substantially. This does not justify a shared
 live cache or establish real per-worker reuse. No cache variant is integrated.
 
+The [recorded-worker follow-up](steam-deck-worker-cache.md) replaces round-robin
+assignment with executor IDs in 49,152 new consecutive captures. It confirms
+small-cache regressions; a larger cache has only modest isolated savings and
+still does not justify live integration. Synchronous capture substantially
+changes pacing, so these are not uninstrumented hit-rate measurements.
+
 ## Evidence and restoration
 
 Private evidence lives under `/home/deck/buzz/performance/optimization/`:

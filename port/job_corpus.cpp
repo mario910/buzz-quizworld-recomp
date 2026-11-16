@@ -26,6 +26,7 @@
 #include "job_replay_policy.h"
 #include "native_geometry_job.h"
 #include "native_animation_runtime.h"
+#include "win32_compat.h"
 #ifdef BUZZ_NATIVE_IMAGE36
 #include "native_image36.h"
 #endif
@@ -67,6 +68,7 @@ struct Recording {
     int image = 0;
     uint32_t job_ea = 0, seq = 0;
     uint64_t elapsed_ms = 0;
+    uint32_t host_tid = 0;
     std::vector<uint8_t> entry;   /* gpr + ls */
     std::vector<uint8_t> records; /* kind, lsa, ea, size, bytes */
     uint32_t count = 0;
@@ -166,6 +168,8 @@ void capture_begin(spu_context* ctx, int image, uint32_t job_ea)
     r->job_ea = job_ea;
     r->seq = seq;
     r->elapsed_ms = now_ms() - g_boot_ms;
+    // Attribute the entry to its executor; DMA observers may run elsewhere.
+    r->host_tid = GetCurrentThreadId();
     put_state(r->entry, ctx);
     for (auto& slot : g_slots) {
         Recording* expected = nullptr;
@@ -217,8 +221,8 @@ void capture_end(spu_context* ctx, int, uint32_t)
          * v1 binary format compatible. Times identify scene transitions. */
         FILE* meta = fopen((path + ".json").c_str(), "wb");
         if (meta) {
-            fprintf(meta, "{\"image\":%d,\"seq\":%u,\"elapsed_ms\":%llu,\"transfers\":%u}\n",
-                    r->image, r->seq, (unsigned long long)r->elapsed_ms, r->count);
+            fprintf(meta, "{\"image\":%d,\"seq\":%u,\"elapsed_ms\":%llu,\"transfers\":%u,\"host_tid\":%u}\n",
+                    r->image, r->seq, (unsigned long long)r->elapsed_ms, r->count, r->host_tid);
             fclose(meta);
         } else fprintf(stderr, "[job-corpus] ERROR writing metadata %s\n", path.c_str());
         if (r->seq < 4 || r->seq + 1 == g_max)

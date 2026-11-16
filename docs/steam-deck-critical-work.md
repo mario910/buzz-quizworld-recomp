@@ -71,6 +71,12 @@ completes whole-job/live qualification: outputs match, but the small menu lead o
 variation and the shortcut is not promoted. Its separate borrowed-cache study
 also fails to beat recomputation with simulated per-worker caches.
 
+The [recorded-worker cache study](steam-deck-worker-cache.md) adds executor IDs
+to corpus sidecars and captures 49,152 consecutive jobs, all replay-exact.
+Small caches still regress with recorded assignments. A much larger borrowed
+cache saves only about 2%/5% of menu/late capture-and-skin time, retains tens of
+megabytes, and has no established live FPS gain. It remains unintegrated.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
