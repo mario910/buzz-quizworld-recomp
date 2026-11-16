@@ -54,3 +54,7 @@ The 134,222,186-byte capture has SHA-256
 `7a0a4001e6b5825e732d18f008d3ba3e6f2a5565d59c1c43b274a4313df3459c`.
 The next decision requires a bounds-checked cache prototype, captured-stream
 replay and live validation before clean reversed FPS comparisons.
+
+The subsequent [cache implementation and live comparison](steam-deck-index-cache.md)
+passes correctness checks but regresses FPS; the simulated reuse does not
+translate into a retained optimization.
