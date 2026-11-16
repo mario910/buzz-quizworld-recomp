@@ -77,6 +77,13 @@ Small caches still regress with recorded assignments. A much larger borrowed
 cache saves only about 2%/5% of menu/late capture-and-skin time, retains tens of
 megabytes, and has no established live FPS gain. It remains unintegrated.
 
+The [additional audio-loop study](steam-deck-audio-extra.md) validates two
+exact loop prefixes with sanitizers and 160,000 live comparisons across early,
+question and late-round inputs. Despite roughly 72% isolated time savings,
+fresh-PGO clean menus measure 28.73 FPS enabled versus 28.80 for the unchanged
+reference. The small CPU reduction does not establish an FPS gain, so the
+candidate remains private.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
