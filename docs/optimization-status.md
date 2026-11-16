@@ -181,6 +181,8 @@ private after fresh profiling and six clean runs show no useful FPS gain.
 The [exact index-remap cache](steam-deck-index-cache.md) is also unpromoted:
 complete mapping checks pass, but cache-on loses 1.12% FPS against cache-off
 in six reversed runs despite a captured-stream replay speedup.
+A [compact-table and SIMD-copy follow-up](steam-deck-index-cache-compact.md)
+also passes correctness but yields no useful live FPS gain.
 
 - `BUZZ_GEOMETRY_JOB` selects the complete native job; `0` restores lifted
   execution. Per-stage `BUZZ_GEOMETRY_JOB_*` controls are legacy diagnostic

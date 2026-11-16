@@ -89,9 +89,10 @@ copies have separate samples.
 An offline hash-distribution check finds no severe concentration among the
 6,478 distinct captured keys: 4,466 of 8,192 buckets are used, the largest has
 seven keys, and the mean bucket size seen by a distinct key is 1.800. Mixing both
-CRC halves changes that mean only to 1.787 or 1.753 in two simple alternatives.
-This does not measure live probe depth, but provides no evidence that a small
-hash change would solve the regression. A future prototype should address the
+CRC halves changes that mean only to 1.785 or 1.752 in two simple alternatives.
+This uses the enabled rank-mode setting, including inputs that internally fall
+back to first-use ordering. It does not measure live probe depth, but provides
+no evidence that a small hash change would solve the regression. A future prototype should address the
 pointer-heavy metadata and copying cost, then repeat correctness and live checks;
 the current implementation remains unpromoted.
 
@@ -118,3 +119,7 @@ the pinned SDK stays clean at `79efc280dad27271d5f68077acb0247df1e88dc7`.
 `final-verification.json` records these checks and confirms all experiment
 drivers have exited; `artifact-hashes.json` identifies the retained source,
 profile and result files.
+
+The [compact-table follow-up](steam-deck-index-cache-compact.md) implements
+that investigation; its correctness checks pass but live FPS still does not
+improve usefully. Neither cache is promoted.
