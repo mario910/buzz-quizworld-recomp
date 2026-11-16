@@ -5,6 +5,11 @@ toward renderer vertex preparation. An exact GPU decoder has passed synthetic
 readback checks, but it is not integrated into the live vertex-input path and
 has no established FPS benefit.
 
+The [command-publication SIMD experiment](steam-deck-command-simd.md) removes
+scalarized packet/vector operations and passes complete command and captured-job
+checks. Its isolated gain is about one third, but clean menu FPS remains within
+variation at 28.43 off versus 28.48 on; it is not promoted.
+
 The [image 36 constant-selector experiment](steam-deck-image36-selectors.md)
 passes full-state and captured-job checks and cuts isolated leaf time by about
 one third, but clean switched menu runs remain flat around 28.8 FPS. The
