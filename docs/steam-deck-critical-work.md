@@ -62,6 +62,12 @@ the existing runtime option without changing the executable. Queue stress and
 live progression checks pass, but menu FPS falls from 28.92 to 28.65 and CPU
 time rises slightly. The option stays off.
 
+The [current job-sensitivity study](steam-deck-job-sensitivity.md) finds a
+repeatable menu slowdown from added post-image-41 delays, with much smaller
+image-39 effects. It also expands exact translation-only transform checks to
+complete preparation and fresh menu captures. Standalone preparation improves
+about 2–4%; whole-job/live FPS qualification is still pending.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256

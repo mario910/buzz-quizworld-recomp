@@ -168,6 +168,11 @@ from 6,161 to 6,050 ns in question cases (1.8%) and 5,903 to 5,556 ns in reveal
 cases (5.9%). It has no whole-job, live rendering or FPS qualification and
 remains private. These savings cannot be added to the projection percentages.
 
+The later [complete-preparation study](steam-deck-job-sensitivity.md) adds the
+current menu corpus, eager/deferred output comparisons and strict-padding
+checks. It measures roughly 2–4% less complete-preparation time. Live FPS
+qualification remains pending; the earlier kernel figures are not additive.
+
 ## Artifacts and restoration
 
 Private evidence under `/home/deck/buzz/performance/optimization/`:
