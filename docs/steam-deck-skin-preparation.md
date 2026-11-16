@@ -101,6 +101,42 @@ mean staged input sizes are 9,562, 11,086 and 10,712 bytes. Object/weighted
 proportions are similar. This supports keeping menu coverage in future
 experiments, without attributing earlier flat FPS to a large family mismatch.
 
+## Follow-up: fused object capture and clip-parameter reuse
+
+Two further private prototypes retained the original arithmetic. Neither was
+integrated into the game.
+
+The fused object path decodes each attribute block into a local value,
+transforms it and stores it once, removing the intermediate untransformed
+buffer write. Weighted, blend and deferred paths remain unchanged. The clip
+cache instead keeps one derived parameter set per thread: every call retains
+the original metadata and codec validation, then compares all 128 viewport
+bytes and all 64 default-matrix bytes before reuse. It is restricted to masked
+RTZ/FTZ/DAZ, and reproduces the original host floating-point sticky flags.
+
+Both passed ASan/UBSan comparisons of all supported menu/question/reveal jobs,
+including eager/deferred host blocks, clip records, emitted bytes, unchanged
+guest state and 128 codec mutations per corpus. Admission and exclusions match
+the earlier recipe fixture. A separate clip-cache test passed 9,342 comparisons
+per corpus, covering every viewport/matrix/codec byte, exceptional coefficient
+words, incoming sticky flags, all rounding/flush combinations and invalid
+metadata. Rejected calls leave output unchanged.
+
+Original/candidate/candidate/original complete-preparation timing used the
+same 200/193/194 cases, 500 repetitions and warm/streaming layouts described
+above. Positive values below mean less time; negative values mean a slowdown.
+
+| Corpus | Fused warm reduction | Fused streaming reduction | Cache warm reduction | Cache streaming reduction |
+|---|---:|---:|---:|---:|
+| Menu | -4.446% | -2.768% | 0.562% | 0.109% |
+| Question | -1.275% | -0.861% | -0.976% | 0.148% |
+| Reveal | -4.605% | -2.731% | -0.719% | 0.309% |
+
+Fusion was slower, and cache effects were small and inconsistent. Neither
+justified live integration. Private source, fixtures and logs are retained in
+`codex-fused-capture/` and `codex-clip-parameter-cache/` under the artifact root
+below. These studies changed no production source, compiler setting or binary.
+
 ## Retained artifacts
 
 Private artifacts under `/home/deck/buzz/performance/optimization/`:

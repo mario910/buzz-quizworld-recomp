@@ -42,6 +42,10 @@ did not improve clean menu FPS with refreshed geometry PGO and was removed.
 The existing [MFC argument shortcut](geometry-channel-setup.md#steam-deck-measurement)
 also remained neutral in a same-executable Deck menu comparison and stays OFF.
 
+The [exact SIMD video prototype](steam-deck-video-simd.md) now targets the
+image-7 color-conversion leaf. Its exhaustive byte and full-state checks pass,
+with a substantial isolated gain; live qualification is still in progress.
+
 ## Current-build dependency evidence
 
 The reference is the Wayland startup repair, executable SHA-256
