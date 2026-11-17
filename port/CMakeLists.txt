@@ -1017,6 +1017,7 @@ endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzDmaDiagnostics.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzZen2Tune.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzZen2Arch.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzPpuHot.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzSpuWrchWrap.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzAudioX86Rtz.cmake")

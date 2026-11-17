@@ -4,6 +4,14 @@
 #include "native_animation_clip_time.h"
 #include "native_animation_host_pipeline.h"
 
+// Runtime hook (spurs_job.c): materialize a deferred LS clear for bytes the
+// preparation reads past its staged inputs. Weak, so fixtures without the
+// runtime link; null there means no deferred clear exists.
+extern "C" void spurs_job_lazy_zero_span(const uint8_t* ls,uint32_t lsa,uint32_t bytes) __attribute__((weak));
+inline void buzz_animation_lazy_zero_span(const uint8_t* ls,uint32_t lsa,uint32_t bytes)
+{
+    if(spurs_job_lazy_zero_span)spurs_job_lazy_zero_span(ls,lsa,bytes);
+}
 namespace buzz {
 struct AnimationNativeJobPlan {
     AnimationJobInput job;
@@ -76,6 +84,7 @@ inline bool prepare_native_animation_job(const AnimationJobInput& job,const uint
     for(unsigned slot=0;slot<2;++slot) {
         const uint64_t at=pose_base+slot*pose_stride+pose_bytes+curves*4;
         if(at+(capacity-curves)*4>ls_bytes)return reject("curve buffer entry input");
+        buzz_animation_lazy_zero_span(ls,uint32_t(at),(capacity-curves)*4);
         for(unsigned i=0;i<capacity-curves;++i)padding[slot][i]=animation_job_be32(ls+at+i*4);
     }
     for(unsigned i=0;i<job.clips;++i) {
@@ -84,6 +93,7 @@ inline bool prepare_native_animation_job(const AnimationJobInput& job,const uint
             return reject("clip arena span");
         const auto raw=resolve(b.ea,b.bytes);if(!raw.data||raw.bytes!=b.bytes)return reject("animation body input");
         memcpy(workspace.body[i],raw.data,b.bytes);
+        buzz_animation_lazy_zero_span(ls,b.lsa+b.bytes,1548);
         memcpy(workspace.body[i]+b.bytes,ls+b.lsa+b.bytes,1548);
         // Published padding may retain bytes from a previous GET in this
         // arena. Keep only that input provenance, never an SPU scratch image.

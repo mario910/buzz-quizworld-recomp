@@ -22,3 +22,19 @@ foreach(buzz_spu_source ${SPU_LIFTED})
     endif()
 endforeach()
 message(STATUS "SPU direct hops: ${buzz_direct_hop_count} lifted source(s)")
+
+# Inline MFC parameter channel writes in lifted SPU code (spu_helpers.h,
+# SPU_WRCH_FASTPATH): five of the six channel writes of a DMA command become a
+# store. Applied here, after every other property of the lifted sources is
+# set (the earlier BUZZ_SPU_WRCH_FASTPATH definition was overwritten by a later
+# set_source_files_properties). Needs a profile trained with it; runtime
+# switch SPU_WRCH_WRAP_OFF=1.
+# Measured 2026-11-16 (and twice before): exact, neutral in replay and menu FPS.
+option(BUZZ_SPU_WRCH_INLINE "Inline MFC parameter channel writes in lifted SPU sources" OFF)
+if(BUZZ_SPU_WRCH_INLINE)
+    foreach(buzz_spu_source ${SPU_LIFTED})
+        if(buzz_spu_source MATCHES "\\.c$")
+            set_property(SOURCE "${buzz_spu_source}" APPEND PROPERTY COMPILE_DEFINITIONS SPU_WRCH_FASTPATH=1)
+        endif()
+    endforeach()
+endif()

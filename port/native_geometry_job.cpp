@@ -1280,10 +1280,14 @@ extern "C" void buzz_geometry_job_replay_case(const char* path)
 
 extern "C" void spurs_job_flush_lazy_zero(void);
 extern "C" void spurs_job_binary_clean_below(uint32_t offset);
+extern "C" void spurs_job_bind_lane(void);
 extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn reference,
                                       buzz_geometry_job_fn native, buzz_geometry_job_eligibility_fn supports)
 {
     const int mode = buzz_geometry_job_mode();
+    // Pool helpers: the lane id is bound late (spurs_job_bind_lane). The
+    // admission/preparation below reads no lane state.
+    if (mode != 1) spurs_job_bind_lane();
     // Staging may defer clearing the output/scratch/stack regions; any
     // execution of the original code first completes that clear.
     if (mode != 1) spurs_job_flush_lazy_zero();
@@ -1304,8 +1308,9 @@ extern "C" void buzz_geometry_job_run(spu_context* ctx, buzz_geometry_job_fn ref
         buzz_geometry_job_fallback_reason(why);
     }
     if (!entry_ok || !supports(ctx)) {
-        admission_owner=nullptr; ++native_fallback; spurs_job_flush_lazy_zero(); reference(ctx); return;
+        admission_owner=nullptr; ++native_fallback; spurs_job_bind_lane(); spurs_job_flush_lazy_zero(); reference(ctx); return;
     }
+    spurs_job_bind_lane();
     if (mode == 2) {
         if (audit_pair(ctx, reference, native, true)) { ++native_compared; ++native_executed; }
         else ++native_fallback;
