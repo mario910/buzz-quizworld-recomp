@@ -19,6 +19,8 @@ inline constexpr const char* elfUS = "fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cd
 inline constexpr const char* button_names[] = {"Red", "Yellow", "Green", "Orange", "Blue"};
 inline constexpr const char* pad_names[] = {"START","BACK","A","B","X","Y","LB","RB","UP","DOWN","LEFT","RIGHT","LS","RS"};
 struct Player { std::string name; std::array<std::string,5> keys; };
+// player: 0..7, -1 unassigned, pad_auto = first free player when first used.
+constexpr int pad_auto = -2;
 struct Pad { int player = -1; std::array<std::string,5> buttons = {"RB","LEFT","DOWN","RIGHT","UP"}; };
 struct SharedRevision {
     // Runtime-only revision metadata, never serialized into legacy JSON.
@@ -27,7 +29,7 @@ struct SharedRevision {
 };
 struct Settings {
     std::map<std::string,std::string> paths = {{"game_root",""},{"dev_flash",""},{"eboot_elf",""}};
-    int places = 4, pulse_ms = 250;
+    int places = 8, pulse_ms = 250;
     bool offline = true, hide_store = true, gamepads = true, background = true;
     bool background_gamepads = false;
     buzz_pc::Preferences pc;

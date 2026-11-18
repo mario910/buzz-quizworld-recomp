@@ -78,12 +78,16 @@ int main() {
         check(buzzer_menu_action(1)==MenuAction::accept&&buzzer_menu_action(2)==MenuAction::left&&
               buzzer_menu_action(4)==MenuAction::right&&buzzer_menu_action(8)==MenuAction::down&&buzzer_menu_action(16)==MenuAction::up);
         auto controls=buzz_input::defaults();std::string controls_text;
+        // Eight player slots by default; players 5-8 have no keyboard keys.
+        check(controls.players==8);
         for(unsigned player=0;player<controls.players;++player)for(unsigned color=0;color<5;++color)
-            check(buzzer_menu_key(controls,controls.keys[player][color])==(1u<<color));
+            if(controls.keys[player][color])check(buzzer_menu_key(controls,controls.keys[player][color])==(1u<<color));
         controls.keys[0][4]='Z';check(buzzer_menu_key(controls,'Z')==16&&buzzer_menu_key(controls,0)==0&&buzzer_menu_key(controls,255)==0);
         check(buzz_input_format_config(controls,controls_text,error));
         auto loaded_controls=buzz_input::defaults();check(buzz_input::parse_config(controls_text,loaded_controls,error));
         check(loaded_controls.keys==controls.keys&&loaded_controls.pad_buttons==controls.pad_buttons);
+        // Gamepads default to automatic player slots, which survive the round trip.
+        check(controls.pad_player[0]==buzz_input::Config::pad_auto&&loaded_controls.pad_player==controls.pad_player);
         controls.pad_buttons[0][0]=0x1234;const auto old_text=controls_text;check(!buzz_input_format_config(controls,controls_text,error)&&controls_text==old_text);
         check(p.volume_percent==100&&p.fps_limit==30&&p.offline);
         Preferences decoded;check(parse(serialize(p),decoded,error)&&decoded==p);

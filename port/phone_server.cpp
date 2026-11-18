@@ -11,6 +11,9 @@
 #include <random>
 #endif
 #include <atomic>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <charconv>
 #include <chrono>
 #include <mutex>
@@ -111,6 +114,27 @@ struct Server::Impl {
     unsigned port=0;
     std::string failure;
     std::vector<std::string> ips;
+    std::string state_path;
+    std::function<uint32_t()> occupied;
+    std::function<void(uint32_t)> publish;
+    // Under mutex: share the reserved slots and, for pairing changes, save them.
+    void changed(bool save) {
+        if(!sessions)return;
+        if(publish)publish(sessions->reserved_mask());
+        if(!save||state_path.empty())return;
+        try {
+            const std::filesystem::path path(state_path),temp(state_path+".tmp");
+            {
+                std::ofstream out(temp,std::ios::binary|std::ios::trunc);
+                out<<sessions->save();
+                if(!out)throw std::runtime_error("write failed");
+            }
+            std::filesystem::permissions(temp,std::filesystem::perms::owner_read|std::filesystem::perms::owner_write);
+            std::filesystem::rename(temp,path);
+        } catch(const std::exception& e) {
+            fprintf(stderr,"[phone] cannot save the pairing: %s\n",e.what());
+        }
+    }
     void stop() {
         stopping=true;
         if(http)http->stop();
@@ -119,6 +143,7 @@ struct Server::Impl {
         std::lock_guard lock(mutex);
         if(sessions)for(unsigned i=0;i<sessions->count;++i)sessions->kick(i);
         sessions.reset();http.reset();running=false;
+        if(publish)publish(0);
     }
 };
 Server::Server():impl_(std::make_unique<Impl>()){}
@@ -132,6 +157,15 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
         {
             std::lock_guard lock(p.mutex);
             p.port=port;p.ips=addresses();p.sessions=std::make_unique<Sessions>(players,token,std::move(input));
+            if(p.occupied)p.sessions->set_occupied(p.occupied);
+            // Keep the previous run's QR code and players, so phones reconnect.
+            if(!p.state_path.empty()) {
+                std::ifstream in(p.state_path,std::ios::binary);
+                std::ostringstream text;
+                if(in&&(text<<in.rdbuf())&&text.str().size()<=65536&&!p.sessions->restore(text.str()))
+                    fprintf(stderr,"[phone] ignoring an unusable saved pairing\n");
+            }
+            p.changed(true);
             p.http=std::make_unique<httplib::Server>();
         }
         auto& http=*p.http;
@@ -174,10 +208,15 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
         });
         http.Post("/api/join",[&p](const auto& request,auto& r) {
             if(!api_request(request,r))return;
-            uint64_t slot=0;if(!number(request.get_param_value("player"),slot)||slot>7){error(r,400,"Choose a player");return;}
+            // "auto" (or no choice): the first slot no phone or controller holds.
+            const auto choice=request.get_param_value("player");
+            uint64_t slot=auto_slot;
+            if(!choice.empty()&&choice!="auto"&&(!number(choice,slot)||slot>7)){error(r,400,"Choose a player");return;}
             std::lock_guard lock(p.mutex);
+            const bool resuming=!request.get_param_value("resume").empty();
             const auto joined=p.sessions->join(request.get_param_value("room"),request.get_param_value("resume"),unsigned(slot),request.get_param_value("name"),now_ms());
             if(joined.status!=200){error(r,joined.status,joined.error);return;}
+            p.changed(!resuming);
             json(r,200,"{\"player\":"+std::to_string(joined.player)+",\"resume\":"+quote(joined.resume)+",\"control\":"+quote(joined.control)+",\"name\":"+quote(p.sessions->players[joined.player].name)+"}");
         });
         http.Post("/api/input",[&p](const auto& request,auto& r) {
@@ -194,6 +233,7 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
             if(!api_request(request,r))return;
             std::lock_guard lock(p.mutex);
             if(!p.sessions->leave(request.get_param_value("control"))){error(r,401,"Session ended");return;}
+            p.changed(true);
             json(r,200,"{\"ok\":true}");
         });
         if(!http.bind_to_port("0.0.0.0",int(port)))throw std::runtime_error("Cannot open phone controller port "+std::to_string(port)+". Choose another port or check your firewall.");
@@ -223,8 +263,12 @@ Status Server::status() const {
     }
     return result;
 }
-void Server::set_locked(bool value){std::lock_guard lock(impl_->mutex);if(impl_->sessions)impl_->sessions->locked=value;}
-void Server::kick(unsigned player){std::lock_guard lock(impl_->mutex);if(impl_->sessions)impl_->sessions->kick(player);}
-void Server::reset(){std::lock_guard lock(impl_->mutex);if(impl_->sessions)impl_->sessions->reset();}
+void Server::set_locked(bool value){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->locked=value;impl_->changed(true);}}
+void Server::kick(unsigned player){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->kick(player);impl_->changed(true);}}
+void Server::reset(){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->reset();impl_->changed(true);}}
+void Server::set_persistence(std::string path){std::lock_guard lock(impl_->mutex);impl_->state_path=std::move(path);}
+void Server::set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish){
+    std::lock_guard lock(impl_->mutex);impl_->occupied=std::move(occupied);impl_->publish=std::move(publish);
+}
 Server& host(){static Server instance;return instance;}
 }

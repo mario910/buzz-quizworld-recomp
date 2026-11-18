@@ -24,6 +24,11 @@ public:
     ~Server();
     Server(const Server&)=delete;
     Server& operator=(const Server&)=delete;
+    // Optional, set before start(): the file that keeps the pairing (QR code,
+    // joined phones) across restarts, and the slot masks shared with local
+    // controllers for automatic player slots.
+    void set_persistence(std::string path);
+    void set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish);
     bool start(unsigned port,unsigned players,Input input,std::string& error);
     void stop();
     Status status() const;

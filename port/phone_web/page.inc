@@ -15,13 +15,13 @@ R"BUZZ(<!doctype html>
   <div id="connection" role="status" aria-live="polite">Connecting to the game…</div>
   <section id="lobby" aria-labelledby="join-title">
     <h1 id="join-title">Your phone. Your buzzer.</h1>
-    <p>Choose your player number to match the game on the TV. Keep this page open while you play.</p>
+    <p>Enter your name and join: you get the next free player. Tap a player number first to pick one yourself. Keep this page open while you play.</p>
     <form id="join-form">
       <label for="name">Your name</label><input id="name" maxlength="24" autocomplete="nickname" placeholder="Player name" required>
-      <fieldset><legend>Player number</legend><div id="seats"></div></fieldset>
+      <fieldset><legend>Player number (optional)</legend><div id="seats"></div></fieldset>
       <button id="join" class="primary" disabled>Join game</button>
     </form>
-    <p class="hint">Already joined? Reopening this page restores your player. A sleeping phone keeps its place.</p>
+    <p class="hint">Already joined? Reopening this page restores your player, also after the game restarts. A sleeping phone keeps its place.</p>
   </section>
   <section id="controller" hidden aria-label="Your buzzer">
     <div class="identity"><h1 id="identity"></h1><button id="screen" type="button">Full screen</button></div>

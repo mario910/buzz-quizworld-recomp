@@ -22,7 +22,7 @@ std::unique_ptr<buzz_pc::State> state;
 std::mutex apply_mutex;
 std::atomic<bool> performance_overlay{false};
 fs::path preferences_file;
-unsigned phone_players=4;
+unsigned phone_players=8;
 buzz_phone::Server::Input phone_input;
 bool configure_phone(const buzz_pc::Preferences& p,std::string& error) {
     if(!phone_input)return true;
@@ -140,6 +140,8 @@ unsigned buzz_pc_active_render_scale() {
 }
 void buzz_pc_phone_initialize(unsigned players,buzz_phone::Server::Input input) {
     std::lock_guard lock(apply_mutex);phone_players=players;phone_input=std::move(input);
+    // Phones keep their QR code and player slots across restarts.
+    buzz_phone::host().set_persistence((fs::current_path()/"phone-pairing.txt").string());
     std::string error;
     if(state&&!configure_phone(state->active(),error))fprintf(stderr,"[phone] %s\n",error.c_str());
 }

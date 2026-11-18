@@ -19,16 +19,21 @@ server, browser installation, Python or PWA is involved.
    has no firewall enabled by default.
    No firewall rules or router forwarding are added automatically. Guest Wi-Fi
    and client isolation can block phones from reaching the PC.
-5. Scan the QR code. Enter a name, choose the player number matching the TV and
-   tap **Join game**. The name identifies the phone in the host list; choose the
-   quiz contestant's name separately in the game.
+5. Scan the QR code. Enter a name and tap **Join game**: the phone takes the
+   first free player slot (one that no other phone and no gamepad holds). To
+   pick a specific player, tap its number first; tap it again to go back to
+   automatic. The name identifies the phone in the host list; choose the quiz
+   contestant's name separately in the game.
 6. Close PC settings to resume gameplay. Use red for the buzzer and the answer
    colors on the TV. The handset order is red, blue, orange, green, yellow;
    each answer also has a number label.
 7. Choose **Save settings** if hosting should start on subsequent launches.
 
-Four or eight player slots follow the existing buzzer-count setting. Changing
-the count requires restarting the game. Phones, keyboard, XInput and physical
+Eight player slots are the default; four remain available in PC settings
+(Controls → Buzzer slots, restart required). Gamepads default to **AUTO**: a
+pad takes the first free player slot when its first buzzer button is pressed
+and frees it when unplugged; Controls → Assign controllers to players also
+offers fixed players or Unassigned. Phones, keyboard, XInput and physical
 buzzers can be mixed. Inputs assigned to the same player are combined; give each
 person their own player number. Phones work when the PC window lacks focus.
 PC settings still suppress phone gameplay input while the menu is open.
@@ -38,9 +43,13 @@ PC settings still suppress phone gameplay input while the menu is open.
 - A phone keeps its slot while sleeping, switching apps or losing Wi-Fi. Reopen
   the same URL/browser to resume. Recovery across reloads requires local storage;
   private browsing or clearing site data may lose it.
+- The QR code and the joined players are kept across game restarts in
+  `runtime/phone-pairing.txt` (owner-only; room secret, player names and resume
+  credentials, never input state). After a restart the same QR code works and a
+  phone that already joined reconnects to its player by reopening the page.
 - Brief failures reconnect automatically. After a longer failure, tap
-  **Reconnect**. Closing the game, changing its port, disabling hosting or
-  creating a new code ends old sessions. Scan the new code on the next launch.
+  **Reconnect**. **New code / Remove all phones** ends all phone sessions and
+  rotates the QR code; scan the new code.
 - Reloading restores the same player and invalidates the previous tab's controls.
   Use one tab at a time for a saved session.
 - **Joining: Locked** prevents new players while existing players can resume.
@@ -76,7 +85,7 @@ time; Wi-Fi/browser latency can still affect close buzzer races.
 Remote input uses the existing router's eight remote sources and guest USB
 reports. Removing a phone cannot release another provider's buttons. Menu
 capture discards old taps and blocks held answers until release after closing.
-Sessions live in memory for this run, not in game saves or profiles.
+Pairing is kept in `phone-pairing.txt`, not in game saves or profiles.
 
 ## Build and validation
 

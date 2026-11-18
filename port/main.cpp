@@ -1010,6 +1010,8 @@ int main(int argc, char** argv)
     lv2_init_syscalls();     /* the lv2 syscall table */
     if(!buzz_pc_runtime_init())return 1;
     buzz_register_overrides();
+    // Phones and gamepads share automatic player slots (lock-free masks).
+    buzz_phone::host().set_occupancy([]{return buzz_input_pad_slots();},[](uint32_t mask){buzz_input_set_phone_slots(mask);});
     buzz_pc_phone_initialize(buzz_input_players(),buzz_input_remote);
     buzz_register_frame_limit();
     buzz_pc_overlay_register();

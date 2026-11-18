@@ -11,6 +11,7 @@
 #include <chrono>
 #endif
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -103,6 +104,19 @@ std::array<uint16_t,4> previous_pad_buttons{};
 std::array<uint32_t,2> physical_held{};
 std::array<bool,2> physical_connected{};
 std::array<uint8_t,8> remote_held{};
+// Automatic pad slots: the player an AUTO pad took on its first press (-1:
+// none yet). Published as masks; phones publish theirs the same way.
+std::array<int,4> pad_auto_player{{-1,-1,-1,-1}};
+std::atomic<uint32_t> pad_slot_mask{0},phone_slot_mask{0};
+void publish_pad_slots(){
+    uint32_t mask=0;
+    for(unsigned i=0;i<4;++i){
+        const int player=config.pad_player[i]==buzz_input::Config::pad_auto?pad_auto_player[i]:
+            (connected[i]?config.pad_player[i]:-1);
+        if(player>=0&&unsigned(player)<config.players)mask|=1u<<player;
+    }
+    pad_slot_mask.store(mask,std::memory_order_relaxed);
+}
 std::array<buzz_pc::MenuInputGate,buzz_input::provider_count> menu_gates{};
 #ifdef _WIN32
 bool foreground(){DWORD pid=0;GetWindowThreadProcessId(GetForegroundWindow(),&pid);return pid==GetCurrentProcessId();}
@@ -233,6 +247,7 @@ bool buzz_input_reconfigure(const std::string& text,std::string& error){
     for(unsigned i=0;i<menu_gates.size();++i){menu_gates[i].require_neutral();router.release(i,true);}
     config=next;router.set_pulse(config.pulse_ms);keyboard_held=0;
     next_pad_poll=0;next_connect.fill(0);
+    pad_auto_player.fill(-1);publish_pad_slots();
     return true;
 }
 void buzz_input_key(uint32_t key,int down){
@@ -268,8 +283,14 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
             if(!active&&!config.background_gamepads){router.release(buzz_input::gamepad0+i,true);continue;}
             if(!connected[i]&&now<next_connect[i])continue;
             uint16_t buttons=0;const bool found=read_pad(i,buttons);
-            if(found!=connected[i])fprintf(stderr,"[input] Gamepad slot %u %s -> P%d\n",i,found?"connected":"disconnected",config.pad_player[i]+1);
-            connected[i]=found;
+            if(found!=connected[i]){
+                if(config.pad_player[i]==buzz_input::Config::pad_auto)
+                    fprintf(stderr,"[input] Gamepad slot %u %s (automatic player)\n",i,found?"connected":"disconnected");
+                else fprintf(stderr,"[input] Gamepad slot %u %s -> P%d\n",i,found?"connected":"disconnected",config.pad_player[i]+1);
+                connected[i]=found;
+                if(!found)pad_auto_player[i]=-1; // a reconnected pad takes the first free slot again
+                publish_pad_slots();
+            }
             if(!found){next_connect[i]=now+1000;router.release(buzz_input::gamepad0+i,true);continue;}
             // Legacy custom START bindings remain gameplay bindings. Only the
             // new preset reserves START; never steal a configured buzzer key.
@@ -280,7 +301,22 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
             previous_pad_buttons[i]=buttons;
             if(!config.gamepads||config.pad_player[i]<0){router.release(buzz_input::gamepad0+i,true);continue;}
             const auto source=buzz_input::gamepad0+i;
-            const auto raw=unsigned(config.pad_player[i])<config.players ? buzz_input::bits(unsigned(config.pad_player[i]),buzz_input::map_pad(buttons,config.pad_buttons[i])):0;
+            const auto mapped=buzz_input::map_pad(buttons,config.pad_buttons[i]);
+            int player=config.pad_player[i];
+            if(player==buzz_input::Config::pad_auto){
+                // The first buzzer press takes the first player slot that no
+                // other pad and no phone holds.
+                if(pad_auto_player[i]<0&&mapped){
+                    const uint32_t taken=pad_slot_mask.load(std::memory_order_relaxed)|phone_slot_mask.load(std::memory_order_relaxed);
+                    for(unsigned p=0;p<config.players;++p)if(!(taken>>p&1)){pad_auto_player[i]=int(p);break;}
+                    if(pad_auto_player[i]>=0){
+                        fprintf(stderr,"[input] Gamepad slot %u -> P%d (first free)\n",i,pad_auto_player[i]+1);
+                        publish_pad_slots();
+                    }
+                }
+                player=pad_auto_player[i];
+            }
+            const auto raw=player>=0&&unsigned(player)<config.players ? buzz_input::bits(unsigned(player),mapped):0;
             router.state(source,menu_gates[source].filter(raw),now);
         }
     }
@@ -351,3 +387,7 @@ extern "C" uint32_t buzz_sdl_key_code(int key){
     }
 }
 #endif
+
+uint32_t buzz_input_pad_slots(){return pad_slot_mask.load(std::memory_order_relaxed);}
+void buzz_input_set_phone_slots(uint32_t mask){phone_slot_mask.store(mask,std::memory_order_relaxed);}
+int buzz_input_pad_auto_player(unsigned slot){std::lock_guard lock(input_mutex);return slot<4?pad_auto_player[slot]:-1;}

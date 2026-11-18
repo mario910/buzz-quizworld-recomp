@@ -54,11 +54,15 @@ public:
 };
 
 struct Config {
-    unsigned players=4, pulse_ms=250;
+    // Eight player slots by default; four remains available (restart).
+    unsigned players=8, pulse_ms=250;
     bool gamepads=true, background_gamepads=false;
     std::array<std::array<unsigned,5>,8> keys{};
-    // XInput slots 0..3; each may be assigned to any one logical player.
-    std::array<int,4> pad_player{{0,1,2,3}};
+    // XInput slots 0..3; each may be assigned to any one logical player,
+    // pad_auto (default: the first free player when the pad is first used,
+    // released when it disconnects) or -1 (unassigned).
+    static constexpr int pad_auto=-2;
+    std::array<int,4> pad_player{{pad_auto,pad_auto,pad_auto,pad_auto}};
     std::array<std::array<uint16_t,5>,4> pad_buttons{};
 };
 Config defaults();
@@ -85,6 +89,11 @@ void buzz_input_enable_menu(bool enabled);
 uint16_t buzz_input_host_pad_buttons(unsigned slot); // focused host input, not guest input
 bool buzz_input_host_pad_connected(unsigned slot);
 bool buzz_input_format_config(const buzz_input::Config&,std::string& ini,std::string& error);
+// Automatic player slots. Each side publishes the player slots it holds as a
+// lock-free mask so pads and phones never take the same free slot.
+uint32_t buzz_input_pad_slots();               // slots held by gamepads now
+void buzz_input_set_phone_slots(uint32_t mask); // slots reserved by phones
+int buzz_input_pad_auto_player(unsigned slot); // auto pad's current player, or -1
 // Host HID receivers are independent sources, not guest USB devices. Receiver
 // slots map to P1-P4/P5-P8; the second requires the existing eight-player mode.
 void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool connected);

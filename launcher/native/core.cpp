@@ -81,7 +81,8 @@ std::string sha256_text(const std::string& s) { return picosha2::hash256_hex_str
 Settings::Settings() {
     const char* keys[4][5]={{"Space","4","3","2","1"},{"Q","W","E","R","T"},{"A","S","D","F","G"},{"Z","X","C","V","B"}};
     for(int i=0;i<8;++i) { players[i].name="Player "+std::to_string(i+1);for(int b=0;b<5;++b)players[i].keys[b]=i<4?keys[i][b]:"NONE"; }
-    for(int i=0;i<4;++i)pads[i].player=i;
+    // Automatic: each pad takes the first free player when it is first used.
+    for(int i=0;i<4;++i)pads[i].player=pad_auto;
 }
 unsigned key_code(const std::string& text) {
     auto s=upper(trim(text));std::array<unsigned,5> keys{};
@@ -118,7 +119,7 @@ void validate_settings(const Settings& s) {
     }
     std::set<int> assigned;
     for(auto& p:s.pads) {
-        require(p.player>=-1&&p.player<8,"Invalid controller assignment");
+        require(p.player>=pad_auto&&p.player<8,"Invalid controller assignment");
         require(p.player<0||assigned.insert(p.player).second,"Two controllers assigned to the same player");
         std::set<std::string> used;
         for(auto& b:p.buttons) {
@@ -130,7 +131,7 @@ void validate_settings(const Settings& s) {
 Json settings_json(const Settings& s) {
     validate_settings(s);Json players=Json::array(),pads=Json::array();
     for(auto& p:s.players)players.push_back({{"name",p.name},{"keys",p.keys}});
-    for(auto& p:s.pads)pads.push_back({{"player",p.player<0?Json(nullptr):Json(p.player)},{"buttons",p.buttons}});
+    for(auto& p:s.pads)pads.push_back({{"player",p.player==pad_auto?Json("auto"):p.player<0?Json(nullptr):Json(p.player)},{"buttons",p.buttons}});
     return {{"version",1},{"paths",s.paths},{"places",s.places},{"pulse_ms",s.pulse_ms},
             {"offline",s.offline},{"hide_store",s.hide_store},{"gamepads",s.gamepads},{"background",s.background},{"players",players},{"pads",pads}};
 }
@@ -142,7 +143,7 @@ Settings settings_from_json(const Json& j) {
     s.offline=boolean(j.at("offline"));s.hide_store=boolean(j.at("hide_store"));s.gamepads=boolean(j.at("gamepads"));s.background=boolean(j.at("background"));
     require(j.at("players").is_array()&&j.at("players").size()==8&&j.at("pads").is_array()&&j.at("pads").size()==4,"Expected 8 player rows and 4 controllers");
     for(int i=0;i<8;++i) { auto& p=j.at("players").at(i);shape(p,{"name","keys"},"player");require(p.at("keys").is_array()&&p.at("keys").size()==5,"Expected five keys");s.players[i]={p.at("name").get<std::string>(),p.at("keys").get<std::array<std::string,5>>()};if(s.players[i].name=="Gracz "+std::to_string(i+1))s.players[i].name="Player "+std::to_string(i+1); }
-    for(int i=0;i<4;++i) { auto& p=j.at("pads").at(i);shape(p,{"player","buttons"},"controller");require(p.at("buttons").is_array()&&p.at("buttons").size()==5,"Expected five controller buttons");s.pads[i]={p.at("player").is_null()?-1:integer(p.at("player"),"controller player"),p.at("buttons").get<std::array<std::string,5>>()}; }
+    for(int i=0;i<4;++i) { auto& p=j.at("pads").at(i);shape(p,{"player","buttons"},"controller");require(p.at("buttons").is_array()&&p.at("buttons").size()==5,"Expected five controller buttons");s.pads[i]={p.at("player").is_null()?-1:p.at("player")==Json("auto")?pad_auto:integer(p.at("player"),"controller player"),p.at("buttons").get<std::array<std::string,5>>()}; }
     validate_settings(s);return s;
 }
 Settings load_settings(const fs::path& root) {
@@ -162,7 +163,7 @@ std::string input_ini(const Settings& s) {
     validate_settings(s);std::ostringstream out;
     out<<"# Native Buzz launcher; red,yellow,green,orange,blue.\nplayers="<<s.places<<"\npulse_ms="<<s.pulse_ms<<"\ngamepads="<<s.gamepads<<"\nbackground_gamepads="<<s.background_gamepads<<'\n';
     for(int p=0;p<8;++p) { out<<"keyboard."<<p+1<<'=';for(int b=0;b<5;++b) { if(b)out<<',';auto k=key_code(s.players[p].keys[b]);if(k)out<<"0x"<<std::hex<<std::uppercase<<std::setw(2)<<std::setfill('0')<<k<<std::dec;else out<<"NONE"; }out<<'\n'; }
-    for(int i=0;i<4;++i) { out<<"gamepad."<<i+1<<'=';auto& p=s.pads[i];if(p.player<0)out<<"NONE";else {out<<p.player+1;for(auto& b:p.buttons)out<<','<<b;}out<<'\n'; }
+    for(int i=0;i<4;++i) { out<<"gamepad."<<i+1<<'=';auto& p=s.pads[i];if(p.player==-1)out<<"NONE";else {if(p.player==pad_auto)out<<"AUTO";else out<<p.player+1;for(auto& b:p.buttons)out<<','<<b;}out<<'\n'; }
     return out.str();
 }
 buzz_input::Config input_config(const Settings& s) {

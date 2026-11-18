@@ -361,10 +361,11 @@ void controls_tab(App& app) {
     ImGui::TextWrapped("Windows: four XInput slots. Other SDL controller types are not yet wired into the game's Windows input adapter.");
     for(int i=0;i<4;++i) {
         ImGui::PushID(100+i);ImGui::Text("Controller slot %d",i+1);ImGui::SameLine();
-        auto label=app.settings.pads[i].player<0?std::string("Unassigned"):"Player "+std::to_string(app.settings.pads[i].player+1);
+        auto label=app.settings.pads[i].player==pad_auto?std::string("Automatic (first free player)"):app.settings.pads[i].player<0?std::string("Unassigned"):"Player "+std::to_string(app.settings.pads[i].player+1);
         ImGui::SetNextItemWidth(145);
         if(ImGui::BeginCombo("##player",label.c_str())) {
-            if(ImGui::Selectable("Unassigned",app.settings.pads[i].player<0))app.settings.pads[i].player=-1;
+            if(ImGui::Selectable("Automatic (first free player)",app.settings.pads[i].player==pad_auto))app.settings.pads[i].player=pad_auto;
+            if(ImGui::Selectable("Unassigned",app.settings.pads[i].player==-1))app.settings.pads[i].player=-1;
             for(int p=0;p<app.settings.places;++p)if(ImGui::Selectable(("Player "+std::to_string(p+1)).c_str(),app.settings.pads[i].player==p))app.settings.pads[i].player=p;
             ImGui::EndCombo();
         }

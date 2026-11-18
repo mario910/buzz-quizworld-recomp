@@ -8,6 +8,8 @@ namespace buzz_phone {
 // Pure session state. The server serializes calls; time is monotonic milliseconds.
 // Only accepted, strictly increasing packets can produce an input edge.
 constexpr uint64_t input_lease_ms=1200;
+// join(): take the first player slot no phone and no local controller holds.
+constexpr unsigned auto_slot=255;
 struct Player {
     std::string resume, control, name;
     uint64_t sequence=0,last_seen=0;
@@ -19,6 +21,7 @@ struct Join {int status=200;unsigned player=0;std::string resume,control,error;}
 class Sessions {
     std::function<std::string()> token_;
     std::function<void(unsigned,uint8_t,uint8_t,bool)> input_;
+    std::function<uint32_t()> occupied_;
 public:
     unsigned count;
     bool locked=false;
@@ -26,6 +29,8 @@ public:
     std::array<Player,8> players{};
     Sessions(unsigned count,std::function<std::string()> token,
              std::function<void(unsigned,uint8_t,uint8_t,bool)> input);
+    // Slots held by other inputs (gamepads); auto_slot joins skip them.
+    void set_occupied(std::function<uint32_t()> occupied){occupied_=std::move(occupied);}
     Join join(const std::string& room,const std::string& resume,unsigned slot,const std::string& name,uint64_t now);
     // 200 includes duplicates (idempotent acknowledgement), 409 is an old packet.
     int update(const std::string& control,uint64_t sequence,unsigned held,unsigned pressed,uint64_t now);
@@ -33,5 +38,10 @@ public:
     void kick(unsigned slot);
     void reset();
     void expire(uint64_t now);
+    uint32_t reserved_mask() const;
+    // Pairing that survives a restart: the room secret and each player's slot,
+    // name and resume credential (never control credentials or input state).
+    std::string save() const;
+    bool restore(const std::string& text); // false (unchanged) when invalid
 };
 }

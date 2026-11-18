@@ -1,4 +1,5 @@
 #include "../port/phone_sessions.h"
+#include <cstdio>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -42,6 +43,32 @@ int main(){try {
     check(s.join(s.room,credential,0,"Player",1700).status==401);
     Sessions four(4,[&]{return std::to_string(++next);},[](unsigned,uint8_t,uint8_t,bool){});
     check(four.join(four.room,"",4,"Player",0).status==400);
-    std::cout<<"PASS phone sessions: slots, credentials, replay/order, expiry, neutral reconnect, resume/lock, tab takeover, leave/reset\n";
+    {
+        // Automatic slots skip phones and controller-held slots; the pairing
+        // survives a restart (room, slots, names, resume credentials).
+        unsigned serial=0;
+        auto hex=[&]{char text[33];snprintf(text,sizeof text,"%032x",++serial);return std::string(text);};
+        uint32_t pads=0b101; // a gamepad already holds P1 and P3
+        Sessions first(8,hex,[](unsigned,uint8_t,uint8_t,bool){});
+        first.set_occupied([&]{return pads;});
+        auto a=first.join(first.room,"",auto_slot,"Ada",0);check(a.status==200&&a.player==1);
+        auto b=first.join(first.room,"",auto_slot,"Bob Ł",0);check(b.status==200&&b.player==3);
+        check(first.reserved_mask()==0b1010);
+        const auto saved=first.save();
+        Sessions second(8,hex,[](unsigned,uint8_t,uint8_t,bool){});
+        check(second.room!=first.room&&second.restore(saved)&&second.room==first.room);
+        check(second.players[3].name=="Bob Ł"&&!second.players[3].online&&second.players[3].control.empty());
+        auto again=second.join(second.room,b.resume,auto_slot,"",5);
+        check(again.status==200&&again.player==3&&again.control!=b.control);
+        second.set_occupied([&]{return pads;});
+        for(unsigned i=0;i<4;++i)check(second.join(second.room,"",auto_slot,"P",6).status==200);
+        check(second.join(second.room,"",auto_slot,"Late",6).status==409); // six phones + two pads
+        Sessions four(4,hex,[](unsigned,uint8_t,uint8_t,bool){});
+        const auto before=four.room;
+        check(!four.restore(saved)&&four.room==before); // another slot count is ignored
+        check(!second.restore("buzz-phone-pairing 1\nslots 8\nroom xyz\n"));
+        check(!second.restore(saved.substr(0,saved.size()/2)+"player 9 0 00\n"));
+    }
+    std::cout<<"PASS phone sessions: slots, credentials, replay/order, expiry, neutral reconnect, resume/lock, tab takeover, leave/reset, automatic slots, saved pairing\n";
     return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

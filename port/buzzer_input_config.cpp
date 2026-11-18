@@ -19,7 +19,8 @@ bool format_config_impl(const buzz_input::Config& config,std::string& text,std::
     std::ostringstream out;out<<"# PC-menu controller preferences; red,yellow,green,orange,blue\nplayers="<<config.players
         <<"\npulse_ms="<<config.pulse_ms<<"\ngamepads="<<config.gamepads<<"\nbackground_gamepads="<<config.background_gamepads<<'\n';
     for(unsigned p=0;p<8;++p){out<<"keyboard."<<p+1<<'=';for(unsigned b=0;b<5;++b){if(b)out<<',';if(config.keys[p][b])out<<"0x"<<std::hex<<config.keys[p][b]<<std::dec;else out<<"NONE";}out<<'\n';}
-    for(unsigned i=0;i<4;++i){out<<"gamepad."<<i+1<<'=';if(config.pad_player[i]<0){out<<"NONE\n";continue;}out<<config.pad_player[i]+1;
+    for(unsigned i=0;i<4;++i){out<<"gamepad."<<i+1<<'=';if(config.pad_player[i]==-1){out<<"NONE\n";continue;}
+        if(config.pad_player[i]==Config::pad_auto)out<<"AUTO";else out<<config.pad_player[i]+1;
         for(auto button:config.pad_buttons[i]){const char* name=pad_button_name(button);if(!name){error="Unknown controller button";return false;}out<<','<<name;}out<<'\n';}
     auto candidate=buzz_input::defaults();const auto value=out.str();
     if(!buzz_input::parse_config(value,candidate,error))return false;
@@ -101,11 +102,12 @@ bool parse_config(const std::string& text,Config& config,std::string& error){
             if(!number(name.substr(8),n,4)||!n)return fail();
             if(value=="NONE"){candidate.pad_player[n-1]=-1;continue;}
             auto tokens=split(value);unsigned player=0;
-            if(tokens.size()!=6||!number(tokens[0],player,8)||!player)return fail();
+            const bool automatic=tokens.size()==6&&tokens[0]=="AUTO";
+            if(tokens.size()!=6||(!automatic&&(!number(tokens[0],player,8)||!player)))return fail();
             std::array<uint16_t,5> mapping{};std::set<uint16_t> used;
             for(unsigned i=0;i<5;++i){mapping[i]=pad_button(tokens[i+1]);
                 if(!mapping[i]||!used.insert(mapping[i]).second)return fail();}
-            candidate.pad_player[n-1]=int(player-1);candidate.pad_buttons[n-1]=mapping;
+            candidate.pad_player[n-1]=automatic?Config::pad_auto:int(player-1);candidate.pad_buttons[n-1]=mapping;
         }else return fail();
     }
     config=candidate;error.clear();return true;

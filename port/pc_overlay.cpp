@@ -228,8 +228,10 @@ void act(buzz_pc::MenuAction action) {
     if(menu.page()==MenuPage::pad_assignments) {
         if(row==4&&accept)menu.back();
         else if(row<4) {
+            // AUTO -> UNASSIGNED -> PLAYER 1..N -> AUTO
+            const int choices=int(input.players)+2;
             int old=input.pad_player[row];
-            int next=(old+1+direction+int(input.players)+1)%(int(input.players)+1)-1;
+            int next=(old+2+direction+choices)%choices-2;
             for(int i=0;i<4;++i)if(i!=row&&next>=0&&input.pad_player[i]==next)input.pad_player[i]=old;
             input.pad_player[row]=next;apply_input();
         }
@@ -247,7 +249,7 @@ void act(buzz_pc::MenuAction action) {
             const int count=int(input.players)+4;
             binding_target=(binding_target+direction+count)%count;
         } else if(row<=5&&accept) {
-            if(binding_pad()&&input.pad_player[binding_pad_slot()]<0) {
+            if(binding_pad()&&input.pad_player[binding_pad_slot()]==-1) {
                 status="Assign this controller to a player first.";
                 return;
             }
@@ -462,7 +464,9 @@ std::string row_label(int row) {
     }
     if(menu.page()==MenuPage::pad_assignments) {
         if(row==4)return "BACK";
-        return "PAD "+std::to_string(row+1)+(buzz_input_host_pad_connected(unsigned(row))?" [connected]":" [not connected]")+"  >  "+(input.pad_player[row]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[row]+1));
+        return "PAD "+std::to_string(row+1)+(buzz_input_host_pad_connected(unsigned(row))?" [connected]":" [not connected]")+"  >  "+(input.pad_player[row]==buzz_input::Config::pad_auto
+            ?(buzz_input_pad_auto_player(unsigned(row))>=0?"AUTO (PLAYER "+std::to_string(buzz_input_pad_auto_player(unsigned(row))+1)+")":"AUTO (FIRST FREE)")
+            :input.pad_player[row]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[row]+1));
     }
     if(menu.page()==MenuPage::controller_options) {
         if(row==0)return "USE R1 + D-PAD PRESET";

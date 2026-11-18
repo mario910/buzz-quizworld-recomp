@@ -69,7 +69,7 @@ R"BUZZ('use strict';
     try {
       const data = await api('lobby', {room});
       if (session || joining) return;
-      connection(data.locked ? 'The host has locked joining' : 'Game found · Choose your player', data.locked ? '' : 'online');
+      connection(data.locked ? 'The host has locked joining' : 'Game found · Enter your name and join', data.locked ? '' : 'online');
       const seats = $('seats');
       if (selected >= data.players.length || (selected >= 0 && data.players[selected].reserved)) selected = -1;
       data.players.forEach((p, i) => {
@@ -78,20 +78,21 @@ R"BUZZ('use strict';
           b = document.createElement('button'); b.type = 'button'; b.className = 'seat';
           const title = document.createElement('b'); title.textContent = 'P' + (i + 1);
           b.append(title, document.createElement('small'));
-          b.addEventListener('click', () => {selected = i; [...seats.children].forEach((s,n) => s.setAttribute('aria-pressed',String(n === i))); $('join').disabled = false;}); seats.append(b);
+          b.addEventListener('click', () => {selected = selected === i ? -1 : i; [...seats.children].forEach((s,n) => s.setAttribute('aria-pressed',String(n === selected))); $('join').textContent = selected < 0 ? 'Join game' : 'Join as P' + (selected + 1);}); seats.append(b);
         }
         b.disabled = p.reserved || data.locked;
         b.setAttribute('aria-pressed', String(selected === i));
         b.querySelector('small').textContent = p.reserved ? p.name + (p.online ? ' · online' : ' · away') : 'Available';
       });
-      $('join').disabled = selected < 0 || data.locked;
+      $('join').disabled = data.locked || data.players.every(p => p.reserved);
+      $('join').textContent = selected < 0 ? 'Join game' : 'Join as P' + (selected + 1);
     } catch(e) {connection(e.status === 403 ? 'Scan the current QR code on the PC' : 'Cannot reach the game. Check the PC and Wi-Fi.', 'offline'); $('join').disabled = true;}
     finally {lobbyBusy = false;}
   }
   async function join(resume) {
     if(joining) return; joining = true; $('join').disabled = true; $('retry').hidden = true; $('message').textContent = '';
     try {
-      const data = await api('join', {room, resume:resume || '', player:Math.max(0,selected), name:$('name').value.trim()});
+      const data = await api('join', {room, resume:resume || '', player:selected >= 0 ? selected : 'auto', name:$('name').value.trim()});
       clearHeld(); seq = 0; stopped = false; session = data;
       remember({room, resume:data.resume, name:data.name});
       $('identity').textContent = 'P' + (data.player + 1) + ' · ' + data.name;
@@ -104,7 +105,7 @@ R"BUZZ('use strict';
       else if (resume) {$('retry').hidden = false;}
     } finally {joining = false; if(!session) lobby();}
   }
-  $('join-form').addEventListener('submit', e => {e.preventDefault(); if (selected >= 0) join('');});
+  $('join-form').addEventListener('submit', e => {e.preventDefault(); join('');});
   $('retry').addEventListener('click', () => {session = null; if(saved && saved.resume) join(saved.resume); else {$('controller').hidden = true; $('lobby').hidden = false; document.body.classList.remove('playing'); stopped = false; lobby();}});
   function pointerEnd(e) {
     if (!pointers.has(e.pointerId)) return;

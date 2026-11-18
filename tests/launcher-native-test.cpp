@@ -23,7 +23,11 @@ int main(int argc,char** argv) {
         check(settings_json(settings_from_json(settings_json(s)))==settings_json(s),"Settings roundtrip");
         auto bad=settings_json(s);bad["version"]=true;rejects([&]{settings_from_json(bad);});
         bad=settings_json(s);bad["players"][0]["keys"][1]="Space";rejects([&]{settings_from_json(bad);});
-        bad=settings_json(s);bad["pads"][1]["player"]=0;rejects([&]{settings_from_json(bad);});
+        bad=settings_json(s);bad["pads"][0]["player"]=0;bad["pads"][1]["player"]=0;rejects([&]{settings_from_json(bad);});
+        // Defaults: eight players, every pad takes the first free player when used.
+        check(Settings{}.places==8&&Settings{}.pads[3].player==pad_auto,"Expected 8-player automatic defaults");
+        check(settings_json(Settings{})["pads"][0]["player"]=="auto"&&settings_from_json(settings_json(Settings{})).pads[2].player==pad_auto,"AUTO pad JSON round trip");
+        check(input_ini(Settings{}).find("gamepad.1=AUTO,")!=std::string::npos,"AUTO pad input.ini");
         s.players[0].name="Adam żółć";s.pads[0].player=-1;
         auto config=input_config(s);check(config.keys[0][1]==52&&config.pad_player[0]==-1,"INI/game parser parity");
         check(settings_from_json(settings_json(s)).players[0].name==s.players[0].name,"Unicode JSON roundtrip");
