@@ -15,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <charconv>
+#include <cstdio>
 #include <chrono>
 #include <mutex>
 #include <set>

@@ -39,6 +39,9 @@ int main(){try {
     _wputenv_s(L"BUZZ_INPUT_CONFIG",L"");_putenv_s("BUZZ_IGNORE_SAVED_INPUT","1");
     for(const char* name:{"BUZZ_KEYS","BUZZ_KEYS_2","BUZZ_KEYS_3","BUZZ_KEYS_4","BUZZ_PULSE_MS"})_putenv_s(name,"");
     buzz_input_init();get_state=test_get_pad;buzz_input_enable_menu(true);
+    // Fixture topology: four players (one receiver) until the eight-player part
+    // below; eight is the shipped default. Pads use the default AUTO slots.
+    config.players=4;
     auto poll=[](){test_time+=10;return buzz_input_poll(0);};
     check(poll()==0,"Initial neutral input");
     test_pads[0]=0x200;test_pads[1]=1;

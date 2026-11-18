@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <algorithm>
 #include <stdexcept>
 #include <zlib.h>
 
