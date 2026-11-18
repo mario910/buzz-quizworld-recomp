@@ -1740,8 +1740,37 @@ struct NativeAnimationIo {
     uint8_t* ls(){return c->ls;}
     void finish(){c->pc=return_pc;}
 };
+static void check_skeleton_cache_updates()
+{
+    buzz::AnimationSkeletonCache cache;
+    uint8_t pose[96]{}, schedule[32]{};
+    // Joint 0 is a root. The remaining records repeat joint 1 with parent 0.
+    schedule[2] = schedule[3] = 0xff;
+    for (unsigned i = 1; i < 8; ++i) schedule[4 * i + 1] = 1;
+    const buzz::AnimationByteView defaults{pose,sizeof(pose)}, hierarchy{schedule,sizeof(schedule)};
+    assert(cache.prepare(defaults,hierarchy,2,8));
+    assert(cache.prepare(defaults,hierarchy,2,8));
+    assert(cache.defaults.component[11][1] == 0 && cache.hierarchy.parent[1] == 0);
+
+    pose[95] = 0x4d;
+    assert(cache.prepare(defaults,hierarchy,2,8));
+    assert(cache.defaults.component[11][1] == 0x4d);
+    // A cycle fails after the planner has already written parent[0].
+    schedule[2] = 0;
+    schedule[3] = 1;
+    assert(!cache.prepare(defaults,hierarchy,2,8));
+    schedule[2] = schedule[3] = 0xff;
+    assert(cache.prepare(defaults,hierarchy,2,8));
+    assert(cache.hierarchy.parent[0] == 0xffff);
+    for (unsigned i = 1; i < 8; ++i) schedule[4 * i + 2] = 0x80;
+    assert(cache.prepare(defaults,hierarchy,2,8));
+    assert(cache.hierarchy.no_scale_inheritance[1]);
+    assert(!cache.prepare({pose,sizeof(pose)-1},hierarchy,2,8));
+    assert(!cache.prepare(defaults,{schedule,sizeof(schedule)-1},2,8));
+}
 int main(int argc,char** argv)
 {
+    check_skeleton_cache_updates();
     assert(argc==4);output_directory=argv[2];assert(std::filesystem::is_directory(output_directory));
     assert(std::string(argv[3])=="Compare"||std::string(argv[3])=="Replace"||std::string(argv[3])=="Corrupt"||std::string(argv[3])=="CorruptVector"||std::string(argv[3])=="CorruptMatrix"||std::string(argv[3])=="CorruptAffine"||std::string(argv[3])=="CorruptBlend"||std::string(argv[3])=="CorruptHierarchy"||std::string(argv[3])=="CorruptExtraPose"||std::string(argv[3])=="CorruptExtraCurve"||std::string(argv[3])=="CorruptScalarKeys"||std::string(argv[3])=="CorruptClipTime"||std::string(argv[3])=="ClipReplace"||std::string(argv[3])=="CorruptFullClip"||std::string(argv[3])=="PipelinePublish"||std::string(argv[3])=="CorruptPipeline"||std::string(argv[3])=="CorruptChannel"||std::string(argv[3])=="NativeJob"||std::string(argv[3])=="CorruptNativeJobOutput"||std::string(argv[3])=="CorruptNativeJobChannel");
     publication_fault=std::string(argv[3]).rfind("Corrupt",0)==0;

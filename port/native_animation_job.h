@@ -18,9 +18,41 @@ struct AnimationNativeJobPlan {
     AnimationClipTimeInput header[3];
     AnimationClipTimeSelection body[3];
 };
+// Jobs on a worker often use the same skeleton. Staged LS bytes can change
+// even at the same guest address, so compare all inputs used by these two plans.
+struct AnimationSkeletonCache {
+    AnimationHostPoseArrays defaults;
+    AnimationHostHierarchyPlan hierarchy;
+    uint8_t pose_source[256 * 48];
+    uint8_t hierarchy_source[1024 * 4];
+    unsigned cached_joints = 0, cached_entries = 0;
+
+    bool prepare(AnimationByteView pose, AnimationByteView schedule, unsigned joints, unsigned entries)
+    {
+        if (!pose.data || !schedule.data || !joints || joints > 256 || entries > 1024 ||
+            pose.bytes < joints * 48 || schedule.bytes < entries * 4)
+            return false;
+        const size_t pose_bytes = joints * 48, schedule_bytes = entries * 4;
+        if (joints == cached_joints && entries == cached_entries &&
+            !memcmp(hierarchy_source, schedule.data, schedule_bytes) &&
+            !memcmp(pose_source, pose.data, pose_bytes))
+            return true;
+
+        // A rejected schedule may partially populate hierarchy.
+        cached_joints = 0;
+        if (!plan_animation_host_hierarchy(schedule, entries, joints, hierarchy) ||
+            !decode_animation_pose_defaults(pose, joints, defaults))
+            return false;
+        memcpy(hierarchy_source, schedule.data, schedule_bytes);
+        memcpy(pose_source, pose.data, pose_bytes);
+        cached_entries = entries;
+        cached_joints = joints;
+        return true;
+    }
+};
 struct AnimationNativeJobWorkspace {
     AnimationHostPipelineWorkspace pipeline;
-    AnimationHostPoseArrays defaults;
+    AnimationSkeletonCache skeleton;
     AnimationHostClipWorkspace clip;
     alignas(32) uint8_t body[3][16384+1548];
 };
@@ -66,10 +98,10 @@ inline bool prepare_native_animation_job(const AnimationJobInput& job,const uint
     const auto& skeleton=job.cache[1];
     if(uint64_t(skeleton.lsa)+skeleton.bytes>ls_bytes)return reject("animation skeleton span");
     const AnimationByteView sk{ls+skeleton.lsa,skeleton.bytes};
-    AnimationByteView defaults;AnimationHostControlPlan control;AnimationHostHierarchyPlan hierarchy;
-    if(!read_animation_pose_defaults(sk,job.joints,defaults)||!decode_animation_pose_defaults(defaults,job.joints,workspace.defaults)||
+    AnimationByteView defaults;AnimationHostControlPlan control;
+    if(!read_animation_pose_defaults(sk,job.joints,defaults)||
        !plan_animation_host_control(job,sk,control)||uint64_t(job.hierarchy.lsa)+job.hierarchy.bytes>ls_bytes||
-       !plan_animation_host_hierarchy({ls+job.hierarchy.lsa,job.hierarchy.bytes},job.hierarchy_entries,job.joints,hierarchy))
+       !workspace.skeleton.prepare(defaults,{ls+job.hierarchy.lsa,job.hierarchy.bytes},job.joints,job.hierarchy_entries))
         return reject("animation defaults/control/hierarchy");
     AnimationNativeJobPlan plan;plan.job=job;
     for(unsigned i=0;i<job.clips;++i) {
@@ -113,13 +145,13 @@ inline bool prepare_native_animation_job(const AnimationJobInput& job,const uint
         if(clip.joints!=job.joints||uint64_t(b.lsa)+b.bytes+clip.published_tail_bytes>pose_base)
             return reject("clip output/input ownership");
         const unsigned slot=i==0?0:1;
-        if(!produce_animation_host_clip(clip,workspace.defaults,curves,padding[slot],capacity-curves,
+        if(!produce_animation_host_clip(clip,workspace.skeleton.defaults,curves,padding[slot],capacity-curves,
             workspace.pipeline.leaf[i],workspace.clip))return reject("native clip sampling");
         for(unsigned n=0;n<capacity-curves;++n)padding[slot][n]=workspace.pipeline.leaf[i].curve[curves+n];
     }
     if(uint64_t(job.root_pose_lsa)+48>ls_bytes||uint64_t(job.input[2].lsa)+job.joints*48>ls_bytes)
         return reject("animation root/reference span");
-    produce_animation_host_outputs(control,hierarchy,decode_animation_host_pose8(ls+job.root_pose_lsa,1),
+    produce_animation_host_outputs(control,workspace.skeleton.hierarchy,decode_animation_host_pose8(ls+job.root_pose_lsa,1),
         ls+job.input[2].lsa,workspace.pipeline,destination.reference,destination.world,destination.curve);
     output=plan;if(reason)*reason=nullptr;return true;
 }
