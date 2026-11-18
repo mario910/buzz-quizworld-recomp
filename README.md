@@ -177,7 +177,9 @@ and the system tools checklist.
    (`buzz-prepare`) and installs the build tools inside it; the system itself
    is not changed. On Debian/Ubuntu/Fedora/Arch, **Install Linux system tools**
    installs the build packages instead.
-4. Click **Prepare game**, then **Play Buzz!**. Later, start the game with
+4. Click **Prepare game**, then **Play Buzz!**. **Add to Steam** puts the
+   prepared game into your Steam library (Steam Deck Game Mode: under
+   Non-Steam); Steam closes for a moment and reopens. Or start the game with
    **`BuzzSetup-x86_64.AppImage --play`**: add the AppImage to Steam as a
    non-Steam game with the launch option `--play` for game mode
    (`Play-Buzz.sh` in the tar package). `--launcher` (`Buzz-Launcher.sh`)

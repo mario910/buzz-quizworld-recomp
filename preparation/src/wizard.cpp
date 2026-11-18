@@ -1,5 +1,6 @@
 #include "wizard.h"
 #include "crypto.h"
+#include "steam_shortcut.h"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -9,6 +10,7 @@
 #include <QIcon>
 #include <QLibrary>
 #include <QLocale>
+#include <QMessageBox>
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -120,7 +122,7 @@ class Wizard final : public QWidget {
     QSpinBox jobs;
     QCheckBox upscaler{"Download the optional Real-ESRGAN texture upscaler"};
     QLineEdit *project{}, *game{}, *firmware{}, *keys{}, *update{}, *resume{};
-    QPushButton *check{}, *setup{}, *submodules{}, *prepare{}, *play{}, *openGame{}, *pythonInstall{}, *gitInstall{}, *vsInstall{}, *linuxInstall{}, *cancel{};
+    QPushButton *check{}, *setup{}, *submodules{}, *prepare{}, *play{}, *openGame{}, *addToSteam{}, *pythonInstall{}, *gitInstall{}, *vsInstall{}, *linuxInstall{}, *cancel{};
     QPushButton *vsDownload{}, *recheckSystem{}, *containerSetup{};
     QPushButton* downloadKeysButton{};
     QString powershell, python, git, winget, vsInstaller;
@@ -235,6 +237,7 @@ class Wizard final : public QWidget {
         prepareTitle->setText(ready ? "Ready to play" : "2   Prepare to play");
         play->setVisible(ready);
         openGame->setVisible(ready);
+        addToSteam->setVisible(ready && linuxHost && !steam::accountConfigDirs().isEmpty());
         prepare->setVisible(!ready);
         cancel->hide();
         progress.hide();
@@ -596,6 +599,51 @@ class Wizard final : public QWidget {
         start(winget, QStringList{"install", "--exact", "--source", "winget", "--disable-interactivity", "--id", id} + extra);
     }
 
+    // Steam rewrites shortcuts.vdf from memory when it exits, so the client is
+    // closed first and started again afterwards.
+    void addSteamShortcut() {
+        if (busy) return;
+        const bool running = steam::clientRunning();
+        if (running && QMessageBox::question(this, "Add to Steam",
+                "Steam will close for a moment to add Buzz! Quiz World to your library, then open again.")
+                != QMessageBox::Yes)
+            return;
+        begin("Adding Buzz! Quiz World to Steam…");
+        if (running && !QProcess::startDetached("steam", {"-shutdown"})) {
+            done("Close Steam, then select Add to Steam again.");
+            return;
+        }
+        waitForSteam(running, 0);
+    }
+
+    void waitForSteam(bool restart, int attempt) {
+        if (steam::clientRunning()) {
+            if (attempt < 120) {
+                QTimer::singleShot(500, this, [this, restart, attempt] { waitForSteam(restart, attempt + 1); });
+                return;
+            }
+            done("Steam did not close. Close it, then select Add to Steam again.");
+            return;
+        }
+        try {
+            const auto icon = root() + "/runtime/steam/buzz-quiz-world.png";
+            QDir().mkpath(QFileInfo(icon).absolutePath());
+            QIcon(":/setup/buzz-setup.ico").pixmap(256, 256).save(icon, "PNG");
+            const steam::Shortcut shortcut{"Buzz! Quiz World", gameExe(), root() + "/dist", icon, {}};
+            int accounts = 0;
+            for (const auto& config : steam::accountConfigDirs()) {
+                steam::install(config, shortcut);
+                ++accounts;
+            }
+            if (restart) QProcess::startDetached("steam", {});
+            done(QString("Added Buzz! Quiz World to the Steam library (%1 account%2). On the Steam Deck it is "
+                         "under Non-Steam in Game Mode.").arg(accounts).arg(accounts == 1 ? "" : "s"), true);
+        } catch (const std::exception& error) {
+            if (restart) QProcess::startDetached("steam", {});
+            done(QString::fromUtf8(error.what()));
+        }
+    }
+
     void closeEvent(QCloseEvent* event) override {
         if (busy) {
             log.appendPlainText("Wait for the current operation to finish, or cancel preparation first.");
@@ -800,6 +848,8 @@ public:
             }
         });
         play->setObjectName("primary");
+        addToSteam = button(*actions, "Add to Steam", [this] { addSteamShortcut(); });
+        addToSteam->hide();
         openGame = button(*actions, "Open game folder", [this] {
             if (!QDesktopServices::openUrl(QUrl::fromLocalFile(root() + "/dist")))
                 guidance->setText("Could not open the game folder.");
