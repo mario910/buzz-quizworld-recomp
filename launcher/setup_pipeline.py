@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import platform
 from pathlib import Path
 import shutil
@@ -68,6 +69,28 @@ class Inputs:
         if self.update and Path(self.update).suffix.lower() not in (".pkg", ".bin", ".elf"):
             raise ValueError("Unsupported update file type.")
 
+
+
+def linux_build_options(profile):
+    """The Steam Deck-qualified Linux build profile for original-disc 1.00 games.
+
+    Native jobs, media and renderer adapters are hash-bound to the 1.00 disc
+    executables; EU 1.02 keeps the plain build. Zen 2 tuning (-march=znver2)
+    is applied only on AMD Zen 2 or newer hosts.
+    """
+    if profile.adapter_family == "quizworld-102-verified":
+        return []
+    options = ["--native-jobs", "--renderer-cpu", "--media-cpu", "--audio-x86-rtz", "--geometry-zero-padding",
+               "--dma-diagnostics-optin", "--geometry-scalar-gather", "--geometry-cpu", "--renderer-bundle",
+               "--image39-native"]
+    try:
+        info = Path("/proc/cpuinfo").read_text(errors="replace")
+    except OSError:
+        info = ""
+    family = re.search(r"^cpu family\s*:\s*(\d+)", info, re.M)
+    if "AuthenticAMD" in info and family and int(family.group(1)) >= 23 and " avx2" in info:
+        options.append("--zen2-tune")
+    return options
 
 def fingerprint(path, cancel=None, log=None):
     path = Path(path).resolve(strict=True)
@@ -517,7 +540,8 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         model.atomic_text(workspace / "buzz-paths.json", json.dumps(state["paths"], indent=2))
         if linux:
             def linux_build(stage_name):
-                process([sys.executable, workspace / "tools/build-linux.py", stage_name, "--jobs", str(inputs.jobs)],
+                process([sys.executable, workspace / "tools/build-linux.py", stage_name, "--jobs", str(inputs.jobs),
+                         *(linux_build_options(profile) if stage_name == "build" else ())],
                         workspace, log, cancel, timeout=7200)
             stage("generate Linux translations", lambda: linux_build("generate"))
             stage("build standalone Linux Vulkan game", lambda: linux_build("build"))

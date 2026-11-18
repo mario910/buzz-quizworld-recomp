@@ -161,6 +161,25 @@ If interrupted, open **Advanced options** and select the existing session in
 **Prepare game** again. Advanced options also holds the optional game update
 and the system tools checklist.
 
+### Linux x86-64 and Steam Deck quick start
+
+1. Download **BuzzPrepare-linux-x86_64.tar.gz** from
+   [GitHub Releases](https://github.com/mario910/buzz-quizworld-recomp/releases),
+   extract it into your home folder and run **`BuzzSetup`** (in a file manager:
+   open it and choose Run). Qt is bundled; the package includes the compiled
+   wizard, the native launcher and the pinned build sources.
+2. Select your ISO or disc dump, firmware PUP or `dev_flash`, and a key file
+   for encrypted inputs, as on Windows.
+3. On SteamOS and other image-based systems without a compiler, click
+   **Set up the build container**. BuzzSetup creates an Ubuntu 24.04 distrobox
+   (`buzz-prepare`) and installs the build tools inside it; the system itself
+   is not changed. On Debian/Ubuntu/Fedora/Arch, **Install Linux system tools**
+   installs the build packages instead.
+4. Click **Prepare game**, then **Play Buzz!**. Later, start the game with
+   **`Play-Buzz.sh`** (add it to Steam as a non-Steam game for game mode).
+   **`Buzz-Launcher.sh`** opens the optional native launcher for controls and
+   a button test. See [the Linux package](preparation/README.md#linux-release-package).
+
 ### Guided preparation from a checkout
 
 1. Clone the source and its pinned submodules:
@@ -192,6 +211,8 @@ and the system tools checklist.
    and any packaged libraries beside the executable when moving the folder. Open PC settings with
    **Escape / controller START** to configure display, audio, textures and
    keyboard or pad bindings. Use **Save settings** to keep the changes.
+   On Linux, the checkout's `Launch-Buzz.sh` and `Prepare-Buzz.sh` correspond to
+   the `.cmd` scripts.
    On Windows, the checkout's `Launch-Buzz.cmd` also starts
    `dist/BuzzQuizWorldRecomp.exe` when it exists.
 

@@ -1,3 +1,4 @@
+#include "pc_system_font.h"
 #include "pc_overlay.h"
 #include "pc_menu_model.h"
 #include "pc_runtime.h"
@@ -389,12 +390,7 @@ bool init(const ps3_host_overlay_frame& frame) {
     ImGui::StyleColorsDark();auto& style=ImGui::GetStyle();style.FrameRounding=9;style.WindowRounding=14;
     style.FramePadding=ImVec2(16,9);style.ItemSpacing=ImVec2(12,9);style.WindowPadding=ImVec2(26,22);style.FontSizeBase=22;
     base_style=style;ui_scale=0;
-#ifdef _WIN32
-    const char* font="C:/Windows/Fonts/segoeui.ttf";
-#else
-    const char* font="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-#endif
-    if(std::filesystem::is_regular_file(font))io.Fonts->AddFontFromFileTTF(font,22);
+    if(const char* font=buzz_system_ui_font())io.Fonts->AddFontFromFileTTF(font,22);
 #ifdef _WIN32
     if(!ImGui_ImplWin32_Init(window))return false;
 #else
@@ -675,9 +671,12 @@ void draw_menu() {
     if(!status.empty())ImGui::TextWrapped("%s",status.c_str());
     else if(phones&&!phone_status.error.empty())ImGui::TextWrapped("%s",phone_status.error.c_str());
     else ImGui::TextDisabled(pause_guest&&host_pause?"The game is paused while this menu is open.":"Game continues running while this menu is open.");
-    ImGui::TextDisabled(menu.tabs_focused()?"Tabs: YELLOW / GREEN = previous / next   RED = enter":
+    // Wrapped: system fonts differ in width (Segoe UI, Noto Sans, DejaVu Sans).
+    ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("%s",menu.tabs_focused()?"Tabs: YELLOW / GREEN = previous / next   RED = enter":
         "Buzz: BLUE / ORANGE = up / down   YELLOW / GREEN = adjust   RED = select");
-    ImGui::TextDisabled("BLUE above first option: tabs   Arrows / D-pad also work   ESC / START: resume");
+    ImGui::TextWrapped("BLUE above first option: tabs   Arrows / D-pad also work   ESC / START: resume");
+    ImGui::PopStyleColor();
     ImGui::End();ImGui::PopStyleColor();
 }
 void draw_performance(const ps3_host_overlay_frame& frame) {

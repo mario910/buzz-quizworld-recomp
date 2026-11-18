@@ -187,8 +187,18 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         *(f"-D{k}={v}" for k, v in options.items()))
     run(cmake, "--build", directory, "--parallel", str(jobs))
     exe = directory / "BuzzQuizWorldRecomp"
+    # Same build binding as the Windows manifest: launchers select the runtime
+    # set from the EXE's own profile, not from the directory it was copied to.
+    binding = dict(family=profile.adapter_family)
+    if native_jobs:
+        binding.update(geometry_job_profile="host-groups-v1", animation_job_profile="host-soa-v1",
+                       embedded_runtime_profile=options["PORT_NATIVE_JOB_PROFILE"], runtime_defaults={})
+    else:
+        plan = subprocess.run([sys.executable, str(ROOT / "tools/verify-game.py"), "--runtime-options"],
+                              cwd=ROOT, check=True, capture_output=True, text=True).stdout
+        binding.update(runtime_defaults=json.loads(plan))
     (directory / "game-build.json").write_text(json.dumps(dict(
-        renderer="vulkan", standalone=True, elf_sha256=profile.elf_sha256,
+        **binding, renderer="vulkan", standalone=True, elf_sha256=profile.elf_sha256,
         exe_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
         native_jobs=native_jobs, renderer_cpu=renderer_cpu, geometry_cpu=geometry_cpu, media_cpu=media_cpu,
         spurs_input_clear=spurs_input_clear, spu_job_return=spu_job_return,

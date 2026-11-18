@@ -1,3 +1,4 @@
+#include "pc_system_font.h"
 #include "core.h"
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -320,7 +321,7 @@ void game_tab(App& app,SDL_Window* window) {
     if(app.settings.pc.phone_buzzers) {
         int port=int(app.settings.pc.phone_port);ImGui::SetNextItemWidth(160);
         if(ImGui::InputInt("Phone controller port",&port)){app.settings.pc.phone_port=unsigned(std::clamp(port,1024,65535));app.settings.pc_configured=true;}
-        ImGui::TextWrapped("Scan the QR code in the game's Escape > Phone buzzers menu. Phones and PC must share a trusted Wi-Fi network. Allow this game's port on private networks in Windows Firewall if prompted.");
+        ImGui::TextWrapped("Scan the QR code in the game's Escape > Phone buzzers menu. Phones and PC must share a trusted Wi-Fi network. Allow this game's port on private networks in your firewall if prompted.");
     }
     ImGui::TextDisabled("Offline mode requires restarting.");
     ImGui::Separator();ImGui::TextUnformatted("Display");
@@ -329,7 +330,7 @@ void game_tab(App& app,SDL_Window* window) {
     ImGui::TextWrapped("Configuration root: %s",utf8(app.root).c_str());
     if(app.ready) {ImGui::Spacing();ImGui::TextColored(accent,"VERIFIED: %s",app.ready->profile.version.c_str());ImGui::TextWrapped("%s",utf8(app.ready->executable).c_str());}
 #ifndef _WIN32
-    ImGui::Spacing();ImGui::TextWrapped("This is a native Linux launcher, not a Linux game port. It only starts a matching Linux game binary; it will not run a Windows EXE through Wine automatically.");
+    ImGui::Spacing();ImGui::TextWrapped("Linux: this launcher starts a Linux game build prepared with BuzzSetup (dist/BuzzQuizWorldRecomp). It does not run a Windows EXE through Wine.");
 #endif
     ImGui::Spacing();ImGui::TextWrapped("Need to import an ISO/PUP or compile? Use the separate developer preparation tools. Python and a compiler are not needed to play a prepared copy.");
 }
@@ -464,12 +465,7 @@ int run_ui(const fs::path& project,bool smoke,const fs::path& capture,int smoke_
     SDL_SetRenderVSync(renderer,1);
     IMGUI_CHECKVERSION();ImGui::CreateContext();auto& io=ImGui::GetIO();io.IniFilename=nullptr;io.ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard;
     auto& style=ImGui::GetStyle();ImGui::StyleColorsDark();style.WindowPadding=ImVec2(22,18);style.ItemSpacing=ImVec2(10,9);style.FramePadding=ImVec2(9,6);style.FrameRounding=5;style.Colors[ImGuiCol_WindowBg]=ImVec4(.045f,.065f,.1f,1);style.FontSizeBase=17;
-#ifdef _WIN32
-    const char* system_font="C:/Windows/Fonts/segoeui.ttf";
-#else
-    const char* system_font="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-#endif
-    if(fs::is_regular_file(path(system_font)))io.Fonts->AddFontFromFileTTF(system_font,17);
+if(const char* system_font=buzz_system_ui_font())io.Fonts->AddFontFromFileTTF(system_font,17);
     ImGui_ImplSDL3_InitForSDLRenderer(window,renderer);ImGui_ImplSDLRenderer3_Init(renderer);
     if(!smoke)SDL_ShowWindow(window);
     {

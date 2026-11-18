@@ -196,7 +196,7 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
             if(!p.sessions->leave(request.get_param_value("control"))){error(r,401,"Session ended");return;}
             json(r,200,"{\"ok\":true}");
         });
-        if(!http.bind_to_port("0.0.0.0",int(port)))throw std::runtime_error("Cannot open phone controller port "+std::to_string(port)+". Choose another port or check Windows Firewall.");
+        if(!http.bind_to_port("0.0.0.0",int(port)))throw std::runtime_error("Cannot open phone controller port "+std::to_string(port)+". Choose another port or check your firewall.");
         p.stopping=false;p.running=true;
         {std::lock_guard lock(p.mutex);p.failure.clear();}
         p.listener=std::thread([&p] {

@@ -14,6 +14,9 @@ server, browser installation, Python or PWA is involved.
 3. Select the PC's LAN address above the QR code. VPNs and virtual adapters may
    have additional addresses. `127.0.0.1` works only on the PC itself.
 4. If Windows Firewall prompts, allow this game's port on your private network.
+   On Linux, open the port in your firewall if one is enabled (for example
+   `sudo firewall-cmd --add-port=8073/tcp` or `sudo ufw allow 8073/tcp`); SteamOS
+   has no firewall enabled by default.
    No firewall rules or router forwarding are added automatically. Guest Wi-Fi
    and client isolation can block phones from reaching the PC.
 5. Scan the QR code. Enter a name, choose the player number matching the TV and

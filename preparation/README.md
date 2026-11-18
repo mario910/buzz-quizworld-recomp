@@ -93,6 +93,45 @@ python tools/package-preparation.py --qt-source <path-to-qt-source-archive> --ou
 The release contains only BuzzPrepare, its support libraries and build sources.
 The game and firmware translations are built privately on the player's PC.
 
+## Linux release package
+
+The **Native preparation** workflow also builds `BuzzPrepare-linux-x86_64.tar.gz`
+on Ubuntu 24.04 and attaches it to `v*` releases with `SHA256SUMS-linux.txt`.
+Extract it into your home folder and run `BuzzSetup`. The package contains:
+
+- `BuzzSetup`, `Play-Buzz.sh` and `Buzz-Launcher.sh` start scripts;
+- `bin/BuzzPrepare` (the wizard) with its Qt and support libraries in `lib/`
+  and `plugins/`, located through relative RPATHs, so nothing leaks into the
+  build tools or the game it starts;
+- `bin/BuzzLauncher`, the native SDL3/ImGui launcher (controls, button test,
+  shared preferences);
+- `build-files/` with the pinned port and submodule sources and
+  `release-sources.json`, as in the Windows ZIP;
+- `licenses/` with the copyright file of every bundled Ubuntu package.
+
+BuzzSetup needs glibc 2.39+ (SteamOS 3.6+, Ubuntu 24.04+, Fedora 40+, Arch).
+When the system has no compiler toolchain and `distrobox` is available
+(SteamOS, Bazzite, Fedora Atomic), the wizard offers **Set up the build
+container**: `scripts/linux-build-container.sh` creates an Ubuntu 24.04
+distrobox named `buzz-prepare` and installs the build packages inside it. Setup
+and preparation then run in the container; the system itself is not changed,
+and the prepared game in `build-files/dist` runs directly on the host with its
+Vulkan driver. On systems with a package manager the existing **Install Linux
+system tools** path remains. Linux builds of original-disc 1.00 games use the
+Steam Deck-qualified profile (native jobs, renderer/media adapters, image 39
+native; `-march=znver2` only on AMD Zen 2+ hosts); no private PGO profile ships.
+
+To reproduce the package on Ubuntu 24.04 (or in that container) with
+`qt6-base-dev`, `patchelf`, CMake 3.31+ and the X11/Wayland headers:
+
+```sh
+bash scripts/build-preparation-linux.sh
+bash scripts/build-launcher-linux.sh
+python3 tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux
+```
+
+The package holds the committed `HEAD`; packaging refuses uncommitted changes.
+
 ## Linux developer build
 
 On Ubuntu 22.04/24.04 install `build-essential cmake ninja-build qt6-base-dev

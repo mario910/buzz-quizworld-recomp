@@ -42,6 +42,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <functional>
+#include <utility>
 #include <QWidget>
 
 namespace {
@@ -120,11 +121,17 @@ class Wizard final : public QWidget {
     QCheckBox upscaler{"Download the optional Real-ESRGAN texture upscaler"};
     QLineEdit *project{}, *game{}, *firmware{}, *keys{}, *update{}, *resume{};
     QPushButton *check{}, *setup{}, *submodules{}, *prepare{}, *play{}, *openGame{}, *pythonInstall{}, *gitInstall{}, *vsInstall{}, *linuxInstall{}, *cancel{};
-    QPushButton *vsDownload{}, *recheckSystem{};
+    QPushButton *vsDownload{}, *recheckSystem{}, *containerSetup{};
     QPushButton* downloadKeysButton{};
     QString powershell, python, git, winget, vsInstaller;
     QString packageManager;
     QStringList packageArgs;
+    // Linux hosts without a compiler toolchain (SteamOS and other image-based
+    // systems) build inside a distrobox container; the game still runs here.
+    QString distrobox;
+    const QString containerName = "buzz-prepare";
+    bool containerMode = false;
+    std::function<void()> afterSuccess;
     const bool linuxHost = QSysInfo::kernelType() == "linux";
     const bool windowsHost = QSysInfo::kernelType() == "winnt";
     bool supported = false;
@@ -199,6 +206,14 @@ class Wizard final : public QWidget {
     QString cancelFile() const { return controlFiles.filePath("cancel"); }
     QString toolPython() const { return root() + (linuxHost ? "/toolenv/bin/python" : "/toolenv/Scripts/python.exe"); }
     QString gameExe() const { return root() + (linuxHost ? "/dist/BuzzQuizWorldRecomp" : "/dist/BuzzQuizWorldRecomp.exe"); }
+    QString containerMarker() const { return root() + "/runtime/setup/build-container-ready"; }
+    // Run a build step on the host, or inside the build container.
+    void startBuild(const QString& program, const QStringList& args, const QString& activity) {
+        if (containerMode)
+            start(distrobox, QStringList{"enter", containerName, "--", program} + args, activity);
+        else
+            start(program, args, activity);
+    }
 
     static bool succeeds(const QString& program, const QStringList& args) {
         if (program.isEmpty()) return false;
@@ -240,21 +255,28 @@ class Wizard final : public QWidget {
         process.setProcessEnvironment(environment);
         python = locate("python3");
         git = locate("git");
+        distrobox = locate("distrobox");
         const bool basePython = verifyPython(python, "import sys, venv, ensurepip; assert sys.version_info >= (3, 10)");
         const QDir dir(root());
-        const bool checkout = !root().isEmpty() && dir.exists(".git") && dir.exists("tools/build-linux.py");
+        const bool gitCheckout = !root().isEmpty() && dir.exists(".git");
+        const bool bundled = !root().isEmpty() && !gitCheckout && dir.exists("release-sources.json");
+        const bool checkout = (gitCheckout || bundled) && hasSources(dir) && dir.exists("tools/build-linux.py");
         const bool sources = checkout && dir.exists("ps3recomp/tools/ppu_loader.py") && dir.exists("third_party/zlib/CMakeLists.txt");
+        const bool compiler = !locate("clang").isEmpty() && !locate("clang++").isEmpty() && !locate("c++").isEmpty();
+        const bool buildTools = !locate("patch").isEmpty();
+        const bool sdl = succeeds(locate("pkg-config"), {"--exists", "sdl2 >= 2.0.18"});
+        const bool hostTools = compiler && buildTools && sdl && basePython;
+        containerMode = !hostTools && !distrobox.isEmpty();
+        const bool containerReady = containerMode && sources && QFileInfo::exists(containerMarker());
+        // A container-made venv points at the container's Python: check its files only.
         const bool tools = sources && dir.exists("toolenv/bin/cmake") && dir.exists("toolenv/bin/ninja") &&
-            verifyPython(toolPython(),
+            (containerMode ? QFileInfo::exists(toolPython()) : verifyPython(toolPython(),
             "import sys, capstone, construct, pycdlib, tabulate, tqdm; from Crypto.Cipher import AES; "
             "from importlib.metadata import version; from pathlib import Path; assert sys.version_info >= (3, 10); "
             "assert all(version(name.strip()) == pin.split(';', 1)[0].strip() for name, pin in "
             "(line.split('==', 1) for line in Path('requirements.txt').read_text().splitlines() "
-            "if '==' in line and ';' not in line and not line.lstrip().startswith('#')))");
+            "if '==' in line and ';' not in line and not line.lstrip().startswith('#')))"));
         localToolsReady = tools;
-        const bool compiler = !locate("clang").isEmpty() && !locate("clang++").isEmpty() && !locate("c++").isEmpty();
-        const bool buildTools = !locate("patch").isEmpty();
-        const bool sdl = succeeds(locate("pkg-config"), {"--exists", "sdl2 >= 2.0.18"});
         QLibrary vulkan("vulkan", 1);
         const bool loader = vulkan.load();
         bool cpu = false;
@@ -277,21 +299,31 @@ class Wizard final : public QWidget {
         const auto mark = [](bool ok) { return ok ? "OK" : "missing"; };
         const bool existingDist = checkout && dir.exists("dist");
         status.setText(QString("%1 | AVX2/FMA %2 | Git %3 | Python/venv %4 | Clang %5 | patch %6\n"
-                               "Source checkout %7 | submodules %8 | local Python environment %9")
+                               "Build sources %7 | submodules %8 | local Python environment %9")
                            .arg(QSysInfo::prettyProductName(), mark(cpu), mark(!git.isEmpty()), mark(basePython),
-                                mark(compiler), mark(buildTools), mark(checkout), mark(sources), mark(tools)) +
+                                mark(compiler), mark(buildTools),
+                                bundled && sources ? "included in this package" : mark(checkout), mark(sources), mark(tools)) +
                        QString("\nSDL2 %1 | Vulkan loader %2").arg(mark(sdl), mark(loader)));
+        if (containerMode)
+            status.setText(status.text() + QString("\nThis system has no compiler toolchain: the game is built in the "
+                "distrobox container \"%1\" (%2). The prepared game runs directly on this system.")
+                .arg(containerName, containerReady ? "ready" : "not set up yet"));
         if (!supported) status.setText(status.text() + "\nThe game build requires Linux x86-64.");
         if (!loader) status.setText(status.text() + "\nInstall the Vulkan loader and a compatible driver for your GPU.");
         if (existingDist) status.setText(status.text() + "\nMove the existing dist folder to prepare another copy.");
         linuxInstall->setEnabled(supported && !packageManager.isEmpty());
-        submodules->setEnabled(supported && checkout && !sources && !git.isEmpty());
-        setup->setEnabled(supported && sources && basePython);
+        submodules->setVisible(!bundled);
+        submodules->setEnabled(supported && gitCheckout && !sources && !git.isEmpty());
+        setup->setEnabled(supported && sources && (containerMode ? containerReady : basePython));
+        const bool buildReady = containerMode ? containerReady : hostTools;
         prepare->setEnabled(supported && checkout && sources && (tools || setup->isEnabled()) &&
-                            cpu && compiler && buildTools && sdl && loader &&
-                            !git.isEmpty() && !existingDist && controlFiles.isValid() && hasInputs());
+                            cpu && buildReady && loader && (bundled || !git.isEmpty()) &&
+                            !existingDist && controlFiles.isValid() && hasInputs());
         const bool ready = supported && checkout && QFileInfo(gameExe()).isExecutable();
-        linuxInstall->setVisible(!ready && !(basePython && compiler && buildTools && sdl && loader && !git.isEmpty()));
+        containerSetup->setVisible(!ready && containerMode);
+        containerSetup->setEnabled(supported && containerMode && sources);
+        containerSetup->setText(containerReady ? "Repair the build container" : "Set up the build container");
+        linuxInstall->setVisible(!ready && !containerMode && !(hostTools && loader && (bundled || !git.isEmpty())));
         QString problem;
         if (!supported || !cpu)
             problem = "Preparation requires a Linux x64 PC with AVX2 and FMA.";
@@ -301,7 +333,11 @@ class Wizard final : public QWidget {
             problem = "Move the incomplete dist folder aside before preparing another copy.";
         else if (!controlFiles.isValid())
             problem = "BuzzSetup needs a writable temporary folder.";
-        else if (!(basePython && compiler && buildTools && sdl && loader && !git.isEmpty()))
+        else if (containerMode && !containerReady)
+            problem = "Set up the build container below. It downloads the compiler and libraries once, without changing your system.";
+        else if (!loader)
+            problem = "Install the Vulkan loader and a driver for your GPU, then recheck in Advanced options.";
+        else if (!containerMode && !(hostTools && (bundled || !git.isEmpty())))
             problem = "Install the missing system tools below, then recheck in Advanced options.";
         showState(ready, problem);
     }
@@ -504,6 +540,7 @@ class Wizard final : public QWidget {
 
     void done(const QString& result, bool success = false) {
         log.appendPlainText(result);
+        if (auto next = std::exchange(afterSuccess, nullptr); next && success) next();
         busy = false;
         for (auto* control : findChildren<QPushButton*>()) control->setEnabled(true);
         for (auto* field : {project, game, firmware, keys, update, resume}) field->setEnabled(true);
@@ -529,7 +566,8 @@ class Wizard final : public QWidget {
 
     void startSetup() {
         if (linuxHost) {
-            start(python, {root() + "/tools/setup-linux.py"});
+            startBuild(containerMode ? "python3" : python, {root() + "/tools/setup-linux.py"},
+                       "Installing the local build dependencies…");
             return;
         }
         start(powershell, {"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File",
@@ -549,7 +587,7 @@ class Wizard final : public QWidget {
             log.appendPlainText("Could not reset the cancellation marker.");
             return;
         }
-        start(toolPython(), args, "Preparing your game. Keep this window open while the build finishes…");
+        startBuild(toolPython(), args, "Preparing your game. Keep this window open while the build finishes…");
         cancel->setVisible(busy);
         cancel->setEnabled(busy);
     }
@@ -705,6 +743,18 @@ public:
                 start(pkexec, QStringList{packageManager} + packageArgs);
             }
         });
+        containerSetup = button(*dependencies, "Set up the build container", [this] {
+            afterSuccess = [this] {
+                try {
+                    prepare::atomicWrite(root(), containerMarker(), QByteArray("ubuntu:24.04\n"));
+                } catch (const std::exception& error) {
+                    log.appendPlainText(QString::fromUtf8(error.what()));
+                }
+            };
+            start("bash", {root() + "/scripts/linux-build-container.sh", containerName},
+                  "Setting up the build container. The first run downloads the compiler and libraries…");
+        });
+        containerSetup->hide();
         auto* systemHelp = new QHBoxLayout;
         dependencies->addLayout(systemHelp);
         vsDownload = button(*systemHelp, "Download Build Tools from Microsoft", [this] {

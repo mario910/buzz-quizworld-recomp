@@ -87,3 +87,4 @@ __pycache__/
 /docs/perf-notes.md
 /docs/job41-edge-geometry.md
 /docs/claude-*.md
+/build-launcher-linux/

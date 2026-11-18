@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -29,7 +29,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build qt6-base-dev libssl-dev libgl1-mesa-dev libopengl-dev
+          sudo apt-get install -y ninja-build qt6-base-dev libssl-dev libgl1-mesa-dev libopengl-dev patchelf \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
+            libwayland-dev libxkbcommon-dev libegl1-mesa-dev xvfb
       - name: Install developer Qt on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -49,6 +51,35 @@ jobs:
         with:
           name: BuzzPrepare-${{ matrix.os }}-x64
           path: BuzzPrepare-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+      # The downloadable Linux package: BuzzSetup with bundled Qt, the native
+      # launcher and the pinned build sources (glibc 2.39+: built on 24.04).
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          python-version: '3.12'
+      - name: Package the Linux release
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          python -m pip install cmake==3.31.10 ninja==1.13.0
+          bash scripts/build-launcher-linux.sh 4
+          python tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux
+      - name: Test the extracted Linux package
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          mkdir -p "$RUNNER_TEMP/linux-smoke"
+          tar -xzf dist-preparation/release-linux/BuzzPrepare-linux-x86_64.tar.gz -C "$RUNNER_TEMP/linux-smoke"
+          package="$RUNNER_TEMP/linux-smoke/BuzzPrepare"
+          env -i PATH=/usr/bin:/bin "$package/bin/BuzzPrepare" --inspect-iso preparation/tests/fixtures/iso-0-0.fixture
+          env -i PATH=/usr/bin:/bin "$package/bin/BuzzLauncher" --project "$package/build-files" --smoke
+          (cd "$package/build-files" && python -c "from pathlib import Path; from tempfile import TemporaryDirectory; from launcher.setup_pipeline import copy_sources; scratch = TemporaryDirectory(); copy_sources(Path.cwd(), Path(scratch.name)); scratch.cleanup()")
+          xvfb-run -a timeout 10 "$package/BuzzSetup" || test $? -eq 124
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          name: BuzzPrepare-linux-x86_64
+          path: dist-preparation/release-linux/
           if-no-files-found: error
           retention-days: 14
       - name: Build, test and package Windows
@@ -89,7 +120,7 @@ jobs:
           path: dist-preparation/release/
           if-no-files-found: error
           retention-days: 14
-  release-windows:
+  release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: test
     runs-on: ubuntu-24.04
@@ -100,14 +131,19 @@ jobs:
         with:
           name: BuzzPrepare-windows-x64
           path: assets
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: BuzzPrepare-linux-x86_64
+          path: assets
       - name: Publish Windows preparation release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         working-directory: assets
         run: |
-          sha256sum --check SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt SHA256SUMS-linux.txt
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
             --title "BuzzSetup $TAG" \
-            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. Use the firmware and key file buttons or select your own files. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries.' \
-            BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz
+            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. Use the firmware and key file buttons or select your own files. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzPrepare-linux-x86_64.tar.gz**, extract it into your home folder and run **BuzzSetup**; on SteamOS and other image-based systems it builds inside a distrobox container without changing the system. Start the game later with **Play-Buzz.sh**.' \
+            BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz \
+            BuzzPrepare-linux-x86_64.tar.gz SHA256SUMS-linux.txt

@@ -152,6 +152,9 @@ Settings load_settings(const fs::path& root) {
     else if(fs::exists(root/"buzz-paths.json")) {
         auto j=Json::parse(read_text(root/"buzz-paths.json"));
         for(auto& [k,v]:s.paths) v=j.value(k,std::string{});
+    } else if(fs::is_regular_file(root/"dist/runtime/EBOOT.elf")) {
+        // A BuzzSetup copy keeps its prepared inputs beside the game.
+        s.paths["game_root"]="dist/runtime/disc";s.paths["dev_flash"]="dist/runtime/dev_flash";s.paths["eboot_elf"]="dist/runtime/EBOOT.elf";
     }
     validate_settings(s);return load_shared_settings(root,s);
 }
@@ -236,7 +239,8 @@ Build validate_build(const Settings& s,const fs::path& catalog) {
         ?std::vector<const char*>{"build-windows","build-vulkan-windows"}
         :std::vector<const char*>{"build-vulkan-windows","build-windows"};
 #else
-    const char* exe_name="BuzzQuizWorldRecomp";const std::vector<const char*> build_dirs{"build-linux"};
+    // BuzzSetup publishes dist/; developer builds use build-vulkan-linux.
+    const char* exe_name="BuzzQuizWorldRecomp";const std::vector<const char*> build_dirs{"dist","build-vulkan-linux","build-linux"};
 #endif
     std::vector<fs::path> dirs;
     std::string rejection;
@@ -345,8 +349,12 @@ LaunchPlan plan_launch(const Settings& s,const Build& b,Environment inherited) {
     // Resolve portable relative paths in the selected catalog before this call.
     auto session=b.root/"runtime/launcher/sessions"/unique_id();
     fs::create_directories(session.parent_path());require(fs::create_directory(session),"Could not create unique launch session");
-    fs::create_directories(b.root/"runtime/dev_hdd0");fs::create_directories(b.root/"runtime/dev_hdd1");
+    // A standalone dist/ copy keeps saves and logs in its own runtime folder,
+    // the one its direct start script uses.
+    const auto game_dir=b.executable.parent_path();
+    const auto cwd=game_dir.filename()=="dist"&&fs::is_directory(game_dir/"runtime")?game_dir/"runtime":b.root/"runtime";
+    fs::create_directories(cwd/"dev_hdd0");fs::create_directories(cwd/"dev_hdd1");
     Json paths=s.paths;atomic_text(session/"paths.json",paths.dump(2)+"\n");atomic_text(session/"input.ini",input_ini(s));
-    return {b.executable,path(s.paths.at("eboot_elf")),b.root/"runtime",session/"stdout.log",session/"stderr.log",session,runtime_environment(s,b,session,std::move(inherited))};
+    return {b.executable,path(s.paths.at("eboot_elf")),cwd,session/"stdout.log",session/"stderr.log",session,runtime_environment(s,b,session,std::move(inherited))};
 }
 }
