@@ -48,6 +48,8 @@ SYSTEM_LIBRARIES = re.compile(
 LAUNCH_SETUP = """#!/bin/sh
 # Open BuzzSetup: choose your disc/ISO and firmware, then Prepare game.
 here=$(dirname "$(readlink -f "$0")")
+# The bundled Qt platform plugin is XCB (X11 and XWayland desktops alike).
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 exec "$here/bin/BuzzPrepare" "$@"
 """
 LAUNCH_GAME = """#!/bin/sh
