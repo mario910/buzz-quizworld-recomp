@@ -88,6 +88,38 @@ inline AnimationHostPose8 compose_animation_host_poses8(const AnimationHostPose8
     return result;
 }
 struct alignas(32) AnimationHostPoseArrays { uint32_t component[12][256]{}; };
+// Control and final matrix batches use consecutive joints in each SoA row.
+inline AnimationHostPose8 load_animation_pose_block(const AnimationHostPoseArrays& poses,
+    unsigned first, unsigned count)
+{
+    const v8 active = _mm256_cmpgt_epi32(v8_set(count), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+    AnimationHostPose8 result;
+    for (unsigned i = 0; i < 12; ++i) {
+        const auto* source = &poses.component[i][first];
+        auto& group = i < 4 ? result.rotation : i < 8 ? result.translation : result.scale;
+        if (count == 8) {
+            group.component[i % 4] = _mm256_loadu_si256(reinterpret_cast<const v8*>(source));
+        } else {
+            const v8 neutral = v8_set(i == 3 || i >= 8 ? 0x3f800000 : 0);
+            const v8 words = _mm256_maskload_epi32(reinterpret_cast<const int*>(source), active);
+            group.component[i % 4] = _mm256_blendv_epi8(neutral, words, active);
+        }
+    }
+    return result;
+}
+inline void store_animation_pose_block(const AnimationHostPose8& pose, AnimationHostPoseArrays& output,
+    unsigned first, unsigned count)
+{
+    const v8 active = _mm256_cmpgt_epi32(v8_set(count), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+    for (unsigned i = 0; i < 12; ++i) {
+        const auto& group = i < 4 ? pose.rotation : i < 8 ? pose.translation : pose.scale;
+        auto* destination = &output.component[i][first];
+        if (count == 8)
+            _mm256_storeu_si256(reinterpret_cast<v8*>(destination), group.component[i % 4]);
+        else
+            _mm256_maskstore_epi32(reinterpret_cast<int*>(destination), active, group.component[i % 4]);
+    }
+}
 inline AnimationHostPose8 gather_animation_host_poses8(const AnimationHostPoseArrays& poses,
     const uint16_t* indices,unsigned count,const AnimationHostPose8* root=nullptr)
 {

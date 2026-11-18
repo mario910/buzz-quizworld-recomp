@@ -39,8 +39,7 @@ inline bool decode_animation_pose_defaults(AnimationByteView defaults,unsigned j
     for(unsigned first=0;first<joints;first+=8) {
         const unsigned count=joints-first<8?joints-first:8;
         const auto pose=decode_animation_host_pose8(defaults.data+first*48,count);
-        uint16_t ids[8];for(unsigned lane=0;lane<count;++lane)ids[lane]=first+lane;
-        scatter_animation_host_poses8(pose,output,ids,count);
+        store_animation_pose_block(pose,output,first,count);
     }
     return true;
 }

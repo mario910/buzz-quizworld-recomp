@@ -55,10 +55,9 @@ inline const AnimationHostClipPose& produce_animation_host_control(const Animati
         const auto& a=animation_control_input(node.left,workspace);const auto& b=animation_control_input(node.right,workspace);
         for(unsigned first=0;first<plan.joints;first+=8) {
             const unsigned lanes=plan.joints-first<8?plan.joints-first:8;
-            uint16_t ids[8];for(unsigned lane=0;lane<lanes;++lane)ids[lane]=first+lane;
-            const auto x=gather_animation_host_poses8(a.pose,ids,lanes),y=gather_animation_host_poses8(b.pose,ids,lanes);
+            const auto x=load_animation_pose_block(a.pose,first,lanes),y=load_animation_pose_block(b.pose,first,lanes);
             const auto result=node.operation?add_animation_host_poses8(x,y):blend_animation_host_poses8(x,y,v8_set(node.factor));
-            scatter_animation_host_poses8(result,output.pose,ids,lanes);
+            store_animation_pose_block(result,output.pose,first,lanes);
         }
         const unsigned count=(plan.curves+3)&~3u;
         for(unsigned first=0;first<count;first+=8) {
@@ -86,8 +85,7 @@ inline void produce_animation_host_outputs(const AnimationHostControlPlan& contr
     produce_animation_host_hierarchy(hierarchy,local.pose,root,workspace.world);
     for(unsigned first=0;first<control.joints;first+=8) {
         const unsigned count=control.joints-first<8?control.joints-first:8;
-        uint16_t ids[8];for(unsigned lane=0;lane<count;++lane)ids[lane]=first+lane;
-        const auto matrix=make_animation_host_world_matrices8(gather_animation_host_poses8(workspace.world,ids,count));
+        const auto matrix=make_animation_host_world_matrices8(load_animation_pose_block(workspace.world,first,count));
         AnimationHostAffine8 affine;for(unsigned i=0;i<12;++i)affine.coefficient[i]=matrix.coefficient[i];
         const auto adjusted=compose_animation_host_affines8(affine,decode_animation_host_affines8(reference+first*48,48,count));
         emit_animation_host_affines8(adjusted,reference_output+first*48,count);
