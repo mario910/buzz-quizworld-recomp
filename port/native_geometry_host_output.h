@@ -58,19 +58,43 @@ inline v8 geometry_host_snorm16_8(v8 bits)
     return _mm256_and_si256(_mm256_srai_epi32(integer, 16), v8_set(0xffff));
 }
 
+inline v8 geometry_host_pack_cmp8(v8 x, v8 y, v8 z)
+{
+    return _mm256_or_si256(
+        _mm256_or_si256(_mm256_and_si256(_mm256_srli_epi32(x, 21), v8_set(2047)),
+            _mm256_slli_epi32(_mm256_and_si256(_mm256_srli_epi32(y, 21), v8_set(2047)), 11)),
+        _mm256_and_si256(z, v8_set(0xffc00000)));
+}
+
 // Storage 6: Edge CMP11/11/10, not storage 7 (I16). These are the canonical
 // Edge scale/bias values; job admission must prove that codec definition.
 inline v8 geometry_host_cmp8(const GeometryHostSoA8& input)
 {
     const v8 xy_scale = v8_set(0x3f7fe000), xy_bias = v8_set(0xba000000);
+#if defined(__AVX2__)
+    // For unit components, scale/bias maps [-1,1] into [-1,1).
+    // Multiplication by 2^31 is exact and the truncated signed result fits.
+    // Check the raw magnitudes so extended SPU exponents use the full codec.
+    const v8 sign = v8_set(0x80000000u);
+    const v8 largest = _mm256_max_epu32(_mm256_andnot_si256(sign, input.component[0]),
+        _mm256_max_epu32(_mm256_andnot_si256(sign, input.component[1]),
+                         _mm256_andnot_si256(sign, input.component[2])));
+    if (_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpgt_epi32(largest, v8_set(0x3f800000)))) == 0) {
+        auto encode = [] (v8 value, v8 scale, v8 bias) {
+            const auto scaled = _mm256_fmadd_ps(_mm256_castsi256_ps(value),
+                _mm256_castsi256_ps(scale), _mm256_castsi256_ps(bias));
+            return _mm256_cvttps_epi32(_mm256_mul_ps(scaled, _mm256_set1_ps(2147483648.0f)));
+        };
+        return geometry_host_pack_cmp8(encode(input.component[0], xy_scale, xy_bias),
+            encode(input.component[1], xy_scale, xy_bias),
+            encode(input.component[2], v8_set(0x3f7fc000), v8_set(0xba800000)));
+    }
+#endif
     const v8 x = geometry_host_signed31_8(v8_fma(input.component[0], xy_scale, xy_bias));
     const v8 y = geometry_host_signed31_8(v8_fma(input.component[1], xy_scale, xy_bias));
     const v8 z = geometry_host_signed31_8(v8_fma(input.component[2],
         v8_set(0x3f7fc000), v8_set(0xba800000)));
-    return _mm256_or_si256(
-        _mm256_or_si256(_mm256_and_si256(_mm256_srli_epi32(x, 21), v8_set(2047)),
-            _mm256_slli_epi32(_mm256_and_si256(_mm256_srli_epi32(y, 21), v8_set(2047)), 11)),
-        _mm256_and_si256(z, v8_set(0xffc00000)));
+    return geometry_host_pack_cmp8(x, y, z);
 }
 
 // These helpers fill the job's host output chunk. The caller writes that

@@ -71,13 +71,19 @@ static void arithmetic()
         0x38000000, 0x38800000, 0x3f800000, 0xbf800000, 0x7f7fffff,
         0x7f800000, 0xff800000, 0x7fffffff, 0xffffffff, 0x7fc01234};
     unsigned cmp_checked = 0;
-    for (unsigned group = 0; group < 131072; ++group) {
+    for (unsigned group = 0; group < 147456; ++group) {
         GeometryHostSoA8 input;
         uint32_t words[3][8], actual[8];
         for (unsigned axis = 0; axis < 3; ++axis) {
             for (unsigned lane = 0; lane < 8; ++lane) {
                 const unsigned sample = group * 8 + lane;
-                if (sample < 3375) words[axis][lane] = special[(sample / (axis == 0 ? 1 : axis == 1 ? 15 : 225)) % 15];
+                if (group >= 131072) {
+                    const float unit = float(int(random_word(state) % 2049) - 1024) / 1024.0f;
+                    memcpy(&words[axis][lane], &unit, 4);
+                    // At, just below, and just above representative codec boundaries.
+                    if (group % 3 == 1) ++words[axis][lane];
+                    if (group % 3 == 2) --words[axis][lane];
+                } else if (sample < 3375) words[axis][lane] = special[(sample / (axis == 0 ? 1 : axis == 1 ? 15 : 225)) % 15];
                 else if (sample & 1) words[axis][lane] = random_word(state);
                 else {
                     const float value = float(int(random_word(state) % 16385) - 8192) / 2048.0f;

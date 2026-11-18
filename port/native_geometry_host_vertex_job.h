@@ -45,8 +45,7 @@ inline bool read_geometry_host_vertex_recipe(const spu_context& c, const Geometr
     // Dense records need no old destination bytes. Current observed final
     // alignment reaches at most XYZ of one extra float3 position.
     const auto& position = output.field[0];
-    // Any byte stride: every field writer stores at byte offsets and each
-    // 8-vertex chunk is copied once at first*stride.
+    // All supported record strides start with XYZ at byte offset zero.
     if (position.offset || position.slot || position.storage != 2 || position.components != 3 ||
         input.field[0].semantic != 1 || input.field[0].storage != 2 || input.field[0].components != 3)
         return reject("host vertex publication layout: position");
@@ -119,6 +118,52 @@ inline bool prepare_geometry_host_vertex_tail(const spu_context& c, const Geomet
     tail.ready = true; result = tail; if (reason) *reason = nullptr; return true;
 }
 
+#if defined(__AVX2__)
+// Write eight complete position/normal records. Transposing within both
+// 128-bit halves forms vertices (0,4), (1,5), (2,6), (3,7) in four registers.
+template<unsigned Stride>
+inline void geometry_host_store_position_normal8(const GeometryHostSoA8& position,
+    const GeometryHostSoA8& normal, uint8_t* destination)
+{
+    const v8 xy0 = _mm256_unpacklo_epi32(position.component[0], position.component[1]);
+    const v8 xy1 = _mm256_unpackhi_epi32(position.component[0], position.component[1]);
+    const v8 packed = geometry_host_cmp8(normal);
+    const v8 zn0 = _mm256_unpacklo_epi32(position.component[2], packed);
+    const v8 zn1 = _mm256_unpackhi_epi32(position.component[2], packed);
+    const v8 records[] = {
+        v8_bswap(_mm256_unpacklo_epi64(xy0, zn0)), v8_bswap(_mm256_unpackhi_epi64(xy0, zn0)),
+        v8_bswap(_mm256_unpacklo_epi64(xy1, zn1)), v8_bswap(_mm256_unpackhi_epi64(xy1, zn1))};
+    for (unsigned i = 0; i < 4; ++i) {
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(destination + i * Stride),
+            _mm256_castsi256_si128(records[i]));
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(destination + (i + 4) * Stride),
+            _mm256_extracti128_si256(records[i], 1));
+    }
+}
+
+template<unsigned Stride>
+inline unsigned emit_geometry_host_position_normal_blocks(const GeometryHostInputRecipe& input,
+    const GeometryHostInputData& data, const GeometryHostOutputRecipe& output, uint8_t* destination)
+{
+    const unsigned vertices = input.vertices & ~7u;
+    for (unsigned first = 0; first < vertices; first += 8, destination += 8 * Stride) {
+        const unsigned block = first / 8;
+        geometry_host_store_position_normal8<Stride>(data.at(input, 0, block),
+            data.at(input, output.field[1].slot, block), destination);
+        if constexpr (Stride == 20) {
+            const auto& uv = data.at(input, output.field[2].slot, block);
+            const v8 pair = _mm256_or_si256(_mm256_slli_epi32(geometry_host_half8(uv.component[0]), 16),
+                geometry_host_half8(uv.component[1]));
+            uint32_t words[8];
+            _mm256_storeu_si256(reinterpret_cast<v8*>(words), v8_bswap(pair));
+            for (unsigned i = 0; i < 8; ++i)
+                memcpy(destination + i * Stride + 16, &words[i], 4);
+        }
+    }
+    return vertices;
+}
+#endif
+
 inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
     const GeometryHostInputData& data, const GeometryHostVertexRecipe& recipe,
     const GeometryHostVertexTail& tail, uint8_t* destination, size_t capacity,
@@ -130,7 +175,18 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
         return reject("host vertex output readiness");
     if (!destination || capacity < output.bytes) return reject("host vertex output span");
     alignas(32) uint8_t chunk[8*64+16];
-    for (unsigned first=0;first<input.vertices;first+=8) {
+    unsigned first = 0;
+#if defined(__AVX2__)
+    // Admission proves that field zero is float3 position in slot zero.
+    if (output.fields >= 2 && output.field[1].offset == 12 && output.field[1].storage == 6) {
+        if (output.stride == 16 && output.fields == 2)
+            first = emit_geometry_host_position_normal_blocks<16>(input, data, output, destination);
+        else if (output.stride == 20 && output.fields == 3 && output.field[2].offset == 16 &&
+                 output.field[2].storage == 3 && output.field[2].components == 2)
+            first = emit_geometry_host_position_normal_blocks<20>(input, data, output, destination);
+    }
+#endif
+    for (; first<input.vertices;first+=8) {
         const unsigned active = input.vertices-first<8 ? input.vertices-first : 8;
         for (unsigned field=0;field<output.fields;++field) {
             const auto& f = output.field[field]; const auto& value = data.at(input,f.slot,first/8);
