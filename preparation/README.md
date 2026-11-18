@@ -95,9 +95,19 @@ The game and firmware translations are built privately on the player's PC.
 
 ## Linux release package
 
-The **Native preparation** workflow also builds `BuzzPrepare-linux-x86_64.tar.gz`
-on Ubuntu 24.04 and attaches it to `v*` releases with `SHA256SUMS-linux.txt`.
-Extract it into your home folder and run `BuzzSetup`. The package contains:
+The **Native preparation** workflow also builds `BuzzSetup-x86_64.AppImage`
+and `BuzzPrepare-linux-x86_64.tar.gz` on Ubuntu 24.04 and attaches them to
+`v*` releases with `SHA256SUMS-linux.txt`. Both hold the same files.
+
+The AppImage is read-only, so its `AppRun` copies the bundled sources to
+`$BUZZ_HOME/build-files` (default `~/BuzzQuizWorld`), refreshing them only
+when a newer AppImage brings another source revision; the prepared game,
+saves, keys and Python environment there are kept. BuzzSetup then works in
+that folder. `--play` starts the prepared game (the Steam launch option) and
+`--launcher` opens the native launcher. It is built with the pinned
+appimagetool 1.9.1 and type2 runtime 20251108 (SHA-256 checked in CI).
+
+Extract the tar package into your home folder and run `BuzzSetup`. It contains:
 
 - `BuzzSetup`, `Play-Buzz.sh` and `Buzz-Launcher.sh` start scripts;
 - `bin/BuzzPrepare` (the wizard) with its Qt and support libraries in `lib/`
@@ -127,8 +137,11 @@ To reproduce the package on Ubuntu 24.04 (or in that container) with
 ```sh
 bash scripts/build-preparation-linux.sh
 bash scripts/build-launcher-linux.sh
-python3 tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux
+python3 tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux \
+  --appimage-tool <appimagetool-1.9.1> --appimage-runtime <type2-runtime-20251108>
 ```
+
+Omit the two `--appimage-*` options to build only the tar package.
 
 The package holds the committed `HEAD`; packaging refuses uncommitted changes.
 

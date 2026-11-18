@@ -163,11 +163,13 @@ and the system tools checklist.
 
 ### Linux x86-64 and Steam Deck quick start
 
-1. Download **BuzzPrepare-linux-x86_64.tar.gz** from
+1. Download **BuzzSetup-x86_64.AppImage** from
    [GitHub Releases](https://github.com/mario910/buzz-quizworld-recomp/releases),
-   extract it into your home folder and run **`BuzzSetup`** (in a file manager:
-   open it and choose Run). Qt is bundled; the package includes the compiled
-   wizard, the native launcher and the pinned build sources.
+   make it executable (Steam Deck desktop: right-click → Properties →
+   Permissions → Is executable) and run it. It prepares the game in
+   `~/BuzzQuizWorld` (set `BUZZ_HOME` for another folder on a regular drive;
+   about 25 GB). The **BuzzPrepare-linux-x86_64.tar.gz** package is the same
+   app unpacked: extract it into your home folder and run **`BuzzSetup`**.
 2. Select your ISO or disc dump, firmware PUP or `dev_flash`, and a key file
    for encrypted inputs, as on Windows.
 3. On SteamOS and other image-based systems without a compiler, click
@@ -176,9 +178,10 @@ and the system tools checklist.
    is not changed. On Debian/Ubuntu/Fedora/Arch, **Install Linux system tools**
    installs the build packages instead.
 4. Click **Prepare game**, then **Play Buzz!**. Later, start the game with
-   **`Play-Buzz.sh`** (add it to Steam as a non-Steam game for game mode).
-   **`Buzz-Launcher.sh`** opens the optional native launcher for controls and
-   a button test. See [the Linux package](preparation/README.md#linux-release-package).
+   **`BuzzSetup-x86_64.AppImage --play`**: add the AppImage to Steam as a
+   non-Steam game with the launch option `--play` for game mode
+   (`Play-Buzz.sh` in the tar package). `--launcher` (`Buzz-Launcher.sh`)
+   opens the optional native launcher for controls and a button test. See [the Linux package](preparation/README.md#linux-release-package).
 
 ### Guided preparation from a checkout
 

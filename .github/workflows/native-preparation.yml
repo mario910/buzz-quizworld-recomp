@@ -64,7 +64,15 @@ jobs:
         run: |
           python -m pip install cmake==3.31.10 ninja==1.13.0
           bash scripts/build-launcher-linux.sh 4
-          python tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux
+          tools="$RUNNER_TEMP/appimage"; mkdir -p "$tools"
+          curl --fail --location --retry 3 -o "$tools/appimagetool" https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          curl --fail --location --retry 3 -o "$tools/runtime-x86_64" https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          printf '%s\n' 'ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool' \
+            '2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64' > "$tools/SHA256SUMS"
+          (cd "$tools" && sha256sum --check SHA256SUMS)
+          chmod +x "$tools/appimagetool"
+          python tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux \
+            --appimage-tool "$tools/appimagetool" --appimage-runtime "$tools/runtime-x86_64"
       - name: Test the extracted Linux package
         if: matrix.os == 'ubuntu-24.04'
         run: |
@@ -72,9 +80,17 @@ jobs:
           tar -xzf dist-preparation/release-linux/BuzzPrepare-linux-x86_64.tar.gz -C "$RUNNER_TEMP/linux-smoke"
           package="$RUNNER_TEMP/linux-smoke/BuzzPrepare"
           env -i PATH=/usr/bin:/bin "$package/bin/BuzzPrepare" --inspect-iso preparation/tests/fixtures/iso-0-0.fixture
-          env -i PATH=/usr/bin:/bin "$package/bin/BuzzLauncher" --project "$package/build-files" --smoke
+          # Headless: SDL needs its dummy video and software render drivers here.
+          env -i PATH=/usr/bin:/bin SDL_VIDEO_DRIVER=dummy SDL_RENDER_DRIVER=software \
+            "$package/bin/BuzzLauncher" --project "$package/build-files" --smoke
           (cd "$package/build-files" && python -c "from pathlib import Path; from tempfile import TemporaryDirectory; from launcher.setup_pipeline import copy_sources; scratch = TemporaryDirectory(); copy_sources(Path.cwd(), Path(scratch.name)); scratch.cleanup()")
           xvfb-run -a timeout 10 "$package/BuzzSetup" || test $? -eq 124
+          image="$PWD/dist-preparation/release-linux/BuzzSetup-x86_64.AppImage"
+          export BUZZ_HOME="$RUNNER_TEMP/appimage-home" APPIMAGE_EXTRACT_AND_RUN=1
+          SDL_VIDEO_DRIVER=dummy SDL_RENDER_DRIVER=software "$image" --launcher --smoke
+          test -f "$BUZZ_HOME/build-files/release-sources.json"
+          test -x "$BUZZ_HOME/build-files/scripts/linux-build-container.sh"
+          xvfb-run -a timeout 10 "$image" || test $? -eq 124
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: matrix.os == 'ubuntu-24.04'
         with:
@@ -144,6 +160,6 @@ jobs:
           sha256sum --check SHA256SUMS.txt SHA256SUMS-linux.txt
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
             --title "BuzzSetup $TAG" \
-            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. Use the firmware and key file buttons or select your own files. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzPrepare-linux-x86_64.tar.gz**, extract it into your home folder and run **BuzzSetup**; on SteamOS and other image-based systems it builds inside a distrobox container without changing the system. Start the game later with **Play-Buzz.sh**.' \
+            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. Use the firmware and key file buttons or select your own files. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzSetup-x86_64.AppImage**, make it executable and run it (or use **BuzzPrepare-linux-x86_64.tar.gz** and its **BuzzSetup**). The game is prepared in ~/BuzzQuizWorld; on SteamOS and other image-based systems BuzzSetup builds inside a distrobox container without changing the system. Start the prepared game with **BuzzSetup-x86_64.AppImage --play** (also the Steam launch option).' \
             BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz \
-            BuzzPrepare-linux-x86_64.tar.gz SHA256SUMS-linux.txt
+            BuzzSetup-x86_64.AppImage BuzzPrepare-linux-x86_64.tar.gz SHA256SUMS-linux.txt
