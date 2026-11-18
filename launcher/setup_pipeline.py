@@ -409,6 +409,9 @@ def publish_distribution(project, workspace, paths, exe, log, cancel):
         log("=== assemble portable dist ===")
         runtime.mkdir()
         copy_file(exe, staging / exe.name)
+        # The build binding lets the native launcher validate this copy itself.
+        if (exe.parent / "game-build.json").is_file():
+            copy_file(exe.parent / "game-build.json", staging / "game-build.json")
         for dll in exe.parent.glob("*.dll"):
             copy_file(dll, staging / dll.name)
         copy_file(Path(paths["eboot_elf"]), runtime / "EBOOT.elf")
