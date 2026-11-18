@@ -39,9 +39,11 @@ SYSTEM_LIBRARIES = re.compile(
     r"libGL.*|libEGL.*|libOpenGL.*|libGLX.*|libGLdispatch.*|libdrm.*|libgbm.*|libvulkan.*|"
     r"libX11.*|libxcb\.so.*|libXau.*|libXdmcp.*|libXext.*|libXrender.*|libwayland-.*|"
     r"libfontconfig.*|libfreetype.*|libharfbuzz.*|libgraphite2.*|libpng16.*|libbrotli.*|libbz2.*|"
-    r"libz\.so.*|libzstd.*|liblzma.*|libexpat.*|libglib-2.*|libgthread-2.*|libgobject-2.*|libgmodule-2.*|"
+    r"libz\.so.*|libzstd.*|liblzma.*|libexpat.*|libglib-2.*|libgio-2.*|libgthread-2.*|libgobject-2.*|libgmodule-2.*|"
     r"libpcre2-8.*|libffi.*|libdbus-1.*|libsystemd.*|libudev.*|libcap.*|libgcrypt.*|libgpg-error.*|liblz4.*|"
-    r"libssl.*|libcrypto.*|libselinux.*|libmount.*|libblkid.*|libuuid.*)$")
+    r"libssl.*|libcrypto.*|libmount.*|libblkid.*|libuuid.*)$")
+# GLib (with GIO) always comes from the host: one copy per process. SELinux is
+# bundled: SteamOS and Arch do not ship libselinux.
 
 LAUNCH_SETUP = """#!/bin/sh
 # Open BuzzSetup: choose your disc/ISO and firmware, then Prepare game.
