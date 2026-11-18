@@ -24,6 +24,55 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "BuzzPrepare"
 PACKAGE = "BuzzPrepare-linux-x86_64.tar.gz"
+APPIMAGE = "BuzzSetup-x86_64.AppImage"
+# The AppImage is read-only: its sources are copied to a writable folder in
+# the home directory (BUZZ_HOME, default ~/BuzzQuizWorld) where BuzzSetup
+# builds the game. A newer AppImage refreshes the sources there and keeps the
+# prepared game, saves, keys and the local Python environment.
+APP_RUN = r"""#!/bin/sh
+here=$(dirname "$(readlink -f "$0")")
+data="${BUZZ_HOME:-$HOME/BuzzQuizWorld}"
+src="$here/usr/share/buzz/build-files"
+dst="$data/build-files"
+revision() { sed -n 's/^  "revision": "\([0-9a-f]*\)".*/\1/p' "$1/release-sources.json" 2>/dev/null; }
+if [ "$(revision "$src")" != "$(revision "$dst")" ]; then
+    mkdir -p "$dst" || exit 1
+    for tree in cmake config docs launcher port preparation scripts third_party tools ps3recomp; do
+        rm -rf "${dst:?}/$tree"
+    done
+    cp -R "$src/." "$dst/" || exit 1
+    chmod -R u+w "$dst"
+    cp "$here/usr/share/buzz/README.txt" "$data/README.txt" 2>/dev/null
+fi
+case "$1" in
+    --play)
+        shift
+        if [ -x "$dst/dist/BuzzQuizWorldRecomp" ]; then cd "$dst/dist" && exec ./BuzzQuizWorldRecomp "$@"; fi ;;
+    --launcher)
+        shift
+        exec "$here/usr/bin/BuzzLauncher" --project "$dst" "$@" ;;
+esac
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+cd "$dst" && exec "$here/usr/bin/BuzzPrepare" "$@"
+"""
+DESKTOP = """[Desktop Entry]
+Type=Application
+Name=Buzz! Quiz World Setup
+Comment=Prepare and play your own copy of Buzz! Quiz World
+Exec=BuzzSetup
+Icon=buzzsetup
+Categories=Game;
+Terminal=false
+"""
+APPIMAGE_README = """
+AppImage: run BuzzSetup-x86_64.AppImage (make it executable first, or on the
+Steam Deck right-click > Properties > Permissions > Is executable). The game is
+prepared in ~/BuzzQuizWorld/build-files (set BUZZ_HOME to choose another
+folder on a regular drive; about 25 GB). Start the prepared game with
+  BuzzSetup-x86_64.AppImage --play
+which is also the launch option to use when adding it to Steam as a non-Steam
+game. --launcher opens the native launcher (controls and button test).
+"""
 PORT_PATHS = (
     "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
     "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
@@ -149,7 +198,47 @@ def add_sources(staging, repo, ref, prefix="", paths=()):
     return names
 
 
-def package(wizard, launcher, output):
+def icon_png(path):
+    """The largest PNG image embedded in the wizard's Windows icon."""
+    import struct
+    data = path.read_bytes()
+    best = None
+    for i in range(struct.unpack_from("<H", data, 4)[0]):
+        width, _, _, _, _, _, size, offset = struct.unpack_from("<BBBBHHII", data, 6 + 16 * i)
+        image = data[offset:offset + size]
+        if image.startswith(b"\x89PNG") and (best is None or (width or 256) > best[0]):
+            best = (width or 256, image)
+    if not best:
+        raise ValueError("No PNG image in the wizard icon")
+    return best[1]
+
+
+def build_appimage(staging, scratch, tool, runtime, output):
+    appdir = Path(scratch) / "BuzzSetup.AppDir"
+    usr = appdir / "usr"
+    usr.mkdir(parents=True)
+    for name in ("bin", "lib", "plugins"):
+        shutil.copytree(staging / name, usr / name, symlinks=True)
+    share = usr / "share/buzz"
+    share.mkdir(parents=True)
+    shutil.copytree(staging / "build-files", share / "build-files", symlinks=True)
+    shutil.copytree(staging / "licenses", share / "licenses", symlinks=True)
+    (share / "README.txt").write_text(README + APPIMAGE_README)
+    (appdir / "AppRun").write_text(APP_RUN)
+    (appdir / "AppRun").chmod(0o755)
+    (appdir / "buzzsetup.desktop").write_text(DESKTOP)
+    (appdir / "buzzsetup.png").write_bytes(icon_png(ROOT / "preparation/src/buzz-setup.ico"))
+    target = Path(scratch) / APPIMAGE
+    env = dict(os.environ, ARCH="x86_64", APPIMAGE_EXTRACT_AND_RUN="1")
+    subprocess.run([str(tool), "--no-appstream", "--runtime-file", str(runtime), str(appdir), str(target)],
+                   check=True, env=env)
+    target.chmod(0o755)
+    checksum = sha256(target)
+    target.replace(output / APPIMAGE)
+    return checksum
+
+
+def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None):
     revision = git(ROOT, "rev-parse", "HEAD").decode().strip()
     if git(ROOT, "status", "--porcelain", "--untracked-files=no", "--", *PORT_PATHS):
         raise ValueError("Commit the source changes before packaging: the package holds HEAD.")
@@ -227,8 +316,13 @@ def package(wizard, launcher, output):
             tar.add(staging, arcname=NAME)
         checksum = sha256(archive)
         archive.replace(output / PACKAGE)
-        (output / "SHA256SUMS-linux.txt").write_text(f"{checksum}  {PACKAGE}\n")
-    print(f"{output / PACKAGE}  {checksum}")
+        sums = f"{checksum}  {PACKAGE}\n"
+        print(f"{output / PACKAGE}  {checksum}")
+        if appimage_tool:
+            image = build_appimage(staging, scratch, appimage_tool, appimage_runtime, output)
+            sums += f"{image}  {APPIMAGE}\n"
+            print(f"{output / APPIMAGE}  {image}")
+        (output / "SHA256SUMS-linux.txt").write_text(sums)
 
 
 if __name__ == "__main__":
@@ -236,5 +330,9 @@ if __name__ == "__main__":
     parser.add_argument("--wizard", type=Path, default=ROOT / "dist-preparation/linux/bin/BuzzPrepare")
     parser.add_argument("--launcher", type=Path, default=ROOT / "build-launcher/BuzzLauncher")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--appimage-tool", type=Path, help="appimagetool; also builds BuzzSetup-x86_64.AppImage")
+    parser.add_argument("--appimage-runtime", type=Path, help="Pinned AppImage type2 runtime for --appimage-tool")
     args = parser.parse_args()
-    package(args.wizard, args.launcher, args.output)
+    if bool(args.appimage_tool) != bool(args.appimage_runtime):
+        parser.error("--appimage-tool and --appimage-runtime go together")
+    package(args.wizard, args.launcher, args.output, args.appimage_tool, args.appimage_runtime)

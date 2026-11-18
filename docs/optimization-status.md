@@ -253,6 +253,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_ENABLE_SPU` | `ON` | Compile and register the title's lifted SPU images ([source](../port/CMakeLists.txt)) |
 | `PORT_IMAGE7_COMPARE` | `OFF` | Compare Image 7 against its exact oracle on Android ([source](../port/CMakeLists.txt)) |
 | `PORT_AUDIO_COMPRESSOR_NEON` | `OFF` | Scoped checked NEON arithmetic in the reviewed audio DSP leaves ([source](../port/CMakeLists.txt)) |
+| `BUZZ_SPU_WRCH_FASTPATH` | `OFF` | Inline the MFC parameter channel writes in lifted SPU code (exact; no gain, invalidates lifted PGO counts) ([source](../port/CMakeLists.txt)) |
 | `BUZZ_ANDROID_LIMIT_EXPORTS` | `ON` | Expose only the Android JNI/SDL entry points, not lifted code or static dependency internals ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_LS_DEBUG_HOOKS` | `${spu_probe_default}` | Keep SPU_LS_WATCH/SPU_SMC_WATCH probes in lifted SPU images ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_SPU_FLOAT` | `OFF` | Native RZ/FMA for the audited single-precision geometry image only ([source](../port/CMakeLists.txt)) |
@@ -287,7 +288,11 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_RSX_PARK_WAKE` | `OFF` | Wake RSX when DMA replaces its observed parked jump ([source](../cmake/BuzzFifoParkWake.cmake)) |
 | `BUZZ_RSX_READY_CHECK` | `OFF` | Avoid sleeping when a completed FIFO drain has new work ([source](../cmake/BuzzFifoReady.cmake)) |
 | `BUZZ_IMAGE39_NATIVE_BOUNDS` | `OFF` | Use the admitted EU100 host object-bounds driver ([source](../cmake/BuzzImage39Bounds.cmake)) |
+| `BUZZ_IMAGE38_NATIVE` | `ON` | Native image 38 gather job ([source](../cmake/BuzzNativeImage38.cmake)) |
+| `BUZZ_PGO_SPU` | `ON` | Apply scoped PGO to lifted SPU sources ([source](../cmake/BuzzPgo.cmake)) |
 | `BUZZ_PGO_MODE` | `OFF` | Scoped runtime/native PGO: OFF, GENERATE, USE ([source](../cmake/BuzzPgo.cmake)) |
+| `BUZZ_PPU_HOT` | `OFF` | Inline PPU stores and -O2 for the profiled hot lifted PPU TUs ([source](../cmake/BuzzPpuHot.cmake)) |
+| `BUZZ_PPU_HOT_OPT` | `-O2` | Optimization level of the hot lifted PPU TUs ([source](../cmake/BuzzPpuHot.cmake)) |
 | `BUZZ_PPU_WORD_WAIT` | `OFF` | Experimental portable DMA notification for registered PPU busy-word waits ([source](../cmake/BuzzPpuWordWait.cmake)) |
 | `BUZZ_PPU_WORD_WAIT_TRACE` | `OFF` | Diagnostic PPU wait and exact-word DMA timeline ([source](../cmake/BuzzPpuWordWait.cmake)) |
 | `BUZZ_RENDERER_CONSTANT_RANGES` | `OFF` | Clear only previously active shader constants ([source](../cmake/BuzzRendererConstantRanges.cmake)) |
@@ -305,7 +310,10 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_RENDERER_NORMAL_MULTIPLY` | `OFF` | Exact finite-domain CMP normalization with multiplication ([source](../cmake/BuzzRendererVertexStream.cmake)) |
 | `BUZZ_RENDERER_WAIT_TRACE` | `OFF` | Detailed RSX/FIFO/Vulkan wait timeline ([source](../cmake/BuzzRendererWait.cmake)) |
 | `BUZZ_PRODUCER_DEPENDENCY_TRACE` | `OFF` | Trace DMA publications and FIFO park addresses (diagnostics only) ([source](../cmake/BuzzRendererWait.cmake)) |
+| `BUZZ_SPU_DIRECT_HOPS` | `${BUZZ_ZEN2_TUNE}` | Direct tail calls between lifted SPU job fragments ([source](../cmake/BuzzSpuDirectHops.cmake)) |
+| `BUZZ_SPU_WRCH_INLINE` | `OFF` | Inline MFC parameter channel writes in lifted SPU sources ([source](../cmake/BuzzSpuDirectHops.cmake)) |
 | `BUZZ_SPU_JOB_RETURN` | `OFF` | Complete admitted SPURS job-manager returns on the native driver stack ([source](../cmake/BuzzSpuJobReturn.cmake)) |
+| `BUZZ_SPU_WRCH_WRAP` | `OFF` | Link-time fast front for MFC parameter channel writes ([source](../cmake/BuzzSpuWrchWrap.cmake)) |
 | `BUZZ_SPURS_EXECUTION_TRACE` | `OFF` | Diagnostic SPURS execution CPU counters and native-thread channel waits ([source](../cmake/BuzzSpursExecutionTrace.cmake)) |
 | `BUZZ_SPURS_INPUT_CLEAR` | `OFF` | Skip clearing SPURS input bytes immediately overwritten by staging ([source](../cmake/BuzzSpursInputClear.cmake)) |
 | `BUZZ_SPURS_POOL_LAYOUT` | `OFF` | Separate SPURS polling and bookkeeping cache lines ([source](../cmake/BuzzSpursPoolLayout.cmake)) |
@@ -317,6 +325,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_VK_UNIFORM_REUSE` | `OFF` | Reuse identical immutable constants within a draw batch ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_VK_DRAW_STATE` | `OFF` | Reuse exact draw state within one render pass ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_WINDOWS_TIMER_REUSE` | `OFF` | Experimental reusable high-resolution syscall timer ([source](../cmake/BuzzWindowsTimer.cmake)) |
+| `BUZZ_ZEN2_ARCH` | `${BUZZ_ZEN2_TUNE}` | Compile for the Steam Deck CPU (-march=znver2) ([source](../cmake/BuzzZen2Arch.cmake)) |
 | `BUZZ_ZEN2_TUNE` | `OFF` | Tune Linux x86-64 runtime and native host paths for Zen 2 with -O3 ([source](../cmake/BuzzZen2Tune.cmake)) |
 
 ## Android properties
