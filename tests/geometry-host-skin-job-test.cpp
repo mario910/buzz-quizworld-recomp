@@ -126,7 +126,7 @@ int main(int argc, char** argv)
     constexpr uint32_t special[] = {0,0x80000000,1,0x007fffff,0x00800000,0x3f800000,0xbf800000,0x7f7fffff,
         0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff,0x7fc12345,0x3f000000,0xbf000000};
     uint64_t corner_values = 0;
-    for (unsigned kind = 0; kind < 2; ++kind) for (unsigned trial = 0; trial < 64; ++trial) {
+    for (unsigned kind = 0; kind < 2; ++kind) for (unsigned trial = 0; trial < (kind ? 64u : 65u); ++trial) {
         const auto* seed = kind ? object_seed.get() : weighted_seed.get();
         memcpy(entry.get(), seed, sizeof(*entry)); entry->ls = entry->ls_store;
         current_case = std::string(kind ? "object FP corner " : "weighted FP corner ") + std::to_string(trial);
@@ -141,6 +141,25 @@ int main(int argc, char** argv)
             auto* at = entry->ls + e.input[6].lsa + lane * 8 + influence * 2;
             at[0] = uint8_t(trial >= 48 ? (influence == trial % 4 ? 255 : 0) : trial % 4 == 0 ? 0 : trial % 4 == 1 ? (influence == lane % 4 ? 255 : 0) :
                 trial % 4 == 2 ? 255 : trial * 19 + lane * 31 + influence * 73);
+        }
+        if (trial == 64) {
+            // These two records fold to the same cache slot. Alternate misses
+            // and hits within an eight-vertex block, then repeat across blocks.
+            // A nonzero translation distinguishes the blends even when the
+            // seed only has one matrix.
+            for (unsigned matrix = 0; matrix < matrices; ++matrix)
+                for (unsigned col = 0; col < 12; ++col)
+                    geometry_job_put32(entry->ls + palette + matrix * 48 + col * 4,
+                        col % 4 == 3 ? 0x40000000 : 0);
+            for (unsigned vertex = 0; vertex < e.vertices; ++vertex) {
+                auto* record = entry->ls + e.input[6].lsa + vertex * 8;
+                memset(record, 0, 8);
+                // Both pairs XOR to 0x7f across the two halves of the key,
+                // but one sums to 127 and the other to 383.
+                const bool second = vertex & 2;
+                record[0] = second ? 0xff : 0x7f;
+                record[4] = second ? 0x80 : 0;
+            }
         }
         memcpy(before.get(), entry.get(), sizeof(*entry));
         GeometryHostInputRecipe input; GeometryHostSkinRecipe skin;
@@ -187,5 +206,5 @@ int main(int argc, char** argv)
     printf("PASS host skin capture: %u real entries; %u original full skin producer exact captures; %u weighted jobs/%llu vertices; %llu logical component values; entry LS/GPR/control unchanged\n",
         jobs, captured, skinned, static_cast<unsigned long long>(skinned_vertices), static_cast<unsigned long long>(compared));
     printf("PASS host object producer: %u jobs/%llu vertices;original matrix transform and direction normalization exact\n", objects, static_cast<unsigned long long>(object_vertices));
-    printf("PASS host skin FP corners:128 modified hot-family cases/%llu logical values;zeros,denormals,extended exponents,sparse/dense/non-normalized weights;14 unchanged-state rejects\n", static_cast<unsigned long long>(corner_values));
+    printf("PASS host skin FP corners:129 modified hot-family cases/%llu logical values;zeros,denormals,extended exponents,sparse/dense/non-normalized weights;14 unchanged-state rejects\n", static_cast<unsigned long long>(corner_values));
 }

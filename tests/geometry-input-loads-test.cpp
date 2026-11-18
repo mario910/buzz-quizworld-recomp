@@ -17,7 +17,7 @@ int main() {
     unsigned random=12345, checks=0;
     for(unsigned trial=0;trial<32;++trial) {
         for(size_t i=0;i<page;++i) {random^=random<<13;random^=random>>17;random^=random<<5;arena[i]=random;}
-        for(unsigned stride : {3u,4u,5u,7u,8u,10u,11u,16u,255u}) {
+        for(unsigned stride : {3u,4u,5u,7u,8u,10u,11u,12u,16u,18u,24u,255u}) {
             for(unsigned vertices=0;vertices<=8;++vertices) {
                 const unsigned span=vertices?(vertices-1)*stride+3:0;
                 for(unsigned placement=0;placement<18;++placement) {

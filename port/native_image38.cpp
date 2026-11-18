@@ -20,6 +20,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#if defined(__SSSE3__)
+#include <tmmintrin.h>
+#endif
 
 extern "C" {
 void spu_wrch(spu_context* ctx, uint32_t channel, u128 value);
@@ -178,6 +181,21 @@ bool run_native(spu_context* ctx)
             const uint32_t t = sp + 64 + 4 * g;
             for (unsigned i = 0; i < 4; ++i) acc[i] = L.wrot(t, (t & 15) + 4 * i);
         }
+#if defined(__SSSE3__)
+        // Each stack quad holds four independent big-endian prefix sums.
+        // The SPU shifts alternate between 8 and 0 bytes, starting at 8.
+        const __m128i reverse_words = _mm_setr_epi8(
+            3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12);
+        __m128i sums = _mm_loadu_si128(reinterpret_cast<const __m128i*>(acc));
+        for (unsigned k = 0; k < 51; ++k) {
+            const auto* input = reinterpret_cast<const __m128i*>(L.quad(lst + 8 * k));
+            auto* output = reinterpret_cast<__m128i*>(L.quad_w(grp[g].buf + 16 * k));
+            __m128i words = _mm_shuffle_epi8(_mm_loadu_si128(input), reverse_words);
+            if ((k & 1) == 0) words = _mm_srli_si128(words, 8);
+            _mm_storeu_si128(output, _mm_shuffle_epi8(sums, reverse_words));
+            sums = _mm_add_epi32(sums, words);
+        }
+#else
         const uint8_t* cur = L.quad(lst);
         uint32_t off = 8, shift = 8;
         alignas(16) uint8_t pad[32] = {};
@@ -199,6 +217,7 @@ bool run_native(spu_context* ctx)
             off += 8;
             shift = off & 15;
         }
+#endif
     }
     // 0x670 / 0x1E0 / 0x138: per group, wait for its list and gather.
     for (unsigned g = 0; g < groups; ++g) {
@@ -237,12 +256,19 @@ bool run_native(spu_context* ctx)
                 const uint32_t rec = uint32_t(bq[0]) << 24 | uint32_t(bq[1]) << 16 | uint32_t(bq[2]) << 8 | bq[3];
                 src = L.quad(rec);
             }
+#if defined(__SSSE3__)
+            const __m128i swap_halves = _mm_setr_epi8(
+                2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13);
+            const __m128i record = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src));
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(dst), _mm_shuffle_epi8(record, swap_halves));
+#else
             uint8_t tmp[16];
             for (unsigned i = 0; i < 16; i += 4) {
                 tmp[i] = src[i + 2]; tmp[i + 1] = src[i + 3];
                 tmp[i + 2] = src[i]; tmp[i + 3] = src[i + 1];
             }
             std::memcpy(dst, tmp, 16);
+#endif
         }
     }
     // 0x780: PUT the output, chunked as the job does.

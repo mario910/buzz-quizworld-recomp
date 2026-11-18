@@ -32,6 +32,22 @@ inline GeometryHostSoA8 decode_geometry_host_halves8(const GeometryHostSoA8& hal
 inline GeometryHostSoA8 decode_geometry_host_half_stream8(const uint8_t* arena,
     unsigned field_offset, unsigned stride, unsigned components, unsigned vertices)
 {
+#if defined(__AVX2__) && !defined(__aarch64__)
+    if (vertices == 8 && components == 3) {
+        const v8 offsets = _mm256_mullo_epi32(_mm256_setr_epi32(0,1,2,3,4,5,6,7), v8_set(stride));
+        const uint8_t* field = arena + field_offset;
+        // Two overlapping loads cover exactly the six bytes of each XYZ.
+        const v8 xy = v8_bswap(_mm256_i32gather_epi32(reinterpret_cast<const int*>(field), offsets, 1));
+        const v8 yz = v8_bswap(_mm256_i32gather_epi32(reinterpret_cast<const int*>(field + 2), offsets, 1));
+        const v8 prefix_at = _mm256_and_si256(_mm256_add_epi32(v8_set(field_offset), offsets), v8_set(~15u));
+        // Each aligned word ends before the corresponding six-byte field ends.
+        const v8 prefixes = _mm256_and_si256(_mm256_i32gather_epi32(
+            reinterpret_cast<const int*>(arena), prefix_at, 1), v8_set(255));
+        const GeometryHostSoA8 halves{{_mm256_srli_epi32(xy, 16), _mm256_and_si256(xy, v8_set(65535)),
+                                       _mm256_and_si256(yz, v8_set(65535)), _mm256_setzero_si256()}};
+        return decode_geometry_host_halves8(halves, prefixes, 3);
+    }
+#endif
     if (vertices == 8 && (components == 2 || components == 4)) {
         // Each admitted field contains two or four complete half words. Read
         // pairs together, retaining the original aligned-prefix provenance.

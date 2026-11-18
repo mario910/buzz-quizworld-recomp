@@ -6,6 +6,12 @@
 #include "native_geometry_bounded_position.h"
 #include <type_traits>
 
+#if defined(__AVX2__) && !defined(__aarch64__)
+#define BUZZ_GEOMETRY_SKIN_ROWS 1
+#else
+#define BUZZ_GEOMETRY_SKIN_ROWS 0
+#endif
+
 namespace buzz {
 struct GeometryHostSkinRecipe {
     unsigned palette = 0, matrices = 0, weights = 0;
@@ -14,23 +20,17 @@ struct GeometryHostSkinRecipe {
 };
 struct GeometryHostSkinWorkspace {
     alignas(16) uint32_t object[12];
-    // Original packed palette words, little-endian and ready for AVX2 gather.
-    alignas(32) uint32_t coefficient[12][256];
-    // The same words matrix-major (12 used of 16): one row load per lane
-    // replaces a gather per coefficient on x86 (Zen 2 gathers are microcoded).
+#if BUZZ_GEOMETRY_SKIN_ROWS
     alignas(32) uint32_t row[256][16];
+    uint32_t word(unsigned matrix, unsigned component) const { return row[matrix][component]; }
+#else
+    alignas(32) uint32_t coefficient[12][256];
+    uint32_t word(unsigned matrix, unsigned component) const { return coefficient[component][matrix]; }
+#endif
 };
-#if defined(__AVX2__) && !defined(__aarch64__)
-#define BUZZ_GEOMETRY_SKIN_ROWS 1
-// out[c] lane l = row[lane_index[l]][c]: the exact words
-// _mm256_i32gather_epi32(coefficient[c], index, 4) returns.
-inline void geometry_skin_rows8(const uint32_t (*row)[16], const uint32_t* lane_index, v8* out)
+#if BUZZ_GEOMETRY_SKIN_ROWS
+inline void geometry_skin_transpose8(const __m256* r, const __m128* h, v8* out)
 {
-    __m256 r[8]; __m128 h[8];
-    for (unsigned l = 0; l < 8; ++l) {
-        const float* at = reinterpret_cast<const float*>(row[lane_index[l]]);
-        r[l] = _mm256_load_ps(at); h[l] = _mm_load_ps(at + 8);
-    }
     const __m256 t0=_mm256_unpacklo_ps(r[0],r[1]), t1=_mm256_unpackhi_ps(r[0],r[1]);
     const __m256 t2=_mm256_unpacklo_ps(r[2],r[3]), t3=_mm256_unpackhi_ps(r[2],r[3]);
     const __m256 t4=_mm256_unpacklo_ps(r[4],r[5]), t5=_mm256_unpackhi_ps(r[4],r[5]);
@@ -55,6 +55,17 @@ inline void geometry_skin_rows8(const uint32_t (*row)[16], const uint32_t* lane_
     out[9]=_mm256_castps_si256(_mm256_shuffle_ps(u0,u2,_MM_SHUFFLE(3,2,3,2)));
     out[10]=_mm256_castps_si256(_mm256_shuffle_ps(u1,u3,_MM_SHUFFLE(1,0,1,0)));
     out[11]=_mm256_castps_si256(_mm256_shuffle_ps(u1,u3,_MM_SHUFFLE(3,2,3,2)));
+}
+// out[c] lane l = row[lane_index[l]][c]: the exact words
+// _mm256_i32gather_epi32(coefficient[c], index, 4) returns.
+inline void geometry_skin_rows8(const uint32_t (*row)[16], const uint32_t* lane_index, v8* out)
+{
+    __m256 r[8]; __m128 h[8];
+    for (unsigned l = 0; l < 8; ++l) {
+        const float* at = reinterpret_cast<const float*>(row[lane_index[l]]);
+        r[l] = _mm256_load_ps(at); h[l] = _mm_load_ps(at + 8);
+    }
+    geometry_skin_transpose8(r, h, out);
 }
 #endif
 inline bool geometry_host_skin_codec_matches(const spu_context& c, bool object)
@@ -187,6 +198,76 @@ inline void transform_geometry_host_weighted_value(GeometryHostSoA8& value,
     value.component[2] = _mm256_and_si256(d, mask);
 }
 
+template<bool Bounded>
+inline void transform_geometry_skin_block(const GeometryHostInputRecipe& input,
+    const GeometryHostSkinRecipe& recipe, GeometryHostInputData& data, unsigned block,
+    const v8* blended, unsigned active)
+{
+    const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+    for (unsigned semantic = 0; semantic < 4; ++semantic)
+        if (recipe.field[semantic] != 16)
+            transform_geometry_host_weighted_value<Bounded>(
+                data.at(input, recipe.field[semantic], block), blended, semantic == 0, mask);
+}
+
+#if BUZZ_GEOMETRY_SKIN_ROWS
+// Repeated vertices in a draw often have the same four bone/weight pairs.
+// A hit reuses the matrix before the position and direction transforms. The
+// palette and its bound belong to this invocation. Copy each lane's result
+// before looking up the next lane, which may evict the same slot.
+inline bool skin_geometry_bounded_palette(const uint8_t* records, const GeometryHostInputRecipe& input,
+    const GeometryHostSkinRecipe& recipe, GeometryHostInputData& data, const GeometryHostSkinWorkspace& workspace)
+{
+    struct Matrix { v8 first; __m128i last; };
+    Matrix cache[64];
+    uint64_t keys[64], occupied = 0;
+    for (unsigned first = 0; first < input.vertices; first += 8) {
+        const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
+        __m256 rows[8];
+        __m128 tails[8];
+        for (unsigned lane = 0; lane < active; ++lane) {
+            const uint8_t* weights = records + 8 * (first + lane);
+            uint64_t key;
+            memcpy(&key, weights, sizeof(key));
+            const unsigned slot = unsigned(((key ^ (key >> 32)) * UINT64_C(0x9e3779b97f4a7c15)) >> 58);
+            const uint64_t bit = UINT64_C(1) << slot;
+            Matrix& matrix = cache[slot];
+            if (!(occupied & bit) || keys[slot] != key) {
+                v8 lo = _mm256_setzero_si256(), hi = _mm256_setzero_si256();
+                for (unsigned influence = 0; influence < 4; ++influence) {
+                    const unsigned index = weights[2 * influence + 1];
+                    if (index >= recipe.matrices) return false;
+                    const unsigned weight = weights[2 * influence];
+                    if (!weight) continue;
+                    const v8 factor = geometry_bounded_mul(_mm256_castps_si256(_mm256_set1_ps(float(weight))),
+                                                            v8_set(0x3b808080));
+                    const uint32_t* row = workspace.row[index];
+                    const v8 a = _mm256_load_si256(reinterpret_cast<const v8*>(row));
+                    const v8 b = _mm256_zextsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i*>(row + 8)));
+                    // FMA with initial +0 has the same rounded product and
+                    // canonical zero as the first multiply in the lane path.
+                    lo = geometry_bounded_fma(factor, a, lo);
+                    hi = geometry_bounded_fma(factor, b, hi);
+                }
+                matrix = {lo, _mm256_castsi256_si128(hi)};
+                keys[slot] = key;
+                occupied |= bit;
+            }
+            rows[lane] = _mm256_castsi256_ps(matrix.first);
+            tails[lane] = _mm_castsi128_ps(matrix.last);
+        }
+        for (unsigned lane = active; lane < 8; ++lane) {
+            rows[lane] = _mm256_setzero_ps();
+            tails[lane] = _mm_setzero_ps();
+        }
+        v8 blended[12];
+        geometry_skin_transpose8(rows, tails, blended);
+        transform_geometry_skin_block<true>(input, recipe, data, first / 8, blended, active);
+    }
+    return true;
+}
+#endif
+
 template<bool Bounded, GeometryHostInputPhase Phase = GeometryHostInputPhase::All>
 inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
@@ -225,15 +306,46 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
         data.ready = true; if (reason) *reason = nullptr; return true;
     }
     if (!recipe.active) { data.ready = true; return true; }
+#if BUZZ_GEOMETRY_SKIN_ROWS
+    // Decode exactly the twelve big-endian coefficients of each matrix.
+    // Accumulate the range check while those words are in registers.
+    v8 outside = _mm256_setzero_si256();
+    for (unsigned i = 0; i < recipe.matrices; ++i) {
+        const uint8_t* source = c.ls + recipe.palette + i * 48;
+        const v8 first = v8_bswap(_mm256_loadu_si256(reinterpret_cast<const v8*>(source)));
+        const v8 last = v8_bswap(_mm256_zextsi128_si256(
+            _mm_loadu_si128(reinterpret_cast<const __m128i*>(source + 32))));
+        _mm256_store_si256(reinterpret_cast<v8*>(workspace.row[i]), first);
+        _mm_store_si128(reinterpret_cast<__m128i*>(workspace.row[i] + 8), _mm256_castsi256_si128(last));
+        if constexpr (Bounded) {
+            const v8 magnitude = v8_set(0x7fffffff);
+            const v8 largest = _mm256_max_epi32(_mm256_and_si256(first, magnitude),
+                                                _mm256_and_si256(last, magnitude));
+            outside = _mm256_or_si256(outside, _mm256_cmpgt_epi32(largest, v8_set(0x4e800000)));
+        }
+    }
+    const bool bounded_palette = Bounded && _mm256_testz_si256(outside, outside);
+#else
     uint32_t largest_palette=0;
     for (unsigned matrix = 0; matrix < recipe.matrices; ++matrix)
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
             const auto word=geometry_job_be32(c.ls + recipe.palette + matrix * 48 + coefficient * 4);
             workspace.coefficient[coefficient][matrix]=word;
-            workspace.row[matrix][coefficient]=word;
             if constexpr(Bounded) if((word&0x7fffffff)>largest_palette)largest_palette=word&0x7fffffff;
         }
     const bool bounded_palette=Bounded && largest_palette<=0x4e800000;
+#endif
+#if BUZZ_GEOMETRY_SKIN_ROWS
+    if (bounded_palette) {
+        if (!skin_geometry_bounded_palette(c.ls + recipe.weights, input, recipe, data, workspace)) {
+            if (reason) *reason = "host skin palette index";
+            return false;
+        }
+        data.ready = true;
+        if (reason) *reason = nullptr;
+        return true;
+    }
+#endif
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
         alignas(32) uint32_t indices[4][8]{}, weights[4][8]{};
@@ -260,29 +372,25 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
         v8 fetched[4][12];
         for (unsigned influence = 0; influence < 4; ++influence)
             if (contributes[influence]) geometry_skin_rows8(workspace.row, indices[influence], fetched[influence]);
-#define BUZZ_SKIN_FETCH(influence, coefficient, source) fetched[influence][coefficient]
+#define BUZZ_SKIN_FETCH(influence, coefficient) fetched[influence][coefficient]
 #else
-#define BUZZ_SKIN_FETCH(influence, coefficient, source) _mm256_i32gather_epi32(source, index[influence], 4)
+#define BUZZ_SKIN_FETCH(influence, col) _mm256_i32gather_epi32(reinterpret_cast<const int*>(workspace.coefficient[col]), index[influence], 4)
 #endif
         auto run=[&](auto tag) {
         constexpr bool Fast=decltype(tag)::value;
         for (unsigned coefficient = 0; coefficient < 12; ++coefficient) {
-            const auto* source = reinterpret_cast<const int*>(workspace.coefficient[coefficient]); (void)source;
             // Validate every index above even for zero weights. A wholly zero
             // influence has exact SPU product +0; FMA(+0, x, blended) preserves
             // the already canonical SPU accumulator, including extended x.
             blended[coefficient] = contributes[0]
-                ? (Fast ? geometry_bounded_mul(factor[0], BUZZ_SKIN_FETCH(0, coefficient, source))
-                        : v8_fm(factor[0], BUZZ_SKIN_FETCH(0, coefficient, source))) : _mm256_setzero_si256();
+                ? (Fast ? geometry_bounded_mul(factor[0], BUZZ_SKIN_FETCH(0, coefficient))
+                        : v8_fm(factor[0], BUZZ_SKIN_FETCH(0, coefficient))) : _mm256_setzero_si256();
             for (unsigned influence = 1; influence < 4; ++influence) if (contributes[influence])
                 blended[coefficient] = Fast
-                    ? geometry_bounded_fma(factor[influence], BUZZ_SKIN_FETCH(influence, coefficient, source), blended[coefficient])
-                    : v8_fma(factor[influence], BUZZ_SKIN_FETCH(influence, coefficient, source), blended[coefficient]);
+                    ? geometry_bounded_fma(factor[influence], BUZZ_SKIN_FETCH(influence, coefficient), blended[coefficient])
+                    : v8_fma(factor[influence], BUZZ_SKIN_FETCH(influence, coefficient), blended[coefficient]);
         }
-        const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
-        transform_geometry_host_weighted_value<Fast>(data.at(input, recipe.field[0], first / 8),blended,true,mask);
-        for (unsigned semantic = 1; semantic < 4; ++semantic) if (recipe.field[semantic] != 16)
-            transform_geometry_host_weighted_value<Fast>(data.at(input, recipe.field[semantic], first / 8),blended,false,mask);
+        transform_geometry_skin_block<Fast>(input, recipe, data, first / 8, blended, active);
         };
         if constexpr(Bounded) {
             if(bounded_palette)run(std::true_type{});else run(std::false_type{});

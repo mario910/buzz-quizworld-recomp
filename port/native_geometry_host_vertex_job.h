@@ -108,9 +108,9 @@ inline bool prepare_geometry_host_vertex_tail(const spu_context& c, const Geomet
         }
         v8 blended[12];
         for (unsigned coefficient=0;coefficient<12;++coefficient) {
-            blended[coefficient] = v8_fm(factor[0],v8_set(workspace.coefficient[coefficient][index[0]]));
+            blended[coefficient] = v8_fm(factor[0],v8_set(workspace.word(index[0], coefficient)));
             for (unsigned influence=1;influence<4;++influence)
-                blended[coefficient] = v8_fma(factor[influence],v8_set(workspace.coefficient[coefficient][index[influence]]),blended[coefficient]);
+                blended[coefficient] = v8_fma(factor[influence],v8_set(workspace.word(index[influence], coefficient)),blended[coefficient]);
         }
         transform_geometry_host_weighted_value(value,blended,true,mask);
     }

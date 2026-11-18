@@ -1,5 +1,6 @@
 #define SPU_LS_DEBUG_HOOKS 0
 #include "../port/native_geometry_blend_scatter.h"
+#include "../port/native_geometry_host_blend.h"
 #include "../port/native_function_check.h"
 #include <cassert>
 #include <cstdio>
@@ -60,12 +61,70 @@ static void compare(spu_context& native,spu_context& reference,unsigned trial)
     }
     assert(native.host_depth==reference.host_depth && native.image_id==reference.image_id);
 }
+// A and B are loaded at different points in the original two-pair pipeline.
+static void check_host_blend_split(spu_context& c)
+{
+    c.ls = c.ls_store;
+    struct Case { unsigned index, target, prefix; };
+    const Case cases[] = {
+        {16, 14, 8}, {17, 14, 8}, {17, 15, 8}, // pending read crosses the split
+        {16, 15, 16}, {19, 3, 16},              // earlier writes are visible
+        {23, 23, 24}, {1, 0, 0}
+    };
+    for (const auto test : cases) {
+        uint16_t expected[24], actual[24];
+        for (unsigned i = 0; i < 24; ++i) expected[i] = uint16_t(i == test.index ? test.target : i);
+        for (unsigned i = 0; i < 24; i += 2)
+            geometry_job_put32(c.ls + 2*i, (uint32_t(expected[i]) << 20) | (uint32_t(expected[i+1]) << 4));
+        for (uint32_t table : {0x3000u, uint32_t(SPU_LS_SIZE - 16)}) {
+            unsigned prefix = 0;
+            assert(geometry_host_blend_destinations(c, table, 0, 24, 24, actual, &prefix));
+            assert(prefix == test.prefix && !memcmp(actual, expected, sizeof expected));
+        }
+    }
+}
+// Check every run alignment, including neighboring lanes in the two touched blocks.
+static void check_host_consecutive_runs()
+{
+    GeometryHostInputRecipe recipe;
+    recipe.fields = 1;
+    recipe.vertices = 24;
+    recipe.blocks_per_field = 3;
+    auto actual = std::make_unique<GeometryHostInputData>();
+    auto reference = std::make_unique<GeometryHostInputData>();
+    GeometryHostBlendNative fast{&recipe, actual.get()}, scalar{&recipe, reference.get()};
+    uint32_t state = 12345;
+    for (unsigned offset = 0; offset < 8; ++offset) {
+        for (unsigned count : {8u, 12u, 16u}) {
+            GeometryHostSoA8 src[2];
+            uint16_t dest[16];
+            for (unsigned i = 0; i < 16; ++i) dest[i] = uint16_t(offset + i);
+            for (unsigned k = 0; k < 4; ++k) {
+                alignas(32) uint32_t bits[8];
+                for (auto& block : src) {
+                    for (auto& value : bits) value = random_word(state);
+                    memcpy(&block.component[k], bits, sizeof bits);
+                }
+                for (unsigned b = 0; b < 3; ++b) {
+                    for (auto& value : bits) value = random_word(state);
+                    memcpy(&actual->block[b].component[k], bits, sizeof bits);
+                }
+            }
+            memcpy(reference->block.data(), actual->block.data(), 3 * sizeof(GeometryHostSoA8));
+            geometry_host_blend_scatter_pipeline(scalar, 0, dest, count, src, 0x3f400000);
+            geometry_host_blend_scatter_distinct(fast, 0, dest, count, src, 0x3f400000);
+            assert(!memcmp(actual->block.data(), reference->block.data(), 3 * sizeof(GeometryHostSoA8)));
+        }
+    }
+}
 int main()
 {
 #ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR);_set_abort_behavior(0,_WRITE_ABORT_MSG|_CALL_REPORTFAULT);
 #endif
     auto native=std::make_unique<spu_context>(),reference=std::make_unique<spu_context>();
+    check_host_consecutive_runs();
+    check_host_blend_split(*native);
     for(unsigned trial=0;trial<4096;++trial){seed(*native,trial);compare(*native,*reference,trial);}
     const uint32_t bits[]={0,0x80000000,1,0x007fffff,0x00800000,0x3f800000,0xbf800000,0x3f000000,0x7f800000,0xff800000,0x7fc00001,0x7fffffff,0xffffffff,0x12345678,0x89abcdef,0x80000001};
     const uint32_t masks[]={0,0xffffffff,0xffffff00,0x80000000,0x7fffffff,0xffff0000,0x0000ffff,0x55555555};

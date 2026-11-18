@@ -103,25 +103,36 @@ inline bool geometry_host_blend_decode(const spu_context& c, uint32_t source, un
 }
 
 // Destination vertex of every remap entry (A = high halfword of each pair's
-// word, B = the full word, as LQD/STQD form both addresses), and whether all
-// are distinct. Every table has the same capacity.
+// word, B = the full word, as LQD/STQD form both addresses), and the independent prefix
+// that can be scattered in parallel. Every table has the same capacity.
 inline bool geometry_host_blend_destinations(const spu_context& c, uint32_t table, uint32_t remap,
-    unsigned total, unsigned capacity, uint16_t* dest, bool* distinct)
+    unsigned total, unsigned capacity, uint16_t* dest, unsigned* independent_prefix)
 {
     uint64_t seen[(4096 + 64) / 64] = {};
-    bool unique = true;
-    for (unsigned i = 0; i < total / 2; ++i) {
-        const uint32_t word = geometry_job_be32(c.ls + remap + i * 4);
-        const uint32_t a = ((((table + (word >> 16)) & (SPU_LS_SIZE - 16)) - table) & (SPU_LS_SIZE - 1)) / 16;
-        const uint32_t b = ((((table + word) & (SPU_LS_SIZE - 16)) - table) & (SPU_LS_SIZE - 1)) / 16;
+    unsigned prefix = total;
+    for (unsigned i = 0; i < total; i += 2) {
+        const uint32_t word = geometry_job_be32(c.ls + remap + i * 2);
+        const unsigned a = ((((table + (word >> 16)) & (SPU_LS_SIZE - 16)) - table) & (SPU_LS_SIZE - 1)) / 16;
+        const unsigned b = ((((table + word) & (SPU_LS_SIZE - 16)) - table) & (SPU_LS_SIZE - 1)) / 16;
         if (a >= capacity || b >= capacity) return false;
-        dest[2 * i] = uint16_t(a); dest[2 * i + 1] = uint16_t(b);
-        for (const uint32_t x : {a, b}) {
-            if (seen[x >> 6] >> (x & 63) & 1) unique = false;
-            seen[x >> 6] |= uint64_t(1) << (x & 63);
+        dest[i] = uint16_t(a);
+        dest[i+1] = uint16_t(b);
+        if (prefix == total) {
+            for (const unsigned v : {a, b}) {
+                const uint64_t bit = UINT64_C(1) << (v & 63);
+                if (seen[v >> 6] & bit) prefix = i & ~7u;
+                seen[v >> 6] |= bit;
+            }
         }
     }
-    *distinct = unique; return true;
+    // At a split the original has already loaded the next B before storing
+    // either preceding result, and the next A before storing the previous A.
+    // Keep these pairs together if reloading either destination could differ.
+    if (prefix && prefix < total &&
+        (dest[prefix] == dest[prefix-2] || dest[prefix+1] == dest[prefix-2] ||
+         dest[prefix+1] == dest[prefix-1])) prefix -= 8;
+    *independent_prefix = prefix;
+    return true;
 }
 
 // All destinations distinct: the pipeline order cannot matter, eight entries
@@ -134,8 +145,35 @@ inline void geometry_host_blend_scatter_distinct(GeometryHostBlendNative& n, uns
         const unsigned active = total - first < 8 ? total - first : 8;
         const GeometryHostSoA8& s = src[first / 8];
         const unsigned d0 = dest[first];
+#if defined(__AVX2__) && !defined(__aarch64__)
+        bool run = false;
+        if (active == 8) {
+            const __m128i indices = _mm_loadu_si128(reinterpret_cast<const __m128i*>(dest + first));
+            const __m128i consecutive = _mm_add_epi16(_mm_set1_epi16(d0), _mm_setr_epi16(0,1,2,3,4,5,6,7));
+            run = _mm_movemask_epi8(_mm_cmpeq_epi16(indices, consecutive)) == 0xffff;
+        }
+        if (run && (d0 & 7)) {
+            // An unaligned run spans two SoA blocks. Rotate its eight source
+            // lanes into destination order and retain the untouched neighbors.
+            const v8 lanes = _mm256_setr_epi32(0,1,2,3,4,5,6,7);
+            const v8 order = _mm256_sub_epi32(lanes, v8_set(d0 & 7));
+            const v8 upper = _mm256_cmpgt_epi32(_mm256_setzero_si256(), order);
+            auto& left = d.at(r, field, d0 / 8);
+            auto& right = d.at(r, field, d0 / 8 + 1);
+            for (unsigned k = 0; k < 4; ++k) {
+                const v8 a = left.component[k], b = right.component[k];
+                const v8 previous = _mm256_blendv_epi8(a, b, upper);
+                const v8 source = _mm256_permutevar8x32_epi32(s.component[k], order);
+                const v8 result = v8_fma(source, w, previous);
+                left.component[k] = _mm256_blendv_epi8(result, a, upper);
+                right.component[k] = _mm256_blendv_epi8(b, result, upper);
+            }
+            continue;
+        }
+#else
         bool run = active == 8 && (d0 & 7) == 0;
         for (unsigned j = 1; run && j < 8; ++j) run = dest[first + j] == d0 + j;
+#endif
         if (run) {
             auto& block = d.at(r, field, d0 / 8);
             for (unsigned k = 0; k < 4; ++k) block.component[k] = v8_fma(s.component[k], w, block.component[k]);
@@ -210,7 +248,10 @@ inline bool geometry_host_blend_stream(const spu_context& c, GeometryHostBlendNa
     uint16_t* const destinations = buffers->destinations;
     // Validate the whole stream before changing any table, so an unsupported
     // stream can still be handed to the original intact.
-    const unsigned pairs = ((count + 3) & ~3u) / 2, capacity = n.recipe->blocks_per_field * 8;
+    const unsigned total = (count + 3) & ~3u, capacity = n.recipe->blocks_per_field * 8;
+    struct Attribute { const uint8_t* descriptor; unsigned field; };
+    Attribute selected[16];
+    unsigned selected_count = 0;
     for (unsigned i = 0; i < attributes; ++i) {
         const uint8_t* a = c.ls + descriptor + 8 + i * 8;
         if ((c.ls[context] & 16) && a[3] != 1) continue;
@@ -228,31 +269,26 @@ inline bool geometry_host_blend_stream(const spu_context& c, GeometryHostBlendNa
                     *why = "blend unit selector"; return false;
                 }
             }
-        const uint32_t table = n.tables[field];
-        if (uint64_t(remap) + pairs * 4 > SPU_LS_SIZE) { *why = "blend remap bounds"; return false; }
-        for (unsigned p = 0; p < pairs; ++p) {
-            const uint32_t word = geometry_job_be32(c.ls + remap + p * 4);
-            for (uint32_t address : {(table + word) & (SPU_LS_SIZE - 16), (table + (word >> 16)) & (SPU_LS_SIZE - 16)}) {
-                const uint32_t offset = (address - table) & (SPU_LS_SIZE - 1);
-                if (offset / 16 >= capacity) { *why = "blend remap"; return false; }
-            }
+        selected[selected_count++] = {a, field};
+    }
+    unsigned prefix = 0;
+    if (selected_count) {
+        // initialize_geometry_context spaces every table by a multiple of
+        // 16. The aligned LS address minus its table base is thus identical
+        // for all attributes, even when a remap wraps around local store.
+        if (uint64_t(remap) + total * 2 > SPU_LS_SIZE) { *why = "blend remap bounds"; return false; }
+        if (!geometry_host_blend_destinations(c, n.tables[selected[0].field], remap, total,
+                                              capacity, destinations, &prefix)) {
+            *why = "blend remap"; return false;
         }
     }
-    for (unsigned i = 0; i < attributes; ++i) {
-        const uint8_t* a = c.ls + descriptor + 8 + i * 8;
-        if ((c.ls[context] & 16) && a[3] != 1) continue;   // position-only context
-        unsigned field = 0;
-        while (field < n.recipe->fields && n.recipe->field[field].semantic != a[3]) ++field;
-        if (field == n.recipe->fields) continue;           // no table for this routing
-        if (a[2] > 4) { *why = "blend components"; return false; }
-        const unsigned total = (count + 3) & ~3u;
-        bool distinct = false;
-        if (!geometry_host_blend_decode(c, data + a[0], stride, a[1], a[2], count, decoded, why) ||
-            !geometry_host_blend_destinations(c, n.tables[field], remap, total, capacity, destinations, &distinct)) {
-            if (!*why) *why = "blend remap"; return false;
-        }
-        if (distinct) geometry_host_blend_scatter_distinct(n, field, destinations, total, decoded, weight);
-        else geometry_host_blend_scatter_pipeline(n, field, destinations, total, decoded, weight);
+    for (unsigned i = 0; i < selected_count; ++i) {
+        const auto [a, field] = selected[i];
+        if (!geometry_host_blend_decode(c, data + a[0], stride, a[1], a[2], count, decoded, why))
+            return false;
+        if (prefix) geometry_host_blend_scatter_distinct(n, field, destinations, prefix, decoded, weight);
+        if (prefix < total) geometry_host_blend_scatter_pipeline(n, field, destinations + prefix,
+            total - prefix, decoded + prefix / 8, weight);
         ++n.attributes;
     }
     ++n.streams;
