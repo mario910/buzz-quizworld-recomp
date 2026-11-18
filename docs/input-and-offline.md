@@ -74,9 +74,9 @@ the order of answers on the screen:
 players=4
 pulse_ms=250
 keyboard.1=Space,4,3,2,1
-keyboard.2=Q,W,E,R,T
-keyboard.3=A,S,D,F,G
-keyboard.4=Z,X,C,V,B
+keyboard.2=Q,T,R,E,W
+keyboard.3=A,G,F,D,S
+keyboard.4=Z,B,V,C,X
 gamepads=1
 background_gamepads=0
 gamepad.1=1,RB,LEFT,DOWN,RIGHT,UP

@@ -185,6 +185,19 @@ and the system tools checklist.
    (`Play-Buzz.sh` in the tar package). `--launcher` (`Buzz-Launcher.sh`)
    opens the optional native launcher for controls and a button test. See [the Linux package](preparation/README.md#linux-release-package).
 
+### Updating an existing installation
+
+Open Buzz Prepare and select **Update installed game**. The wizard checks the latest stable
+release, builds it from your installed disc and firmware, and keeps the profiles, saves
+and controls in `dist/runtime/`. Close the game during the update. A source checkout
+follows its tracked branch and gives local edits priority. The activity log shows which
+sources were selected.
+
+**Check for updates** checks the version of Buzz Prepare itself. On Steam Deck the AppImage
+can replace itself after verifying the download. Reopen it to run the new version.
+For a Windows ZIP or Linux tar installation, save the verified package, close Buzz Prepare,
+and extract it over the same package folder.
+
 ### Guided preparation from a checkout
 
 1. Clone the source and its pinned submodules:
@@ -486,9 +499,11 @@ emulates their USB protocol and supplies virtual handsets. Default keys:
 | Player | Red / confirm | Yellow | Green | Orange | Blue |
 |---|---|---|---|---|---|
 | 1 | Space | 4 | 3 | 2 | 1 |
-| 2 | Q | W | E | R | T |
-| 3 | A | S | D | F | G |
-| 4 | Z | X | C | V | B |
+| 2 | Q | T | R | E | W |
+| 3 | A | G | F | D | S |
+| 4 | Z | B | V | C | X |
+
+On each keyboard row, the four answer keys follow the buzzer from top to bottom, with blue, orange, green and yellow running left to right.
 
 Configure mappings in the GUI, or copy `config/buzz-input.example.ini` to
 `buzz-input.ini` and pass `-InputConfig`. New configurations enable XInput, with

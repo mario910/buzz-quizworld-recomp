@@ -31,6 +31,13 @@ int main(){
     assert(bits(8,31)==0&&receiver_bits(valid_mask,2)==0);
     Router invalid;invalid.state(999,UINT64_MAX,0);invalid.release(999,true);assert(!invalid.sample(0));
     auto config=defaults();std::string error;
+    const char* answer_rows[] = {"1234", "WERT", "SDFG", "XCVB"};
+    const unsigned buzz_keys[] = {' ', 'Q', 'A', 'Z'};
+    for (unsigned player = 0; player < 4; ++player) {
+        assert(config.keys[player][red] == buzz_keys[player]);
+        for (unsigned answer = 0; answer < 4; ++answer)
+            assert(config.keys[player][blue - answer] == unsigned(answer_rows[player][answer]));
+    }
     assert(config.gamepads);
     for(auto& mapping:config.pad_buttons){
         assert(map_pad(0x200,mapping)==(1u<<red));

@@ -10,6 +10,8 @@ import tempfile
 import zipfile
 
 
+from preparation_version import base_release
+
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = "BuzzPrepare-windows-x64.zip"
 QT_SOURCE = "qtbase-everywhere-src-6.8.3.tar.xz"
@@ -78,7 +80,7 @@ def package(qt_source, output):
             if len({name.casefold() for name in files}) != len(files):
                 raise ValueError("The source trees contain paths that collide on Windows.")
             archive.writestr("BuzzPrepare/build-files/release-sources.json", json.dumps(
-                {"revision": revision, "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
+                {"revision": revision, "base_release": base_release(ROOT), "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
             for name in WIZARD_FILES:
                 archive.write(ROOT / "dist-preparation/bin" / name, f"BuzzPrepare/{name}")
             with tarfile.open(qt_source, "r:xz") as source:

@@ -74,9 +74,9 @@ class Settings:
     pulse_ms: int = 250
     players: list[Player] = field(default_factory=lambda: [
         Player('Player 1', ['Space', '4', '3', '2', '1']),
-        Player('Player 2', ['Q', 'W', 'E', 'R', 'T']),
-        Player('Player 3', ['A', 'S', 'D', 'F', 'G']),
-        Player('Player 4', ['Z', 'X', 'C', 'V', 'B']),
+        Player('Player 2', ['Q', 'T', 'R', 'E', 'W']),
+        Player('Player 3', ['A', 'G', 'F', 'D', 'S']),
+        Player('Player 4', ['Z', 'B', 'V', 'C', 'X']),
         *[Player(f'Player {n}', ['NONE'] * 5) for n in range(5, 9)]])
     pads: list[Pad] = field(default_factory=lambda: [Pad(n) for n in range(4)])
 

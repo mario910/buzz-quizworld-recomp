@@ -21,6 +21,8 @@ import subprocess
 import tarfile
 import tempfile
 
+from preparation_version import base_release
+
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "BuzzPrepare"
 PACKAGE = "BuzzPrepare-linux-x86_64.tar.gz"
@@ -35,15 +37,23 @@ data="${BUZZ_HOME:-$HOME/BuzzQuizWorld}"
 src="$here/usr/share/buzz/build-files"
 dst="$data/build-files"
 revision() { sed -n 's/^  "revision": "\([0-9a-f]*\)".*/\1/p' "$1/release-sources.json" 2>/dev/null; }
-if [ "$(revision "$src")" != "$(revision "$dst")" ]; then
-    mkdir -p "$dst" || exit 1
-    for tree in cmake config docs launcher port preparation scripts third_party tools ps3recomp; do
-        rm -rf "${dst:?}/$tree"
-    done
-    cp -R "$src/." "$dst/" || exit 1
-    chmod -R u+w "$dst"
-    cp "$here/usr/share/buzz/README.txt" "$data/README.txt" 2>/dev/null
-fi
+mkdir -p "$dst" || exit 1
+(
+    flock -x 9 || exit 1
+    if [ "$(revision "$src")" != "$(revision "$dst")" ]; then
+        rm -f "$dst/release-sources.json" || exit 1
+        for tree in cmake config docs launcher port preparation scripts third_party tools ps3recomp; do
+            rm -rf "${dst:?}/$tree" || exit 1
+        done
+        for item in "$src"/*; do
+            [ "${item##*/}" = release-sources.json ] && continue
+            cp -R "$item" "$dst/" && chmod -R u+w "$dst/${item##*/}" || exit 1
+        done
+        cp "$here/usr/share/buzz/README.txt" "$data/README.txt" || exit 1
+        cp "$src/release-sources.json" "$dst/.release-sources.tmp" &&
+            mv -f "$dst/.release-sources.tmp" "$dst/release-sources.json" || exit 1
+    fi
+) 9>"$data/.buzz-sources.lock" || exit 1
 case "$1" in
     --play)
         shift
@@ -310,7 +320,7 @@ def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None)
                 raise ValueError(f"Initialize {module} at the pinned revision before packaging.")
             files.extend(add_sources(staging, module_root, pin, prefix=module + "/"))
         (staging / "build-files/release-sources.json").write_text(json.dumps(
-            {"revision": revision, "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
+            {"revision": revision, "base_release": base_release(ROOT), "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
         archive = Path(scratch) / PACKAGE
         with tarfile.open(archive, "w:gz") as tar:
             tar.add(staging, arcname=NAME)

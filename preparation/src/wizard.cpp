@@ -1,4 +1,5 @@
 #include "wizard.h"
+#include "release_update.h"
 #include "crypto.h"
 #include "steam_shortcut.h"
 
@@ -116,6 +117,8 @@ class Wizard final : public QWidget {
     QPlainTextEdit log;
     QCheckBox details{"Show activity log"};
     QNetworkAccessManager keyDownloads;
+    ReleaseUpdate releases{this};
+    QPushButton* updateGame{};
     QProcess process;
     QTimer recheck;
     QTemporaryDir controlFiles;
@@ -131,7 +134,7 @@ class Wizard final : public QWidget {
     // Linux hosts without a compiler toolchain (SteamOS and other image-based
     // systems) build inside a distrobox container; the game still runs here.
     QString distrobox;
-    const QString containerName = "buzz-prepare";
+    const QString containerName = qEnvironmentVariable("BUZZ_BUILD_CONTAINER", "buzz-prepare");
     bool containerMode = false;
     std::function<void()> afterSuccess;
     const bool linuxHost = QSysInfo::kernelType() == "linux";
@@ -206,7 +209,11 @@ class Wizard final : public QWidget {
             ? bundled.absolutePath() : dir.absolutePath();
     }
     QString cancelFile() const { return controlFiles.filePath("cancel"); }
-    QString toolPython() const { return root() + (linuxHost ? "/toolenv/bin/python" : "/toolenv/Scripts/python.exe"); }
+    QString toolHome() const { return qEnvironmentVariable("BUZZ_TOOL_ENV", root() + "/toolenv"); }
+    QString toolPython() const { return toolHome() + (linuxHost ? "/bin/python" : "/Scripts/python.exe"); }
+    bool configuredContainer() const {
+        return QFileInfo::exists(containerMarker()) || qEnvironmentVariableIsSet("BUZZ_BUILD_CONTAINER");
+    }
     QString gameExe() const { return root() + (linuxHost ? "/dist/BuzzQuizWorldRecomp" : "/dist/BuzzQuizWorldRecomp.exe"); }
     QString containerMarker() const { return root() + "/runtime/setup/build-container-ready"; }
     // Run a build step on the host, or inside the build container.
@@ -237,6 +244,11 @@ class Wizard final : public QWidget {
         prepareTitle->setText(ready ? "Ready to play" : "2   Prepare to play");
         play->setVisible(ready);
         openGame->setVisible(ready);
+        updateGame->setVisible(ready);
+        updateGame->setEnabled(ready && localToolsReady && (!containerMode || configuredContainer())
+                               && QFileInfo::exists(root() + "/tools/update-game.py"));
+        updateGame->setToolTip(updateGame->isEnabled() ? QString() :
+            "Set up the build tools and local build dependencies in Advanced options.");
         addToSteam->setVisible(ready && linuxHost && !steam::accountConfigDirs().isEmpty());
         prepare->setVisible(!ready);
         cancel->hide();
@@ -269,10 +281,10 @@ class Wizard final : public QWidget {
         const bool buildTools = !locate("patch").isEmpty();
         const bool sdl = succeeds(locate("pkg-config"), {"--exists", "sdl2 >= 2.0.18"});
         const bool hostTools = compiler && buildTools && sdl && basePython;
-        containerMode = !hostTools && !distrobox.isEmpty();
-        const bool containerReady = containerMode && sources && QFileInfo::exists(containerMarker());
+        containerMode = (!hostTools || qEnvironmentVariableIsSet("BUZZ_BUILD_CONTAINER")) && !distrobox.isEmpty();
+        const bool containerReady = containerMode && sources && configuredContainer();
         // A container-made venv points at the container's Python: check its files only.
-        const bool tools = sources && dir.exists("toolenv/bin/cmake") && dir.exists("toolenv/bin/ninja") &&
+        const bool tools = sources && QFileInfo::exists(toolHome() + "/bin/cmake") && QFileInfo::exists(toolHome() + "/bin/ninja") &&
             (containerMode ? QFileInfo::exists(toolPython()) : verifyPython(toolPython(),
             "import sys, capstone, construct, pycdlib, tabulate, tqdm; from Crypto.Cipher import AES; "
             "from importlib.metadata import version; from pathlib import Path; assert sys.version_info >= (3, 10); "
@@ -323,7 +335,7 @@ class Wizard final : public QWidget {
                             cpu && buildReady && loader && (bundled || !git.isEmpty()) &&
                             !existingDist && controlFiles.isValid() && hasInputs());
         const bool ready = supported && checkout && QFileInfo(gameExe()).isExecutable();
-        containerSetup->setVisible(!ready && containerMode);
+        containerSetup->setVisible(containerMode && (!ready || !containerReady));
         containerSetup->setEnabled(supported && containerMode && sources);
         containerSetup->setText(containerReady ? "Repair the build container" : "Set up the build container");
         linuxInstall->setVisible(!ready && !containerMode && !(hostTools && loader && (bundled || !git.isEmpty())));
@@ -485,6 +497,7 @@ class Wizard final : public QWidget {
         upscaler.setEnabled(false);
         jobs.setEnabled(false);
         guidance->setText(activity);
+        progress.setRange(0, 0);
         progress.show();
     }
 
@@ -686,6 +699,19 @@ public:
         heroDescription = label({}, "muted");
         copy->addWidget(heroDescription);
         header->addLayout(copy, 1);
+        connect(&releases, &ReleaseUpdate::downloadProgress, this, [this](qint64 received, qint64 total) {
+            guidance->setText("Downloading and verifying the Buzz Prepare update…");
+            progress.setRange(0, 100);
+            progress.setValue(static_cast<int>(100 * received / total));
+        });
+        button(*header, "Check for updates", [this] {
+            if (busy) return;
+            begin("Checking for a Buzz Prepare update…");
+            releases.check([this](const QString& message, bool success) {
+                done(message, success);
+                guidance->setText(message);
+            });
+        });
         hero->addLayout(header);
 
         auto* inputCard = card(*page, "card");
@@ -848,6 +874,15 @@ public:
             }
         });
         play->setObjectName("primary");
+        updateGame = button(*prepareCard, "Update installed game", [this] {
+            if (QMessageBox::question(this, "Update installed game",
+                    QDir(root()).exists(".git")
+                        ? "Check the tracked branch and update your game? Local edits or a diverged branch take priority."
+                        : "Check the latest stable release and rebuild your game if needed? Your profiles and settings will be kept.") != QMessageBox::Yes) return;
+            details.setChecked(true);
+            startBuild(toolPython(), {root() + "/tools/update-game.py", "--jobs", QString::number(jobs.value())},
+                       "Updating the installed game. Keep this window open while it builds…");
+        });
         addToSteam = button(*actions, "Add to Steam", [this] { addSteamShortcut(); });
         addToSteam->hide();
         openGame = button(*actions, "Open game folder", [this] {

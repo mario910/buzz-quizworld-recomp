@@ -58,8 +58,8 @@ uint16_t pad_button(std::string s){
 }
 Config defaults(){
     Config c;
-    c.keys[0]={32,'4','3','2','1'};c.keys[1]={'Q','W','E','R','T'};
-    c.keys[2]={'A','S','D','F','G'};c.keys[3]={'Z','X','C','V','B'};
+    c.keys[0]={32,'4','3','2','1'};c.keys[1]={'Q','T','R','E','W'};
+    c.keys[2]={'A','G','F','D','S'};c.keys[3]={'Z','B','V','C','X'};
     // R1/RB = red; clockwise D-pad = blue, orange, green, yellow.
     // Wire order stays red,yellow,green,orange,blue. START is reserved for PC UI.
     for(auto& mapping:c.pad_buttons)mapping={0x200,0x4,0x2,0x8,0x1};

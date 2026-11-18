@@ -375,7 +375,36 @@ def copy_sources(project, destination):
             shutil.copy2(original, dest)
 
 
-def publish_distribution(project, workspace, paths, exe, log, cancel):
+def build_workspace(project, workspace, profile, jobs, log, cancel, stage, standalone, linux, extra_linux_options=()):
+    if linux:
+        def linux_build(stage_name):
+            process([sys.executable, workspace / "tools/build-linux.py", stage_name, "--jobs", str(jobs),
+                     *([*linux_build_options(profile), *extra_linux_options] if stage_name == "build" else ())],
+                    workspace, log, cancel, timeout=7200)
+        stage("generate Linux translations", lambda: linux_build("generate"))
+        stage("build standalone Linux Vulkan game", lambda: linux_build("build"))
+        exe = workspace / "build-vulkan-linux/BuzzQuizWorldRecomp"
+    else:
+        env = dict(os.environ, BUZZ_TOOL_ENV=os.environ.get("BUZZ_TOOL_ENV") or str(project / "toolenv"))
+        powershell = shutil.which("powershell.exe")
+        if not powershell:
+            raise ValueError("Windows PowerShell is required by the current Windows build.")
+        def ps(script, *arguments):
+            process([powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", workspace / script, *arguments],
+                    workspace, log, cancel, env=env, timeout=7200)
+        stage("generate translations", lambda: ps("scripts/generate.ps1", "-Jobs", str(jobs)))
+        if standalone:
+            stage("build standalone Vulkan game", lambda: ps(
+                "scripts/Build-Buzz.ps1", "-SkipGeneration", "-Standalone", "-Renderer", "Vulkan",
+                "-Jobs", str(jobs)))
+            exe = workspace / "build-vulkan-windows/BuzzQuizWorldRecomp.exe"
+        else:
+            stage("build native game", lambda: ps("scripts/Build-Buzz.ps1", "-SkipGeneration", "-Jobs", str(jobs)))
+            exe = workspace / "build-windows/BuzzQuizWorldRecomp.exe"
+    return exe
+
+
+def publish_distribution(project, workspace, paths, exe, log, cancel, source_revision=None):
     """Publish a self-contained local copy only after all files have been staged."""
     dist = project / "dist"
     if os.path.lexists(dist):
@@ -411,7 +440,12 @@ def publish_distribution(project, workspace, paths, exe, log, cancel):
         copy_file(exe, staging / exe.name)
         # The build binding lets the native launcher validate this copy itself.
         if (exe.parent / "game-build.json").is_file():
-            copy_file(exe.parent / "game-build.json", staging / "game-build.json")
+            target = staging / "game-build.json"
+            copy_file(exe.parent / "game-build.json", target)
+            if source_revision:
+                record = json.loads(target.read_text(encoding="utf-8-sig"))
+                record["source_revision"] = source_revision
+                model.atomic_text(target, json.dumps(record))
         for dll in exe.parent.glob("*.dll"):
             copy_file(dll, staging / dll.name)
         copy_file(Path(paths["eboot_elf"]), runtime / "EBOOT.elf")
@@ -537,35 +571,16 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         if not linux and not vswhere.is_file():
             raise ValueError("Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK, then resume. "
                              "The wizard does not silently install system-wide/admin components.")
-        stage("snapshot sources", lambda: copy_sources(project, workspace))
+        def snapshot():
+            copy_sources(project, workspace)
+            inventory = project / "release-sources.json"
+            if inventory.is_file() and not (project / ".git").exists():
+                state["source_revision"] = json.loads(inventory.read_text()).get("revision")
+        stage("snapshot sources", snapshot)
         if profile.adapter_family == "quizworld-102-verified":
             stage("stage update content", lambda: stage_update_content(executable.parent / "Patched", workspace, cancel, log))
         model.atomic_text(workspace / "buzz-paths.json", json.dumps(state["paths"], indent=2))
-        if linux:
-            def linux_build(stage_name):
-                process([sys.executable, workspace / "tools/build-linux.py", stage_name, "--jobs", str(inputs.jobs),
-                         *(linux_build_options(profile) if stage_name == "build" else ())],
-                        workspace, log, cancel, timeout=7200)
-            stage("generate Linux translations", lambda: linux_build("generate"))
-            stage("build standalone Linux Vulkan game", lambda: linux_build("build"))
-            exe = workspace / "build-vulkan-linux/BuzzQuizWorldRecomp"
-        else:
-            env = dict(os.environ, BUZZ_TOOL_ENV=os.environ.get("BUZZ_TOOL_ENV") or str(project / "toolenv"))
-            powershell = shutil.which("powershell.exe")
-            if not powershell:
-                raise ValueError("Windows PowerShell is required by the current Windows build.")
-            def ps(script, *arguments):
-                process([powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", workspace / script, *arguments],
-                        workspace, log, cancel, env=env, timeout=7200)
-            stage("generate translations", lambda: ps("scripts/generate.ps1", "-Jobs", str(inputs.jobs)))
-            if standalone:
-                stage("build standalone Vulkan game", lambda: ps(
-                    "scripts/Build-Buzz.ps1", "-SkipGeneration", "-Standalone", "-Renderer", "Vulkan",
-                    "-Jobs", str(inputs.jobs)))
-                exe = workspace / "build-vulkan-windows/BuzzQuizWorldRecomp.exe"
-            else:
-                stage("build native game", lambda: ps("scripts/Build-Buzz.ps1", "-SkipGeneration", "-Jobs", str(inputs.jobs)))
-                exe = workspace / "build-windows/BuzzQuizWorldRecomp.exe"
+        exe = build_workspace(project, workspace, profile, inputs.jobs, log, cancel, stage, standalone, linux)
         result = fingerprint(exe)
         if state.get("built_exe") and state["built_exe"] != result:
             if not accept_rebuilt:
@@ -587,7 +602,7 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
             if (manifest.get("renderer") != "vulkan" or manifest.get("elf_sha256") != profile.elf_sha256 or
                     manifest.get("exe_sha256") != result["sha256"] or not manifest.get("standalone")):
                 raise ValueError("The executable does not match the standalone Vulkan build manifest.")
-            publish_distribution(project, workspace, state["paths"], exe, log, cancel)
+            publish_distribution(project, workspace, state["paths"], exe, log, cancel, state.get("source_revision"))
             return session, state
         model.atomic_text(project / "runtime/setup/last-ready.json", json.dumps({"session": str(session), "workspace": str(workspace)}, indent=2))
         log("Ready. Use Play to open this build's controller/game launcher.")
