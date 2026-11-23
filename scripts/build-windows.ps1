@@ -221,11 +221,16 @@ $configureOptions=@(
     '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
 )
 # Generate the same portable scene, renderer, geometry and media paths as Linux.
-# The studio display list is specific to the EU disc. SPU/media adapters
-# have their own hash checks and the qualified Vulkan job profile above.
+# The renderer is independent of the version-specific job bindings.
+$desktopVulkan = $DesktopOptimizations -and $VulkanExperimental
 $optimizedVulkan = $DesktopOptimizations -and $geometryJobProfile
 $adapterArgs = @()
 if ($DesktopOptimizations -and $generation.family -eq 'quizworld-eu100') { $adapterArgs += '--scene' }
+if ($DesktopOptimizations -and !$ProducerTrace -and $generation.family -in @('quizworld-us100','quizworld-102-verified')) {
+    $adapterArgs += '--studio'
+    if ($completionOverride) { $adapterArgs += @('--completion', $completionOverride) }
+}
+if ($desktopVulkan) { $adapterArgs += '--renderer' }
 if ($optimizedVulkan) { $adapterArgs += '--optimized-vulkan' }
 $optionFile = [IO.Path]::GetTempFileName()
 try {
@@ -236,8 +241,8 @@ try {
     Remove-Item -LiteralPath $optionFile
 }
 $configureOptions += @(
-    "-DBUZZ_DMA_DIAGNOSTICS_OPTIN=$optimizedVulkan", "-DBUZZ_GEOMETRY_SCALAR_GATHER=$optimizedVulkan",
-    "-DBUZZ_AUDIO_X86_RTZ=$optimizedVulkan", "-DBUZZ_SPU_DIRECT_HOPS=$optimizedVulkan",
+    "-DBUZZ_DMA_DIAGNOSTICS_OPTIN=$desktopVulkan", "-DBUZZ_GEOMETRY_SCALAR_GATHER=$optimizedVulkan",
+    "-DBUZZ_AUDIO_X86_RTZ=$optimizedVulkan", "-DBUZZ_SPU_DIRECT_HOPS=$desktopVulkan",
     "-DBUZZ_GEOMETRY_CULL_COMPACT=ON",
     "-DBUZZ_GEOMETRY_INDEX_CACHE=$($optimizedVulkan -or $GeometryIndexCache)",
     "-DBUZZ_GEOMETRY_HOST_COMMANDS=$($optimizedVulkan -or $GeometryHostCommands)",

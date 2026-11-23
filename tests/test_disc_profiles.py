@@ -1,10 +1,11 @@
 """Synthetic cross-region identities and generated-image alias safety."""
 import hashlib
+import runpy
 from pathlib import Path
 import tempfile
 import unittest
 
-from launcher.game_profiles import identify, identify_elf
+from launcher.game_profiles import PROFILES, identify, identify_elf
 from tools.codegen.disc100_profiles import (EU100_SHA256, US100_SHA256,
                                    US_EMBEDDED_ALIASES, canonicalize_embedded, extra_disc_entries,
                                    DISC100_ENTRY_PROFILES)
@@ -29,6 +30,17 @@ class DiscProfileTests(unittest.TestCase):
         self.assertEqual(len(DISC100_ENTRY_PROFILES), 7)
         self.assertIn('buzz_job_6eba', DISC100_ENTRY_PROFILES)
         self.assertIn('buzz_job_abe1', DISC100_ENTRY_PROFILES)
+
+    def test_desktop_defaults_cover_every_supported_game(self):
+        build = runpy.run_path(str(Path(__file__).resolve().parents[1] / "tools/build-linux.py"))
+        for profile in PROFILES:
+            with self.subTest(profile=profile.key):
+                defaults = build["linux_build_defaults"](profile)
+                for option in ("native_jobs", "renderer_cpu", "renderer_bundle", "dma_diagnostics_optin"):
+                    self.assertTrue(defaults[option])
+                disc = profile.adapter_family in ("quizworld-eu100", "quizworld-us100")
+                for option in ("media_cpu", "geometry_cpu", "image39_native"):
+                    self.assertEqual(defaults[option], disc)
 
     def test_regions_and_families_are_not_interchangeable(self):
         us = identify("BCUS98209", US100_SHA256)

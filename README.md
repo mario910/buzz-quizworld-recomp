@@ -9,10 +9,10 @@ single-player rounds have run in the Windows tests.
 targets. Start with 1.00; no game update is needed.** These releases use their
 own hash-bound PPU adapters and share byte-identical SPU programs. The qualified
 Windows/Vulkan/AVX2 builds enable full native geometry and animation for both.
-EU 1.02 remains a separate compatibility profile: it has shared renderer
-improvements and its own reviewed adapters, but not the full 1.00 native-job
-profile. Linux and Android have separate build/optimization profiles; Windows
-qualification does not establish feature or performance parity on those targets.
+Windows and Linux preparation enable Vulkan renderer optimizations by default
+for every supported edition, including EU 1.02. Preparation matches the studio
+dispatcher to the local game code. EU 1.02 uses its own native geometry,
+animation, and completion adapters. Android has a separate ARM64 profile.
 Standard two-player gameplay has been tested on Polish assets in both EU releases
 and on US 1.00, including podium names, avatars and scoring. Full game validation
 is still in progress. This is a research
@@ -93,7 +93,7 @@ to copy between regions.
 | Disc input | Your ISO, or a directory containing `PS3_GAME/USRDIR` and `PS3_GAME/PARAM.SFO` |
 | EU original disc 1.00 | `BCES00647`, `BCES00644`, `BCES00645`; ELF SHA-256 `6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8` |
 | US original disc 1.00 | `BCUS98209`; ELF SHA-256 `fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d` |
-| EU update 1.02 — compatibility profile | `BCES00647` only; ELF SHA-256 `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241`; not the full 1.00 optimization profile |
+| EU update 1.02 | `BCES00647` only; ELF SHA-256 `9303ccce9bc223ca6da2eb837256ef08be6f1f460dcc6d5191889de7a4eee241`; version-specific native adapters |
 | Firmware | Your PS3 PUP, or installed `dev_flash` including `data/font` and `sys/external/flashATRAC.pic` |
 | Audio-module compatibility | The `.text` SHA-256 of `flashATRAC.pic` must be `c543ecc87e82beec3159d88fbb73dc4229424d357c0a48be3c4cb55d3fdefadc`; checked by the validator/generator |
 
@@ -230,8 +230,8 @@ and extract it over the same package folder.
    **Escape / controller START** to configure display, audio, textures and
    keyboard or pad bindings. Use **Save settings** to keep the changes.
    On Linux, the checkout's `Launch-Buzz.sh` and `Prepare-Buzz.sh` correspond to
-   the `.cmd` scripts. On Windows and Linux, a newly prepared EU 1.00 game
-   uses the balanced studio settings automatically. It skips floor reflections,
+   the `.cmd` scripts. On Windows and Linux, newly prepared games select balanced studio detail
+   automatically. With a matching studio dispatcher this skips floor reflections,
    bloom and the second lighting pass on the audience. Set
    `BUZZ_STUDIO_DETAIL=original` before starting the game for full studio effects.
    The additional present delay is disabled by default on both platforms.

@@ -45,23 +45,25 @@ def generate(elf, profile, jobs):
     (analysis / "game-generation.json").write_text(json.dumps(dict(family=profile.adapter_family, elf_sha256=profile.elf_sha256)))
 
 
-def native_adapters(analysis, image39_fast=False, image39_native=False):
+def native_adapters(analysis, disc, image39_fast=False, image39_native=False):
     """Generate the same hash-checked x86 adapters as the desktop native build."""
     for tool in ("image36-native", "image7-native", "image39-native", "image39-kernels",
-                 "image40-native", "geometry-phase3"):
+                 "image40-native", "geometry-phase3" if disc else "geometry-stagef"):
         python(f"tools/codegen/generate-{tool}.py")
-    animation = analysis / "native-geometry/phase4" / ("linux-runtime-" + uuid.uuid4().hex)
-    python("tools/codegen/generate-animation-job-runtime.py",
-           "--fallback", analysis / "native-image40/spu_recomp.c", "--output", animation)
+    image40 = analysis / "native-image40/spu_recomp.c"
+    if disc:
+        animation = analysis / "native-geometry/phase4" / ("linux-runtime-" + uuid.uuid4().hex)
+        python("tools/codegen/generate-animation-job-runtime.py", "--fallback", image40, "--output", animation)
+        image40 = animation / "spu_recomp.c"
     if image39_fast:
         python("tools/codegen/generate-image39-fast.py")
     return {
-        "PORT_GEOMETRY_SOURCE": analysis / "native-geometry/phase3/spu_recomp.c",
+        "PORT_GEOMETRY_SOURCE": analysis / ("native-geometry/phase3" if disc else "stagef-geometry") / "spu_recomp.c",
         "PORT_IMAGE7_SOURCE": analysis / "native-image7/spu_recomp.c",
         "PORT_IMAGE36_SOURCE": analysis / "native-image36/spu_recomp.c",
         "PORT_IMAGE39_SOURCE": analysis / ("fast-image39" if image39_fast else
-                                           "native-image39-kernels" if image39_native else "native-image39") / "spu_recomp.c",
-        "PORT_IMAGE40_SOURCE": animation / "spu_recomp.c",
+                                           "native-image39-kernels" if image39_native or not disc else "native-image39") / "spu_recomp.c",
+        "PORT_IMAGE40_SOURCE": image40,
     }
 
 
@@ -83,8 +85,9 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     native_ppu = native_jobs and profile.adapter_family == "quizworld-eu100"
     if ppu_columns != "none" and not native_ppu:
         raise ValueError("PPU column kernels require the EU 1.00 profile and --native-jobs.")
-    if native_jobs and not disc:
-        raise ValueError("Native whole-job adapters require a supported original-disc 1.00 profile.")
+    if not disc and (image39_fast or image39_native or geometry_cpu or geometry_zero_padding
+                     or geometry_scalar_gather or geometry_index_cache):
+        raise ValueError("The requested disc-specific geometry or image 39 adapter requires a 1.00 executable.")
     if geometry_cpu and not native_jobs:
         raise ValueError("Geometry CPU experiments require --native-jobs.")
     if geometry_scalar_gather and not native_jobs:
@@ -96,7 +99,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     if audio_x86_rtz and not media_cpu:
         raise ValueError("Scoped x86 audio arithmetic requires --media-cpu.")
     if media_cpu and not disc:
-        raise ValueError("Media CPU adapters require a supported original-disc 1.00 profile.")
+        raise ValueError("Native media kernels require a supported 1.00 executable.")
     python("tools/codegen/generate-mstream-modules.py", "--dev-flash", paths["dev_flash"])
     python("tools/codegen/generate-native-completion.py")
     completion = json.loads((analysis / "native-completion/profile.json").read_text())["source"]
@@ -112,7 +115,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         "PORT_SPU_LS_DEBUG_HOOKS": "OFF",
         "BUZZ_EXPERIMENTAL_VULKAN": "ON", "PORT_SPU_ISA": "avx2",
         "PORT_NATIVE_SPU_FLOAT": "ON", "PORT_RTZ_RESULT_GUARD": "ON",
-        "PORT_NATIVE_JOB_DEFAULTS": "ON" if native_jobs else "OFF",
+        "PORT_NATIVE_JOB_DEFAULTS": "ON" if native_jobs and disc else "OFF",
         "PORT_NATIVE_JOB_PROFILE": "us100-vulkan-native-v1" if profile.adapter_family == "quizworld-us100" else "eu100-vulkan-native-v1",
         "PORT_SPU_OPT": "-O2", "PORT_OPTIMIZE_PPU_HOT_PATHS": "ON",
         "BUZZ_SPURS_INPUT_CLEAR": "ON" if spurs_input_clear else "OFF",
@@ -138,12 +141,14 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     # a reused CMake cache must not silently keep a candidate's native paths.
     options.update({key: "" for key in ("PORT_GEOMETRY_SOURCE", "PORT_IMAGE7_SOURCE",
                     "PORT_IMAGE36_SOURCE", "PORT_IMAGE39_SOURCE", "PORT_IMAGE40_SOURCE")})
-    options.update(desktop_options(native_ppu=native_ppu, ppu_columns=ppu_columns, media_cpu=media_cpu,
+    options.update(desktop_options(native_ppu=native_ppu, native_records=native_jobs and disc,
+                                   studio=native_jobs and not native_ppu, completion=options["PORT_COMPLETION_SOURCE"],
+                                   ppu_columns=ppu_columns, media_cpu=media_cpu,
                                    audio_x86_rtz=audio_x86_rtz, renderer_cpu=renderer_cpu,
                                    renderer_bundle=renderer_bundle, geometry_cpu=geometry_cpu,
                                    geometry_index_cache=geometry_index_cache))
     if native_jobs:
-        options.update(native_adapters(analysis, image39_fast, image39_native))
+        options.update(native_adapters(analysis, disc, image39_fast, image39_native))
     directory = ROOT / "build-vulkan-linux"
     # The vendored CMake logic reads fixed offsets from this header.
     # Normalize only the isolated workspace copy when it came from CRLF.
@@ -160,7 +165,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     # Same build binding as the Windows manifest: launchers select the runtime
     # set from the EXE's own profile, not from the directory it was copied to.
     binding = dict(family=profile.adapter_family)
-    if native_jobs:
+    if native_jobs and disc:
         binding.update(geometry_job_profile="host-groups-v1", animation_job_profile="host-soa-v1",
                        embedded_runtime_profile=options["PORT_NATIVE_JOB_PROFILE"], runtime_defaults={})
     else:
@@ -181,7 +186,8 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
 
 
 def linux_build_defaults(profile):
-    if profile.adapter_family not in ("quizworld-eu100", "quizworld-us100"):
+    disc = profile.adapter_family in ("quizworld-eu100", "quizworld-us100")
+    if not disc and profile.adapter_family != "quizworld-102-verified":
         return {}
     try:
         info = Path("/proc/cpuinfo").read_text()
@@ -191,9 +197,9 @@ def linux_build_defaults(profile):
     model = re.search(r"^model\s*:\s*(\d+)", info, re.M)
     zen2 = bool("AuthenticAMD" in info and " avx2" in info and family and model and
                 (int(family[1]) > 23 or (int(family[1]) == 23 and int(model[1]) >= 0x30)))
-    return dict(native_jobs=True, renderer_cpu=True, media_cpu=True, audio_x86_rtz=True,
-                geometry_zero_padding=True, dma_diagnostics_optin=True, geometry_scalar_gather=True,
-                geometry_cpu=True, renderer_bundle=True, image39_native=True, zen2_tune=zen2)
+    return dict(native_jobs=True, renderer_cpu=True, media_cpu=disc, audio_x86_rtz=disc,
+                geometry_zero_padding=disc, dma_diagnostics_optin=True, geometry_scalar_gather=disc,
+                geometry_cpu=disc, renderer_bundle=True, image39_native=disc, zen2_tune=zen2)
 
 
 def main():
@@ -202,11 +208,11 @@ def main():
     parser.add_argument("--jobs", type=int, default=6)
     parser.add_argument("--profile", choices=("desktop", "custom"), default=None,
                         help="A plain build uses desktop defaults. Use custom for the reference build or to select individual experiments.")
-    parser.add_argument("--native-jobs", action="store_true", help="Opt in to the hash-checked disc 1.00 native geometry/animation adapters")
+    parser.add_argument("--native-jobs", action="store_true", help="Opt in to the profile-specific native SPU adapters")
     parser.add_argument("--renderer-cpu", action="store_true", help="Opt in to the retained renderer CPU experiments; benchmark separately")
     parser.add_argument("--geometry-cpu", action="store_true", help="Opt in to exact geometry CPU experiments; requires --native-jobs")
     parser.add_argument("--audio-x86-rtz", action="store_true", help="Experimental checked audio arithmetic with scoped MXCSR; requires --media-cpu")
-    parser.add_argument("--media-cpu", action="store_true", help="Opt in to hash-checked disc 1.00 video/audio leaf adapters")
+    parser.add_argument("--media-cpu", action="store_true", help="Opt in to profile-specific media adapters")
     parser.add_argument("--spurs-input-clear", action="store_true", help="Skip zero stores to staged input bytes that are immediately overwritten")
     parser.add_argument("--spu-job-return", action="store_true", help="Opt in to the guarded native SPURS job-return adapter")
     parser.add_argument("--pgo-profile", type=Path, help="Use a private merged Clang profile for runtime/native optimization; requires --native-jobs")

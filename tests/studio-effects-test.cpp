@@ -39,7 +39,8 @@ int main(int argc, char** argv)
     for (uint32_t index : {134u, 163u}) {
         const uint32_t command = records + index * 16;
         const uint32_t extent = index == 134 ? 24 : 34;
-        write_words(command, {0x1c, extent << 16, index == 134 ? 0xadd62cu : 0xadd63cu, 1});
+        write_words(command, {0x1c, extent << 16, 0x123400u, 1, 5,
+                              index == 134 ? 2u : 10u, index == 134 ? 0x70010u : 0xf0010u, 0xff});
         write_words(command + extent * 16, {0x18});
         auto admitted = [&] { return buzz::skip_studio_effect(program, records, index); };
         assert(admitted() == effects);
@@ -47,7 +48,7 @@ int main(int argc, char** argv)
         check_mutations(program + 12, 1, admitted);
         check_mutations(program + 28, 1, admitted);
         check_mutations(records, 5, admitted);
-        check_mutations(command, 4, admitted);
+        check_mutations(command, 8, admitted);
         check_mutations(command + extent * 16, 1, admitted);
     }
 

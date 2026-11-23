@@ -18,7 +18,7 @@ inline StudioDetail studio_detail()
 
 inline bool is_studio_program(uint32_t program, uint32_t records)
 {
-    // The EU studio display list begins with the marker GFX_RENDERMIXSET.
+    // The studio display list begins with the marker GFX_RENDERMIXSET.
     return vm_read32(program + 12) == 198 && vm_read32(program + 28) == 0x3c0 &&
            records == program + 0x3c0 && vm_read32(records) == 0x19 &&
            vm_read32(records + 4) == 0x4746585f && vm_read32(records + 8) == 0x52454e44 &&
@@ -33,8 +33,12 @@ inline bool skip_studio_effect(uint32_t program, uint32_t records, uint32_t inde
         !is_studio_program(program, records)) return false;
     const uint32_t command = records + index * 16;
     const uint32_t extent = index == 134 ? 24 : 34;
+    const uint32_t flag = vm_read32(command + 8);
     return vm_read32(command) == 0x1c && vm_read32(command + 4) == (extent << 16) &&
-           vm_read32(command + 8) == (index == 134 ? 0x00add62c : 0x00add63c) &&
+           flag && (flag & 3) == 0 && vm_read32(command + 16) == 5 &&
+           vm_read32(command + 20) == (index == 134 ? 2u : 10u) &&
+           vm_read32(command + 24) == (index == 134 ? 0x70010u : 0xf0010u) &&
+           vm_read32(command + 28) == 0xff &&
            vm_read32(command + 12) == 1 && vm_read32(command + extent * 16) == 0x18;
 }
 

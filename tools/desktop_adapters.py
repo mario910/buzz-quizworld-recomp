@@ -5,21 +5,27 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from tools.studio_adapter import generate_studio
 
 
 def python(tool, *args):
     subprocess.run([sys.executable, ROOT / tool, *args], cwd=ROOT, check=True)
 
 
-def desktop_options(*, native_ppu=False, ppu_columns="none", media_cpu=False, audio_x86_rtz=False,
+def desktop_options(*, native_ppu=False, studio=False, completion=None, native_records=False, ppu_columns="none", media_cpu=False, audio_x86_rtz=False,
                     renderer_cpu=False, renderer_bundle=False, geometry_cpu=False, geometry_index_cache=False):
     analysis = ROOT / "analysis"
     options = {"PORT_PPU_KERNEL_DIR": ""}
     options["PORT_SPU_RECORDS_DIR"] = ""
-    if native_ppu:
+    options["PORT_STUDIO_SOURCE"] = ""
+    if studio:
+        options["PORT_STUDIO_SOURCE"] = generate_studio(ROOT / "port/recompiled", analysis / "native-studio", completion) or ""
+    if native_ppu or native_records:
         records_dir = analysis / "native-spu-records"
         python("tools/codegen/generate-spu-records.py", ROOT / "port/spu", records_dir)
         options["PORT_SPU_RECORDS_DIR"] = records_dir
+    if native_ppu:
         kernel_dir = analysis / "native-ppu"
         python("tools/codegen/generate-ppu-kernels.py", ROOT / "port/recompiled", kernel_dir, "--ppu-columns", ppu_columns)
         options["PORT_PPU_KERNEL_DIR"] = kernel_dir
@@ -70,10 +76,16 @@ def desktop_options(*, native_ppu=False, ppu_columns="none", media_cpu=False, au
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scene", action="store_true")
+    parser.add_argument("--studio", action="store_true")
+    parser.add_argument("--completion", type=Path)
+    parser.add_argument("--renderer", action="store_true")
     parser.add_argument("--optimized-vulkan", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     optimized = args.optimized_vulkan
-    options = desktop_options(native_ppu=args.scene, media_cpu=optimized, audio_x86_rtz=optimized,
-                              renderer_cpu=optimized, renderer_bundle=optimized, geometry_cpu=optimized)
+    renderer = args.renderer or optimized
+    options = desktop_options(native_ppu=args.scene, studio=args.studio, completion=args.completion,
+                              native_records=optimized, media_cpu=optimized, audio_x86_rtz=optimized,
+                              renderer_cpu=renderer, renderer_bundle=renderer,
+                              geometry_cpu=optimized)
     args.output.write_text("".join(f"-D{key}={value}\n" for key, value in options.items()), encoding="utf-8")
