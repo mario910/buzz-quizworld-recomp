@@ -13,6 +13,9 @@ namespace {
 struct Default { const char* name; const char* value; };
 constexpr Default defaults[] = {
 #define X(name, value) {#name, value},
+// Buzz offers a souvenir photo whenever the SDK exposes its virtual camera.
+X(PS3_CAMERA, "0")
+#if BUZZ_RUNTIME_DEFAULTS || defined(BUZZ_STANDALONE)
 #if defined(BUZZ_STANDALONE) && !BUZZ_RUNTIME_DEFAULTS
 #define BUZZ_COMMON_DEFAULTS_ONLY
 #endif
@@ -58,11 +61,11 @@ X(BUZZ_GEOMETRY_JOB_VERTEX, "1")
 X(BUZZ_NATIVE_COMPLETION, "2")
 #endif
 #endif
+#endif
 #undef X
 };
 
 int install_defaults() {
-#if BUZZ_RUNTIME_DEFAULTS || defined(BUZZ_STANDALONE)
     for (const auto& option : defaults) {
         if (std::getenv(option.name)) continue;
 #ifdef _WIN32
@@ -71,7 +74,6 @@ int install_defaults() {
         if (setenv(option.name, option.value, 0)) return 1;
 #endif
     }
-#endif
     return 0;
 }
 

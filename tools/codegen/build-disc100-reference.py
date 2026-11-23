@@ -67,18 +67,36 @@ def bindings(elf, name, toc):
     return {item["code"]: item for item in found}
 
 
-def rebind_host(work, elf, imports, toc, us=False):
+def disc_lua_api(elf, entries):
+    # Reviewed instruction prefixes up to the first region-dependent operand.
+    # Match only function starts in the already hash-checked disc ELF.
+    functions = (
+        ("0046B388", 24, "354b4fa3a33381d09b2a6110e27c95f7ba86e78159a0d11c1e06aa1c54cd95d3"),  # gettop
+        ("0046B3A0", 64, "7c038c74437686c77f17f572d1f9825e63493c618a8d6739bdf2fad5409b4c41"),  # settop
+        ("0046C3F0", 64, "3703112661f1a5ec27c0987cf23ee64e7c33d2b9108389b083bd2f4d3faeef06"),  # pcall
+        ("0047CD10", 16, "0417cd7232592b95b4900a03bebfec6eb8863ed743813c973c5d0c6f3509d04e"),  # loadbuffer
+    )
+    result = {}
+    for original, size, digest in functions:
+        candidates = [pc for pc, end in entries if end - pc >= size
+                      and hashlib.sha256(elf.read(pc, size)).hexdigest() == digest]
+        if len(candidates) != 1:
+            raise ValueError(f"Missing or ambiguous disc Lua API for {original}")
+        result["func_" + original] = f"func_{candidates[0]:08X}"
+    return result
+
+
+def rebind_host(work, elf, imports, toc, entries, us=False):
     account = bindings(elf, "HasUserNpAccount", toc)
     if len(account) != 1:
         raise ValueError("Ambiguous offline binding")
     account = next(iter(account.values()))
     source = (work / "port/frontend_policy.cpp").read_text()
-    source = source.replace('hide_store=option("BUZZ_HIDE_PSN_STORE");', 'hide_store=false; /* not validated on 1.00 */')
-    source = re.sub(r"(?ms)^void buzz_frontend_after_include\(.*?^}",
-                    "void buzz_frontend_after_include(ppu_context*,uint32_t) {}", source)
     push_boolean = "func_0047E1B8" if us else "func_0047E590"
-    replacements = {"func_0046B8F8": push_boolean, "0x833098": hex(account["reference"]),
-                    "0x6e5980": hex(account["string"]), "0x83f008": hex(account["opd"]), "0x12b760": hex(account["code"])}
+    lua_api = disc_lua_api(elf, entries)
+    replacements = {**lua_api, "func_0046B8F8": push_boolean,
+                    "0x833098": hex(account["reference"]), "0x6e5980": hex(account["string"]),
+                    "0x83f008": hex(account["opd"]), "0x12b760": hex(account["code"])}
     for old, new in replacements.items():
         if old not in source:
             raise ValueError("Frontend source changed; review the profile generator")
@@ -97,8 +115,8 @@ def rebind_host(work, elf, imports, toc, us=False):
             candidates = {code: item for code, item in candidates.items() if abs(item["reference"] - video_table) < 0x200}
         code = next(iter(candidates)) if len(candidates) == 1 else 0
         evidence[name] = dict(old_pc=old, code=code, candidates=list(candidates))
-        if not code and name in ("Video.OpenStreamLocalised", "Video.PlayStream", "Video.IsStreamPlaying", "Video.IsStreamErrored", "NaviSlide.PresentMenu"):
-            raise ValueError("Missing essential no-FMV probe " + name)
+        if not code and name in ("Video.OpenStreamLocalised", "Video.PlayStream", "Video.IsStreamPlaying", "Video.IsStreamErrored", "NaviSlide.PresentMenu", "IncludeScript"):
+            raise ValueError("Missing essential frontend probe " + name)
         return '{' + hex(code) + ',"' + name + '"}'
     source = re.sub(r'\{0x([0-9a-fA-F]+),"([^"]+)"}', probe, source)
     source = source.replace("func_0046B8F8", push_boolean)
@@ -124,7 +142,7 @@ def rebind_host(work, elf, imports, toc, us=False):
         raise ValueError("Polling source changed; review the 1.00 wait-site binding")
     wait_pc = 0x288870 if us else 0x288BE0
     path.write_text(text.replace(anchor, f"sys_timer_register_usleep_wait(0x{wait_pc:08X}u, 30, 0x1A0u);"))
-    return dict(offline=account, boot_probes=evidence, queue_push_return_pcs=pushes, queue_init_return_pcs=initializers)
+    return dict(offline=account, store_lua_api=lua_api, boot_probes=evidence, queue_push_return_pcs=pushes, queue_init_return_pcs=initializers)
 
 
 def raw_jobs(work, elf, us=False):
@@ -282,7 +300,9 @@ def main():
     (host / "port").mkdir(parents=True, exist_ok=True)
     for filename in ("frontend_policy.cpp", "boot_trace.cpp", "edge_decompress.cpp", "video_queue.cpp", "stubs.cpp"):
         shutil.copy2(work / "port" / filename, host / "port" / filename)
-    evidence = rebind_host(host, elf, imports, toc, us)
+    functions = json.loads((analysis / "functions-full.json").read_text())
+    entries = [(int(f["start"], 16), int(f["end"], 16)) for f in functions]
+    evidence = rebind_host(host, elf, imports, toc, entries, us)
     evidence["embedded_aliases"] = embedded_aliases
     evidence["raw_jobs"] = (json.loads((analysis / "disc100-profile-evidence.json").read_text())["raw_jobs"]
                             if args.host_only else raw_jobs(work, elf, us))

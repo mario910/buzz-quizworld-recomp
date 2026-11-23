@@ -25,8 +25,9 @@ its files are not removed. Other menu entries and dialogs are not filtered.
 The short original port-owned Lua snippet is compiled and run using the title's
 own Lua APIs on the same Lua thread. The original PPU return context is kept;
 the Lua stack is restored by logical index, including on a compile/run error.
-It is not a disk script replacement. A checked 1.02 string/OPD pair guards the
-version-specific policy; mismatches disable it and log a warning.
+It is not a disk script replacement. The executable-specific string/OPD pair guards the account binding. The disc
+1.00 generator also checks the Lua API instruction signatures against the
+selected EU or US executable before generating its host adapter.
 
 Restore independently, before launch:
 

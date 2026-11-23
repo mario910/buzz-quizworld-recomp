@@ -530,12 +530,14 @@ logs live under `dist/runtime/`. Preferences live in `pc-settings.ini` and
 logs and path settings. Back up
 saves before experimenting; this is not a verified RPCS3 save-transfer workflow.
 
-The native frontend defaults to **offline/no-PSN-account**. The 1.02 frontend
-can hide the Store entry; this Lua hook is not yet migrated to 1.00, so its Store
-item may remain visible. This is not PSN emulation. Online and MyBuzz are not supported in this
-source release; the earlier separate server experiments are not included.
-Developer overrides (`BUZZ_OFFLINE=0`, `BUZZ_HIDE_PSN_STORE=0`) restore the
-original frontend path, not functioning Sony services.
+The native frontend defaults to **offline/no-PSN-account** and hides the
+PlayStation Store entry. `BUZZ_HIDE_PSN_STORE=0` restores the original Store
+menu policy. `BUZZ_OFFLINE=0` restores the original account check. Online play
+and MyBuzz services are unsupported.
+
+All game builds report the PlayStation Eye as disconnected by default, so Buzz
+skips the souvenir photo at the start of a game. For camera diagnostics, set
+`PS3_CAMERA=1` before launch to enable the SDK's virtual test-pattern camera.
 
 Performance depends on the build, scene, hardware and execution environment;
 the port does not guarantee stable 30 FPS throughout the game. Follow the

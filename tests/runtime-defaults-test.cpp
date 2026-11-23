@@ -7,6 +7,7 @@ static const char* names[] = {
 #define X(name, value) #name,
 #include "../port/runtime_defaults.inc"
 #undef X
+    "PS3_CAMERA",
 };
 static constexpr unsigned count = sizeof(names) / sizeof(names[0]);
 static char c_cached[count][128], cpp_cached[count][128];

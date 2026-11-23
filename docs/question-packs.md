@@ -261,9 +261,9 @@ first round. Each category record references its containing subject file.
 
 ## Limitations and debugging
 
-The PS Eye photo scene (`eyetoyscene_onyourmarks`) can hang custom-pack games:
-speech can remain active after `StartCamera`. `PS3_CAMERA=0` is a diagnostic
-workaround, not a root-cause fix. Keep manual full-game/finale, player-count
+Buzz defaults to `PS3_CAMERA=0` and skips the PS Eye photo scene.
+With the virtual camera explicitly enabled, custom-pack games can still stall
+in `eyetoyscene_onyourmarks` while speech remains active after `StartCamera`. Keep manual full-game/finale, player-count
 and speech-quality validation distinct from a successful question display.
 
 For EU 1.00 Lua calls, `PS3_CALLTRACE=40000000` with

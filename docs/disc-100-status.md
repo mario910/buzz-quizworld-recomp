@@ -54,6 +54,5 @@ checks region layout, bounds and independent cell clearing.
 
 Polish EU gameplay has exercised two-player names, animated avatars,
 questions/pictures and scoring. This does not establish every round/media
-path, other EU-language assets, long sessions or stable frame rates. The
-Store-hiding Lua hook is not adapted to 1.00; a visible Store item does not
-mean PSN is supported.
+path, other EU-language assets, long sessions or stable frame rates. The 1.00 host generator binds
+the Store visibility policy to the disc’s Lua APIs.
