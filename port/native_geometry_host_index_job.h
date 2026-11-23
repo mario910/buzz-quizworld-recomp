@@ -238,7 +238,8 @@ private:
 public:
     GeometryHostIndexCache():stats([]{const char* v=std::getenv("BUZZ_INDEX_CACHE_STATS");return v&&v[0]=='1';}()){}
     bool decode(const spu_context& c,const GeometryJobEntry& e,GeometryHostIndexData& output,
-                const char** reason=nullptr) {
+                const char** reason=nullptr, const uint16_t** cached_indices=nullptr) {
+        if (cached_indices) *cached_indices=nullptr;
         const auto& source=e.input[GeometryJobEntry::indices];
         const unsigned triangles=e.index_count/3;
         const uint64_t io_end=uint64_t(e.io_lsa)+e.io_bytes;
@@ -266,7 +267,9 @@ public:
             auto& cell=cells[first_cell+way];
             if(cell.fingerprint==fingerprint && cell.index_count==e.index_count &&
                cell.source.size()==source.size && !memcmp(cell.source.data(),bytes,source.size)) {
-                for(unsigned corner=0;corner<3;++corner)
+                // The caller consumes this view before the next decode on this worker.
+                if (cached_indices) *cached_indices = cell.indices.data();
+                else for(unsigned corner=0;corner<3;++corner)
                     memcpy(output.component[corner],cell.indices.data()+corner*padded,padded*sizeof(uint16_t));
                 output.triangles=triangles;output.maximum_index=cell.maximum;
                 output.final_group_kept=5;output.ready=true;
@@ -286,8 +289,9 @@ public:
     }
 };
 inline bool decode_geometry_host_indices(const spu_context& c,const GeometryJobEntry& e,
-    GeometryHostIndexData& output,const char** reason=nullptr)
+    GeometryHostIndexData& output,const char** reason=nullptr, const uint16_t** cached_indices=nullptr)
 {
+    if (cached_indices) *cached_indices=nullptr;
 #if BUZZ_GEOMETRY_INDEX_CACHE
     static const bool enabled=[]{
         const char* v=std::getenv("BUZZ_INDEX_CACHE");
@@ -299,7 +303,7 @@ inline bool decode_geometry_host_indices(const spu_context& c,const GeometryJobE
             int(on),GeometryHostIndexCache::cell_count,GeometryHostIndexCache::ways);
         return on;
     }();
-    if(enabled){static thread_local GeometryHostIndexCache cache;return cache.decode(c,e,output,reason);}
+    if(enabled){static thread_local GeometryHostIndexCache cache;return cache.decode(c,e,output,reason,cached_indices);}
 #endif
     return decode_geometry_host_indices_uncached(c,e,output,reason);
 }

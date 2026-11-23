@@ -224,6 +224,11 @@ not CPU cycles. A requested timeout is not an observed sleep duration: compare
 both before attributing long frames to shader or geometry work. CSV collection
 is opt-in and must be kept identical in both arms of a comparison.
 
+On Linux, `drain_cpu_ms` measures CPU time spent by the RSX worker while
+draining the FIFO. Compare it with `drain_ms` on the same frame to estimate
+time spent blocked or descheduled during the drain. The CPU field is empty
+if the thread clock could not be read.
+
 On Windows the RSX worker waits on its existing FIFO kick event and a
 high-resolution one-shot timer when the 30 FPS cap is disabled. The capped
 path retains its SDK wait alongside the existing guest/present pacing.

@@ -40,6 +40,26 @@ cases=r'''
     gw32(IO_ADDR+0x6000,(1u<<18)|0x210);gw32(mutation_ea,0x12345678);
     s_fifo_getoff=0x6000;vm_write32(ctrl+4,0x6000);vm_write32(ctrl,0x6008);
     cellGcm_rsx_process_fifo();record(10,0,vm_read32(mutation_ea));mutation_ea=0;++cases;
+    /* Padding wraps the history ring. First stop partway through the run,
+     * then consume the remaining zeros and the method at the edge of the page. */
+    {
+        const u32 start = IO_SIZE - 512;
+        for (u32 offset = start; offset < IO_SIZE; offset += 4) gw32(IO_ADDR + offset, 0);
+        put_probe(IO_SIZE - 8, 0x37);
+        s_fifo_getoff = start;
+        vm_write32(ctrl + 4, start);
+        const u32 limits[] = {start + 12, IO_SIZE};
+        for (unsigned step = 0; step < 2; ++step) {
+            vm_write32(ctrl, limits[step]);
+            cellGcm_rsx_process_fifo();
+            record(12, s_fifo_getoff, s_last_ring_off);
+            for (unsigned i = 0; i < GCM_TRACE_N; ++i) {
+                u32 slot = (s_tr_i + i) % GCM_TRACE_N;
+                record(13, s_tr_off[slot], s_tr_w[slot]);
+            }
+            ++cases;
+        }
+    }
     /* A mapped header with an unmapped packet suffix must consume exactly
      * the mapped prefix, then advance GET just as the SDK does. */
     const u32 start=IO_SIZE-12;

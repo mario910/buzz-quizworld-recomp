@@ -85,6 +85,22 @@ int main(int argc,char** argv) {
     const int rounding[]={FE_TONEAREST,FE_DOWNWARD,FE_UPWARD,FE_TOWARDZERO};
     for(u32 mode=0;mode<4;++mode) {
         assert(fesetround(rounding[mode])==0);
+#if BUZZ_FETCH_SSE
+        for (u32 word = 0; word <= UINT16_MAX; ++word) {
+            u8 source[8], actual[16];
+            for (unsigned lane = 0; lane < 4; ++lane) {
+                const u16 value = (u16)(word + 31013u * lane);
+                source[2 * lane] = (u8)(value >> 8);
+                source[2 * lane + 1] = (u8)value;
+            }
+            for (unsigned size = 1; size <= 4; ++size) {
+                float expected[4];
+                assert(rsx_vertex_decode_element(RSX_VERTEX_TYPE_S1, size, source, expected));
+                buzz_fetch_snorm16(source, actual, size);
+                assert(!memcmp(expected, actual, sizeof actual));
+            }
+        }
+#endif
 #if BUZZ_FETCH_NEON || BUZZ_FETCH_SSE
         /* Every signed CMP component encoding, in every SIMD lane and all
          * rounding modes. Compare the actual stream path against the SDK. */

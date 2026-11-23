@@ -3,6 +3,9 @@
  * group; only that published tail is reproduced, without its LS pipeline. */
 #pragma once
 #include "native_geometry_host_index_job.h"
+#if defined(__SSSE3__) && !defined(__aarch64__)
+#include <tmmintrin.h>
+#endif
 
 namespace buzz {
 inline bool emit_geometry_host_indices(const GeometryHostIndexData& indices,
@@ -14,7 +17,35 @@ inline bool emit_geometry_host_indices(const GeometryHostIndexData& indices,
         return reject("host index output readiness/range");
     const unsigned logical = indices.triangles * 6, bytes = (logical + 15) & ~15u;
     if (capacity < bytes || (bytes && !destination)) return reject("host index output span");
-    for (unsigned triangle = 0; triangle < indices.triangles; ++triangle)
+    unsigned triangle = 0;
+#if defined(__SSSE3__) && !defined(__aarch64__)
+    // Each 16-byte result contains eight BE indices in A,B,C order.
+    // In each mask lane select the source byte from exactly one corner.
+    static constexpr auto masks = [] {
+        std::array<std::array<std::array<uint8_t,16>,3>,3> m{};
+        for (unsigned packet=0;packet<3;++packet)
+            for (unsigned corner=0;corner<3;++corner)
+                for (unsigned byte=0;byte<16;++byte) {
+                    const unsigned half=packet*8+byte/2;
+                    m[packet][corner][byte]=half%3==corner ? (half/3)*2+1-byte%2 : 128;
+                }
+        return m;
+    }();
+    for (; triangle+8<=indices.triangles; triangle+=8) {
+        __m128i source[3];
+        for (unsigned k=0;k<3;++k)
+            source[k]=_mm_loadu_si128(reinterpret_cast<const __m128i*>(indices.component[k]+triangle));
+        for (const auto& packet : masks) {
+            __m128i result = _mm_setzero_si128();
+            for (unsigned k=0;k<3;++k)
+                result=_mm_or_si128(result,_mm_shuffle_epi8(source[k],
+                    _mm_loadu_si128(reinterpret_cast<const __m128i*>(packet[k].data()))));
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(destination),result);
+            destination+=16;
+        }
+    }
+#endif
+    for (; triangle < indices.triangles; ++triangle)
         for (unsigned corner = 0; corner < 3; ++corner) {
             const unsigned value = indices.component[corner][triangle];
             *destination++ = uint8_t(value >> 8); *destination++ = uint8_t(value);

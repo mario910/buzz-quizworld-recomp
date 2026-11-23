@@ -1,0 +1,61 @@
+
+#include <assert.h>
+#include <stdio.h>
+
+static spu_context original, candidate;
+static uint8_t foreign[2][SPU_LS_SIZE];
+static uint32_t state = 0xc7136e05;
+static uint32_t word(void)
+{
+    state ^= state << 13;
+    state ^= state >> 17;
+    return state ^= state << 5;
+}
+
+int main(void)
+{
+    for (unsigned sample = 0; sample < 512; ++sample) {
+        for (unsigned i = 0; i < sizeof pairs / sizeof pairs[0]; ++i) {
+            const int external = sample % 7 == 0;
+            original.ls = external ? foreign[0] : original.ls_store;
+            for (unsigned n = 0; n < SPU_LS_SIZE; n += 4) {
+                uint32_t x = word();
+                memcpy(original.ls + n, &x, sizeof x);
+            }
+            for (unsigned reg = 0; reg < 128; ++reg)
+                for (unsigned lane = 0; lane < 4; ++lane)
+                    original.gpr[reg]._u32[lane] = word();
+            if (i < 3) original.gpr[14]._u32[0] = 1 + sample % 32;
+            if (sample % 2 == 0 && i >= 3) {
+                original.gpr[7]._u32[0] &= ~15u;
+                original.gpr[80]._u32[0] &= ~15u;
+                original.gpr[90]._u32[0] &= ~15u;
+            }
+            if (i == 4) {
+                /* The unmodified prologue builds these masks before this region. */
+                if (sample % 2 == 0) {
+                    original.gpr[1]._u32[0] &= ~15u;
+                    original.gpr[10]._u32[0] &= ~15u;
+                    original.gpr[9]._u32[0] &= ~15u;
+                }
+                original.gpr[20] = spu_cwd(original.gpr[1], 8);
+                original.gpr[19] = spu_cwd(original.gpr[1], 0);
+                original.gpr[15] = spu_cwx(original.gpr[10], original.gpr[9]);
+                original.gpr[18] = spu_cwd(original.gpr[1], 4);
+                original.gpr[21] = spu_cwd(original.gpr[1], 12);
+            }
+            if (sample % 3 == 0)
+                for (unsigned reg = 42; reg < 45; ++reg)
+                    original.gpr[reg]._u32[0] = original.gpr[2]._u32[0];
+            memcpy(&candidate, &original, sizeof original);
+            candidate.ls = external ? foreign[1] : candidate.ls_store;
+            if (external) memcpy(candidate.ls, original.ls, SPU_LS_SIZE);
+            pairs[i][0](&original);
+            pairs[i][1](&candidate);
+            assert(!memcmp(original.ls, candidate.ls, SPU_LS_SIZE));
+            candidate.ls = original.ls;
+            assert(!memcmp(&original, &candidate, sizeof original));
+        }
+    }
+    puts("PASS: 3072 complete SPU record states, owned and external LS, overlapping buckets and wraparound");
+}

@@ -9,7 +9,7 @@ parser.add_argument('workspace', type=Path)
 args = parser.parse_args()
 root = args.workspace.resolve()
 base = [os.environ.get('CC', 'clang'), '-E', '-mavx2', '-mfma',
-        '-I'+str(root/'ps3recomp/include'), '-I'+str(root/'ps3recomp/runtime/spu'),
+        '-I'+str(root/'port'), '-I'+str(root/'ps3recomp/include'), '-I'+str(root/'ps3recomp/runtime/spu'),
         '-include', str(root/'port/spu_shuffle.h')]
 for name in ('compressor', 'mixer', 'atrac'):
     kernel = str(root/f'analysis/native-audio-{name}/kernel.c')

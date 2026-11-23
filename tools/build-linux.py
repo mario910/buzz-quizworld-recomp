@@ -66,7 +66,7 @@ def native_adapters(analysis, image39_fast=False, image39_native=False):
 def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geometry_cpu=False, media_cpu=False,
           spurs_input_clear=False, spu_job_return=False, zen2_tune=False, geometry_zero_padding=False, dma_diagnostics_optin=False,
           geometry_index_cache=False, geometry_scalar_gather=False, audio_x86_rtz=False, pgo_profile=None,
-          renderer_bundle=False, image39_fast=False, image39_native=False):
+          renderer_bundle=False, image39_fast=False, image39_native=False, ppu_columns="none"):
     if pgo_profile is not None:
         if not native_jobs:
             raise ValueError("Scoped PGO requires --native-jobs.")
@@ -78,6 +78,9 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     if generation["elf_sha256"] != profile.elf_sha256 or generation["family"] != profile.adapter_family:
         raise ValueError("The generated translations do not match the selected executable.")
     disc = profile.adapter_family != "quizworld-102-verified"
+    native_ppu = native_jobs and zen2_tune and profile.adapter_family == "quizworld-eu100"
+    if ppu_columns != "none" and not native_ppu:
+        raise ValueError("PPU column kernels require the EU 1.00 profile, --native-jobs and --zen2-tune.")
     if native_jobs and not disc:
         raise ValueError("Native whole-job adapters require a supported original-disc 1.00 profile.")
     if geometry_cpu and not native_jobs:
@@ -121,6 +124,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         "BUZZ_PGO_MODE": "USE" if pgo_profile is not None else "OFF",
         "BUZZ_PGO_PROFILE": pgo_profile if pgo_profile is not None else "",
         "BUZZ_GEOMETRY_ZERO_VERTEX_PADDING": "ON" if geometry_zero_padding else "OFF",
+        "PORT_PPU_KERNEL_DIR": "",
         "PORT_COMPLETION_SOURCE": analysis / "native-completion" / completion,
         "PORT_HOST_PROFILE_DIR": analysis / "host-disc100/port" if disc else "",
         "PORT_MSTREAM_DIR": analysis / "mstream-modules",
@@ -131,6 +135,14 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     # a reused CMake cache must not silently keep a candidate's native paths.
     options.update({key: "" for key in ("PORT_GEOMETRY_SOURCE", "PORT_IMAGE7_SOURCE",
                     "PORT_IMAGE36_SOURCE", "PORT_IMAGE39_SOURCE", "PORT_IMAGE40_SOURCE")})
+    options["PORT_SPU_RECORDS_DIR"] = ""
+    if native_ppu:
+        records_dir = analysis / "native-spu-records"
+        python("tools/codegen/generate-spu-records.py", ROOT / "port/spu", records_dir)
+        options["PORT_SPU_RECORDS_DIR"] = records_dir
+        kernel_dir = analysis / "native-ppu"
+        python("tools/codegen/generate-ppu-kernels.py", ROOT / "port/recompiled", kernel_dir, "--ppu-columns", ppu_columns)
+        options["PORT_PPU_KERNEL_DIR"] = kernel_dir
     if native_jobs:
         options.update(native_adapters(analysis, image39_fast, image39_native))
     options.update({key: "" for key in ("PORT_VIDEO_IDCT_SOURCE", "PORT_AUDIO_COMPRESSOR_SOURCE",
@@ -202,7 +214,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         exe_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
         native_jobs=native_jobs, renderer_cpu=renderer_cpu, geometry_cpu=geometry_cpu, media_cpu=media_cpu,
         spurs_input_clear=spurs_input_clear, spu_job_return=spu_job_return,
-        zen2_tune=zen2_tune, dma_diagnostics_optin=dma_diagnostics_optin,
+        zen2_tune=zen2_tune, ppu_columns=ppu_columns, dma_diagnostics_optin=dma_diagnostics_optin,
         geometry_zero_padding=geometry_zero_padding, geometry_index_cache=geometry_index_cache,
         geometry_scalar_gather=geometry_scalar_gather, audio_x86_rtz=audio_x86_rtz,
         renderer_bundle=renderer_bundle, image39_fast=image39_fast, image39_native=image39_native,
@@ -223,6 +235,8 @@ def main():
     parser.add_argument("--spu-job-return", action="store_true", help="Opt in to the guarded native SPURS job-return adapter")
     parser.add_argument("--pgo-profile", type=Path, help="Use a private merged Clang profile for runtime/native optimization; requires --native-jobs")
     parser.add_argument("--zen2-tune", action="store_true", help="Tune Linux runtime/native host paths for Zen 2 with -O3, preserving strict FP")
+    parser.add_argument("--ppu-columns", choices=("none", "matrices", "rotations", "all"), default="none",
+                        help="Experimental EU 1.00 PPU matrix and rotation kernels for Zen 2")
     parser.add_argument("--geometry-zero-padding", action="store_true", help="Zero only unindexed vertex alignment bytes to avoid padding-only native fallbacks; requires --native-jobs")
     parser.add_argument("--dma-diagnostics-optin", action="store_true", help="Make the DMA poison logging scan opt-in via BUZZ_DMA_POISON_SCAN=1")
     parser.add_argument("--image39-native", action="store_true", help="Image 39 native object bounds + descriptor requests (kernels adapter) and checked FP by default; Deck ABBA: heavy menu +2.5%%, reveal +3.3%%")
@@ -244,7 +258,7 @@ def main():
               dma_diagnostics_optin=args.dma_diagnostics_optin, geometry_index_cache=args.geometry_index_cache,
               geometry_scalar_gather=args.geometry_scalar_gather, audio_x86_rtz=args.audio_x86_rtz,
               pgo_profile=args.pgo_profile, renderer_bundle=args.renderer_bundle,
-              image39_fast=args.image39_fast, image39_native=args.image39_native)
+              image39_fast=args.image39_fast, image39_native=args.image39_native, ppu_columns=args.ppu_columns)
 
 
 if __name__ == "__main__":

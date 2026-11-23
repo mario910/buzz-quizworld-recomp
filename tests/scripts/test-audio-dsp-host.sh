@@ -14,7 +14,7 @@ out=$(mktemp -d)
 trap 'rm -f -- "$out/test" "$out/wrapper" "$out/atrac"; rmdir -- "$out"' EXIT
 python3 "$root/tools/codegen/generate-audio-compressor.py" --workspace "$workspace" --include-mixer --include-atrac $audio_generator_flags
 "${CC:-cc}" $audio_compiler_flags -O2 -g -ffp-contract=off -DSPU_LS_DEBUG_HOOKS=0 -DSPU_LS_FAST=1 \
-    -fsanitize=address,undefined -I"$workspace/ps3recomp/runtime/spu" -I"$workspace/ps3recomp/include" \
+    -fsanitize=address,undefined -I"$root/port" -I"$workspace/ps3recomp/runtime/spu" -I"$workspace/ps3recomp/include" \
     "$workspace/analysis/native-audio-compressor/kernel.c" \
     "$workspace/analysis/native-audio-compressor/oracle.c" \
     "$workspace/analysis/native-audio-compressor/baseline.c" \
@@ -24,7 +24,7 @@ python3 "$root/tools/codegen/generate-audio-compressor.py" --workspace "$workspa
     "$root/tests/audio-compressor-test.c" -lm -o "$out/test"
 "$out/test"
 "${CC:-cc}" $audio_compiler_flags -O2 -g -ffp-contract=off -DSPU_LS_DEBUG_HOOKS=0 -DSPU_LS_FAST=1 \
-    -fsanitize=address,undefined -I"$workspace/ps3recomp/runtime/spu" -I"$workspace/ps3recomp/include" \
+    -fsanitize=address,undefined -I"$root/port" -I"$workspace/ps3recomp/runtime/spu" -I"$workspace/ps3recomp/include" \
     "$workspace/analysis/native-audio-atrac/kernel.c" "$workspace/analysis/native-audio-atrac/oracle.c" \
     "$root/tests/audio-atrac-test.c" -lm -o "$out/atrac"
 "$out/atrac"

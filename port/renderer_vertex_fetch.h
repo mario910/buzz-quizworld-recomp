@@ -75,8 +75,33 @@ static inline void buzz_fetch_half(const u8* source,u8* out,unsigned size) {
 #endif
 }
 
+#if BUZZ_FETCH_SSE
+static inline void buzz_fetch_snorm16(const u8* source, u8* out, unsigned size)
+{
+    // Missing XYZ components are zero. A missing W expands to one.
+    u8 words[8] = {0, 0, 0, 0, 0, 0, 0x7f, 0xff};
+    memcpy(words, source, size * 2u);
+    const __m128i be = _mm_loadl_epi64((const __m128i*)words);
+    const __m128i native = _mm_or_si128(_mm_slli_epi16(be, 8), _mm_srli_epi16(be, 8));
+    const __m128i signed_words = _mm_srai_epi32(_mm_unpacklo_epi16(native, native), 16);
+    // The RSX decoder also divides -32768 by 32767 without clamping.
+    const __m128 values = _mm_div_ps(_mm_cvtepi32_ps(signed_words), _mm_set1_ps(32767.0f));
+    _mm_storeu_si128((__m128i*)out, _mm_castps_si128(values));
+}
+#endif
+
 static inline void buzz_fetch_cmp(const u8* source,u8* out) {
     const u32 word=((u32)source[0]<<24)|((u32)source[1]<<16)|((u32)source[2]<<8)|source[3];
+#if BUZZ_FETCH_SSE
+    const __m128i packed = _mm_set1_epi32((int)word);
+    const __m128i x = _mm_srai_epi32(_mm_slli_epi32(packed,21),21);
+    const __m128i y = _mm_srai_epi32(_mm_slli_epi32(packed,10),21);
+    const __m128i z = _mm_srai_epi32(packed,22);
+    const __m128i xyz = _mm_unpacklo_epi64(_mm_unpacklo_epi32(x,y),
+                                            _mm_unpacklo_epi32(z,_mm_set1_epi32(1)));
+    const __m128 value = _mm_div_ps(_mm_cvtepi32_ps(xyz), _mm_setr_ps(1023,1023,511,1));
+    _mm_storeu_si128((__m128i*)out, _mm_castps_si128(value));
+#else
     s32 xyz[4]={(s32)(word&0x7ff),(s32)((word>>11)&0x7ff),(s32)(word>>22),1};
     if(xyz[0]&0x400)xyz[0]-=0x800;
     if(xyz[1]&0x400)xyz[1]-=0x800;
@@ -84,11 +109,9 @@ static inline void buzz_fetch_cmp(const u8* source,u8* out) {
 #if BUZZ_FETCH_NEON
     const float denominators[4]={1023,1023,511,1};
     vst1q_u8(out,vreinterpretq_u8_f32(vdivq_f32(vcvtq_f32_s32(vld1q_s32(xyz)),vld1q_f32(denominators))));
-#elif BUZZ_FETCH_SSE
-    const __m128 value=_mm_div_ps(_mm_cvtepi32_ps(_mm_loadu_si128((const __m128i*)xyz)),_mm_setr_ps(1023,1023,511,1));
-    _mm_storeu_si128((__m128i*)out,_mm_castps_si128(value));
 #else
     float v[4]={xyz[0]/1023.0f,xyz[1]/1023.0f,xyz[2]/511.0f,1};memcpy(out,v,16);
+#endif
 #endif
 }
 
@@ -176,6 +199,9 @@ static inline int buzz_vertex_fetch_many(const rsx_vertex_fetch_plan* plan,
         case 4: BUZZ_FETCH_LOOP(function(source,destination,4));break; \
     }
         switch(f->desc.type) {
+#if BUZZ_FETCH_SSE
+        case RSX_VERTEX_TYPE_S1: BUZZ_FETCH_SIZES(buzz_fetch_snorm16);break;
+#endif
         case RSX_VERTEX_TYPE_F: BUZZ_FETCH_SIZES(buzz_fetch_float);break;
         case RSX_VERTEX_TYPE_SF: BUZZ_FETCH_SIZES(buzz_fetch_half);break;
         case RSX_VERTEX_TYPE_CMP: BUZZ_FETCH_LOOP(buzz_fetch_cmp(source,destination));break;

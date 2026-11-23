@@ -6,7 +6,36 @@ static void word(u8* p,u32 h) {
     u32 be=(h<<16)|(h>>16);
     p[0]=be>>24;p[1]=be>>16;p[2]=be>>8;p[3]=be;
 }
+
+static void check_program_size_flags(void)
+{
+    u8 storage[64 + 15];
+    assert(rsx_fp_program_size(NULL, sizeof storage) == 0);
+    for (unsigned alignment = 0; alignment < 16; ++alignment) {
+        u8* code = storage + alignment;
+        for (unsigned types = 0; types < 64; ++types) {
+            memset(code, 0xff, 64);
+            word(code, 0xfffffffeu);
+            unsigned second = 16;
+            for (unsigned source = 0; source < 3; ++source) {
+                unsigned type = (types >> (2 * source)) & 3;
+                word(code + 4 * (1 + source), 0xfffffffcu | type);
+                if (type == 2) second = 32;
+            }
+            // Each constant slot contains a false END if read as an instruction.
+            word(code + second, 1);
+            word(code + second + 4, 2);
+            for (unsigned limit = 0; limit <= 64; ++limit) {
+                unsigned expected = 0;
+                if (limit >= second + 16) expected = second + 16;
+                if (limit >= second + 32) expected = second + 32;
+                assert(rsx_fp_program_size(code, limit) == expected);
+            }
+        }
+    }
+}
 int main(void) {
+    check_program_size_flags();
     enum {COUNT=RSX_D3D12_FP_CONSTANTS,BYTES=COUNT*32};
     u8 code[BYTES]; memset(code,0,sizeof code);
     for(unsigned i=0;i<COUNT;++i) {

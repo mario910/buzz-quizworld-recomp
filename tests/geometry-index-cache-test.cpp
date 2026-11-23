@@ -41,6 +41,18 @@ int main(int argc,char** argv) {
         GeometryJobEntry e;assert(read_geometry_job_entry(*c,e));++jobs;
         const bool ok=compare(e);assert(compare(e)==ok);admitted+=ok;
         if(!ok)continue;
+        // A hit may lend immutable corners until this worker's next decode.
+        // Leave the output scratch poisoned so accidental copying is visible.
+        const uint16_t* borrowed=nullptr;
+        memset(actual->component,0xa5,sizeof(actual->component));
+        assert(cache.decode(*c,e,*actual,nullptr,&borrowed));
+        if (borrowed) {
+            const unsigned stride=(actual->triangles+7)&~7u;
+            for (unsigned corner=0;corner<3;++corner) {
+                assert(actual->component[corner][0]==0xa5a5);
+                assert(!memcmp(borrowed+corner*stride,expected->component[corner],stride*sizeof(uint16_t)));
+            }
+        }
         // A warmed cache must revalidate source bytes, codec and entry spans.
         const unsigned source=e.input[GeometryJobEntry::indices].lsa,size=e.input[GeometryJobEntry::indices].size;
         if(collision_sets<32 && size>64 && size<=8192) {

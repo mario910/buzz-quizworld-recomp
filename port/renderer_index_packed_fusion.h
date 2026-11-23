@@ -47,11 +47,75 @@ static void buzz_index_swap_minmax(const u8* src,u32 n,u16* dst,u32* lo_out,u32*
     if(*lo_out>lo)*lo_out=lo;
     if(*hi_out<hi)*hi_out=hi;
 }
+
+/* Per four memberships, prefix gives the sorted ordinal within the group
+ * and offset lists the selected vertices in order. */
+static const struct { u8 prefix[4], offset[4], count; } buzz_rank_group[16] = {
+    {{0,0,0,0},{0,0,0,0},0},
+    {{0,1,1,1},{0,0,0,0},1},
+    {{0,0,1,1},{1,0,0,0},1},
+    {{0,1,2,2},{0,1,0,0},2},
+    {{0,0,0,1},{2,0,0,0},1},
+    {{0,1,1,2},{0,2,0,0},2},
+    {{0,0,1,2},{1,2,0,0},2},
+    {{0,1,2,3},{0,1,2,0},3},
+    {{0,0,0,0},{3,0,0,0},1},
+    {{0,1,1,1},{0,3,0,0},2},
+    {{0,0,1,1},{1,3,0,0},2},
+    {{0,1,2,2},{0,1,3,0},3},
+    {{0,0,0,1},{2,3,0,0},2},
+    {{0,1,1,2},{0,2,3,0},3},
+    {{0,0,1,2},{1,2,3,0},3},
+    {{0,1,2,3},{0,1,2,3},4},
+};
+
+__attribute__((target("sse4.1")))
+static u32 buzz_index_sparse_ranks(u8* mark, u32 range, u32 lo, u32 base,
+                                  u32* rank, rsx_vertex_ref* output, u32 count)
+{
+    u32 unique = 0, k = 0;
+    const __m128i zero = _mm_setzero_si128(), bases = _mm_set1_epi32(base);
+    /* Four-wide stores may overlap the following group. Reserve enough
+     * output for all sixteen lanes, even if the last group selects none. */
+    for (; k + 16 <= range && unique + 16 <= count; k += 16) {
+        __m128i values = _mm_loadu_si128((const __m128i*)(mark + k));
+        unsigned mask = (unsigned)_mm_movemask_epi8(_mm_cmpgt_epi8(values, zero));
+        _mm_storeu_si128((__m128i*)(mark + k), zero);
+        if (!mask) continue;
+        if (mask == 0xffff) {
+            for (unsigned j=0;j<16;++j) {
+                rank[k+j]=unique+j;
+                output[unique+j]=(rsx_vertex_ref){lo+k+j,base};
+            }
+            unique+=16;
+            continue;
+        }
+        for (unsigned g = 0; g < 16; g += 4, mask >>= 4) {
+            unsigned m = mask & 15;
+            if (!m) continue;
+            __m128i prefix = _mm_cvtepu8_epi32(_mm_loadu_si32(buzz_rank_group[m].prefix));
+            _mm_storeu_si128((__m128i*)(rank + k + g), _mm_add_epi32(prefix,_mm_set1_epi32(unique)));
+            __m128i offsets = _mm_cvtepu8_epi32(_mm_loadu_si32(buzz_rank_group[m].offset));
+            __m128i ids = _mm_add_epi32(offsets,_mm_set1_epi32(lo+k+g));
+            _mm_storeu_si128((__m128i*)(output+unique),_mm_unpacklo_epi32(ids,bases));
+            _mm_storeu_si128((__m128i*)(output+unique+2),_mm_unpackhi_epi32(ids,bases));
+            unique += buzz_rank_group[m].count;
+        }
+    }
+    for (; k < range; ++k) {
+        if (mark[k]) {
+            mark[k] = 0;
+            rank[k] = unique;
+            output[unique++] = (rsx_vertex_ref){lo + k, base};
+        }
+    }
+    return unique;
+}
 #endif
 
 typedef struct {
     u16 native[65536];  /* byte-swapped copy of the draw's indices */
-    u8 mark[65536];     /* indexed by index - lowest index */
+    u8 mark[65536];     /* indexed by absolute vertex ID; clear every touched range */
     u32 rank[65536];
 } buzz_index_rank_scratch;
 
@@ -121,15 +185,18 @@ static int buzz_index_packed_spans(buzz_index_packed_scratch* scratch,
         }
         const u32 range=hi-lo+1;
         if(range<=4u*count+256u) {
-            u8* const mark=rs->mark;u32* const rank=rs->rank;
-            for(u32 i=0;i<count;++i)mark[native[i]-lo]=1;
+            u8* const mark=rs->mark+lo;u32* const rank=rs->rank+lo;
+            for(u32 i=0;i<count;++i)rs->mark[native[i]]=1;
             rsx_vertex_ref* const output=*refs;
-            u32 unique=0;
-            for(u32 k=0;k<range;++k) {
-                rank[k]=unique;
-                output[unique].vertex_id=lo+k;output[unique].base_index=base;
-                unique+=mark[k];mark[k]=0;
-            }
+            // A fully populated interval has rank(index) = index - lo.
+            const int dense = range <= count && memchr(mark, 0, range) == NULL;
+            u32 unique = 0;
+            if (dense) {
+                unique = range;
+                memset(mark, 0, range);
+                if (unique != count) for (u32 k = 0; k < range; ++k)
+                    output[k] = (rsx_vertex_ref){lo + k, base};
+            } else unique = buzz_index_sparse_ranks(mark,range,lo,base,rank,output,count);
             u32* const occurrences=remap->occurrence_to_unique;
             if(unique==count) {
                 /* No repeats: the caller draws refs in order, so keep the
@@ -138,8 +205,10 @@ static int buzz_index_packed_spans(buzz_index_packed_scratch* scratch,
                     output[i].vertex_id=native[i];output[i].base_index=base;
                     occurrences[i]=i;
                 }
+            } else if (dense) {
+                for (u32 i = 0; i < count; ++i) occurrences[i] = native[i] - lo;
             } else {
-                for(u32 i=0;i<count;++i)occurrences[i]=rank[native[i]-lo];
+                for(u32 i=0;i<count;++i)occurrences[i]=rs->rank[native[i]];
             }
             *unique_count=unique;
             if(buzz_index_rank_check()) {

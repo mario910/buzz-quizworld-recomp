@@ -87,11 +87,11 @@ inline void publish_geometry_host_commands(spu_context& ctx,const GeometryComman
     ctx.gpr[3]=initial_record;
     if(end!=p.start) for(;;) {
         const bool more=end>previous,same_block=start_block==end_block;
-        const auto quad=geometry_output_quad(ctx,next&(SPU_LS_SIZE-16));
-        const unsigned word=geometry_job_be32(ctx.ls+(next&(SPU_LS_SIZE-4)));
         ctx.gpr[3]=spu_ceq(start_vector,end_vector);
         start_vector=spu_andi(next_vector,-128);start_block=next&~127u;
         if(!more)break;
+        const auto quad=geometry_output_quad(ctx,next&(SPU_LS_SIZE-16));
+        const unsigned word=quad._u32[(next >> 2) & 3];
         const uint32_t old_header=header,old_address=previous;
         const auto old_previous=previous_vector;
         const auto header_vector=spu_rotqby(quad,next_vector);

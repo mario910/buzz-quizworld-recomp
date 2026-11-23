@@ -82,12 +82,15 @@ inline void geometry_host_blend_set(GeometryHostInputData& d, const GeometryHost
 inline bool geometry_host_blend_decode(const spu_context& c, uint32_t source, unsigned stride,
     unsigned storage, unsigned components, unsigned count, GeometryHostSoA8* out, const char** why)
 {
+    if (storage == 3) {
+        decode_geometry_host_half_stream(c.ls, source, stride, components, count, out);
+        return true;
+    }
     for (unsigned first = 0; first < count; first += 8) {
         const unsigned active = count - first < 8 ? count - first : 8;
         const uint32_t at = source + first * stride;
         GeometryHostSoA8 block;
         if (storage == 2) block = decode_geometry_host_floats8(c.ls + at, stride, components, active);
-        else if (storage == 3) block = decode_geometry_host_half_stream8(c.ls, at, stride, components, active);
         else if (storage == 9) {
             const v8 words = geometry_host_unit_words8(c.ls + at, stride, active);
             if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(_mm256_and_si256(words, v8_set(15)), v8_set(11)))) {
@@ -179,16 +182,18 @@ inline void geometry_host_blend_scatter_distinct(GeometryHostBlendNative& n, uns
             for (unsigned k = 0; k < 4; ++k) block.component[k] = v8_fma(s.component[k], w, block.component[k]);
             continue;
         }
+        uint32_t* destinations[8];
         alignas(32) uint32_t lanes[4][8] = {};
         for (unsigned j = 0; j < active; ++j) {
-            const uint32_t* p = geometry_host_blend_lane(d, r, field, dest[first + j]);
+            auto* p = geometry_host_blend_lane(d, r, field, dest[first + j]);
+            destinations[j] = p;
             for (unsigned k = 0; k < 4; ++k) lanes[k][j] = p[k * 8];
         }
         for (unsigned k = 0; k < 4; ++k)
             _mm256_store_si256(reinterpret_cast<v8*>(lanes[k]),
                 v8_fma(s.component[k], w, _mm256_load_si256(reinterpret_cast<const v8*>(lanes[k]))));
         for (unsigned j = 0; j < active; ++j) {
-            uint32_t* p = geometry_host_blend_lane(d, r, field, dest[first + j]);
+            uint32_t* p = destinations[j];
             for (unsigned k = 0; k < 4; ++k) p[k * 8] = lanes[k][j];
         }
     }

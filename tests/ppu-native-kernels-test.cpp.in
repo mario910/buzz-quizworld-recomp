@@ -1,0 +1,367 @@
+/*LIFT_HEADERS*/
+#include <array>
+#include <algorithm>
+#include <vector>
+#include <cstdio>
+#include <cstdlib>
+#include <random>
+#include <immintrin.h>
+using Mem = std::array<uint8_t, 32768>;
+static Mem mem, initial;
+struct Event {
+    uint64_t address;
+    unsigned bytes;
+    bool store;
+};
+static bool operator==(Event a, Event b)
+{
+    return a.address == b.address && a.bytes == b.bytes && a.store == b.store;
+}
+static std::vector<Event> events;
+
+static void note(uint64_t a, unsigned n, bool w) { events.push_back({ a, n, w }); }
+static uint64_t read_be(uint64_t a, unsigned n)
+{
+    note(a, n, false);
+    uint64_t v = 0;
+    for (unsigned i = 0; i < n; ++i)
+        v = v * 256 + mem[(a + i) % mem.size()];
+    return v;
+}
+static void write_be(uint64_t a, unsigned n, uint64_t v)
+{
+    note(a, n, true);
+    for (unsigned i = n; i--;) {
+        mem[(a + i) % mem.size()] = v;
+        v >>= 8;
+    }
+}
+#undef vm_read8
+#undef vm_read32
+#undef vm_write8
+#undef vm_write32
+#define vm_read8(a) ((uint8_t)read_be(a, 1))
+#define vm_read32(a) ((uint32_t)read_be(a, 4))
+#define vm_write8(a, v) write_be(a, 1, uint8_t(v))
+#define vm_write32(a, v) write_be(a, 4, uint32_t(v))
+#define vm_raw_ld16(d, a)                                                                                    \
+    do {                                                                                                     \
+        note(a, 16, false);                                                                                  \
+        memcpy(d, mem.data() + ((a) % mem.size()), 16);                                                      \
+    } while (0)
+#define vm_raw_st16(a, s)                                                                                    \
+    do {                                                                                                     \
+        note(a, 16, true);                                                                                   \
+        memcpy(mem.data() + ((a) % mem.size()), s, 16);                                                      \
+    } while (0)
+#undef vm_read16
+#undef vm_read64
+#undef vm_write16
+#undef vm_write64
+#define vm_read16(a) ((uint16_t)read_be(a, 2))
+#define vm_read64(a) read_be(a, 8)
+#define vm_write16(a, v) write_be(a, 2, uint16_t(v))
+#define vm_write64(a, v) write_be(a, 8, v)
+extern "C" { PPU_THREAD_LOCAL void (*g_trampoline_fn)(void*) = nullptr; }
+#include "native_ppu_jobs.h"
+// Compile the production producers against the ordered memory oracle above.
+#include "native_ppu_scene.cpp"
+#include "native_ppu_columns.h"
+// Distinct continuations for the animation producer's tail calls.
+void func_002DDC50(ppu_context*) { note(1, 0, false); }
+void func_002DDBF8(ppu_context*) { note(2, 0, false); }
+void func_002B67E8(ppu_context*) { note(3, 0, false); }
+#include "native_ppu_permute.h"
+/*REFERENCE*/
+static std::mt19937 rng(64123);
+static void compare(
+    const char* label, unsigned i, ppu_context c, void (*old)(ppu_context*), void (*fast)(ppu_context*))
+{
+    initial = mem;
+    auto ref = c;
+    events.clear();
+    unsigned control = _mm_getcsr();
+    const auto pending = g_trampoline_fn;
+    old(&ref);
+    const auto remaining = g_trampoline_fn;
+    g_trampoline_fn = pending;
+    auto output = mem;
+    auto log = events;
+    unsigned flags = _mm_getcsr();
+    _mm_setcsr(control);
+    mem = initial;
+    events.clear();
+    fast(&c);
+    if (g_trampoline_fn != remaining || mem != output || memcmp(&c, &ref, sizeof c) || log != events || flags != _mm_getcsr()) {
+        fprintf(stderr, "%s case %u ctx=%d memory=%d trace=%d flags=%x/%x\n", label, i,
+            !!memcmp(&c, &ref, sizeof c), mem != output, log != events, flags, _mm_getcsr());
+        for (int j = 0; j < 32; j++) {
+            if (c.gpr[j] != ref.gpr[j])
+                fprintf(stderr, "r%d %llx/%llx\n", j, (unsigned long long)c.gpr[j],
+                    (unsigned long long)ref.gpr[j]);
+            if (memcmp(&c.vr[j], &ref.vr[j], 16))
+                fprintf(stderr, "v%d differs\n", j);
+        }
+        exit(1);
+    }
+}
+static void pending_job_callback(void* context)
+{
+    auto& c = *static_cast<ppu_context*>(context);
+    write_be(c.gpr[28] + 0x114, 4, c.lr);
+    c.gpr[27] ^= c.gpr[24];
+}
+
+static void compare_jobs(ppu_context c, unsigned i)
+{
+    // The prologue copies the slot count to r28 before entering the kernel.
+    c.gpr[28] = c.gpr[6] = (uint64_t(rng()) << 32) | (i % 6);
+    c.gpr[5] = 0x100;
+    c.gpr[31] = i % 4 ? 0x1000 : 0x700;
+    for (unsigned j = 0; j < 4; ++j) {
+        const unsigned obj = 0x2000 + j * 0x600, table = 0x6000 + j * 0x140;
+        write_be(0x100 + 4*j, 4, obj);
+        write_be(obj + 0x4a4, 4, table);
+        write_be(obj + 0x4ae, 1, j);
+        write_be(table + 0x20, 4, 0x40);
+        write_be(table + 0x24, 4, 0xa0);
+        write_be(table + 0x48 + 24*j, 1, j);
+        write_be(table + 0xa0 + 8*j, 4, 0x700 + 0x80*j);
+        write_be(0x714 + 0x80*j, 4, 0x26);
+        write_be(0x718 + 0x80*j, 4, rng());
+        write_be(0x72a + 0x80*j, 2, rng());
+    }
+    compare("pack", i, c, ref_pack, new_pack);
+    c.gpr[28] = 0x4000;
+    write_be(0x4014, 4, i % 3 == 0 ? 2 : rng());
+    c.gpr[3] = i % 3 ? c.gpr[31] + 0x80 : 0x2400;
+    c.gpr[4] = c.gpr[31];
+    compare("stream", i, c, ref_stream, new_stream);
+    c.gpr[23] = 0x4200;
+    c.gpr[22] = i % 5 ? 0x6000 : 0x1000;
+    c.gpr[30] = 0;
+    c.gpr[29] = i % 7 == 0 ? 0x34567890 : 0;
+    c.gpr[26] = 1 + i % 4;
+    c.gpr[27] = rng();
+    write_be(0x4340, 4, 0x100);
+    write_be(0x4310, 4, 0x1000);
+    for (unsigned j = 0; j < 4; ++j) {
+        unsigned obj = 0x2000 + j * 0x600;
+        write_be(obj + 0x4ac, 1, 3);
+        for (unsigned k = 0; k < 3; ++k)
+            write_be(obj + 0x4b0 + 96*k, 4, (i+j+k)%4 ? rng() : 0);
+    }
+    g_trampoline_fn = i % 13 == 0 ? pending_job_callback : nullptr;
+    compare("collect", i, c, ref_collect, new_collect);
+    c.gpr[25] = 0x4300;
+    c.gpr[30] = 0;
+    c.gpr[29] = 1 + i % 4;
+    c.gpr[31] = i % 3;
+    c.gpr[26] = 3;
+    write_be(0x4304, 4, 0x100);
+    for (unsigned j = 0; j < 4; ++j) {
+        unsigned obj = 0x2000 + j * 0x600;
+        write_be(obj + 0x108, 4, 0x400 + 0x200*j);
+        write_be(0x510 + 0x200*j, 4, (i+j)%6);
+        write_be(obj + 0x116, 1, (i+j)%9 == 0);
+        write_be(obj + 0x115, 1, (i+j)%2);
+    }
+    compare("filter", i, c, ref_filter, new_filter);
+    c.gpr[29] = 4 + i % 5;
+    c.gpr[31] = 0x1080;
+    c.gpr[30] = 0x1200;
+    for (unsigned j = 0; j < 5; ++j) {
+        const unsigned mode = (i+j)%8, track = 0x2000 + j*0x600, state = track + 0x80;
+        write_be(0x1080 + 4*j, 4, mode ? track : 0);
+        write_be(0x10a4 + 4*j, 4, state);
+        write_be(track + 0x14, 4, 0x24);
+        write_be(state + 0x11a, 1, mode == 1 || mode == 2);
+        write_be(state + 0x11b, 1, j % 2);
+        write_be(state + 0x224, 4, mode == 1 ? i%2 : 7);
+        write_be(state + 0x117, 1, mode == 3);
+        write_be(track + 0x28, 4, mode == 7 ? rng() : 0x3fc00000);
+        write_be(0x1200 + 16*j, 4, mode == 6 ? 0x40200000 : mode == 7 ? rng() : 0x3f800000);
+    }
+    if (i % 4) { c.fpr[30] = 0.75; c.fpr[31] = 0.25; }
+    compare("tracks", i, c, ref_tracks, new_tracks);
+}
+static void compare_scene(ppu_context c, unsigned i)
+{
+    c.gpr[31] = 0x2400;
+    if (i % 3 == 0) c.gpr[24] = c.gpr[31] + 0x94 - 0x24c;
+    if (i % 5 == 0) c.gpr[30] = c.gpr[31] + 0x78 - 0x1a4;
+    compare("scene descriptor", i, c, ref_scene, new_scene);
+    c.gpr[3] = i % 2 ? 0xfffffcb0ull : 0x1000;
+    for (unsigned j = 0; j < 4; ++j) {
+        const uint32_t object = (i >> j) & 1 ? rng() : 0;
+        write_be(c.gpr[3] + 0xcb4 + 4*j, 4, object);
+    }
+    compare("object DMA ranges", i, c, ref_ranges, new_ranges);
+
+    c.gpr[8] = i % 2 ? UINT32_MAX : 0;
+    c.gpr[29] = i % 3 ? 0x2000 : 0xffffffc0;
+    c.gpr[30] = 0x7000;
+    c.gpr[1] = 0x1000;
+    constexpr unsigned actions[] = {0x293128, 0x293254, 0x293288};
+    for (unsigned j = 0; j < 3; ++j) write_be(0x7000 + 4*j, 4, actions[j] - 0x7000);
+    const unsigned terminal = i % 2 ? 28 : 19;
+    write_be(0x7000 + 4*(terminal-4), 4, rng() | 1); // Also exercise unaligned/unknown targets.
+    unsigned n = i % 8;
+    for (unsigned j = 0; j < n; ++j) {
+        const unsigned kind = (i+j)%4;
+        write_be(c.gpr[29] + (uint32_t(c.gpr[8] + j) << 4), 4, kind == 3 ? 0 : 4+kind);
+    }
+    // Set/clear controls advance twice, so provide two terminal records.
+    for (unsigned j = n; j <= n+1; ++j)
+        write_be(c.gpr[29] + (uint32_t(c.gpr[8] + j) << 4), 4, terminal);
+    compare("scene command dispatch", i, c, ref_command, new_command);
+
+    c.gpr[25] = 0x4800;
+    c.gpr[26] = 0x4700;
+    c.gpr[27] = 0x2000;
+    c.gpr[28] = i % 11;
+    write_be(0x4700, 4, 0);
+    for (unsigned j = 0; j < 11; ++j) {
+        unsigned obj = 0x3000 + j*0x180, kind = (i+j)%8;
+        write_be(0x2174 + 4*j, 4, (i%7==0 || kind < 3) ? 0 : obj);
+        write_be(0x2150 + 4*j, 4, kind%2);
+        write_be(obj + 0x115, 1, kind%2);
+        write_be(obj + 0x118, 1, kind%3);
+        write_be(obj + 0x100, 4, j%3);
+        for (unsigned k = 0; k < 3; ++k) write_be(obj + 0x120 + k*4, 4, 0x5200 + k*8);
+    }
+    compare("animation slots", i, c, ref_animation, new_animation);
+    g_trampoline_fn = nullptr;
+}
+static void compare_weighted_nan()
+{
+    ppu_context c{};
+    c.gpr[28] = 0x1000;
+    constexpr unsigned outputs[] = {8, 10, 11, 9};
+    for (unsigned j = 0; j < 4; ++j) {
+        c.gpr[outputs[j]] = 0x1200 + j*16;
+        write_be(0x1000 + j*4, 4, 0x3f800000);
+    }
+    constexpr uint32_t operands[] = {0x7fa12345, 0xffa12345, 0x7fc01234, 0xffc01234};
+    for (unsigned j = 0; j < 4; ++j) {
+        _mm_setcsr(0x1f80);
+        for (unsigned k = 0; k < 16; ++k)
+            write_be(0x1200 + 4*k, 4, k % 4 == j ? operands[j] : 0x3f800000);
+        compare("weighted NaN accumulator", j, c, ref_weighted, new_weighted);
+    }
+}
+static void compare_track_limits()
+{
+    constexpr uint32_t limits[] = {1, 0x80000001, 0x7fc12345, 0x7f812345, 0x7f800000, 0x80000000};
+    constexpr unsigned modes[] = {0, 0x40, 0x8000, 0x8040};
+    ppu_context c{};
+    c.gpr[29] = 8;
+    c.gpr[30] = 0x1200;
+    c.gpr[31] = 0x1080;
+    c.fpr[30] = 1;
+    write_be(0x1080, 4, 0x2000);
+    write_be(0x10a4, 4, 0x2100);
+    write_be(0x2014, 4, 0x24);
+    write_be(0x221a, 1, 0);
+    write_be(0x221b, 1, 0);
+    write_be(0x2217, 1, 0);
+    unsigned n = 0;
+    for (unsigned mode : modes) {
+        for (uint32_t limit : limits) {
+            _mm_setcsr(0x1f80 | mode);
+            write_be(0x1200, 4, 0xbe800000); // -0.25 + 1 crosses a limit near zero.
+            write_be(0x2028, 4, limit);
+            compare("track FP limits", n++, c, ref_tracks, new_tracks);
+        }
+    }
+}
+int main()
+{
+    const auto save = _mm_getcsr();
+    for (unsigned i = 0; i < 18000; ++i) {
+        ppu_context c;
+        for (auto& v : reinterpret_cast<uint8_t (&)[sizeof c]>(c))
+            v = uint8_t(rng());
+        check_permutations(c);
+        unsigned mode = i % 6;
+        c.gpr[9] = 0x1103;
+        c.gpr[11] = (i % 29 == 0 ? 0x1107 : 0x1209);
+        c.gpr[10] = i % 3 ? 0x1301 : 0x1105;
+        c.gpr[0] = 48;
+        c.gpr[7] = 16;
+        c.gpr[8] = 32;
+        memset(&c.vr[0], 0, 16);
+        c.vscr = i & 1 ? VMX_NJ : 0;
+        unsigned csr = (save & ~0xe07fu) | ((i % 4) << 13) | ((i % 3 == 0) ? 0x8040 : 0);
+        if (mode == 1)
+            csr &= ~0x80u; // Finite inputs with invalid-operation traps enabled take the lifted path.
+        _mm_setcsr(csr);
+        for (unsigned k = 0; k < 32; ++k) {
+            const uint32_t u = rng();
+            uint32_t bits = u;
+            if (mode < 2)
+                bits = (u & 0x807fffff) | ((107 + u % 40) << 23);
+            else if (mode == 2) {
+                constexpr uint32_t a[]
+                    = { 0, 0x80000000, 0x7f800000, 0xff800000, 0xfff12345, 0x7f923456, 1, 0x807fffff };
+                bits = a[u % 8];
+            } else if (mode == 3) {
+                // Inputs immediately inside and outside the ordinary-matrix guard.
+                constexpr uint32_t edges[] = { 0, 0x35800000, 0x357fffff, 0x35800001,
+                    0x49800000, 0x497fffff, 0x49800001, 0x3f800000 };
+                bits = edges[u % 8] | (u & 0x80000000);
+            }
+            write_be((k < 16 ? 0x1100 : 0x1200) + 4 * (k % 16), 4, bits);
+        }
+        compare("matrix", i, c, ref_matrix, new_matrix);
+        _mm_setcsr(_mm_getcsr() | 0x1f80u); // Subsequent cases also use arbitrary bit patterns.
+        c.gpr[4] = UINT64_C(0xffffffff00001103);
+        c.gpr[11] = i % 5 ? 0x11d0 : 0x10d0;
+        c.gpr[2] = 0x5000;
+        c.gpr[31] = i % 3 ? 0x1400 : 0x1100;
+        compare("object transform", i, c, ref_object, new_object);
+        // Force NaNs of both signs, signed zeros and subnormals into the Newton steps.
+        if (mode == 2) {
+            for (unsigned reg : {0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17})
+                memcpy(&c.vr[reg], mem.data() + 0x1100 + 16 * (reg % 4), 16);
+        }
+        compare("plane refinement", i, c, ref_planes, new_planes);
+        compare("finish_basis_columns 0028DB60", i, c, ref_ppu_finish_basis_columns_0028DB60, new_ppu_finish_basis_columns_0028DB60);
+        compare("finish_basis_columns 0028DEAC", i, c, ref_ppu_finish_basis_columns_0028DEAC, new_ppu_finish_basis_columns_0028DEAC);
+        compare("transpose_pose_columns 0028FCA0", i, c, ref_ppu_transpose_pose_columns_0028FCA0, new_ppu_transpose_pose_columns_0028FCA0);
+        compare("shuffle_rotation_candidates 002BCC18", i, c, ref_ppu_shuffle_rotation_candidates_002BCC18, new_ppu_shuffle_rotation_candidates_002BCC18);
+        compare("finish_rotation_candidates 002BCC18", i, c, ref_ppu_finish_rotation_candidates_002BCC18, new_ppu_finish_rotation_candidates_002BCC18);
+        compare("pose rows", i, c, ref_pose, new_pose);
+        compare("unpack", i, c, ref_unpack, new_unpack);
+        c.gpr[28] = 0x1100;
+        c.gpr[8] = i % 2 ? 0x1100 : 0x1230;
+        c.gpr[10] = 0x1210;
+        c.gpr[11] = i % 3 ? 0x1230 : 0x1100;
+        c.gpr[9] = 0x1220;
+        compare("weighted rows", i, c, ref_weighted, new_weighted);
+        unsigned count = i % 256;
+        constexpr uint64_t bases[] = { 0x140, UINT64_C(0xffffffff00000140), UINT64_C(0xffffff00) };
+        c.gpr[3] = bases[i % 3];
+        c.gpr[4] = rng();
+        write_be(c.gpr[3] + 0x4ac, 1, count);
+        for (unsigned j = 0; j < std::max(1u, count); ++j) {
+            unsigned mask = rng();
+            if (j == i % 259 && i % 2 == 0)
+                mask &= c.gpr[4];
+            write_be(c.gpr[3] + 0x4b0 + 96 * j, 4, mask);
+        }
+        compare("search", i, c, ref_mask, new_mask);
+        c.gpr[5] = i % 7; // Counts five and six exercise the original continuation.
+        c.gpr[4] = i % 3 ? 0x2000 : c.gpr[3] + 0xcb0;
+        c.cr = (c.cr & ~15u) | (c.gpr[5] > 0 ? 4u : 2u) | ((c.xer >> 31) & 1);
+        for (unsigned j = 0; j < 4; ++j)
+            write_be(c.gpr[4] + 4 * j, 4, rng());
+        compare("slots", i, c, ref_slots, new_slots);
+        compare_jobs(c, i);
+        compare_scene(c, i);
+    }
+    compare_weighted_nan();
+    compare_track_limits();
+    _mm_setcsr(save);
+    puts("PASS 18000 cases per operation: complete PPU state, memory bytes and ordered accesses");
+}

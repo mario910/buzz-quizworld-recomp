@@ -16,7 +16,8 @@ int main(int argc, char** argv) {
     const int mode = std::atoi(argv[1]);
     setenv("BUZZ_AUDIO_COMPRESSOR", argv[1], 1);
     context.ls = context.ls_store;
-    const unsigned entries[]={0x2ff18u,0x36538u,0x36710u};
+    const unsigned entries[]={0x2ff18u,0x36538u,0x36710u,0x4a4cu,0x47b4u,0xac1cu,0x8400u,0x5524u,
+        0x55DC, 0x57EC, 0x36370, 0x368B8, 0x3614C, 0x37AE8, 0x36EB0, 0x37750, 0x37148, 0x37590};
     for(const unsigned entry:entries) {
         std::memset(&context,0,sizeof context);context.ls=context.ls_store;
         original_calls=native_calls=0;

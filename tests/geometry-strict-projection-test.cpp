@@ -17,6 +17,16 @@ static uint32_t area(const GeometryHostClipData& clips)
 int main()
 {
     buzz_test_enter_rtz();
+    for (uint32_t sign : {0u, 0x80000000u}) {
+        for (unsigned exponent=0;exponent<256;++exponent) {
+            uint32_t bits[8]={0,1,2,0x3fffff,0x400000,0x7ffffd,0x7ffffe,0x7fffff};
+            for (auto& x : bits) x |= sign | (exponent << 23);
+            uint32_t actual[8];
+            _mm256_storeu_si256(reinterpret_cast<v8*>(actual),
+                v8_cflts3(_mm256_loadu_si256(reinterpret_cast<const v8*>(bits))));
+            for (unsigned i=0;i<8;++i) assert(actual[i]==spu__cfl_lane(bits[i],3,0));
+        }
+    }
     // Reduced numeric case from a live strict-DMA mismatch. The original
     // projection retains a very thin triangle; native division collapses it.
     GeometryHostClipParameters params={

@@ -42,16 +42,72 @@ void spu_0001_at_0071D300_spu_func_00004DC8(spu_context* ctx) { (void)ctx; }
 void spu_0001_at_0071D300_spu_func_00004EEC(spu_context* ctx) { (void)ctx; }
 void spu_0001_at_0071D300_spu_func_00004FF0(spu_context* ctx) { (void)ctx; }
 void spu_0001_at_0071D300_spu_func_00004DA8(spu_context* ctx) { (void)ctx; }
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+MIXER_LEAF(000055DC)
+MIXER_LEAF(000057EC)
+void spu_0001_at_0071D300_spu_func_00005890(spu_context* ctx) { (void)ctx; }
+MIXER_LEAF(00004A4C)
+MIXER_LEAF(000047B4)
+MIXER_LEAF(0000AC1C)
+MIXER_LEAF(00008400)
+MIXER_LEAF(00005524)
+MIXER_LEAF(000053DC)
+MIXER_LEAF(0000A290)
+MIXER_LEAF(0000A214)
+MIXER_LEAF(00005048)
+MIXER_LEAF(0000A504)
+MIXER_LEAF(0000C65C)
+MIXER_LEAF(000059C0)
+MIXER_LEAF(00008578)
+void buzz_audio_0002FCD8_local(spu_context*);
+void buzz_audio_0002FCD8_oracle(spu_context*);
+void buzz_audio_0002FCD8_baseline(spu_context*);
+void buzz_mstream_compressor_spu_func_0002FCD8_reference(spu_context* ctx) { buzz_audio_0002FCD8_oracle(ctx); }
+void spu_0001_at_0071D300_spu_func_0000A590(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_0000C6C0(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_00005BA4(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_0000899C(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_0000A338(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_0000A27C(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_00004890(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_0000ACA4(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_00008460(spu_context* ctx) { (void)ctx; }
+void spu_0001_at_0071D300_spu_func_000055B8(spu_context* ctx) { (void)ctx; }
+#endif
 typedef void (*audio_fn)(spu_context*);
 static audio_fn originals[] = {buzz_audio_0002FF18_oracle, buzz_audio_000301D8_oracle,
     buzz_audio_0000B078_oracle, buzz_audio_0000C758_oracle, buzz_audio_0000C8D4_oracle,
-    buzz_audio_00004E00_oracle, buzz_audio_00004F24_oracle, buzz_audio_0000513C_oracle, buzz_audio_000051F8_oracle};
+    buzz_audio_00004E00_oracle, buzz_audio_00004F24_oracle, buzz_audio_0000513C_oracle, buzz_audio_000051F8_oracle,
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+    buzz_audio_00004A4C_oracle, buzz_audio_000047B4_oracle, buzz_audio_0000AC1C_oracle,
+    buzz_audio_00008400_oracle, buzz_audio_00005524_oracle,
+    buzz_audio_000053DC_oracle, buzz_audio_0000A290_oracle, buzz_audio_0000A214_oracle, buzz_audio_00005048_oracle,
+    buzz_audio_0000A504_oracle, buzz_audio_0000C65C_oracle, buzz_audio_000059C0_oracle, buzz_audio_00008578_oracle, buzz_audio_0002FCD8_oracle,
+    buzz_audio_000055DC_oracle, buzz_audio_000057EC_oracle,
+#endif
+};
 static audio_fn locals[] = {buzz_audio_0002FF18_local, buzz_audio_000301D8_local,
     buzz_audio_0000B078_local, buzz_audio_0000C758_local, buzz_audio_0000C8D4_local,
-    buzz_audio_00004E00_local, buzz_audio_00004F24_local, buzz_audio_0000513C_local, buzz_audio_000051F8_local};
+    buzz_audio_00004E00_local, buzz_audio_00004F24_local, buzz_audio_0000513C_local, buzz_audio_000051F8_local,
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+    buzz_audio_00004A4C_local, buzz_audio_000047B4_local, buzz_audio_0000AC1C_local,
+    buzz_audio_00008400_local, buzz_audio_00005524_local,
+    buzz_audio_000053DC_local, buzz_audio_0000A290_local, buzz_audio_0000A214_local, buzz_audio_00005048_local,
+    buzz_audio_0000A504_local, buzz_audio_0000C65C_local, buzz_audio_000059C0_local, buzz_audio_00008578_local, buzz_audio_0002FCD8_local,
+    buzz_audio_000055DC_local, buzz_audio_000057EC_local,
+#endif
+};
 static audio_fn baselines[] = {buzz_audio_0002FF18_baseline, buzz_audio_000301D8_baseline,
     buzz_audio_0000B078_baseline, buzz_audio_0000C758_baseline, buzz_audio_0000C8D4_baseline,
-    buzz_audio_00004E00_baseline, buzz_audio_00004F24_baseline, buzz_audio_0000513C_baseline, buzz_audio_000051F8_baseline};
+    buzz_audio_00004E00_baseline, buzz_audio_00004F24_baseline, buzz_audio_0000513C_baseline, buzz_audio_000051F8_baseline,
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+    buzz_audio_00004A4C_baseline, buzz_audio_000047B4_baseline, buzz_audio_0000AC1C_baseline,
+    buzz_audio_00008400_baseline, buzz_audio_00005524_baseline,
+    buzz_audio_000053DC_baseline, buzz_audio_0000A290_baseline, buzz_audio_0000A214_baseline, buzz_audio_00005048_baseline,
+    buzz_audio_0000A504_baseline, buzz_audio_0000C65C_baseline, buzz_audio_000059C0_baseline, buzz_audio_00008578_baseline, buzz_audio_0002FCD8_baseline,
+    buzz_audio_000055DC_baseline, buzz_audio_000057EC_baseline,
+#endif
+};
 
 static spu_context reference, candidate, seed;
 static unsigned rng = 0xa0d10;
@@ -71,12 +127,12 @@ static void clone_state(spu_context* to, const spu_context* from, int external) 
 }
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
-    alarm(12); /* A malformed generated loop cannot hang a device test. */
+    alarm(40); /* A malformed generated loop cannot hang a device test. */
 #ifdef __ANDROID__
     cpu_set_t little; CPU_ZERO(&little); CPU_SET(0, &little);
     if (sched_setaffinity(0, sizeof little, &little)) { perror("affinity"); return 3; }
 #endif
-    for (unsigned entry = 0; entry < 9; ++entry) {
+    for (unsigned entry = 0; entry < sizeof originals / sizeof originals[0]; ++entry) {
         audio_fn original = originals[entry], local = locals[entry];
         for (unsigned n = 0; n < 800; ++n) {
             memset(&seed, 0, sizeof seed); seed.ls = seed.ls_store;
@@ -118,6 +174,35 @@ int main(int argc, char** argv) {
                 seed.gpr[27]._u32[0] = 0x4000;
                 seed.gpr[25]._u32[0] = 0x8000;
                 seed.gpr[26]._u32[0] = n % 5 ? 0xc000 : 0x8000;
+            } else if (entry == 9) {
+                if (n % 2) {
+                    const unsigned low_words[] = {0x00010203, 0x10111213, 0x04050607, 0x14151617};
+                    const unsigned low_pairs[] = {0x00010203, 0x04050607, 0x10111213, 0x14151617};
+                    for (unsigned lane = 0; lane < 4; ++lane) {
+                        seed.gpr[33]._u32[lane] = low_words[lane];
+                        seed.gpr[31]._u32[lane] = low_words[lane] + 0x08080808;
+                        seed.gpr[29]._u32[lane] = low_pairs[lane];
+                        seed.gpr[28]._u32[lane] = low_pairs[lane] + 0x08080808;
+                    }
+                }
+                seed.gpr[34]._u32[0] = n % 3 ? 0x4000 : SPU_LS_SIZE - 4;
+                seed.gpr[35]._u32[0] = seed.gpr[34]._u32[0] + 8 * (1 + n % 8);
+#ifdef BUZZ_AUDIO_TEST_X86_RTZ
+            } else if (local == buzz_audio_000055DC_local) {
+                seed.gpr[19]._u32[0] = seed.gpr[14]._u32[0] + 64 * (1 + n % 8);
+            } else if (local == buzz_audio_000057EC_local) {
+                seed.gpr[20]._u32[0] = seed.gpr[15]._u32[0] + 64 * (1 + n % 8);
+            } else if (local == buzz_audio_000059C0_local) {
+                seed.gpr[16]._u32[0] = seed.gpr[12]._u32[0] + 64 * (1 + n % 8);
+#endif
+            } else if (entry == 17) {
+                seed.gpr[22]._u32[0] = n % 8;
+            } else if (entry == 14) {
+                seed.gpr[24]._u32[0] = 256 - 4 * (1 + n % 8);
+            } else if (entry == 13) {
+                seed.gpr[18]._u32[0] = n % 3 ? 0x4000 : SPU_LS_SIZE - 64;
+                seed.gpr[19]._u32[0] = seed.gpr[18]._u32[0] + (n % 3) * 16;
+                seed.gpr[20]._u32[0] = seed.gpr[18]._u32[0] + 128 * (1 + n % 8);
             }
             clone_state(&reference, &seed, n % 9 == 0);
             clone_state(&candidate, &seed, n % 9 == 0);
@@ -181,6 +266,6 @@ int main(int argc, char** argv) {
                    use_local ? "local" : "baseline", elapsed * 1e6 / repeats);
         }
     }
-    puts("PASS audio leaves: 7200 complete states, arbitrary/finite/boundary operands, overlapping buffers, external LS, return depths/tail exits");
+    printf("PASS audio leaves: %zu complete states, arbitrary/finite/boundary operands, overlapping buffers, external LS, return depths/tail exits\n", 800 * (sizeof originals / sizeof originals[0]));
     return 0;
 }

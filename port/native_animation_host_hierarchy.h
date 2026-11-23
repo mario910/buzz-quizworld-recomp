@@ -62,16 +62,18 @@ inline AnimationHostPose8 compose_animation_host_poses8(const AnimationHostPose8
     q[3]=v8_fnms(z,c,v8_fnms(y,b,v8_fnms(x,a,v8_fm(w,d))));
     v8 norm=v8_fm(q[0],q[0]);
     for(unsigned component=1;component<4;++component)norm=v8_fma(q[component],q[component],norm);
-    const v8 estimate=v8_fi(norm,v8_frsqest(norm)),one=v8_set(0x3f800000);
+    const v8 one = v8_set(0x3f800000);
+    const v8 estimate = v8_fi(norm,v8_frsqest(norm));
+    v8 t[3];
+    for (unsigned axis=0; axis<3; ++axis)
+        t[axis] = v8_fm(local.translation.component[axis],parent.scale.component[axis]);
     const v8 inverse=v8_fma(v8_fm(estimate,v8_set(0x3f000000)),
         v8_fnms(v8_fm(norm,estimate),estimate,one),estimate);
     AnimationHostPose8 result;
-    v8 t[3];
-    for(unsigned component=0;component<4;++component) {
-        result.rotation.component[component]=v8_fm(q[component],inverse);
-        result.scale.component[component]=v8_fm(local.scale.component[component],
-            _mm256_blendv_epi8(parent.scale.component[component],one,no_scale_inheritance));
-        if(component<3)t[component]=v8_fm(local.translation.component[component],parent.scale.component[component]);
+    for (unsigned axis=0; axis<4; ++axis) {
+        result.rotation.component[axis]=v8_fm(q[axis],inverse);
+        result.scale.component[axis]=v8_fm(local.scale.component[axis],
+            _mm256_blendv_epi8(parent.scale.component[axis],one,no_scale_inheritance));
     }
     // Quaternion-vector rotation: t + 2 * cross(q.xyz,
     // q.w*t + cross(q.xyz,t)), keeping every original fused rounding.
@@ -166,14 +168,20 @@ inline void produce_animation_host_hierarchy(const AnimationHostHierarchyPlan& p
     unsigned first=0;
     for(unsigned batch=0;batch<plan.batches;++batch) {
         const unsigned count=plan.batch_size[batch];uint16_t parents[8];alignas(32) uint32_t flags[8]{};
+        const unsigned first_child = plan.order[first];
+        bool consecutive = true;
         for(unsigned lane=0;lane<count;++lane) {
-            const unsigned child=plan.order[first+lane];parents[lane]=plan.parent[child];
+            const unsigned child=plan.order[first+lane];
+            consecutive &= child == first_child + lane;parents[lane]=plan.parent[child];
             flags[lane]=plan.no_scale_inheritance[child]?~0u:0;
         }
-        const auto input=gather_animation_host_poses8(local,plan.order+first,count);
+        const auto input = consecutive ? load_animation_pose_block(local,first_child,count)
+                                       : gather_animation_host_poses8(local,plan.order+first,count);
         const auto parent=gather_animation_host_poses8(world,parents,count,&root);
         const auto result=compose_animation_host_poses8(parent,input,_mm256_load_si256(reinterpret_cast<const v8*>(flags)));
-        scatter_animation_host_poses8(result,world,plan.order+first,count);first+=count;
+        if (consecutive) store_animation_pose_block(result,world,first_child,count);
+        else scatter_animation_host_poses8(result,world,plan.order+first,count);
+        first+=count;
     }
 }
 } // namespace buzz

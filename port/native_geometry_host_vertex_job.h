@@ -9,6 +9,7 @@ namespace buzz {
 struct GeometryHostVertexRecipe {
     GeometryHostOutputRecipe output;
     bool ready = false;
+    bool position_only_ready = false;
 };
 struct GeometryHostVertexTail {
     uint32_t position[4]{};   // [3] only covers zero-padded 13..15-byte tails
@@ -171,10 +172,13 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
 {
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
     const auto& output = recipe.output;
-    if (!recipe.ready || !data.ready || data.pending_fields || !tail.ready || !input.vertices || input.vertices != output.vertices)
+    // Unmaterialized attributes are allowed only for a position-only record.
+    const bool pending = data.pending_fields && (!recipe.position_only_ready || output.fields != 1 || output.stride != 12 ||
+        output.field[0].slot != 0 || (data.pending_fields & 1));
+    if (!recipe.ready || !data.ready || pending || !tail.ready || !input.vertices || input.vertices != output.vertices)
         return reject("host vertex output readiness");
     if (!destination || capacity < output.bytes) return reject("host vertex output span");
-    alignas(32) uint8_t chunk[8*64+16];
+    // Admission proves every byte of each output record is defined.
     unsigned first = 0;
 #if defined(__AVX2__)
     // Admission proves that field zero is float3 position in slot zero.
@@ -187,6 +191,7 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
     }
 #endif
     for (; first<input.vertices;first+=8) {
+        uint8_t* const chunk = destination + first * output.stride;
         const unsigned active = input.vertices-first<8 ? input.vertices-first : 8;
         for (unsigned field=0;field<output.fields;++field) {
             const auto& f = output.field[field]; const auto& value = data.at(input,f.slot,first/8);
@@ -200,9 +205,7 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
             const unsigned padding = output.bytes-input.vertices*output.stride;
             for (unsigned at=0;at<padding;++at)
                 chunk[bytes+at] = uint8_t(tail.position[at/4]>>(24-(at%4)*8));
-            bytes += padding;
         }
-        memcpy(destination+first*output.stride,chunk,bytes);
     }
     if (reason) *reason = nullptr; return true;
 }

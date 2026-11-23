@@ -55,6 +55,27 @@ int main(void) {
         memset(&expected_r,0xa5,sizeof expected_r);memset(&expected_s,0x5a,sizeof expected_s);
         check(m,type==0?4:0,count,trial&1);
     }
+    const u32 vp_loads[] = {0, RSX_DSP_VP_INSTR-1, RSX_DSP_VP_INSTR, 0xffffffffu, 0x40000000u};
+    const u32 limit = sizeof(expected_s.vp_ucode);
+    const u32 cursors[] = {0, 3, limit-9, limit-4, limit-1, limit, limit+4};
+    for (u32 load = 0; load < sizeof(vp_loads)/sizeof(*vp_loads); ++load)
+    for (u32 cursor = 0; cursor < sizeof(cursors)/sizeof(*cursors); ++cursor)
+    for (u32 count = 0; count <= 32; ++count)
+    for (int ready = 0; ready <= 1; ++ready) {
+        memset(&expected_r, 0xff, sizeof expected_r);
+        memset(&expected_s, 0, sizeof expected_s);
+        expected_r.regs[NV4097_SET_TRANSFORM_PROGRAM_LOAD/4] = vp_loads[load];
+        expected_s.vp_ucode_write = cursors[cursor];
+        expected_s.vp_ucode_bytes = cursor & 1 ? limit : 0;
+        check(NV4097_SET_TRANSFORM_PROGRAM, 4, count, ready);
+    }
+    for (u32 m = 0x1a00; m < 0x1c00; m += 32)
+    for (u32 count = 0; count <= 8; ++count)
+    for (int ready = 0; ready <= 1; ++ready) {
+        memset(&expected_r, 0xff, sizeof expected_r);
+        memset(&expected_s, 0x5a, sizeof expected_s);
+        check(m, 4, count, ready);
+    }
     for(u32 sc=0;sc<8;++sc)for(u32 type=0;type<8;++type)
     for(u32 m=0;m<=0x2004;++m)for(u32 count=0;count<=34;++count) {
         int valid=sc==0&&(type==0||type==2)&&count&&count<=33&&!(m&3);
@@ -64,6 +85,8 @@ int main(void) {
             u32 at=m+(type==0?4*i:0);
             valid=limit&&at<limit;
         }
+        if (!sc && !type && count && count <= 32 && m == NV4097_SET_TRANSFORM_PROGRAM) valid=1;
+        if (!sc && !type && count == 8 && m >= 0x1a00 && m < 0x1c00 && !(m & 31)) valid=1;
         assert(buzz_state_packet_eligible(sc,type,m,count)==valid);
     }
     puts("State packet eligibility and complete SDK state comparisons passed.");

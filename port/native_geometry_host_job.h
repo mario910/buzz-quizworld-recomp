@@ -48,7 +48,11 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
     if (!read_geometry_host_input_recipe(c,e,w.input,reason) ||
         !read_geometry_host_vertex_recipe(c,e,w.input,w.vertices,reason) ||
         !read_geometry_host_skin_recipe(c,e,w.input,w.skin,reason)) return false;
-    const bool deferred=LazyAttributes && !w.skin.active && !blend;
+    // The position-only writer consumes slot zero. Still validate every
+    // packed selector in the positions phase, including on rejected draws.
+    const bool only_positions = ZeroVertexPadding && e.position_only() && !w.skin.active && !blend &&
+        w.vertices.output.fields == 1 && w.vertices.output.field[0].slot == 0;
+    const bool deferred=(LazyAttributes || only_positions) && !w.skin.active && !blend;
     if(blend && !admit_geometry_host_blend(*request.setup,w.input,reason))return false;
     // The original fills vertex alignment bytes from an extra formatted
     // position of its blended, renormalized tables. Under the zero-padding
@@ -65,11 +69,12 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
            !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason))return false;
     } else if(deferred) {
         if(!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,w.input,w.data,reason) ||
-           !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,e,w.input,w.data,w.skin_workspace,reason))return false;
+           !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Positions>(c,e,w.input,w.data,w.skin_workspace,reason,&w.skin))return false;
     } else if(!capture_geometry_host_inputs(c,w.input,w.data,reason) ||
-              !skin_geometry_host_inputs(c,e,w.input,w.data,w.skin_workspace,reason))return false;
+              !skin_geometry_host_inputs_phase(c,e,w.input,w.data,w.skin_workspace,reason,&w.skin))return false;
     if constexpr(CoarseClip) {
-        if(!decode_geometry_host_indices(c,e,w.indices,reason))return false;
+        const uint16_t* cached_indices=nullptr;
+        if(!decode_geometry_host_indices(c,e,w.indices,reason,&cached_indices))return false;
         // Keep the culler's range admission even when no per-vertex clip
         // records will be built. Offscreen positions cannot admit bad indices.
         if(w.indices.maximum_index>=e.vertices) {
@@ -86,16 +91,17 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
             w.clips.ready=false;
         } else {
             w.bounded_projection=bounded;
-            if(!project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason,&parameters,bounded) ||
-               !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason))return false;
+            bool no_clip_flags=false;
+            if(!project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason,&parameters,bounded,&no_clip_flags) ||
+               !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason,cached_indices,no_clip_flags))return false;
         }
     } else if (
         !project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason) ||
         !decode_geometry_host_indices(c,e,w.indices,reason) ||
         !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason)) return false;
-    if(deferred && w.indices.triangles &&
+    if(deferred && !only_positions && w.indices.triangles &&
        (!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,w.input,w.data,reason) ||
-        !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,e,w.input,w.data,w.skin_workspace,reason)))return false;
+        !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,e,w.input,w.data,w.skin_workspace,reason,&w.skin)))return false;
     if(w.indices.triangles) {
         if constexpr(ZeroVertexPadding) {
             if(!prepare_geometry_host_zero_vertex_tail(w.input,w.vertices,w.tail,reason))return false;
@@ -110,6 +116,7 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
         if(reason)*reason="host job final publication span";return false;
     }
 
+    w.vertices.position_only_ready=only_positions && w.indices.triangles;
     w.ready=true;if(reason)*reason=nullptr;return true;
 }
 inline bool prepare_geometry_host_job(const spu_context& c,const GeometryJobEntry& e,

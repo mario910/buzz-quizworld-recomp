@@ -170,6 +170,7 @@ static inline v8 v8_fi(v8 a, v8 b)
     return _mm256_and_si256(value, _mm256_cmpgt_epi32(exponent, _mm256_setzero_si256()));
 }
 /* cflts(a, 170): a * 2^3 truncated, saturating; extended-range lanes exact */
+#if !defined(__AVX2__) || defined(__aarch64__)
 static __attribute__((noinline, cold)) v8 v8_cfl_fix(v8 out, int valid, v8 a)
 {
     uint32_t o[8], x[8];
@@ -177,8 +178,16 @@ static __attribute__((noinline, cold)) v8 v8_cfl_fix(v8 out, int valid, v8 a)
     for (int n = 0; n < 8; n++) if (!(valid & (1 << n))) o[n] = spu__cfl_lane(x[n], 3, 0);
     return _mm256_loadu_si256((const __m256i*)o);
 }
+#endif
 static inline v8 v8_cflts3(v8 a)
 {
+#if defined(__AVX2__) && !defined(__aarch64__)
+    // At scale eight, all positive words >= 2^28 saturate, including SPU
+    // extended numbers. Negative overflow already yields INT_MIN in CVTTPS2DQ.
+    const v8 positive_overflow = _mm256_cmpgt_epi32(a, v8_set(0x4d7fffff));
+    const __m256 scaled = _mm256_mul_ps(_mm256_castsi256_ps(a), _mm256_set1_ps(8.0f));
+    return _mm256_blendv_epi8(_mm256_cvttps_epi32(scaled), v8_set(0x7fffffff), positive_overflow);
+#else
     const v8 e = _mm256_and_si256(_mm256_srli_epi32(a, 23), v8_set(0xFF));
     const v8 good = _mm256_cmpgt_epi32(v8_set(255), e);
     const __m256 value = _mm256_mul_ps(_mm256_castsi256_ps(a), _mm256_set1_ps(8.0f));
@@ -187,6 +196,7 @@ static inline v8 v8_cflts3(v8 a)
     result = _mm256_or_si256(_mm256_andnot_si256(overflow, result), _mm256_and_si256(overflow, v8_set(0x7fffffff)));
     const int mask = _mm256_movemask_ps(_mm256_castsi256_ps(good));
     return mask == 0xFF ? result : v8_cfl_fix(result, mask, a);
+#endif
 }
 /* compares on the SPU's sign-magnitude keys (denormals are zero) */
 static inline v8 v8_mag(v8 x)

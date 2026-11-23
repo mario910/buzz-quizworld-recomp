@@ -18,13 +18,35 @@ static unsigned seed=0x9e3779b9;
 static unsigned rnd(void){seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;return seed;}
 static rsx_vertex_ref original[65536];
 static u8 input[131072];
+static void check_mapping(const rsx_vertex_remap* reference, const rsx_vertex_remap* fused,
+                          const rsx_vertex_ref* refs, u32 count, u32 unique)
+{
+#if BUZZ_INDEX_RANK_SIMD
+    u32 low = UINT_MAX, high = 0;
+    for (u32 i = 0; i < unique; ++i) {
+        if (original[i].vertex_id < low) low = original[i].vertex_id;
+        if (original[i].vertex_id > high) high = original[i].vertex_id;
+    }
+    if (buzz_index_rank_enabled() && unique < count && high - low + 1 <= 4u * count + 256u) {
+        for (u32 i = 1; i < unique; ++i) assert(refs[i - 1].vertex_id < refs[i].vertex_id);
+        for (u32 i = 0; i < count; ++i) {
+            const u32 ordinal = fused->occurrence_to_unique[i];
+            assert(ordinal < unique);
+            assert(!memcmp(&refs[ordinal], &original[reference->occurrence_to_unique[i]], sizeof(*refs)));
+        }
+        return;
+    }
+#endif
+    assert(!memcmp(original, refs, unique * sizeof(*refs)));
+    assert(!memcmp(reference->occurrence_to_unique, fused->occurrence_to_unique, count * sizeof(u32)));
+}
 static void compare(rsx_vertex_remap* reference,rsx_vertex_remap* fused,rsx_vertex_ref** refs,u32* capacity,const u8* bytes,u32 n,u32 base) {
     for(u32 i=0;i<n;i++)original[i]=(rsx_vertex_ref){(bytes[2*i]<<8)|bytes[2*i+1],base};
     u32 a,b;
     assert(rsx_vertex_remap_build(reference,original,n,&a));
     assert(buzz_index_fuse_u16(fused,refs,capacity,bytes,n,base,&b));
-    assert(a==b && !memcmp(original,*refs,a*sizeof(*original)));
-    assert(!memcmp(reference->occurrence_to_unique,fused->occurrence_to_unique,n*sizeof(u32)));
+    assert(a == b);
+    check_mapping(reference, fused, *refs, n, a);
     buzz_index_span spans[256];u32 at=0,nb=0;
     while(at<n && nb<255) {
         const u32 left=n-at,take=left>257?257:left;
@@ -32,8 +54,8 @@ static void compare(rsx_vertex_remap* reference,rsx_vertex_remap* fused,rsx_vert
     }
     spans[nb++]=(buzz_index_span){bytes+2*at,n-at};
     assert(buzz_index_packed_spans(&scratch,fused,refs,capacity,spans,nb,base,&b));
-    assert(a==b && !memcmp(original,*refs,a*sizeof(*original)));
-    assert(!memcmp(reference->occurrence_to_unique,fused->occurrence_to_unique,n*sizeof(u32)));
+    assert(a == b);
+    check_mapping(reference, fused, *refs, n, a);
 }
 int main(void) {
     rsx_vertex_remap reference={0},fused={0};rsx_vertex_ref* refs=NULL;u32 capacity=0;
@@ -47,6 +69,20 @@ int main(void) {
         for(u32 i=0;i<32;i++)refs[i]=(rsx_vertex_ref){(i*3)%7,base};
         u32 unique;assert(rsx_vertex_remap_build(&fused,refs,32,&unique));
         compare(&reference,&fused,&refs,&capacity,input,n,base);
+    }
+    // All four-bit memberships, with overlapping nonzero source intervals
+    // near the highest u16 vertex and a final partial group.
+    for (unsigned mask=0; mask<16; ++mask) {
+        const u32 low=65496+(mask&3);
+        u32 count=0;
+        for (unsigned repeat=0; repeat<3; ++repeat) {
+            for (unsigned i=0; i<35; ++i) {
+                if (i && i!=34 && !(mask & (1u<<(i&3)))) continue;
+                u32 value=low+i;
+                input[2*count]=(u8)(value>>8);input[2*count+1]=(u8)value;++count;
+            }
+        }
+        compare(&reference,&fused,&refs,&capacity,input,count,UINT_MAX-mask);
     }
     for(u32 i=0;i<65536;++i){input[2*i]=(u8)(i>>8);input[2*i+1]=(u8)i;}
     compare(&reference,&fused,&refs,&capacity,input,65536,0);

@@ -70,7 +70,15 @@ inline void geometry_skin_rows8(const uint32_t (*row)[16], const uint32_t* lane_
 #endif
 inline bool geometry_host_skin_codec_matches(const spu_context& c, bool object)
 {
-    struct Quad { unsigned at, modes; uint32_t word[4]; };
+    struct Quad {
+        unsigned at, modes;
+        std::array<uint8_t,16> bytes{};
+        constexpr Quad(unsigned offset, unsigned mask, std::array<uint32_t,4> words)
+            : at(offset), modes(mask) {
+            for (unsigned i = 0; i < 16; ++i)
+                bytes[i] = uint8_t(words[i / 4] >> (24 - 8 * (i % 4)));
+        }
+    };
     static constexpr Quad tables[] = {
         {0xd930,3,{0x00010203,0x10111213,0x04050607,0x14151617}},
         {0xcd60,1,{0,0,0,0x3f800000}},
@@ -84,8 +92,7 @@ inline bool geometry_host_skin_codec_matches(const spu_context& c, bool object)
         {0xd940,2,{0x00010203,0x10111213,0x08090a0b,0x18191a1b}},
         {0xd890,2,{0x80808000,0x80808002,0x80808004,0x80808006}}};
     for (const auto& table : tables) if (table.modes & (object ? 1 : 2))
-        for (unsigned lane = 0; lane < 4; ++lane)
-            if (geometry_job_be32(c.ls + table.at + lane * 4) != table.word[lane]) return false;
+        if (memcmp(c.ls + table.at, table.bytes.data(), table.bytes.size())) return false;
     return true;
 }
 inline bool read_geometry_host_skin_recipe(const spu_context& c, const GeometryJobEntry& e,
@@ -140,21 +147,48 @@ inline bool read_geometry_host_skin_recipe(const spu_context& c, const GeometryJ
     output = recipe; if (reason) *reason = nullptr; return true;
 }
 
+template<bool BoundedDirection = false>
 inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
     const v8* matrix, bool direction, v8 mask)
 {
+    if constexpr (BoundedDirection) {
+        v8 outside = _mm256_setzero_si256();
+        for (unsigned axis = 0; axis < 3; ++axis)
+            outside = _mm256_or_si256(outside, _mm256_cmpgt_epi32(
+                _mm256_and_si256(value.component[axis], v8_set(0x7fffffff)), v8_set(0x49800000)));
+        if (_mm256_movemask_ps(_mm256_castsi256_ps(outside))) {
+            transform_geometry_host_object_value<false>(value, matrix, direction, mask);
+            return;
+        }
+    }
+    // A bounded matrix (2^30) and direction (2^20) keep the squared length
+    // below 2^106. Normalization still uses the complete SPU reciprocal path.
+    const auto mul = [](v8 a, v8 b) {
+        if constexpr (BoundedDirection) return geometry_bounded_mul(a,b);
+        return v8_fm(a,b);
+    };
+    const auto madd = [](v8 a, v8 b, v8 c) {
+        if constexpr (BoundedDirection) return geometry_bounded_fma(a,b,c);
+        return v8_fma(a,b,c);
+    };
     const v8 x = value.component[0], y = value.component[1], z = value.component[2], w = value.component[3];
     // Preserve each coordinate's cyclic arithmetic order. Every intermediate
     // below is already a canonical SPU result: FMA(w,+0,acc) for a direction
     // is exactly acc, even for extended w. Raw inputs are never simplified.
-    v8 a = v8_fm(x, matrix[0]); a = v8_fma(y, matrix[1], a); a = v8_fma(z, matrix[2], a);
-    if (!direction) a = v8_fma(w, matrix[3], a);
-    v8 b = v8_fm(y, matrix[5]); b = v8_fma(z, matrix[6], b);
-    if (!direction) b = v8_fma(w, matrix[7], b); b = v8_fma(x, matrix[4], b);
-    v8 d = v8_fm(z, matrix[10]); if (!direction) d = v8_fma(w, matrix[11], d);
-    d = v8_fma(x, matrix[8], d); d = v8_fma(y, matrix[9], d);
+    v8 a = mul(x, matrix[0]);
+    v8 b = mul(y, matrix[5]);
+    v8 d = mul(z, matrix[10]);
+    a = madd(y, matrix[1], a);
+    b = madd(z, matrix[6], b);
+    if (!direction) d = madd(w, matrix[11], d);
+    a = madd(z, matrix[2], a);
+    if (!direction) b = madd(w, matrix[7], b);
+    d = madd(x, matrix[8], d);
+    if (!direction) a = madd(w, matrix[3], a);
+    b = madd(x, matrix[4], b);
+    d = madd(y, matrix[9], d);
     if (direction) {
-        v8 length = v8_fm(a, a); length = v8_fma(b, b, length); length = v8_fma(d, d, length);
+        v8 length = mul(a, a); length = madd(b, b, length); length = madd(d, d, length);
         const v8 inverse = v8_fi(length, v8_frsqest(length));
         a = v8_fm(a, inverse); b = v8_fm(b, inverse); d = v8_fm(d, inverse);
     }
@@ -218,17 +252,42 @@ inline void transform_geometry_skin_block(const GeometryHostInputRecipe& input,
 inline bool skin_geometry_bounded_palette(const uint8_t* records, const GeometryHostInputRecipe& input,
     const GeometryHostSkinRecipe& recipe, GeometryHostInputData& data, const GeometryHostSkinWorkspace& workspace)
 {
+    // Exact RTZ product of each byte with guest coefficient 0x3b808080.
+    // Normalize the integer significand and discard low bits on each shift.
+    static constexpr auto weight_bits = [] {
+        std::array<uint32_t,256> result{};
+        for (unsigned weight = 1; weight < result.size(); ++weight) {
+            uint32_t significand = weight * 0x808080u, exponent = 119;
+            while (significand >= 0x1000000u) { significand >>= 1; ++exponent; }
+            result[weight] = (exponent << 23) | (significand & 0x7fffffu);
+        }
+        return result;
+    }();
     struct Matrix { v8 first; __m128i last; };
     Matrix cache[64];
     uint64_t keys[64], occupied = 0;
+    v8 blended[12];
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
+        // A matching full block has the same validated influences in every lane.
+        // The palette is immutable during this job. Reuse its transposed columns.
+        if (first && active == 8 && !memcmp(records + 8 * first, records + 8 * (first - 8), 64)) {
+            transform_geometry_skin_block<true>(input, recipe, data, first / 8, blended, active);
+            continue;
+        }
         __m256 rows[8];
         __m128 tails[8];
+        uint64_t previous_key = 0;
         for (unsigned lane = 0; lane < active; ++lane) {
             const uint8_t* weights = records + 8 * (first + lane);
             uint64_t key;
             memcpy(&key, weights, sizeof(key));
+            if (lane && key == previous_key) {
+                rows[lane] = rows[lane - 1];
+                tails[lane] = tails[lane - 1];
+                continue;
+            }
+            previous_key = key;
             const unsigned slot = unsigned(((key ^ (key >> 32)) * UINT64_C(0x9e3779b97f4a7c15)) >> 58);
             const uint64_t bit = UINT64_C(1) << slot;
             Matrix& matrix = cache[slot];
@@ -239,8 +298,7 @@ inline bool skin_geometry_bounded_palette(const uint8_t* records, const Geometry
                     if (index >= recipe.matrices) return false;
                     const unsigned weight = weights[2 * influence];
                     if (!weight) continue;
-                    const v8 factor = geometry_bounded_mul(_mm256_castps_si256(_mm256_set1_ps(float(weight))),
-                                                            v8_set(0x3b808080));
+                    const v8 factor = v8_set(weight_bits[weight]);
                     const uint32_t* row = workspace.row[index];
                     const v8 a = _mm256_load_si256(reinterpret_cast<const v8*>(row));
                     const v8 b = _mm256_zextsi128_si256(_mm_load_si128(reinterpret_cast<const __m128i*>(row + 8)));
@@ -260,7 +318,6 @@ inline bool skin_geometry_bounded_palette(const uint8_t* records, const Geometry
             rows[lane] = _mm256_setzero_ps();
             tails[lane] = _mm_setzero_ps();
         }
-        v8 blended[12];
         geometry_skin_transpose8(rows, tails, blended);
         transform_geometry_skin_block<true>(input, recipe, data, first / 8, blended, active);
     }
@@ -271,15 +328,17 @@ inline bool skin_geometry_bounded_palette(const uint8_t* records, const Geometry
 template<bool Bounded, GeometryHostInputPhase Phase = GeometryHostInputPhase::All>
 inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
-    GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
+    GeometryHostSkinWorkspace& workspace, const char** reason = nullptr,
+    const GeometryHostSkinRecipe* prepared = nullptr)
 {
     if (!data.ready) { if (reason) *reason = "host skin input not ready"; return false; }
     if constexpr(Phase==GeometryHostInputPhase::All) {
         if(data.pending_fields){if(reason)*reason="host skin deferred input";return false;}
     }
     data.ready = false;
-    GeometryHostSkinRecipe recipe;
-    if (!read_geometry_host_skin_recipe(c, e, input, recipe, reason)) return false;
+    GeometryHostSkinRecipe local;
+    if (!prepared && !read_geometry_host_skin_recipe(c, e, input, local, reason)) return false;
+    const GeometryHostSkinRecipe& recipe = prepared ? *prepared : local;
     if constexpr(Phase!=GeometryHostInputPhase::All) {
         // Weighted palettes stay in one pass: repeating their blend would
         // penalize visible jobs. Only rigid/unskinned jobs defer attributes.
@@ -300,7 +359,10 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
                 if (recipe.field[semantic] == 16 || (semantic && e.position_only())) continue;
                 auto& value = data.at(input, recipe.field[semantic], first / 8);
                 if (semantic==0 && bounded_object && transform_geometry_bounded_position(value,matrix,mask)) continue;
-                transform_geometry_host_object_value(value,matrix,semantic!=0,mask);
+                if (semantic && bounded_object)
+                    transform_geometry_host_object_value<true>(value,matrix,true,mask);
+                else
+                    transform_geometry_host_object_value(value,matrix,semantic!=0,mask);
             }
         }
         data.ready = true; if (reason) *reason = nullptr; return true;
@@ -402,12 +464,13 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
 template<GeometryHostInputPhase Phase = GeometryHostInputPhase::All>
 inline bool skin_geometry_host_inputs_phase(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, GeometryHostInputData& data,
-    GeometryHostSkinWorkspace& workspace, const char** reason = nullptr)
+    GeometryHostSkinWorkspace& workspace, const char** reason = nullptr,
+    const GeometryHostSkinRecipe* prepared = nullptr)
 {
 #if defined(BUZZ_GEOMETRY_BOUNDED_SKIN) && BUZZ_GEOMETRY_BOUNDED_SKIN
-    return skin_geometry_host_inputs_impl<true,Phase>(c,e,input,data,workspace,reason);
+    return skin_geometry_host_inputs_impl<true,Phase>(c,e,input,data,workspace,reason,prepared);
 #else
-    return skin_geometry_host_inputs_impl<false,Phase>(c,e,input,data,workspace,reason);
+    return skin_geometry_host_inputs_impl<false,Phase>(c,e,input,data,workspace,reason,prepared);
 #endif
 }
 inline bool skin_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,

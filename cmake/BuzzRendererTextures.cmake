@@ -21,12 +21,12 @@ function(buzz_texture_replace old new)
     string(REPLACE "${old}" "${new}" updated "${texture_body}")
     set(texture_body "${updated}" PARENT_SCOPE)
 endfunction()
-buzz_texture_replace("    const u32 cube_mask = eng_cube_mask();" [=[
+buzz_texture_replace("    const u32 bound_cube_mask = eng_cube_mask();" [=[
     const int snapshot_enabled=buzz_texture_snapshot_enabled();
     buzz_texture_snapshot texture_snapshot;
     if(snapshot_enabled)buzz_texture_snapshot_init(&texture_snapshot,&g.rsx,
         g.be->texture_create_3d && g.be->texture_upload_3d);
-    const u32 cube_mask = snapshot_enabled ? texture_snapshot.cube : eng_cube_mask();
+    const u32 bound_cube_mask = snapshot_enabled ? texture_snapshot.cube : eng_cube_mask();
 ]=])
 buzz_texture_replace("eng_volume_mask()" "(snapshot_enabled ? texture_snapshot.volume : eng_volume_mask())")
 buzz_texture_replace("eng_unnorm_units(unnorm_dim)" "(snapshot_enabled ? buzz_texture_snapshot_dimensions(&texture_snapshot,unnorm_dim) : eng_unnorm_units(unnorm_dim))")

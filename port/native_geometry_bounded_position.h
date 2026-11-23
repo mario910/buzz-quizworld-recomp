@@ -16,8 +16,7 @@ inline bool geometry_object_matrix_bounded(const uint32_t* coefficients)
 inline v8 geometry_bounded_finish(__m256 value)
 {
     const v8 bits=_mm256_castps_si256(value);
-    return _mm256_andnot_si256(_mm256_cmpeq_epi32(_mm256_slli_epi32(bits,1),
-                                                _mm256_setzero_si256()),bits);
+    return _mm256_andnot_si256(_mm256_cmpeq_epi32(bits,v8_set(0x80000000)),bits);
 }
 inline v8 geometry_bounded_mul(v8 a,v8 b)
 { return geometry_bounded_finish(_mm256_mul_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b))); }

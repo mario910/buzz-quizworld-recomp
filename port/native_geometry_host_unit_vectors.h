@@ -3,7 +3,7 @@
  * No LS, SPU register bank, selector-row ABI table or lookahead is used.
  * Arithmetic requires the image-41 RTZ/FTZ/DAZ environment. */
 #pragma once
-#include "native_geometry_host_data.h"
+#include "native_geometry_bounded_position.h"
 
 namespace buzz {
 inline v8 geometry_host_unit_words8(const uint8_t* source,unsigned stride,unsigned vertices)
@@ -11,6 +11,18 @@ inline v8 geometry_host_unit_words8(const uint8_t* source,unsigned stride,unsign
     if (vertices==8 && stride>=3 && stride<=255) {
         // Four-byte reads for lanes 0..6 stay within the full source span.
         // Lane 7 is masked out and read as exactly three bytes at the end.
+#if defined(__AVX2__) && !defined(__aarch64__)
+        // These dword loads stay inside the validated stream. The independent
+        // scalar loads avoid a masked gather on Zen 2; lane seven is exact.
+        auto word = [&](unsigned lane) {
+            uint32_t value;
+            memcpy(&value,source+lane*stride,sizeof(value));
+            return __builtin_bswap32(value)>>8;
+        };
+        const uint8_t* tail=source+7*stride;
+        const unsigned final=(unsigned(tail[0])<<16)|(unsigned(tail[1])<<8)|tail[2];
+        return _mm256_setr_epi32(word(0),word(1),word(2),word(3),word(4),word(5),word(6),final);
+#else
         const v8 offset=_mm256_mullo_epi32(_mm256_setr_epi32(0,1,2,3,4,5,6,7),v8_set(stride));
         const v8 first_seven=_mm256_setr_epi32(-1,-1,-1,-1,-1,-1,-1,0);
         const v8 words=_mm256_mask_i32gather_epi32(_mm256_setzero_si256(),
@@ -18,6 +30,7 @@ inline v8 geometry_host_unit_words8(const uint8_t* source,unsigned stride,unsign
         const auto* last=source+7*stride;
         const uint32_t last_word=(uint32_t(last[0])<<16)|(uint32_t(last[1])<<8)|last[2];
         return _mm256_blend_epi32(_mm256_srli_epi32(v8_bswap(words),8),v8_set(last_word),0x80);
+#endif
     }
     alignas(32) uint32_t packed[8]{};
     for(unsigned lane=0;lane<vertices;++lane){
@@ -30,13 +43,15 @@ inline GeometryHostSoA8 decode_geometry_host_unit8(v8 packed)
 {
     const v8 one = v8_set(0x3f800000);
     const v8 scale = v8_set(0x46352e7c), bias = v8_set(0xc6353150);
-    const v8 u = v8_fma(_mm256_or_si256(one,
+    // Ten mantissa bits select a value less than 1.001. Scale and bias are
+    // below 2^14, so the decoded coordinates, squares and sum all stay finite.
+    const v8 u = geometry_bounded_fma(_mm256_or_si256(one,
         _mm256_and_si256(_mm256_srli_epi32(packed, 14), v8_set(1023))), scale, bias);
-    const v8 v = v8_fma(_mm256_or_si256(one,
+    const v8 v = geometry_bounded_fma(_mm256_or_si256(one,
         _mm256_and_si256(_mm256_srli_epi32(packed, 4), v8_set(1023))), scale, bias);
-    const v8 uu = v8_fm(u, u), vv = v8_fm(v, v);
-    const v8 sum = v8_finish(_mm256_add_ps(_mm256_castsi256_ps(uu), _mm256_castsi256_ps(vv)), uu, vv, uu, 0);
-    const v8 remainder = v8_fs(one, sum);
+    const v8 uu = geometry_bounded_mul(u, u), vv = geometry_bounded_mul(v, v);
+    const v8 sum = geometry_bounded_finish(_mm256_add_ps(_mm256_castsi256_ps(uu), _mm256_castsi256_ps(vv)));
+    const v8 remainder = geometry_bounded_finish(_mm256_sub_ps(_mm256_castsi256_ps(one), _mm256_castsi256_ps(sum)));
     const v8 magnitude = v8_fm(remainder, v8_fi(remainder, v8_frsqest(remainder)));
     const v8 selector = _mm256_and_si256(packed, v8_set(15));
     const v8 axis = _mm256_srli_epi32(selector, 2);

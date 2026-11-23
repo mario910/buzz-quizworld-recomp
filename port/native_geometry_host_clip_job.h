@@ -11,6 +11,7 @@ struct GeometryHostClipParameters {
 struct GeometryHostClipData {
     alignas(32) uint32_t component[4][4096]; // X,Y float bits; flags; packed XY/W-sign.
     unsigned vertices = 0;
+    bool bounded_area = false;
     bool ready = false;
 };
 inline bool read_geometry_host_clip_parameters(const spu_context& c, const GeometryJobEntry& e,
@@ -97,6 +98,8 @@ template<bool Deferred, bool Bounded = false> struct GeometryClipArithmetic {
     inline __attribute__((always_inline)) v8 finish(__m256 value, v8 a, v8 b, v8 c, int op) {
         if constexpr (!Deferred && !Bounded) return v8_finish(value,a,b,c,op);
         const v8 bits = _mm256_castps_si256(value);
+        if constexpr (Bounded && !Deferred)
+            return _mm256_andnot_si256(_mm256_cmpeq_epi32(bits,v8_set(0x80000000)),bits);
         const v8 magnitude = _mm256_and_si256(bits,v8_set(0x7fffffff));
         if constexpr (Deferred) {
 #if defined(__aarch64__)
@@ -161,17 +164,26 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     const v8 x = _mm256_xor_si256(sign, fp.fm(row(0), reciprocal));
     const v8 y = _mm256_xor_si256(sign, fp.fm(row(1), reciprocal));
     const v8 z = _mm256_xor_si256(sign, fp.fm(row(2), reciprocal));
-    v8 flags = _mm256_and_si256(v8_fcgt(v8_set(params.minimum[2]), z), v8_set(0x80));
-    flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(v8_set(params.minimum[0]), x), v8_set(0x40)));
-    flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(v8_set(params.minimum[1]), y), v8_set(0x20)));
-    flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(x, v8_set(params.maximum[0])), v8_set(0x10)));
-    flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(y, v8_set(params.maximum[1])), v8_set(8)));
-    flags = _mm256_or_si256(flags, _mm256_and_si256(v8_fcgt(z, v8_set(params.maximum[2])), v8_set(4)));
+    const auto greater = [](v8 a, v8 b) {
+#if defined(__AVX2__) && !defined(__aarch64__)
+        // The interval proof includes viewport limits and all projected lanes.
+        // DAZ gives the same zero comparison for subnormal SPU inputs.
+        if constexpr (Bounded) return _mm256_castps_si256(_mm256_cmp_ps(
+            _mm256_castsi256_ps(a), _mm256_castsi256_ps(b), _CMP_GT_OQ));
+#endif
+        return v8_fcgt(a, b);
+    };
+    v8 flags = _mm256_and_si256(greater(v8_set(params.minimum[2]), z), v8_set(0x80));
+    flags = _mm256_or_si256(flags, _mm256_and_si256(greater(v8_set(params.minimum[0]), x), v8_set(0x40)));
+    flags = _mm256_or_si256(flags, _mm256_and_si256(greater(v8_set(params.minimum[1]), y), v8_set(0x20)));
+    flags = _mm256_or_si256(flags, _mm256_and_si256(greater(x, v8_set(params.maximum[0])), v8_set(0x10)));
+    flags = _mm256_or_si256(flags, _mm256_and_si256(greater(y, v8_set(params.maximum[1])), v8_set(8)));
+    flags = _mm256_or_si256(flags, _mm256_and_si256(greater(z, v8_set(params.maximum[2])), v8_set(4)));
     const v8 cx = _mm256_and_si256(v8_cflts3(x), v8_set(params.quantization_mask));
     const v8 cy = _mm256_and_si256(v8_cflts3(y), v8_set(params.quantization_mask));
     v8 packed = _mm256_or_si256(_mm256_slli_epi32(cx, 16), _mm256_and_si256(cy, v8_set(65535)));
     packed = _mm256_or_si256(_mm256_and_si256(packed, v8_set(0x7fffffff)),
-        _mm256_and_si256(v8_fcgt(w, _mm256_setzero_si256()), v8_set(0x80000000)));
+        _mm256_and_si256(greater(w, _mm256_setzero_si256()), v8_set(0x80000000)));
     if constexpr (Deferred) {
         if (!fp.valid()) return geometry_host_clip8_impl<false>(params,position);
     }
@@ -192,7 +204,8 @@ template<bool ExactProjection = false>
 inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJobEntry& e,
     const GeometryHostInputRecipe& input, const GeometryHostInputData& data,
     GeometryHostClipData& clips, const char** reason = nullptr,
-    const GeometryHostClipParameters* prepared = nullptr, bool bounded_projection = false)
+    const GeometryHostClipParameters* prepared = nullptr, bool bounded_projection = false,
+    bool* no_clip_flags = nullptr)
 {
     clips.ready = false;
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
@@ -210,6 +223,10 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     // need not be proven disjoint from every member of the output workspace.
     const GeometryHostClipParameters params = prepared ? *prepared : storage;
     if(bounded_projection && !prepared)return reject("host clip missing arithmetic admission");
+#if defined(__AVX2__) && !defined(__aarch64__)
+    v8 largest_xy = _mm256_setzero_si256();
+#endif
+    v8 combined_flags = _mm256_setzero_si256();
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const auto& position_data = data.at(input, position, first / 8);
         auto value = [&] {
@@ -226,10 +243,24 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
 #endif
                 true>(params,position_data) : geometry_host_clip8(params,position_data);
         }();
-        const v8 mask = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+        if (input.vertices - first < 8) {
+            const v8 active = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+            for (auto& component : value.component) component = _mm256_and_si256(component, active);
+        }
+        if (no_clip_flags) combined_flags = _mm256_or_si256(combined_flags,value.component[2]);
         for (unsigned component = 0; component < 4; ++component)
-            _mm256_store_si256(reinterpret_cast<v8*>(clips.component[component] + first), _mm256_and_si256(value.component[component], mask));
+            _mm256_store_si256(reinterpret_cast<v8*>(clips.component[component] + first), value.component[component]);
+#if defined(__AVX2__) && !defined(__aarch64__)
+        const v8 magnitude = v8_set(0x7fffffff);
+        largest_xy = _mm256_max_epi32(largest_xy, _mm256_max_epi32(
+            _mm256_and_si256(value.component[0], magnitude), _mm256_and_si256(value.component[1], magnitude)));
+#endif
     }
+#if defined(__AVX2__) && !defined(__aarch64__)
+    // At |XY| <= 2^60, both edge products are <= 2^122 and their difference <= 2^123.
+    clips.bounded_area = !_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpgt_epi32(largest_xy, v8_set(0x5d800000))));
+#endif
+    if (no_clip_flags) *no_clip_flags = !_mm256_movemask_ps(_mm256_castsi256_ps(v8_nonzero(combined_flags)));
     clips.vertices = input.vertices; clips.ready = true; if (reason) *reason = nullptr; return true;
 }
 } // namespace buzz

@@ -230,7 +230,12 @@ and extract it over the same package folder.
    **Escape / controller START** to configure display, audio, textures and
    keyboard or pad bindings. Use **Save settings** to keep the changes.
    On Linux, the checkout's `Launch-Buzz.sh` and `Prepare-Buzz.sh` correspond to
-   the `.cmd` scripts.
+   the `.cmd` scripts. For a Steam Deck running a newly prepared EU 1.00
+   native Zen 2 build, use `./Launch-Buzz.sh --steam-deck`. This profile
+   omits floor reflections, bloom and the second audience lighting pass in
+   the studio and disables the additional present delay. The audience remains
+   visible. Launch normally for full effects. The Deck tests used the in-game
+   30 FPS cap and a 1000 MHz GPU clock set separately.
    On Windows, the checkout's `Launch-Buzz.cmd` also starts
    `dist/BuzzQuizWorldRecomp.exe` when it exists.
 

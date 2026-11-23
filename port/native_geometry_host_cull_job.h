@@ -14,15 +14,14 @@
 
 namespace buzz {
 // Same eight indexed words as AVX2 gather, including padded inactive lanes.
-// Some hosts execute ordinary loads faster than the gather instruction.
-inline v8 geometry_cull_gather(const uint32_t* base, v8 index) {
+// On Zen 2, address scalar loads straight from the decoded u16 mesh indices.
+inline v8 geometry_cull_gather(const uint32_t* base, const uint16_t* ids) {
 #if BUZZ_GEOMETRY_SCALAR_GATHER
-    alignas(32) uint32_t lane[8];
-    _mm256_store_si256(reinterpret_cast<v8*>(lane), index);
-    return _mm256_setr_epi32(base[lane[0]], base[lane[1]], base[lane[2]], base[lane[3]],
-                            base[lane[4]], base[lane[5]], base[lane[6]], base[lane[7]]);
+    return _mm256_setr_epi32(base[ids[0]], base[ids[1]], base[ids[2]], base[ids[3]],
+                            base[ids[4]], base[ids[5]], base[ids[6]], base[ids[7]]);
 #else
-    return _mm256_i32gather_epi32(reinterpret_cast<const int*>(base), index, 4);
+    const __m128i indices = _mm_loadu_si128(reinterpret_cast<const __m128i*>(ids));
+    return _mm256_i32gather_epi32(reinterpret_cast<const int*>(base), _mm256_cvtepu16_epi32(indices), 4);
 #endif
 }
 
@@ -88,7 +87,8 @@ inline bool read_geometry_host_cull_parameters(const spu_context& c, const Geome
 }
 
 inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJobEntry& e,
-    const GeometryHostClipData& clips, GeometryHostIndexData& indices, const char** reason = nullptr)
+    const GeometryHostClipData& clips, GeometryHostIndexData& indices, const char** reason = nullptr,
+    const uint16_t* cached_indices = nullptr, bool no_clip_flags = false)
 {
     const bool ready = indices.ready; indices.ready = false;
     auto reject = [&](const char* why) { if (reason) *reason = why; return false; };
@@ -114,22 +114,26 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
 #if BUZZ_GEOMETRY_CULL_COMPACT
     __m128i maximum_lanes = _mm_setzero_si128();
 #endif
+    const unsigned stride = (indices.triangles + 7) & ~7u;
+    const uint16_t* corners[3];
+    for (unsigned k=0; k<3; ++k)
+        corners[k] = cached_indices ? cached_indices + k*stride : indices.component[k];
     for (unsigned first = 0; first < indices.triangles; first += 8) {
         const unsigned active = indices.triangles - first < 8 ? indices.triangles - first : 8;
-        v8 index[3], x[3], y[3], flags[3], packed[3];
+        v8 x[3], y[3], flags[3], packed[3];
 #if BUZZ_GEOMETRY_CULL_COMPACT
         __m128i source[3];
 #else
+        v8 index[3];
         alignas(32) uint32_t values[3][8];
 #endif
         for (unsigned corner = 0; corner < 3; ++corner) {
 #if BUZZ_GEOMETRY_CULL_COMPACT
-            source[corner] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(indices.component[corner] + first));
-            index[corner] = _mm256_cvtepu16_epi32(source[corner]);
+            source[corner] = _mm_loadu_si128(reinterpret_cast<const __m128i*>(corners[corner] + first));
 #else
-            index[corner] = _mm256_cvtepu16_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(indices.component[corner] + first)));
+            index[corner] = _mm256_cvtepu16_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(corners[corner] + first)));
 #endif
-            flags[corner] = geometry_cull_gather(clips.component[2],index[corner]);
+            flags[corner] = no_clip_flags ? _mm256_setzero_si256() : geometry_cull_gather(clips.component[2], corners[corner] + first);
         }
         const v8 common = v8_nonzero(_mm256_and_si256(_mm256_and_si256(flags[0],flags[1]),flags[2]));
         const unsigned live_mask = (1u << active) - 1;
@@ -140,7 +144,7 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
             continue;
         }
         for (unsigned corner = 0; corner < 3; ++corner)
-            packed[corner] = geometry_cull_gather(clips.component[3],index[corner]);
+            packed[corner] = geometry_cull_gather(clips.component[3], corners[corner] + first);
         const v8 same = _mm256_and_si256(_mm256_cmpeq_epi16(packed[0],packed[1]),_mm256_cmpeq_epi16(packed[0],packed[2]));
         const v8 early_drop = _mm256_or_si256(common, v8_nonzero(same));
         if ((unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(early_drop))) & live_mask) == live_mask) {
@@ -148,10 +152,22 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
             continue;
         }
         for (unsigned corner = 0; corner < 3; ++corner) {
-            x[corner] = geometry_cull_gather(clips.component[0],index[corner]);
-            y[corner] = geometry_cull_gather(clips.component[1],index[corner]);
+            x[corner] = geometry_cull_gather(clips.component[0], corners[corner] + first);
+            y[corner] = geometry_cull_gather(clips.component[1], corners[corner] + first);
         }
-        const v8 area = v8_fs(v8_fm(v8_fs(x[1],x[0]),v8_fs(y[2],y[0])),v8_fm(v8_fs(y[1],y[0]),v8_fs(x[2],x[0])));
+        v8 area;
+#if defined(__AVX2__) && !defined(__aarch64__)
+        if (clips.bounded_area) {
+            const auto diff = [](v8 a, v8 b) { return _mm256_sub_ps(_mm256_castsi256_ps(a), _mm256_castsi256_ps(b)); };
+            const __m256 left = _mm256_mul_ps(diff(x[1], x[0]), diff(y[2], y[0]));
+            const __m256 right = _mm256_mul_ps(diff(y[1], y[0]), diff(x[2], x[0]));
+            // The consumer compares area to zero, treating both signs of zero equally.
+            area = _mm256_castps_si256(_mm256_sub_ps(left, right));
+        } else
+#endif
+        {
+            area = v8_fs(v8_fm(v8_fs(x[1],x[0]),v8_fs(y[2],y[0])),v8_fm(v8_fs(y[1],y[0]),v8_fs(x[2],x[0])));
+        }
         v8 back = _mm256_setzero_si256();
         if (params.mode != 1)
             back = _mm256_and_si256(_mm256_and_si256(v8_fcgt(_mm256_xor_si256(area,v8_set(params.winding)),_mm256_setzero_si256()),

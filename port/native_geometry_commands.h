@@ -102,12 +102,17 @@ inline void prepare_geometry_command_buffer(spu_context& ctx, const GeometryComm
     ctx.gpr[32] = spu_ai(spu_rotqbyi(after_temporary, 8), 127);
     ctx.gpr[31] = spu_andi(ctx.gpr[32], -128);
     ctx.gpr[17] = spu_a(ctx.gpr[31], spu_andi(plan.destination, 127));
-    ctx.gpr[30] = geometry_output_quad(ctx, plan.output);
-    ctx.gpr[29] = geometry_command_word(ctx, plan.output, plan.start);
+    // The descriptor is one aligned quad, disjoint from the other admitted regions.
+    // Keep its intermediate guest register values while assembling its four words.
+    u128 descriptor = geometry_output_quad(ctx, plan.output);
+    ctx.gpr[30] = descriptor;
+    descriptor._u32[0] = plan.start;
+    ctx.gpr[29] = descriptor;
     ctx.gpr[25] = spu_il(8); ctx.gpr[7] = spu_il(4); ctx.gpr[9] = spu_il(12);
     ctx.gpr[28] = spu_cwd(plan.output_arg, 8); ctx.gpr[10] = spu_cwd(plan.output_arg, 4);
     ctx.gpr[11] = spu_cwd(plan.output_arg, 12); ctx.gpr[27] = ctx.gpr[29];
-    ctx.gpr[26] = geometry_command_word(ctx, plan.output + 8, plan.start);
+    descriptor._u32[2] = plan.start;
+    ctx.gpr[26] = descriptor;
     ctx.gpr[24] = plan.configuration; ctx.gpr[12] = ctx.gpr[26];
     ctx.gpr[23] = spu_rotqbyi(ctx.gpr[24], 14); ctx.gpr[22] = spu_ceqbi(ctx.gpr[23], 0);
     ctx.gpr[21] = spu_andi(ctx.gpr[23], 255); ctx.gpr[20] = spu_xsbh(ctx.gpr[22]);
@@ -115,8 +120,11 @@ inline void prepare_geometry_command_buffer(spu_context& ctx, const GeometryComm
     ctx.gpr[16] = spu_fsm(ctx.gpr[19]); ctx.gpr[15] = spu_a(ctx.gpr[17], ctx.gpr[18]);
     ctx.gpr[14] = spu_andc(ctx.gpr[7], ctx.gpr[16]); ctx.gpr[13] = spu_a(ctx.gpr[14], ctx.gpr[15]);
     ctx.gpr[4] = spu_andi(spu_ai(ctx.gpr[13], 127), -128);
-    ctx.gpr[8] = geometry_command_word(ctx, plan.output + 4, plan.limit);
-    ctx.gpr[2] = geometry_command_word(ctx, plan.output + 12, 0);
+    descriptor._u32[1] = plan.limit;
+    ctx.gpr[8] = descriptor;
+    descriptor._u32[3] = 0;
+    for (unsigned i = 0; i < 4; ++i)
+        geometry_job_put32(ctx.ls + plan.output + 4 * i, descriptor._u32[i]);
     ctx.gpr[6] = geometry_output_quad(ctx, plan.context + 0x50); ctx.gpr[5] = spu_cwd(ctx.gpr[1], 8);
     ctx.gpr[2] = geometry_command_word(ctx, plan.context + 0x58, plan.end);
     ctx.gpr[3] = plan.context_arg;

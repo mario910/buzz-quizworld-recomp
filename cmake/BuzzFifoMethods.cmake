@@ -51,6 +51,42 @@ set(method_hook [=[
             }
 ]=])
 string(REPLACE "${method_anchor}" "${method_hook}\n${method_anchor}" method_text "${method_text}")
+# Jobs leave zero headers between command blocks. Consume a run within a
+# single mapped page, preserving the walk budget and crash-history ring.
+set(nop_anchor "        u32 type = w >> 29;")
+string(FIND "${method_text}" "${nop_anchor}" nop_found)
+if(nop_found EQUAL -1)
+    message(FATAL_ERROR "FIFO padding adapter no longer matches SDK")
+endif()
+set(nop_hook [=[
+        if (!w) {
+            static int batch_padding = -1;
+            if (batch_padding < 0) {
+                const char* option = getenv("BUZZ_FIFO_PADDING_BATCH");
+                batch_padding = !(option && !strcmp(option, "0")) &&
+                    !getenv("TCONST_FIFO") && !getenv("GCM_WORD_STATS");
+            }
+            if (batch_padding) {
+                u32 room = (0x100000u - (s_fifo_getoff & 0xfffffu)) / 4;
+                const int in_ring = s_fifo_getoff < put;
+                if (in_ring && room > (put - s_fifo_getoff) / 4)
+                    room = (put - s_fifo_getoff) / 4;
+                if (room > (u32)budget + 1) room = (u32)budget + 1;
+                u32 words = 1;
+                while (words < room && vm_read32(ea + words * 4) == 0) {
+                    s_tr_off[s_tr_i % GCM_TRACE_N] = s_fifo_getoff + words * 4;
+                    s_tr_w[s_tr_i % GCM_TRACE_N] = 0;
+                    ++s_tr_i;
+                    ++words;
+                }
+                budget -= (int)(words - 1);
+                s_fifo_getoff += words * 4;
+                if (in_ring) s_last_ring_off = s_fifo_getoff;
+                continue;
+            }
+        }
+]=])
+string(REPLACE "${nop_anchor}" "${nop_hook}\n${nop_anchor}" method_text "${method_text}")
 set(method_output "${CMAKE_CURRENT_BINARY_DIR}/buzz_gcm_methods.c")
 file(CONFIGURE OUTPUT "${method_output}" CONTENT "#include \"renderer_fifo_packet.h\"\n${method_text}" @ONLY)
 get_target_property(method_sources ps3recomp_runtime SOURCES)

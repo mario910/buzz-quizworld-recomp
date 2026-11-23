@@ -49,6 +49,13 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
     if(_mm256_movemask_ps(_mm256_castsi256_ps(outside)))return false;
     double minimum[3],maximum[3];
     for(unsigned axis=0;axis<3;++axis) {
+#if defined(__AVX2__) && !defined(__aarch64__)
+        __m128 l = _mm_min_ps(_mm256_castps256_ps128(lo[axis]), _mm256_extractf128_ps(lo[axis],1));
+        __m128 h = _mm_max_ps(_mm256_castps256_ps128(hi[axis]), _mm256_extractf128_ps(hi[axis],1));
+        l = _mm_min_ps(l, _mm_movehl_ps(l,l)); h = _mm_max_ps(h, _mm_movehl_ps(h,h));
+        minimum[axis] = _mm_cvtss_f32(_mm_min_ss(l, _mm_shuffle_ps(l,l,0x55)));
+        maximum[axis] = _mm_cvtss_f32(_mm_max_ss(h, _mm_shuffle_ps(h,h,0x55)));
+#else
         uint32_t a[8],b[8];
         _mm256_storeu_si256(reinterpret_cast<v8*>(a),_mm256_castps_si256(lo[axis]));
         _mm256_storeu_si256(reinterpret_cast<v8*>(b),_mm256_castps_si256(hi[axis]));
@@ -57,6 +64,7 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
             minimum[axis]=std::min(minimum[axis],number(a[lane]));
             maximum[axis]=std::max(maximum[axis],number(b[lane]));
         }
+#endif
     }
     double low[4],high[4];
     for(unsigned row=0;row<4;++row) {

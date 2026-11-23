@@ -21,14 +21,20 @@ inline bool animation_read_key(AnimationByteView stream,unsigned index,uint64_t&
 {
     const uint64_t at=uint64_t(index)*6;
     if(at+6>stream.bytes)return false;
-    key=0;for(unsigned byte=0;byte<6;++byte)key=(key<<8)|stream.data[at+byte];
+    uint32_t high;
+    uint16_t low;
+    memcpy(&high, stream.data + at, sizeof high);
+    memcpy(&low, stream.data + at + sizeof high, sizeof low);
+    key = (uint64_t(__builtin_bswap32(high)) << 16) | __builtin_bswap16(low);
     return true;
 }
 inline uint64_t animation_key_bits64(AnimationByteView stream,uint64_t first,unsigned count)
 {
     const size_t at=size_t(first/8),available=stream.bytes-at;
     const unsigned shift=first%8;
-    uint64_t word=0;memcpy(&word,stream.data+at,available<8?available:8);
+    uint64_t word = 0;
+    if (available >= sizeof word) memcpy(&word, stream.data + at, sizeof word);
+    else memcpy(&word, stream.data + at, available);
     word=__builtin_bswap64(word)<<shift;
     if(shift&&available>8)word|=uint64_t(stream.data[at+8])>>(8-shift);
     return count==64?word:word&(~uint64_t(0)<<(64-count));

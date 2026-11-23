@@ -15,7 +15,7 @@ set(buzz_direct_hop_native "/analysis/(native-image36|native-image39-kernels|nat
 set(buzz_direct_hop_modules "/analysis/mstream-modules/[a-z0-9_]+/spu_recomp\\.c$")
 set(buzz_direct_hop_count 0)
 foreach(buzz_spu_source ${SPU_LIFTED})
-    if(buzz_spu_source MATCHES "${buzz_direct_hop_jobs}" OR buzz_spu_source MATCHES "${buzz_direct_hop_native}" OR
+    if(buzz_spu_source IN_LIST buzz_spu_record_sources OR buzz_spu_source MATCHES "${buzz_direct_hop_jobs}" OR buzz_spu_source MATCHES "${buzz_direct_hop_native}" OR
        buzz_spu_source MATCHES "${buzz_direct_hop_modules}")
         set_property(SOURCE "${buzz_spu_source}" APPEND PROPERTY COMPILE_DEFINITIONS SPU_DIRECT_HOPS=1)
         math(EXPR buzz_direct_hop_count "${buzz_direct_hop_count}+1")

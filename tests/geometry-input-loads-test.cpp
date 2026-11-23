@@ -48,6 +48,28 @@ int main() {
             }
         }
     }
+    // The whole-field route must restart at the right prefix quad after each
+    // group of eight and write exactly ceil(vertices/8) output blocks.
+    for (unsigned stride : {4u,7u,10u,11u,18u,24u}) {
+        for (unsigned components = 1; components <= 4 && components*2 <= stride; ++components) {
+            for (unsigned vertices = 0; vertices <= 33; ++vertices) {
+                const unsigned span = vertices ? (vertices-1)*stride + components*2 : 0;
+                for (unsigned where = 0; where <= 16; ++where) {
+                    const unsigned at = where == 16 ? page-span : where;
+                    buzz::GeometryHostSoA8 actual[6], expected[6];
+                    memset(actual, 0xa5, sizeof actual);
+                    memcpy(expected, actual, sizeof expected);
+                    for (unsigned i = 0; i < vertices; i += 8) {
+                        const unsigned n = vertices-i < 8 ? vertices-i : 8;
+                        expected[i/8] = buzz::decode_geometry_host_half_stream8(arena, at+i*stride, stride, components, n);
+                    }
+                    buzz::decode_geometry_host_half_stream(arena, at, stride, components, vertices, actual);
+                    assert(!memcmp(actual, expected, sizeof actual));
+                    ++checks;
+                }
+            }
+        }
+    }
     assert(munmap(mapping,page*3)==0);
     printf("PASS %u packed direction/half-stream comparisons, all tail lengths, alignments and guard pages\n",checks);
 }

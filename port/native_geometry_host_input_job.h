@@ -127,13 +127,22 @@ inline bool read_geometry_host_input_recipe(const spu_context& c, const Geometry
             !quad(0xd980,0x00010203,0x04050607,0x08090a0b,0x0c0d0e0f) ||
             !quad(0xda20,0x04050607,0x08090a0b,0x14151617,0x18191a1b) ||
             !quad(0xd8b0,0x80800280,0x80800001,0x80800102,0x80808080)) return reject("host unit input codec definition");
-        static constexpr uint32_t order[3][3] = {{0x00010203,0x10111213,0x14151617},
-            {0x10111213,0x00010203,0x14151617},{0x10111213,0x14151617,0x00010203}};
-        for (unsigned selector = 0; selector < 12; ++selector) {
-            const auto* row = order[selector >> 2]; const unsigned sign = selector & 1 ? 0 : 0x80000000;
-            if (!quad(0xddf0 + selector * 16, row[0] | sign, row[1], row[2] | sign,
-                selector & 2 ? 0x3f800000 : 0xbf800000)) return reject("host unit selector definition");
-        }
+        static constexpr auto selectors = [] {
+            std::array<uint8_t,192> bytes{};
+            constexpr uint32_t order[3][3] = {{0x00010203,0x10111213,0x14151617},
+                {0x10111213,0x00010203,0x14151617},{0x10111213,0x14151617,0x00010203}};
+            for (unsigned selector=0;selector<12;++selector) {
+                const auto& row=order[selector>>2];
+                const unsigned sign=selector&1 ? 0 : 0x80000000u;
+                const uint32_t words[]={row[0]|sign,row[1],row[2]|sign,
+                    selector&2 ? 0x3f800000u : 0xbf800000u};
+                for (unsigned at=0;at<16;++at)
+                    bytes[selector*16+at]=uint8_t(words[at/4]>>(24-(at%4)*8));
+            }
+            return bytes;
+        }();
+        if (memcmp(c.ls+0xddf0,selectors.data(),selectors.size()))
+            return reject("host unit selector definition");
     }
     output = recipe; if (reason) *reason = nullptr; return true;
 }
@@ -154,21 +163,25 @@ inline bool capture_geometry_host_inputs_phase(const spu_context& c, const Geome
             if constexpr(Phase==GeometryHostInputPhase::Attributes)continue;
             if(f.storage!=9)continue;
         }
-        for (unsigned first = 0; first < recipe.vertices; first += 8) {
-            const unsigned active = recipe.vertices - first < 8 ? recipe.vertices - first : 8;
-            auto& output = data.at(recipe, field, first / 8);
-            const unsigned source = f.source + first * f.stride;
-            if (f.storage == 2) output = decode_geometry_host_positions8(c.ls + source, active);
-            else if (f.storage == 3) output = decode_geometry_host_half_stream8(c.ls, source, f.stride, f.components, active);
-            else {
-                const v8 input = geometry_host_unit_words8(c.ls+source,f.stride,active);
-                if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(_mm256_and_si256(input, v8_set(15)), v8_set(11)))) {
-                    if (reason) *reason = "host unsupported unit selector"; return false;
+        if (f.storage == 3) {
+            decode_geometry_host_half_stream(c.ls, f.source, f.stride, f.components, recipe.vertices,
+                                             &data.at(recipe, field, 0));
+        } else {
+            for (unsigned first = 0; first < recipe.vertices; first += 8) {
+                const unsigned active = recipe.vertices - first < 8 ? recipe.vertices - first : 8;
+                auto& output = data.at(recipe, field, first / 8);
+                const unsigned source = f.source + first * f.stride;
+                if (f.storage == 2) output = decode_geometry_host_positions8(c.ls + source, active);
+                else {
+                    const v8 input = geometry_host_unit_words8(c.ls+source,f.stride,active);
+                    if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(_mm256_and_si256(input, v8_set(15)), v8_set(11)))) {
+                        if (reason) *reason = "host unsupported unit selector"; return false;
+                    }
+                    if(!capture)continue;
+                    output = decode_geometry_host_unit8(input);
+                    const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+                    for (auto& component : output.component) component = _mm256_and_si256(component, mask);
                 }
-                if(!capture)continue;
-                output = decode_geometry_host_unit8(input);
-                const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
-                for (auto& component : output.component) component = _mm256_and_si256(component, mask);
             }
         }
         if constexpr(Phase==GeometryHostInputPhase::Attributes)

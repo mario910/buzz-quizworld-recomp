@@ -1,0 +1,96 @@
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+SPU_THREAD_LOCAL Block g_spu_trampoline_fn;
+int g_spu_direct_hops;
+void (*g_spu_step_observer)(spu_context*, uint32_t);
+volatile int g_yz_lockstep_on;
+volatile unsigned g_spu_stack_reset_n;
+void* volatile g_pm_flow_ctx;
+void spu_indirect_branch(spu_context* ctx) { (void)ctx; }
+static void observer(spu_context* ctx, uint32_t pc) { (void)ctx; (void)pc; }
+static spu_context seed, before, after;
+static uint8_t external[2][SPU_LS_SIZE];
+static uint32_t random_state = 0xBE419;
+static uint32_t sample(void)
+{
+    random_state ^= random_state << 13;
+    random_state ^= random_state >> 17;
+    random_state ^= random_state << 5;
+    return random_state;
+}
+
+static void setup(unsigned pair, unsigned n)
+{
+    static const unsigned counters[][2] = {{14,17},{12,13},{5,6},{5,6},{9,4},{12,15}};
+    for (unsigned i = 0; i < 128; i++)
+        for (unsigned j = 0; j < 4; j++) seed.gpr[i]._u32[j] = sample();
+    for (unsigned i = 0; i < SPU_LS_SIZE; i += 4) {
+        uint32_t value = sample();
+        memcpy(seed.ls_store + i, &value, sizeof value);
+    }
+    uint32_t src = n % 2 ? SPU_LS_SIZE - 61 : sample();
+    uint32_t dst = n % 3 ? src + 16 * (n % 9) : sample();
+    switch (pair) {
+    case 0:
+        seed.gpr[11]._u32[0] = src - 0xf80;
+        seed.gpr[10]._u32[0] = dst;
+        seed.gpr[12]._u32[0] = dst - seed.gpr[13]._u32[0];
+        break;
+    case 1:
+        seed.gpr[7]._u32[0] = src;
+        seed.gpr[21]._u32[0] = src - seed.gpr[11]._u32[0];
+        seed.gpr[80]._u32[0] = dst - seed.gpr[11]._u32[0];
+        seed.gpr[10]._u32[0] = dst + 128;
+        break;
+    case 2: case 3: seed.gpr[3]._u32[0] = dst + 128; break;
+    case 4: seed.gpr[7]._u32[0] = dst - seed.gpr[8]._u32[0]; break;
+    case 5: seed.gpr[10]._u32[0] = src + 128; seed.gpr[11]._u32[0] = dst + 128; break;
+    }
+    const uint32_t count = n % 4 ? 0u : (uint32_t)-64;
+    seed.gpr[counters[pair][0]]._u32[0] = count;
+    seed.gpr[counters[pair][1]]._u32[0] = count + 8 * (n % 17);
+    seed.steps = UINT32_MAX - 4;
+    seed.int_enable = n % 7 == 2;
+    seed.event_status = seed.event_mask = 1;
+}
+
+static Block execute(spu_context* ctx, Block fn, unsigned n)
+{
+    g_spu_direct_hops = n % 7 != 0;
+    g_spu_step_observer = n % 7 == 1 ? observer : NULL;
+    g_yz_lockstep_on = n % 7 == 3;
+    g_spu_stack_reset_n = n % 7 == 4;
+    g_pm_flow_ctx = n % 7 == 5 ? ctx : NULL;
+    g_spu_trampoline_fn = NULL;
+    fn(ctx);
+    return g_spu_trampoline_fn;
+}
+
+int main(void)
+{
+    for (unsigned i = 0; i < sizeof blocks / sizeof blocks[0]; ++i) {
+        for (unsigned n = 0; n < 256; ++n) {
+            setup(i / 2, n);
+            seed.pc = blocks[i].pc;
+            before = after = seed;
+            before.ls = before.ls_store;
+            after.ls = after.ls_store;
+            if (n % 5 == 0) {
+                before.ls = memcpy(external[0], seed.ls_store, SPU_LS_SIZE);
+                after.ls = memcpy(external[1], seed.ls_store, SPU_LS_SIZE);
+            }
+            Block next = execute(&before, blocks[i].before, n);
+            Block actual = execute(&after, blocks[i].after, n);
+            for (unsigned j = 0; j < sizeof blocks / sizeof blocks[0]; j++)
+                if (actual == blocks[j].after) actual = blocks[j].before;
+            assert(actual == next);
+            assert(memcmp(before.ls, after.ls, SPU_LS_SIZE) == 0);
+            after.ls = before.ls;
+            assert(memcmp(&after, &before, sizeof before) == 0);
+        }
+    }
+    puts("PASS 3072 mixer loop states including both entry PCs, hooks, interrupts and overlapping LS");
+}

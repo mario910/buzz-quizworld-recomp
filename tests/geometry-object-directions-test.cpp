@@ -17,9 +17,23 @@ int main() {
             value.component[c]=_mm256_loadu_si256((const v8*)input[c]);
         }
         for(unsigned c=0;c<12;++c){coeff[c]=trial%2?next():special[next()%14];matrix[c]=v8_set(coeff[c]);}
+        // Exercise the normal bounded path and its exceptional-input fallback.
+        if (trial % 3 == 0) {
+            for (unsigned c=0;c<12;++c) {
+                coeff[c] = (coeff[c] & 0x807fffffu) | ((100u + next()%58u) << 23);
+                matrix[c] = v8_set(coeff[c]);
+            }
+            if (trial % 6 == 0) for (unsigned c=0;c<3;++c) {
+                for (auto& x : input[c]) x = (x & 0x807fffffu) | ((100u + next()%47u) << 23);
+                value.component[c] = _mm256_loadu_si256((const v8*)input[c]);
+            }
+        }
         const unsigned active=trial%9;
         const v8 mask=_mm256_cmpgt_epi32(v8_set(active),_mm256_setr_epi32(0,1,2,3,4,5,6,7));
-        transform_geometry_host_object_value(value,matrix,true,mask);
+        if (geometry_object_matrix_bounded(coeff))
+            transform_geometry_host_object_value<true>(value,matrix,true,mask);
+        else
+            transform_geometry_host_object_value(value,matrix,true,mask);
         for(unsigned c=0;c<4;++c)_mm256_storeu_si256((v8*)actual[c],value.component[c]);
         for(unsigned lane=0;lane<8;++lane){
             uint32_t expected[3];

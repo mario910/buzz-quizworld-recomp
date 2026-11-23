@@ -14,12 +14,18 @@ extern "C" void buzz_audio_compressor_run(spu_context* ctx, void (*reference)(sp
     if (mode != 2) { native(ctx); return; }
     // Diagnostic mode retains original results. Bound costly complete-state
     // comparisons; this mode is not a performance measurement.
-    static std::atomic<unsigned> count[11]{};
-    const unsigned index = entry == 0x2FF18 ? 0 : entry == 0x301D8 ? 1 :
-                           entry == 0xB078 ? 2 : entry == 0xC758 ? 3 : entry == 0xC8D4 ? 4 :
-                           entry == 0x4E00 ? 5 : entry == 0x4F24 ? 6 : entry == 0x513C ? 7 : entry == 0x51F8 ? 8 :
-                           entry == 0x36538 ? 9 : entry == 0x36710 ? 10 : 11;
-    if (index == 11) { reference(ctx); return; }
+    static constexpr unsigned entries[] = {0x2FF18, 0x301D8, 0xB078, 0xC758, 0xC8D4, 0x4E00,
+        0x4F24, 0x513C, 0x51F8, 0x36538, 0x36710, 0x4A4C, 0x47B4, 0xAC1C, 0x8400, 0x5524,
+        0x34770, 0x34840, 0x344E0, 0x363E0, 0x53DC, 0xA290, 0xA214,
+        0x34B58, 0x34930, 0x34608, 0x342E8, 0x35600, 0x5048,
+        0xA504, 0xC65C, 0x59C0, 0x8578, 0x2FCD8, 0x358B0, 0x33DE8,
+        0x34410, 0x352D8, 0x341E0, 0x35030, 0x34F38, 0x55DC, 0x57EC, 0x36370, 0x368B8,
+        0x3614C, 0x37AE8, 0x36EB0, 0x37750, 0x37148, 0x37590};
+    constexpr unsigned size = sizeof(entries) / sizeof(entries[0]);
+    static std::atomic<unsigned> count[size]{};
+    unsigned index = 0;
+    while (index < size && entries[index] != entry) ++index;
+    if (index == size) { reference(ctx); return; }
     const unsigned call = count[index].fetch_add(1, std::memory_order_relaxed);
     if (call >= 16 || ctx->ls != ctx->ls_store) { reference(ctx); return; }
     // Keep the large diagnostic context OUT of every ordinary worker's TLS

@@ -35,6 +35,9 @@
 #include "vblank_clock.h"
 #include <filesystem>
 #include <thread>
+#if defined(__linux__)
+#include <time.h>
+#endif
 #ifdef __ANDROID__
 #include <SDL_system.h>
 #include <android/log.h>
@@ -283,6 +286,15 @@ extern "C" unsigned ppu_boot_frames_presented(void)
 static FILE* g_render_perf_file;
 static uint64_t g_render_perf_epoch,g_render_perf_previous,g_render_perf_flush;
 static uint64_t g_render_perf_drain_ns;
+#if defined(__linux__)
+static int64_t g_render_perf_drain_cpu_ns;
+static int64_t render_thread_cpu_ns()
+{
+    timespec t;
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) != 0) return -1;
+    return int64_t(t.tv_sec) * 1000000000 + t.tv_nsec;
+}
+#endif
 static uint64_t g_render_perf_present_ns,g_render_perf_serial;
 static unsigned g_render_perf_drains,g_render_perf_calls;
 static uint64_t g_render_perf_idle_ns,g_render_perf_idle_budget_ns,g_render_perf_max_idle_ns,g_render_perf_tick_late_ns;
@@ -304,16 +316,31 @@ static void render_perf_init(void)
     if(!g_render_perf_file){fprintf(stderr,"[render-perf] cannot open diagnostic CSV\n");return;}
     setvbuf(g_render_perf_file,nullptr,_IOFBF,16384);
     g_render_perf_epoch=g_render_perf_flush=ps3_ft_now();
-    fprintf(g_render_perf_file,"frame,presented_delta,elapsed_ms,interval_ms,drain_ms,present_ms,drain_calls,guest_present_calls,backend,idle_ms,idle_budget_ms,max_idle_ms,tick_late_ms,waits,ticks\n");
+    fputs("frame,presented_delta,elapsed_ms,interval_ms,drain_ms,present_ms,drain_calls,guest_present_calls,backend,idle_ms,idle_budget_ms,max_idle_ms,tick_late_ms,waits,ticks", g_render_perf_file);
+#if defined(__linux__)
+    fputs(",drain_cpu_ms", g_render_perf_file);
+#endif
+    fputc('\n', g_render_perf_file);
     fprintf(stderr,"[render-perf] buffered frame timing enabled (%s); disable image captures for comparisons\n",RSX_BACKEND_NAME);
 }
 static uint64_t g_frame_drain_ns;   /* FIFO drain time since the last present */
 static void drain_guest_fifo(void)
 {
+#if defined(__linux__)
+    const int64_t cpu_start = g_render_perf_file ? render_thread_cpu_ns() : -1;
+#endif
     const uint64_t start=ps3_ft_now();cellGcm_rsx_process_fifo();
     const uint64_t spent=ps3_ft_now()-start;
     g_frame_drain_ns+=spent;
-    if(g_render_perf_file){g_render_perf_drain_ns+=spent;++g_render_perf_drains;}
+    if(g_render_perf_file){
+        g_render_perf_drain_ns+=spent;
+        ++g_render_perf_drains;
+#if defined(__linux__)
+        const int64_t cpu_end = render_thread_cpu_ns();
+        if (cpu_start < 0 || cpu_end < cpu_start) g_render_perf_drain_cpu_ns = -1;
+        else if (g_render_perf_drain_cpu_ns >= 0) g_render_perf_drain_cpu_ns += cpu_end - cpu_start;
+#endif
+    }
 }
 /* With the 30 FPS cap the guest thread is paced (port/frame_limit.cpp), but
  * the SPU/RSX work after it varies, so presents landed 30-38 ms apart: on a
@@ -397,12 +424,19 @@ static void present_guest_frame(void)
         const auto serial=(uint64_t)frame; // legacy non-benchmark backends
 #endif
         if(serial==g_render_perf_serial)return;
-        fprintf(g_render_perf_file,"%llu,%llu,%.3f,%.3f,%.3f,%.3f,%u,%u,%s,%.3f,%.3f,%.3f,%.3f,%u,%u\n",
+        fprintf(g_render_perf_file,"%llu,%llu,%.3f,%.3f,%.3f,%.3f,%u,%u,%s,%.3f,%.3f,%.3f,%.3f,%u,%u",
             (unsigned long long)serial,(unsigned long long)(serial-g_render_perf_serial),
             double(now-g_render_perf_epoch)/1e6,g_render_perf_previous?double(now-g_render_perf_previous)/1e6:0.0,
             double(g_render_perf_drain_ns)/1e6,double(g_render_perf_present_ns)/1e6,g_render_perf_drains,g_render_perf_calls,RSX_BACKEND_NAME,
             double(g_render_perf_idle_ns)/1e6,double(g_render_perf_idle_budget_ns)/1e6,
             double(g_render_perf_max_idle_ns)/1e6,double(g_render_perf_tick_late_ns)/1e6,g_render_perf_waits,g_render_perf_ticks);
+#if defined(__linux__)
+        fputc(',', g_render_perf_file);
+        if (g_render_perf_drain_cpu_ns >= 0)
+            fprintf(g_render_perf_file, "%.3f", double(g_render_perf_drain_cpu_ns) / 1e6);
+        g_render_perf_drain_cpu_ns = 0;
+#endif
+        fputc('\n', g_render_perf_file);
         g_render_perf_serial=serial;g_render_perf_previous=now;g_render_perf_drain_ns=0;
         g_render_perf_present_ns=0;g_render_perf_drains=0;g_render_perf_calls=0;
         g_render_perf_idle_ns=g_render_perf_idle_budget_ns=g_render_perf_max_idle_ns=g_render_perf_tick_late_ns=0;
