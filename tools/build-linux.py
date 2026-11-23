@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import uuid
@@ -117,6 +118,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         "BUZZ_SPURS_INPUT_CLEAR": "ON" if spurs_input_clear else "OFF",
         "BUZZ_SPU_JOB_RETURN": "ON" if spu_job_return else "OFF",
         "BUZZ_ZEN2_TUNE": "ON" if zen2_tune else "OFF",
+        "BUZZ_ZEN2_ARCH": "ON" if zen2_tune else "OFF",
         "BUZZ_DMA_DIAGNOSTICS_OPTIN": "ON" if dma_diagnostics_optin else "OFF",
         "BUZZ_GEOMETRY_SCALAR_GATHER": "ON" if geometry_scalar_gather else "OFF",
         "BUZZ_AUDIO_X86_RTZ": "ON" if audio_x86_rtz else "OFF",
@@ -178,10 +180,28 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         cmake_options={key: str(value) for key, value in options.items()})))
 
 
+def linux_build_defaults(profile):
+    if profile.adapter_family not in ("quizworld-eu100", "quizworld-us100"):
+        return {}
+    try:
+        info = Path("/proc/cpuinfo").read_text()
+    except OSError:
+        info = ""
+    family = re.search(r"^cpu family\s*:\s*(\d+)", info, re.M)
+    model = re.search(r"^model\s*:\s*(\d+)", info, re.M)
+    zen2 = bool("AuthenticAMD" in info and " avx2" in info and family and model and
+                (int(family[1]) > 23 or (int(family[1]) == 23 and int(model[1]) >= 0x30)))
+    return dict(native_jobs=True, renderer_cpu=True, media_cpu=True, audio_x86_rtz=True,
+                geometry_zero_padding=True, dma_diagnostics_optin=True, geometry_scalar_gather=True,
+                geometry_cpu=True, renderer_bundle=True, image39_native=True, zen2_tune=zen2)
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, argument_default=argparse.SUPPRESS)
     parser.add_argument("stage", choices=("generate", "build"))
     parser.add_argument("--jobs", type=int, default=6)
+    parser.add_argument("--profile", choices=("desktop", "custom"), default=None,
+                        help="A plain build uses desktop defaults. Use custom for the reference build or to select individual experiments.")
     parser.add_argument("--native-jobs", action="store_true", help="Opt in to the hash-checked disc 1.00 native geometry/animation adapters")
     parser.add_argument("--renderer-cpu", action="store_true", help="Opt in to the retained renderer CPU experiments; benchmark separately")
     parser.add_argument("--geometry-cpu", action="store_true", help="Opt in to exact geometry CPU experiments; requires --native-jobs")
@@ -191,7 +211,7 @@ def main():
     parser.add_argument("--spu-job-return", action="store_true", help="Opt in to the guarded native SPURS job-return adapter")
     parser.add_argument("--pgo-profile", type=Path, help="Use a private merged Clang profile for runtime/native optimization; requires --native-jobs")
     parser.add_argument("--zen2-tune", action="store_true", help="Tune Linux runtime/native host paths for Zen 2 with -O3, preserving strict FP")
-    parser.add_argument("--ppu-columns", choices=("none", "matrices", "rotations", "all"), default="none",
+    parser.add_argument("--ppu-columns", choices=("none", "matrices", "rotations", "all"),
                         help="Experimental EU 1.00 PPU matrix and rotation kernels for Zen 2")
     parser.add_argument("--geometry-zero-padding", action="store_true", help="Zero only unindexed vertex alignment bytes to avoid padding-only native fallbacks; requires --native-jobs")
     parser.add_argument("--dma-diagnostics-optin", action="store_true", help="Make the DMA poison logging scan opt-in via BUZZ_DMA_POISON_SCAN=1")
@@ -207,14 +227,10 @@ def main():
     if args.stage == "generate":
         generate(elf, profile, args.jobs)
     else:
-        build(paths, profile, args.jobs, native_jobs=args.native_jobs, renderer_cpu=args.renderer_cpu,
-              geometry_cpu=args.geometry_cpu, media_cpu=args.media_cpu,
-              spurs_input_clear=args.spurs_input_clear, spu_job_return=args.spu_job_return,
-              zen2_tune=args.zen2_tune, geometry_zero_padding=args.geometry_zero_padding,
-              dma_diagnostics_optin=args.dma_diagnostics_optin, geometry_index_cache=args.geometry_index_cache,
-              geometry_scalar_gather=args.geometry_scalar_gather, audio_x86_rtz=args.audio_x86_rtz,
-              pgo_profile=args.pgo_profile, renderer_bundle=args.renderer_bundle,
-              image39_fast=args.image39_fast, image39_native=args.image39_native, ppu_columns=args.ppu_columns)
+        options = {k: v for k, v in vars(args).items() if k not in {"stage", "jobs", "profile"}}
+        if args.profile == "desktop" or (args.profile is None and not options):
+            options = {**linux_build_defaults(profile), **options}
+        build(paths, profile, args.jobs, **options)
 
 
 if __name__ == "__main__":

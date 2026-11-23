@@ -127,9 +127,10 @@ distrobox named `buzz-prepare` and installs the build packages inside it. Setup
 and preparation then run in the container; the system itself is not changed,
 and the prepared game in `build-files/dist` runs directly on the host with its
 Vulkan driver. On systems with a package manager the existing **Install Linux
-system tools** path remains. Linux builds of original-disc 1.00 games use the
-Steam Deck-qualified profile (native jobs, renderer/media adapters, image 39
-native; `-march=znver2` only on AMD Zen 2+ hosts); no private PGO profile ships.
+system tools** path remains. Windows and Linux Vulkan builds of the supported original discs
+enable native jobs, renderer and media adapters automatically. The EU 1.00
+build also uses the balanced studio settings. On Linux the builder selects
+Zen 2 compiler tuning only for compatible AMD hosts.
 
 To reproduce the package on Ubuntu 24.04 (or in that container) with
 `qt6-base-dev`, `patchelf`, CMake 3.31+ and the X11/Wayland headers:

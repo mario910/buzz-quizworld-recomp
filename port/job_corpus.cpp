@@ -424,8 +424,8 @@ std::vector<Seed> seeds_of(const Job& job)
     };
     auto cover = [&](uint64_t b, uint64_t e) {
         auto it = covered.upper_bound(b);
-        if (it != covered.begin() && std::prev(it)->second >= b) { --it; b = it->first; e = std::max(e, it->second); }
-        while (it != covered.end() && it->first <= e) { e = std::max(e, it->second); it = covered.erase(it); }
+        if (it != covered.begin() && std::prev(it)->second >= b) { --it; b = it->first; e = (std::max)(e, it->second); }
+        while (it != covered.end() && it->first <= e) { e = (std::max)(e, it->second); it = covered.erase(it); }
         covered[b] = e;
     };
     for (size_t n = 0; n < job.transfers.size(); n++) {

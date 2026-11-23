@@ -22,7 +22,11 @@ foreach(audio_source IN ITEMS "${PORT_AUDIO_COMPRESSOR_SOURCE}" "${PORT_AUDIO_MI
         endif()
         # Definitions must precede the forced spu_shuffle.h include.
         set_property(SOURCE "${audio_kernel}" APPEND PROPERTY COMPILE_DEFINITIONS SPU_NATIVE_RTZ=1 SPU_RTZ_RESULT_GUARD=1)
-        set_property(SOURCE "${audio_kernel}" APPEND PROPERTY COMPILE_OPTIONS -mfma -frounding-math -ffp-contract=off)
+        if(MSVC)
+            set_property(SOURCE "${audio_kernel}" APPEND PROPERTY COMPILE_OPTIONS -mfma /clang:-frounding-math /clang:-ffp-contract=off)
+        else()
+            set_property(SOURCE "${audio_kernel}" APPEND PROPERTY COMPILE_OPTIONS -mfma -frounding-math -ffp-contract=off)
+        endif()
     elseif(BUZZ_AUDIO_X86_RTZ)
         message(FATAL_ERROR "Regenerate all audio kernels with generate-audio-compressor.py --x86-rtz")
     endif()

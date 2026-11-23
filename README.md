@@ -284,15 +284,12 @@ Lower `--jobs` if compilation runs out of memory. For interruption/resume,
 reuse the same inputs with `--resume <session-directory>`; see
 [import and resume options](docs/game-import.md). Source inputs are not modified.
 
-For Linux development, `tools/build-linux.py build --native-jobs` opts a
-supported original-disc 1.00 workspace into the hash-checked desktop geometry,
-animation and image adapters. Run it from the preparation session's
-`workspace/`, using the same tool environment as preparation. Optional
-`--renderer-cpu` and `--media-cpu` switches select the renderer CPU paths and
-the pinned video/audio leaves; `--geometry-cpu` selects further geometry
-experiments and requires `--native-jobs`. These are Linux experiments, not a
-promise of Windows performance or stable 30 FPS. Compare frozen binaries and
-inspect menu and round rendering before selecting a profile. The build
+For Linux development, run `tools/build-linux.py build` from the preparation
+session's `workspace/` using its Python environment. It applies the same
+desktop defaults as BuzzSetup. Use `--profile custom` for a reference build.
+Individual switches such as `--native-jobs --geometry-cpu` select a specific
+experiment. Add `--profile desktop` to layer switches onto the standard build.
+The build
 manifest records the selected options. `--zen2-tune` tests `-O3 -mtune=znver2`
 on the runtime and small native host paths, retaining strict floating-point
 options and the existing generated PPU build. `--spurs-input-clear` and

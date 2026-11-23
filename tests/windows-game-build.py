@@ -14,8 +14,8 @@ build = args.build.resolve()
 lift = build / "lift"
 lift.mkdir(parents=True)
 spu = build / "spu"
-(spu / "fixture").mkdir(parents=True)
-(spu / "fixture/spu_recomp.c").write_text("/* Synthetic SPU image */\n")
+(spu / "buzz_job_6eba").mkdir(parents=True)
+(spu / "buzz_job_6eba/spu_recomp.c").write_text("/* Synthetic SPU image */\n")
 sys.path.insert(0, str(sources / "ps3recomp/tools"))
 from ppu_lifter import HEADER_PREAMBLE
 
@@ -34,10 +34,12 @@ from tools.desktop_adapters import desktop_options
 # Configure the actual port and renderer from the extracted ZIP. The fixture
 # supplies only guest entry points; all host objects and libraries are real.
 flags = desktop_options(renderer_cpu=True, renderer_bundle=True, geometry_cpu=True)
+flags["PORT_PPU_KERNEL_DIR"] = lift  # Also compile the native studio command handler.
 subprocess.run(["cmake", "-S", sources / "port", "-B", build, "-G", "Ninja",
                 "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_C_COMPILER=clang-cl", "-DCMAKE_CXX_COMPILER=clang-cl",
                 "-DBUZZ_EXPERIMENTAL_VULKAN=ON", "-DBUZZ_STANDALONE=ON", "-DBUZZ_DMA_DIAGNOSTICS_OPTIN=ON",
                 f"-DPS3RECOMP_DIR={sources / 'ps3recomp'}", f"-DRECOMP_DIR={lift}", f"-DSPU_DIR={spu}", "-DPORT_SPU_ISA=avx2",
+                "-DPORT_NATIVE_SPU_FLOAT=ON", "-DPORT_RTZ_RESULT_GUARD=ON",
                 *(f"-D{k}={v}" for k, v in flags.items())], check=True)
 subprocess.run(["cmake", "--build", build, "--target", "BuzzQuizWorldRecomp", "--parallel", "4"], check=True)
 exe = build / "BuzzQuizWorldRecomp.exe"
