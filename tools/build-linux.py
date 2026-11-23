@@ -9,6 +9,7 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from tools.desktop_adapters import desktop_options
 from launcher.game_profiles import identify_elf
 from launcher.paths import load
 
@@ -78,9 +79,9 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     if generation["elf_sha256"] != profile.elf_sha256 or generation["family"] != profile.adapter_family:
         raise ValueError("The generated translations do not match the selected executable.")
     disc = profile.adapter_family != "quizworld-102-verified"
-    native_ppu = native_jobs and zen2_tune and profile.adapter_family == "quizworld-eu100"
+    native_ppu = native_jobs and profile.adapter_family == "quizworld-eu100"
     if ppu_columns != "none" and not native_ppu:
-        raise ValueError("PPU column kernels require the EU 1.00 profile, --native-jobs and --zen2-tune.")
+        raise ValueError("PPU column kernels require the EU 1.00 profile and --native-jobs.")
     if native_jobs and not disc:
         raise ValueError("Native whole-job adapters require a supported original-disc 1.00 profile.")
     if geometry_cpu and not native_jobs:
@@ -124,7 +125,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         "BUZZ_PGO_MODE": "USE" if pgo_profile is not None else "OFF",
         "BUZZ_PGO_PROFILE": pgo_profile if pgo_profile is not None else "",
         "BUZZ_GEOMETRY_ZERO_VERTEX_PADDING": "ON" if geometry_zero_padding else "OFF",
-        "PORT_PPU_KERNEL_DIR": "",
+        "BUZZ_SPU_DIRECT_HOPS": "ON" if native_jobs else "OFF",
         "PORT_COMPLETION_SOURCE": analysis / "native-completion" / completion,
         "PORT_HOST_PROFILE_DIR": analysis / "host-disc100/port" if disc else "",
         "PORT_MSTREAM_DIR": analysis / "mstream-modules",
@@ -135,57 +136,12 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     # a reused CMake cache must not silently keep a candidate's native paths.
     options.update({key: "" for key in ("PORT_GEOMETRY_SOURCE", "PORT_IMAGE7_SOURCE",
                     "PORT_IMAGE36_SOURCE", "PORT_IMAGE39_SOURCE", "PORT_IMAGE40_SOURCE")})
-    options["PORT_SPU_RECORDS_DIR"] = ""
-    if native_ppu:
-        records_dir = analysis / "native-spu-records"
-        python("tools/codegen/generate-spu-records.py", ROOT / "port/spu", records_dir)
-        options["PORT_SPU_RECORDS_DIR"] = records_dir
-        kernel_dir = analysis / "native-ppu"
-        python("tools/codegen/generate-ppu-kernels.py", ROOT / "port/recompiled", kernel_dir, "--ppu-columns", ppu_columns)
-        options["PORT_PPU_KERNEL_DIR"] = kernel_dir
+    options.update(desktop_options(native_ppu=native_ppu, ppu_columns=ppu_columns, media_cpu=media_cpu,
+                                   audio_x86_rtz=audio_x86_rtz, renderer_cpu=renderer_cpu,
+                                   renderer_bundle=renderer_bundle, geometry_cpu=geometry_cpu,
+                                   geometry_index_cache=geometry_index_cache))
     if native_jobs:
         options.update(native_adapters(analysis, image39_fast, image39_native))
-    options.update({key: "" for key in ("PORT_VIDEO_IDCT_SOURCE", "PORT_AUDIO_COMPRESSOR_SOURCE",
-                    "PORT_AUDIO_MIXER_SOURCE", "PORT_AUDIO_ATRAC_SOURCE")})
-    if media_cpu:
-        python("tools/codegen/generate-video-idct.py")
-        python("tools/codegen/generate-audio-compressor.py", "--include-mixer", "--include-atrac",
-               *(["--x86-rtz"] if audio_x86_rtz else []))
-        options.update({
-            "PORT_VIDEO_IDCT_SOURCE": analysis / "native-video-idct/spu_recomp.c",
-            "PORT_AUDIO_COMPRESSOR_SOURCE": analysis / "native-audio-compressor/spu_recomp.c",
-            "PORT_AUDIO_MIXER_SOURCE": analysis / "native-audio-mixer/spu_recomp.c",
-            "PORT_AUDIO_ATRAC_SOURCE": analysis / "native-audio-atrac/spu_recomp.c",
-        })
-    for option in ("BUZZ_RENDERER_CPU_REFINEMENTS", "BUZZ_RENDERER_VERTEX_FETCH",
-                   "BUZZ_RENDERER_TEXTURE_SNAPSHOT", "BUZZ_RENDERER_DIRECT_DRAW",
-                   "BUZZ_RENDERER_CONSTANT_RANGES", "BUZZ_RENDERER_VERTEX_STREAM",
-                   "BUZZ_RENDERER_INDEX_FUSION", "BUZZ_RENDERER_PACKED_FUSION",
-                   "BUZZ_VK_DESCRIPTOR_BATCH", "BUZZ_VK_UNIFORM_REUSE",
-                   "BUZZ_RSX_READY_CHECK", "BUZZ_PPU_WORD_WAIT"):
-        options[option] = "ON" if renderer_cpu else "OFF"
-    for option in ("BUZZ_GEOMETRY_CULL_COMPACT", "BUZZ_GEOMETRY_INDEX_CACHE",
-                   "BUZZ_GEOMETRY_BOUNDED_SKIN", "BUZZ_GEOMETRY_COARSE_CLIP",
-                   "BUZZ_GEOMETRY_HOST_COMMANDS"):
-        options[option] = "ON" if geometry_cpu else "OFF"
-    options["BUZZ_GEOMETRY_INDEX_CACHE"] = "ON" if geometry_cpu or geometry_index_cache else "OFF"
-    # Direct CMake profiling builds share this directory. Keep unselected
-    # experiments out of a later helper build instead of inheriting cached ONs.
-    for option in ("BUZZ_RSX_METHOD_FASTPATH", "BUZZ_RSX_PARK_WAKE",
-                   "BUZZ_RENDERER_STATE_PACKETS", "BUZZ_RENDERER_PIPELINE_LOOKUP",
-                   "BUZZ_RENDERER_INDEX_PREPARE", "BUZZ_VK_DESCRIPTOR_WRITES",
-                   "BUZZ_VK_DRAW_STATE", "BUZZ_VK_BATCH_UPLOAD",
-                   "BUZZ_GEOMETRY_INDEX_SEQUENTIAL", "BUZZ_GEOMETRY_INDEX_BATCHED",
-                   "BUZZ_GEOMETRY_DEFERRED_CLIP", "BUZZ_GEOMETRY_LAZY_ATTRIBUTES",
-                   "BUZZ_RENDERER_WAIT_TRACE", "BUZZ_SPURS_EXECUTION_TRACE",
-                   "BUZZ_PRODUCER_DEPENDENCY_TRACE", "BUZZ_PPU_WORD_WAIT_TRACE"):
-        options[option] = "OFF"
-    # Deck ABBA (2026-11-13): menu +0.9%, question rounds +1.7%, identical captures.
-    if renderer_bundle:
-        for option in ("BUZZ_RSX_METHOD_FASTPATH", "BUZZ_RENDERER_STATE_PACKETS",
-                       "BUZZ_RENDERER_PIPELINE_LOOKUP", "BUZZ_RENDERER_INDEX_PREPARE",
-                       "BUZZ_VK_DESCRIPTOR_WRITES", "BUZZ_VK_DRAW_STATE"):
-            options[option] = "ON"
     directory = ROOT / "build-vulkan-linux"
     # The vendored CMake logic reads fixed offsets from this header.
     # Normalize only the isolated workspace copy when it came from CRLF.

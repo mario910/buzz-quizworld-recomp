@@ -346,7 +346,7 @@ static void drain_guest_fifo(void)
  * the SPU/RSX work after it varies, so presents landed 30-38 ms apart: on a
  * 60 Hz display some frames stayed one refresh, others three. Present on a
  * 33.3 ms grid instead: an early frame waits for its slot (at most
- * BUZZ_PRESENT_HOLD_MS: default 8 on Vulkan, 0 on D3D12; 0 disables), a late one presents at once
+ * BUZZ_PRESENT_HOLD_MS, disabled by default), a late one presents at once
  * and moves the grid later by half its lateness, and the grid creeps back
  * earlier by 1/64 of each hold so the added latency stays small. (Moving it
  * by the whole lateness let the delay reach the guest's flip wait: 29.6 FPS.)
@@ -356,13 +356,7 @@ static void present_hold(void)
     static long long hold_max_ns=-1;
     if(hold_max_ns<0){
         const char* e=getenv("BUZZ_PRESENT_HOLD_MS");
-#ifdef BUZZ_EXPERIMENTAL_VULKAN
-        constexpr long default_ms=8;
-#else
-        /* D3D12: no measured smoothing (64 -> 66 % within 2 ms), -0.3 FPS. */
-        constexpr long default_ms=0;
-#endif
-        const long ms=e&&*e?strtol(e,nullptr,10):default_ms;
+        const long ms=e&&*e?strtol(e,nullptr,10):0;
         hold_max_ns=ms>0&&ms<=16?ms*1000000ll:0;
     }
     static uint64_t grid=0;

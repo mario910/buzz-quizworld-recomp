@@ -27,7 +27,7 @@ foreach($option in ($profileOptions | ConvertFrom-Json).PSObject.Properties) {
 }
 if (-not $SkipGeneration) { & (Join-Path $root 'scripts/generate.ps1') -Jobs $Jobs }
 foreach($vulkan in $variants) {
-    & (Join-Path $root 'scripts/build-windows.ps1') -Jobs $Jobs -VulkanExperimental:$vulkan -Standalone:$Standalone @nativeOptions
+    & (Join-Path $root 'scripts/build-windows.ps1') -Jobs $Jobs -VulkanExperimental:$vulkan -Standalone:$Standalone -DesktopOptimizations @nativeOptions
 }
 if($Standalone){return}
 if(-not $SkipLauncher){& (Join-Path $root 'scripts/build-launcher.ps1') -Jobs $Jobs}

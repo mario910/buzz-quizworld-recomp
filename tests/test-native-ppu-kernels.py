@@ -144,7 +144,7 @@ def main():
         for mode in (None, "original", "effects", "balanced", "unknown"):
             if mode is not None:
                 environment["BUZZ_STUDIO_DETAIL"] = mode
-            subprocess.run([program, mode or "original"], env=environment, check=True)
+            subprocess.run([program, mode or "balanced"], env=environment, check=True)
         source.write_text(comparison_source(translations))
         for flags in [("-O1", "-fwrapv", "-fno-strict-aliasing"), ("-O2", "-frounding-math")]:
             subprocess.run(["clang++", *flags, "-std=gnu++20", "-march=znver2", "-ffp-contract=off",

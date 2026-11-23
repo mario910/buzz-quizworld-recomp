@@ -230,14 +230,11 @@ and extract it over the same package folder.
    **Escape / controller START** to configure display, audio, textures and
    keyboard or pad bindings. Use **Save settings** to keep the changes.
    On Linux, the checkout's `Launch-Buzz.sh` and `Prepare-Buzz.sh` correspond to
-   the `.cmd` scripts. For a Steam Deck running a newly prepared EU 1.00
-   native Zen 2 build, use `./Launch-Buzz.sh --steam-deck` in a checkout,
-   `./Play-Buzz.sh --steam-deck` in the extracted Linux package, or
-   `./BuzzSetup-x86_64.AppImage --play --steam-deck`. This profile
-   omits floor reflections, bloom and the second audience lighting pass in
-   the studio and disables the additional present delay. The audience remains
-   visible. Launch normally for full effects. The Deck tests used the in-game
-   30 FPS cap and a 1000 MHz GPU clock set separately.
+   the `.cmd` scripts. On Windows and Linux, a newly prepared EU 1.00 game
+   uses the balanced studio settings automatically. It skips floor reflections,
+   bloom and the second lighting pass on the audience. Set
+   `BUZZ_STUDIO_DETAIL=original` before starting the game for full studio effects.
+   The additional present delay is disabled by default on both platforms.
    On Windows, the checkout's `Launch-Buzz.cmd` also starts
    `dist/BuzzQuizWorldRecomp.exe` when it exists.
 

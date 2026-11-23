@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tests/windows-game-build.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/BuzzLinuxVulkan.*', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tests/windows-game-build.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -129,6 +129,18 @@ jobs:
           } finally {
             if (-not $gui.HasExited) { Stop-Process -Id $gui.Id }
           }
+      - name: Configure Windows game compiler
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - name: Build and start the Windows Vulkan game host from the release ZIP
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m pip install cmake==3.31.10 ninja==1.13.0
+          if ($LASTEXITCODE) { throw 'Game build tools installation failed' }
+          python tests/windows-game-build.py "$env:RUNNER_TEMP/prepare-smoke/BuzzPrepare/build-files" "$env:RUNNER_TEMP/game"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: runner.os == 'Windows'
         with:

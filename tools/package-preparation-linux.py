@@ -82,7 +82,7 @@ prepared in ~/BuzzQuizWorld/build-files (set BUZZ_HOME to choose another
 folder on a regular drive; about 25 GB). Start the prepared game with
   BuzzSetup-x86_64.AppImage --play
 which is also the launch option to use when adding it to Steam as a non-Steam
-game. Use --play --steam-deck for the optional Deck studio profile.
+game. Balanced studio settings are automatic on supported game builds.
 --launcher opens the native launcher (controls and button test).
 """
 PORT_PATHS = (
@@ -138,7 +138,7 @@ README = """Buzz! Quiz World - BuzzSetup for Linux x86-64
    container first; nothing is installed on the system itself. On Debian,
    Ubuntu, Fedora and Arch it can install the missing build packages instead.
 5. When it finishes, select Play Buzz!. Later, start the game with
-   ./Play-Buzz.sh. Use ./Play-Buzz.sh --steam-deck for the Deck studio profile.
+   ./Play-Buzz.sh.
    You can add Play-Buzz.sh to Steam as a non-Steam game.
 
 Requirements: an x86-64 CPU with AVX2 and FMA, a Vulkan driver, SDL2, and

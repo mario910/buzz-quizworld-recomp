@@ -3,6 +3,7 @@ param(
     [int]$Jobs = 6,
     [switch]$VulkanExperimental,
     [switch]$Standalone,
+    [switch]$DesktopOptimizations,
     [ValidateSet('sse2','sse41','avx2','avx512')][string]$SpuIsa = 'avx2',
     [switch]$NativeSpuFloat = $true,
     [switch]$HotPpu = $true,
@@ -214,15 +215,35 @@ $configureOptions=@(
     "-DPORT_OPTIMIZE_PPU_HOT_PATHS=$($HotPpu.IsPresent)", "-DPORT_GEOMETRY_SOURCE=$geometryOverride",
     "-DPORT_COMPLETION_SOURCE=$completionOverride", "-DPORT_IMAGE40_SOURCE=$image40Override",
     "-DPORT_IMAGE39_SOURCE=$image39Override", "-DPORT_IMAGE7_SOURCE=$image7Override",
-    "-DBUZZ_IMAGE39_NATIVE_REQUEST=$($NativeImage39Request.IsPresent)",
-    "-DBUZZ_IMAGE39_NATIVE_BOUNDS=$($NativeImage39Bounds.IsPresent)",
-    "-DBUZZ_GEOMETRY_INDEX_CACHE=$($GeometryIndexCache.IsPresent)",
-    "-DBUZZ_GEOMETRY_HOST_COMMANDS=$($GeometryHostCommands.IsPresent)",
-    "-DBUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$($GeometryZeroVertexPadding.IsPresent)",
     "-DBUZZ_SPU_JOB_RETURN=$($SpuJobReturn.IsPresent)",
     "-DPORT_MSTREAM_DIR=$mstreamDir", "-DPORT_IMAGE36_SOURCE=$image36Override",
     "-DPORT_VIDEO_SOURCE=$videoOverride", "-DPORT_PRODUCER_PROBE_DIR=$producerOverride",
     '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
+)
+# Generate the same portable scene, renderer, geometry and media paths as Linux.
+# The studio display list is specific to the EU disc. SPU/media adapters
+# have their own hash checks and the qualified Vulkan job profile above.
+$optimizedVulkan = $DesktopOptimizations -and $geometryJobProfile
+$adapterArgs = @()
+if ($DesktopOptimizations -and $generation.family -eq 'quizworld-eu100') { $adapterArgs += '--scene' }
+if ($optimizedVulkan) { $adapterArgs += '--optimized-vulkan' }
+$optionFile = [IO.Path]::GetTempFileName()
+try {
+    & (Join-Path $toolScripts 'python.exe') (Join-Path $experimentRoot 'tools/desktop_adapters.py') @adapterArgs --output $optionFile
+    if ($LASTEXITCODE) { throw 'Desktop adapter generation failed' }
+    $configureOptions += Get-Content -LiteralPath $optionFile -Encoding UTF8
+} finally {
+    Remove-Item -LiteralPath $optionFile
+}
+$configureOptions += @(
+    "-DBUZZ_DMA_DIAGNOSTICS_OPTIN=$optimizedVulkan", "-DBUZZ_GEOMETRY_SCALAR_GATHER=$optimizedVulkan",
+    "-DBUZZ_AUDIO_X86_RTZ=$optimizedVulkan", "-DBUZZ_SPU_DIRECT_HOPS=$optimizedVulkan",
+    "-DBUZZ_GEOMETRY_CULL_COMPACT=ON",
+    "-DBUZZ_GEOMETRY_INDEX_CACHE=$($optimizedVulkan -or $GeometryIndexCache)",
+    "-DBUZZ_GEOMETRY_HOST_COMMANDS=$($optimizedVulkan -or $GeometryHostCommands)",
+    "-DBUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$($optimizedVulkan -or $GeometryZeroVertexPadding)",
+    "-DBUZZ_IMAGE39_NATIVE_REQUEST=$($optimizedVulkan -or $NativeImage39Request)",
+    "-DBUZZ_IMAGE39_NATIVE_BOUNDS=$($optimizedVulkan -or $NativeImage39Bounds)"
 )
 & cmake -S $port -B $build -G Ninja @configureOptions
 if ($LASTEXITCODE) { throw "CMake configuration failed: $LASTEXITCODE" }

@@ -10,7 +10,7 @@ inline StudioDetail studio_detail()
     static const StudioDetail detail = [] {
         const char* mode = std::getenv("BUZZ_STUDIO_DETAIL");
         if (mode && std::strcmp(mode, "effects") == 0) return StudioDetail::effects;
-        if (mode && std::strcmp(mode, "balanced") == 0) return StudioDetail::balanced;
+        if (!mode || !*mode || std::strcmp(mode, "balanced") == 0) return StudioDetail::balanced;
         return StudioDetail::original;
     }();
     return detail;

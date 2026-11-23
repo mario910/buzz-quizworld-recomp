@@ -15,6 +15,8 @@ constexpr Default defaults[] = {
 #define X(name, value) {#name, value},
 // Buzz offers a souvenir photo whenever the SDK exposes its virtual camera.
 X(PS3_CAMERA, "0")
+X(BUZZ_PRESENT_HOLD_MS, "0")
+X(BUZZ_STUDIO_DETAIL, "balanced")
 #if BUZZ_RUNTIME_DEFAULTS || defined(BUZZ_STANDALONE)
 #if defined(BUZZ_STANDALONE) && !BUZZ_RUNTIME_DEFAULTS
 #define BUZZ_COMMON_DEFAULTS_ONLY

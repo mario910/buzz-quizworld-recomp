@@ -18,6 +18,7 @@ try {
         if($_ -match '^X\((\w+), "([^"]+)"\)'){@{Name=$Matches[1];Value=$Matches[2]}}
     })
     $profileTestOptions += @{Name='PS3_CAMERA';Value='0'}
+    $profileTestOptions += @{Name='BUZZ_PRESENT_HOLD_MS';Value='0'}, @{Name='BUZZ_STUDIO_DETAIL';Value='balanced'}
     foreach($profileTestOption in $profileTestOptions) {
         $profileTestPrevious[$profileTestOption.Name]=[Environment]::GetEnvironmentVariable($profileTestOption.Name,'Process')
     }
@@ -32,7 +33,7 @@ try {
             foreach($profileTestOption in $profileTestOptions) {
                 $profileTestValue=if($profileTestOverride -eq 'mixed'){if(($profileTestIndex++ % 2) -eq 0){'0'}else{$null}}elseif($profileTestOverride -eq 'unset'){$null}else{$profileTestOverride}
                 Set-ProfileTestOption $profileTestOption.Name $profileTestValue
-                $profileTestExpected+=if($null -ne $profileTestValue){$profileTestValue}elseif($profileTestBuild -or $profileTestOption.Name -eq 'PS3_CAMERA'){$profileTestOption.Value}else{'<unset>'}
+                $profileTestExpected+=if($null -ne $profileTestValue){$profileTestValue}elseif($profileTestBuild -or $profileTestOption.Name -in @('PS3_CAMERA','BUZZ_PRESENT_HOLD_MS','BUZZ_STUDIO_DETAIL')){$profileTestOption.Value}else{'<unset>'}
             }
             $profileTestExpected | Set-Content "$profileTestCase/$profileTestOverride.expected" -Encoding ascii
             & "$profileTestCase/test.exe" "$profileTestCase/$profileTestOverride.expected" *> "$profileTestCase/$profileTestOverride.log"
