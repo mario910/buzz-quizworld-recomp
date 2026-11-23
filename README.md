@@ -234,6 +234,9 @@ and extract it over the same package folder.
    automatically. With a matching studio dispatcher this skips floor reflections,
    bloom and the second lighting pass on the audience. Set
    `BUZZ_STUDIO_DETAIL=original` before starting the game for full studio effects.
+   Open **PC settings → Graphics** to switch studio floor reflections, bloom,
+   and extra audience lighting independently while playing. **Save settings** keeps
+   your selection across launches and overrides the studio preset.
    The additional present delay is disabled by default on both platforms.
    On Windows, the checkout's `Launch-Buzz.cmd` also starts
    `dist/BuzzQuizWorldRecomp.exe` when it exists.

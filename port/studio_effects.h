@@ -1,21 +1,8 @@
 #pragma once
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include "studio_graphics.h"
 
 namespace buzz {
-enum class StudioDetail { original, effects, balanced };
-inline StudioDetail studio_detail()
-{
-    static const StudioDetail detail = [] {
-        const char* mode = std::getenv("BUZZ_STUDIO_DETAIL");
-        if (mode && std::strcmp(mode, "effects") == 0) return StudioDetail::effects;
-        if (!mode || !*mode || std::strcmp(mode, "balanced") == 0) return StudioDetail::balanced;
-        return StudioDetail::original;
-    }();
-    return detail;
-}
-
 inline bool is_studio_program(uint32_t program, uint32_t records)
 {
     // The studio display list begins with the marker GFX_RENDERMIXSET.
@@ -29,7 +16,7 @@ inline bool is_studio_program(uint32_t program, uint32_t records)
 // scene's worth of SPURS work for the reflection and bloom textures.
 inline bool skip_studio_effect(uint32_t program, uint32_t records, uint32_t index)
 {
-    if ((index != 134 && index != 163) || studio_detail() == StudioDetail::original ||
+    if ((index != 134 && index != 163) || studio_effect_enabled(index == 134 ? floor_reflections : bloom) ||
         !is_studio_program(program, records)) return false;
     const uint32_t command = records + index * 16;
     const uint32_t extent = index == 134 ? 24 : 34;
@@ -51,7 +38,7 @@ inline bool is_audience_light_marker(uint32_t marker, uint32_t opcode)
 
 inline bool skip_audience_light(uint32_t program, uint32_t records, uint32_t index)
 {
-    if (index != 84 || studio_detail() != StudioDetail::balanced ||
+    if (index != 84 || studio_effect_enabled(audience_lighting) ||
         !is_studio_program(program, records)) return false;
     // Only this draw is enclosed by GFX_AUDIENCELITPASS. The audience
     // base pass has its own draw earlier in the same program.

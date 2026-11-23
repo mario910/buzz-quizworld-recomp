@@ -1,4 +1,5 @@
 #include "pc_runtime.h"
+#include "studio_graphics.h"
 #include "ps3emu/host_controls.h"
 #include <chrono>
 #include <cstdlib>
@@ -29,8 +30,12 @@ int main(){try {
     check(buzz_pc_runtime_init());
     check(ps3_host_get_volume()==37&&ps3_host_get_frame_limit()==30&&ps3_host_get_fullscreen()==1);
     check(buzz_pc_requested_preferences()==p&&std::string(getenv("BUZZ_OFFLINE"))=="0");
+    p.studio_effects=buzz::bloom;
+    check(buzz_pc_apply_preferences(p,false).restart==buzz_pc::no_restart);
+    check(buzz::studio_effect_enabled(buzz::bloom)&&!buzz::studio_effect_enabled(buzz::floor_reflections));
     p.fps_limit=60;check(buzz_pc_apply_preferences(p,true).accepted&&ps3_host_get_frame_limit()==60);
     check(buzz_pc_runtime_init()&&buzz_pc_requested_preferences().fps_limit==60&&ps3_host_get_frame_limit()==60);
+    check(buzz::active_studio_effects().load()==buzz::bloom);
     p.volume_percent=20;p.fps_limit=0;p.fullscreen=false;p.offline=true;
     check(!buzz_pc_performance_overlay_enabled());p.performance_overlay=true;
     auto changed=buzz_pc_apply_preferences(p,true);

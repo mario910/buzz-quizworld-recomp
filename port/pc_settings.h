@@ -3,6 +3,7 @@
 // Live consumers poll State::active(); restart-only changes remain requested.
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 
 namespace buzz_pc {
@@ -13,6 +14,7 @@ struct Preferences {
     unsigned volume_percent = 100;
     unsigned fps_limit = 30; // 0 (uncapped), 30 or 60; not a simulation-speed knob.
     bool performance_overlay = false; // Live, non-interactive FPS/draw/resolution HUD.
+    std::optional<unsigned> studio_effects; // Unset inherits BUZZ_STUDIO_DETAIL.
     bool fullscreen = false; // Borderless at the desktop resolution of the window's monitor.
     // Windowed client size in physical pixels. 0x0 keeps the backend's own
     // default size; the backend shrinks it to fit the monitor's work area.

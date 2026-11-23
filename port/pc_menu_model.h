@@ -6,8 +6,8 @@
 namespace buzz_pc {
 enum class MenuAction {toggle,up,down,left,right,accept,back};
 enum class MenuPage {settings,controllers,quit_confirm,phones,bindings,pad_assignments,controller_options,phone_seats};
-enum class MenuTab {general,display,textures,controllers,phones,count};
-inline constexpr const char* menu_tab_names[]={"General","Display","Textures","Controls","Phones"};
+enum class MenuTab {general,display,graphics,controllers,phones,count};
+inline constexpr const char* menu_tab_names[]={"General","Display","Graphics","Controls","Phones"};
 // Same five colours for physical handsets and configured keyboard buzzers.
 inline MenuAction buzzer_menu_action(unsigned button){
     return button==1?MenuAction::accept:button==2?MenuAction::left:
@@ -37,7 +37,7 @@ public:
 };
 // Settings page rows. Display (window/swapchain) size and the internal
 // render resolution are separate rows: one is live, one needs a restart.
-enum SettingsRow {row_volume,row_frame_lock,row_performance_overlay,row_display_mode,row_window_size,row_render_scale,row_upscaler,row_sharpness,row_texture_replace,row_texture_dump,row_texture_auto,row_offline,
+enum SettingsRow {row_volume,row_frame_lock,row_performance_overlay,row_display_mode,row_window_size,row_render_scale,row_upscaler,row_sharpness,row_texture_replace,row_texture_dump,row_texture_auto,row_studio_reflections,row_studio_bloom,row_studio_audience,row_offline,
     row_save,row_return,row_quit,row_settings_count};
 // Cycle a window size through Default (0x0), the presets and, when the
 // current size is none of those, that custom size kept in its place.
@@ -61,6 +61,7 @@ inline unsigned next_render_scale(unsigned current,int direction){
     return render_scale_presets[std::clamp(index+direction,0,presets-1)];
 }
 class MenuModel {
+    bool studio_controls_;
     bool opened_=false;
     MenuPage page_=MenuPage::settings;
     MenuTab tab_=MenuTab::general;
@@ -68,8 +69,9 @@ class MenuModel {
     bool tabs_focused_=false;
     inline static constexpr SettingsRow general_rows_[]={row_volume,row_frame_lock,row_performance_overlay,row_offline};
     inline static constexpr SettingsRow display_rows_[]={row_display_mode,row_window_size,row_render_scale,row_upscaler,row_sharpness};
-    inline static constexpr SettingsRow texture_rows_[]={row_texture_replace,row_texture_dump,row_texture_auto};
+    inline static constexpr SettingsRow graphics_rows_[]={row_texture_replace,row_texture_dump,row_texture_auto,row_studio_reflections,row_studio_bloom,row_studio_audience};
 public:
+    explicit MenuModel(bool studio_controls):studio_controls_(studio_controls) {}
     bool open()const{return opened_;}
     MenuPage page()const{return page_;}
     MenuTab tab()const{return tab_;}
@@ -86,7 +88,7 @@ public:
     }
     int selection()const{return selection_;}
     int option_rows()const{
-        if(page_==MenuPage::settings)return tab_==MenuTab::display?5:tab_==MenuTab::textures?3:4;
+        if(page_==MenuPage::settings)return tab_==MenuTab::display?5:tab_==MenuTab::graphics?(studio_controls_?6:3):4;
         return page_==MenuPage::controllers||page_==MenuPage::phones?5:
             page_==MenuPage::bindings?8:page_==MenuPage::pad_assignments?5:
             page_==MenuPage::controller_options?4:page_==MenuPage::phone_seats?9:2;
@@ -98,7 +100,7 @@ public:
         if(root()&&row>=option_rows())return row_save+(row-option_rows());
         if(page_!=MenuPage::settings)return -1;
         if(row<0||row>=option_rows())return -1;
-        return tab_==MenuTab::display?display_rows_[row]:tab_==MenuTab::textures?texture_rows_[row]:general_rows_[row];
+        return tab_==MenuTab::display?display_rows_[row]:tab_==MenuTab::graphics?graphics_rows_[row]:general_rows_[row];
     }
     void select(int row){selection_=std::clamp(row,0,rows()-1);tabs_focused_=false;}
     void select_setting(SettingsRow setting){

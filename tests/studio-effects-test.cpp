@@ -70,4 +70,10 @@ int main(int argc, char** argv)
         if (index != 84) assert(!buzz::skip_audience_light(program, records, index));
         if (index != 134 && index != 163) assert(!buzz::skip_studio_effect(program, records, index));
     }
+    for (unsigned mask = 0; mask <= buzz::all_studio_effects; ++mask) {
+        buzz::active_studio_effects().store(mask);
+        assert(buzz::skip_studio_effect(program, records, 134) == !(mask & buzz::floor_reflections));
+        assert(buzz::skip_studio_effect(program, records, 163) == !(mask & buzz::bloom));
+        assert(admitted() == !(mask & buzz::audience_lighting));
+    }
 }

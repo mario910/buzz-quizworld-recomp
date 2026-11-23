@@ -132,9 +132,10 @@ and stores its bindings through the in-game menu.
 
 ## Settings and process isolation
 
-The in-game settings menu has five tabs: **General, Display, Textures, Controls,
-and Phones**. Each has at most five primary options, with **Save settings,
-Resume game, and Quit** kept in a separate fixed footer. Controller assignments,
+The in-game settings menu has five tabs. **General, Display, Graphics, Controls,
+and Phones** share a fixed footer with **Save settings, Resume game, and Quit**.
+On supported builds, **Graphics** includes live switches for studio floor
+reflections, bloom and extra audience lighting alongside the texture options. Controller assignments,
 advanced input options, bindings, and paired phones use short subpages with a
 Back option. Settings are applied and saved exactly as before.
 

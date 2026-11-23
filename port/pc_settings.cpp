@@ -1,4 +1,5 @@
 #include "pc_settings.h"
+#include "studio_graphics.h"
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -11,12 +12,12 @@ bool operator==(const Preferences& a,const Preferences& b) {
         a.window_width==b.window_width && a.window_height==b.window_height && a.render_scale==b.render_scale &&
         a.upscaler==b.upscaler && a.fsr_sharpness==b.fsr_sharpness &&
         a.texture_replace==b.texture_replace && a.texture_dump==b.texture_dump &&
-        a.texture_auto_upscale==b.texture_auto_upscale && a.performance_overlay==b.performance_overlay;
+        a.texture_auto_upscale==b.texture_auto_upscale && a.performance_overlay==b.performance_overlay && a.studio_effects==b.studio_effects;
 }
 namespace {
 // Keys a version-1 file may not carry, and the startup fallback drops.
 constexpr const char* v2_keys[]={"window_width","window_height","render_scale","upscale_filter","fsr_sharpness",
-                                 "texture_replace","texture_dump","texture_auto_upscale","performance_overlay"};
+                                 "texture_replace","texture_dump","texture_auto_upscale","performance_overlay","studio_effects"};
 bool is_v2_key(const std::string& key){for(const char* k:v2_keys)if(key==k)return true;return false;}
 }
 bool valid_window_size(unsigned w,unsigned h) {
@@ -31,6 +32,7 @@ bool validate(const Preferences& p,std::string& error) {
     else if(!valid_window_size(p.window_width,p.window_height))error="Window size must be 640x360 to 7680x7680, or 0x0 for the default";
     else if(p.render_scale<min_render_scale||p.render_scale>max_render_scale)error="Internal resolution must be 100-300 percent";
     else if(p.upscaler!=Upscaler::bilinear&&p.upscaler!=Upscaler::fsr1)error="Invalid upscaling filter";
+    else if(p.studio_effects && *p.studio_effects > buzz::all_studio_effects)error="Invalid studio effects";
     else if(p.fsr_sharpness>100)error="FSR sharpness must be 0-100";
     else {error.clear();return true;}
     return false;
@@ -42,7 +44,7 @@ std::string serialize(const Preferences& p) {
     // Version 2 only adds display and texture pack keys. Defaults keep writing
     // the exact version-1 file, so older builds sharing it still load it.
     const bool display=p.window_width||p.window_height||p.render_scale!=100||p.upscaler!=Upscaler::bilinear||p.fsr_sharpness!=80||
-                       !p.texture_replace||p.texture_dump||p.texture_auto_upscale||p.performance_overlay;
+                       !p.texture_replace||p.texture_dump||p.texture_auto_upscale||p.performance_overlay||p.studio_effects.has_value();
     s<<"# Buzz PC preferences v"<<(display?2:1)<<". Restart-only options are not live switches.\n"
       <<"version="<<(display?2:1)<<"\nvolume="<<p.volume_percent<<"\nfps_limit="<<p.fps_limit
       <<"\nfullscreen="<<p.fullscreen<<"\noffline="<<p.offline<<"\nrenderer="<<renderer
@@ -51,6 +53,7 @@ std::string serialize(const Preferences& p) {
                 <<"\nupscale_filter="<<(p.upscaler==Upscaler::fsr1?"fsr1":"bilinear")<<"\nfsr_sharpness="<<p.fsr_sharpness
                 <<"\ntexture_replace="<<p.texture_replace<<"\ntexture_dump="<<p.texture_dump
                 <<"\ntexture_auto_upscale="<<p.texture_auto_upscale<<'\n';
+    if(p.studio_effects)s<<"studio_effects="<<*p.studio_effects<<'\n';
     if(p.performance_overlay)s<<"performance_overlay=1\n";
     return s.str();
 }
@@ -79,6 +82,7 @@ bool parse(const std::string& text,Preferences& output,std::string& error) {
         }
         else if(key=="renderer") {if(value=="auto")p.renderer=Renderer::automatic;else if(value=="d3d12")p.renderer=Renderer::d3d12;else if(value=="vulkan")p.renderer=Renderer::vulkan;else return fail();}
         else if(key=="phone_buzzers") {if(value!="0"&&value!="1")return fail();p.phone_buzzers=value=="1";}
+        else if(key=="studio_effects") {if(!number()||n>buzz::all_studio_effects)return fail();p.studio_effects=n;}
         else if(key=="performance_overlay") {if(value!="0"&&value!="1")return fail();p.performance_overlay=value=="1";}
         else if(key=="phone_port") {if(!number()||n<1024||n>65535)return fail();p.phone_port=n;}
         else if(key=="window_width"||key=="window_height") {if(!number()||n>max_window_extent)return fail();(key=="window_width"?p.window_width:p.window_height)=n;}
@@ -123,6 +127,7 @@ Change State::apply(const Preferences& p) {
     active_.phone_buzzers=p.phone_buzzers;active_.phone_port=p.phone_port;
     active_.window_width=p.window_width;active_.window_height=p.window_height;
     active_.upscaler=p.upscaler;active_.fsr_sharpness=p.fsr_sharpness;
+    active_.studio_effects=p.studio_effects;
     active_.performance_overlay=p.performance_overlay;
     uint32_t restart=no_restart;
     if(active_.offline!=p.offline)restart|=network_restart;

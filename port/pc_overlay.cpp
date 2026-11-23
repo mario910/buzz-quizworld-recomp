@@ -1,6 +1,7 @@
 #include "pc_system_font.h"
 #include "pc_overlay.h"
 #include "pc_menu_model.h"
+#include "studio_graphics.h"
 #include "pc_runtime.h"
 #include "pc_performance.h"
 #include "buzzer_hid_win32.h"
@@ -48,7 +49,11 @@ constexpr unsigned SYSUTIL_DRAWING_BEGIN=0x0121,SYSUTIL_DRAWING_END=0x0122,
     SYSUTIL_SYSTEM_MENU_OPEN=0x0131,SYSUTIL_SYSTEM_MENU_CLOSE=0x0132;
 
 namespace {
-buzz_pc::MenuModel menu;
+#ifdef BUZZ_STUDIO_CONTROLS
+buzz_pc::MenuModel menu(true);
+#else
+buzz_pc::MenuModel menu(false);
+#endif
 buzz_pc::Preferences preferences;
 buzz_input::Config input;
 buzz_phone::Status phone_status;
@@ -187,6 +192,10 @@ void save_all() {
     status=change.restart||input.players!=buzz_input_players()?"Settings saved. Some changes require a game restart.":"Settings saved.";
     fprintf(stderr,"[pc-menu] settings saved: volume=%u cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%%\n",preferences.volume_percent,preferences.fps_limit,preferences.fullscreen,preferences.offline,preferences.window_width,preferences.window_height,preferences.render_scale);
 }
+void toggle_studio_effect(buzz::StudioEffect effect) {
+    preferences.studio_effects=preferences.studio_effects.value_or(buzz::default_studio_effects()) ^ effect;
+    apply_live();
+}
 void act(buzz_pc::MenuAction action) {
     using buzz_pc::MenuAction;using buzz_pc::MenuPage;
     if(action==MenuAction::toggle||action==MenuAction::back||action==MenuAction::up||action==MenuAction::down){navigate(action);return;}
@@ -282,6 +291,9 @@ void act(buzz_pc::MenuAction action) {
                 status="FSR 1 sharpens when the window is larger than the internal resolution.";
         }
         else if(setting==row_sharpness&&!accept){preferences.fsr_sharpness=unsigned(std::clamp(int(preferences.fsr_sharpness)+direction*10,0,100));apply_live();}
+        else if(setting==row_studio_reflections)toggle_studio_effect(buzz::floor_reflections);
+        else if(setting==row_studio_bloom)toggle_studio_effect(buzz::bloom);
+        else if(setting==row_studio_audience)toggle_studio_effect(buzz::audience_lighting);
         else if(setting==row_texture_replace){preferences.texture_replace=!preferences.texture_replace;apply_live();}
         else if(setting==row_texture_dump){preferences.texture_dump=!preferences.texture_dump;apply_live();}
         else if(setting==row_texture_auto){preferences.texture_auto_upscale=!preferences.texture_auto_upscale;apply_live();}
@@ -514,6 +526,9 @@ std::string row_label(int row) {
             }
             case row_upscaler:return std::string("UPSCALING FILTER    ")+(preferences.upscaler==Upscaler::fsr1?"AMD FSR 1":"BILINEAR");
             case row_sharpness:return "FSR SHARPNESS                         "+std::to_string(preferences.fsr_sharpness)+"%";
+            case row_studio_reflections:return std::string("STUDIO FLOOR REFLECTIONS    ")+(buzz::studio_effect_enabled(buzz::floor_reflections)?"ON":"OFF");
+            case row_studio_bloom:return std::string("STUDIO BLOOM                ")+(buzz::studio_effect_enabled(buzz::bloom)?"ON":"OFF");
+            case row_studio_audience:return std::string("EXTRA AUDIENCE LIGHTING     ")+(buzz::studio_effect_enabled(buzz::audience_lighting)?"ON":"OFF");
             case row_texture_replace:return std::string("REPLACE TEXTURES [restart]  ")+(preferences.texture_replace?"ON":"OFF");
             case row_texture_dump:return std::string("DUMP TEXTURES [restart]  ")+(preferences.texture_dump?"ON":"OFF");
             case row_texture_auto:return std::string("AUTO TEXTURE UPSCALING [restart]  ")+(preferences.texture_auto_upscale?"ON":"OFF");
@@ -725,7 +740,7 @@ void test_actions() {
         const auto verify=[](bool ok,const char* step){fprintf(stderr,"[pc-menu] test: tabs %s %s\n",step,ok?"PASS":"FAILED");};
         if(test_stage==0&&elapsed>=1000){navigate(buzz_pc::MenuAction::toggle);++test_stage;}
         if(test_stage==1&&elapsed>=2500){press(2);verify(menu.tab()==buzz_pc::MenuTab::display&&menu.tabs_focused(),"Display");press(0);press(4);++test_stage;}
-        if(test_stage==2&&elapsed>=4000){press(2);verify(menu.tab()==buzz_pc::MenuTab::textures,"Textures");press(0);press(4);++test_stage;}
+        if(test_stage==2&&elapsed>=4000){press(2);verify(menu.tab()==buzz_pc::MenuTab::graphics,"Graphics");press(0);press(4);++test_stage;}
         if(test_stage==3&&elapsed>=5500){
             press(2);press(0);press(3);press(0);verify(menu.page()==buzz_pc::MenuPage::pad_assignments,"Assignments");
             press(3,4);press(0);verify(menu.page()==buzz_pc::MenuPage::controllers,"Controls-back");press(4);++test_stage;

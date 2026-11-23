@@ -35,7 +35,8 @@ int main() {
         check(pad.sample(8|0x200,564)==0); // holding RB never repeatedly selects
         check(pad.sample(0,565)==0);check(pad.sample(0x1000|0x2000,566)==(0x1000|0x2000));
         pad.reset();check(pad.sample(0x10,567)==0); // START is not an answer/select
-        MenuModel menu;check(!menu.open());menu.navigate(MenuAction::toggle);check(menu.open());
+        MenuModel plain(false);plain.set_tab(MenuTab::graphics);check(plain.option_rows()==3&&plain.setting_row(3)==row_save);
+        MenuModel menu(true);check(!menu.open());menu.navigate(MenuAction::toggle);check(menu.open());
         check(menu.tab()==MenuTab::general&&menu.tabs_focused());
         menu.navigate(buzzer_menu_action(2));check(menu.tab()==MenuTab::phones); // yellow wraps back
         menu.navigate(buzzer_menu_action(4));check(menu.tab()==MenuTab::general); // green wraps forward
@@ -45,7 +46,7 @@ int main() {
         menu.navigate(buzzer_menu_action(8));check(menu.tabs_focused());
         std::array<bool,row_settings_count> reachable{};
         for(int tab=0;tab<int(MenuTab::count);++tab){
-            menu.set_tab(MenuTab(tab));check(menu.option_rows()<=5&&menu.rows()<=8);
+            menu.set_tab(MenuTab(tab));check(menu.option_rows()<=6&&menu.rows()<=9);
             menu.navigate(buzzer_menu_action(1));
             for(int row=0;row<menu.rows();++row){
                 check(!menu.tabs_focused()&&menu.selection()==row);
@@ -60,7 +61,7 @@ int main() {
         for(bool found:reachable)check(found);
         menu.select_setting(row_performance_overlay);check(menu.tab()==MenuTab::general&&menu.setting_row(menu.selection())==row_performance_overlay);
         menu.select_setting(row_render_scale);check(menu.tab()==MenuTab::display&&menu.setting_row(menu.selection())==row_render_scale);
-        menu.select_setting(row_texture_auto);check(menu.tab()==MenuTab::textures&&menu.setting_row(menu.selection())==row_texture_auto);
+        menu.select_setting(row_texture_auto);check(menu.tab()==MenuTab::graphics&&menu.setting_row(menu.selection())==row_texture_auto);
         check(next_window_size({0,0},1).width==1280&&next_window_size({0,0},-1).width==3840);
         check(next_window_size({3840,2160},1).width==0);
         {auto custom=next_window_size({1000,700},1);check(custom.width==0);check(next_window_size({1000,700},-1).width==3840);}
@@ -94,6 +95,11 @@ int main() {
         for(unsigned limit:frame_limit_presets){
             auto cap=p;cap.fps_limit=limit;check(parse(serialize(cap),decoded,error)&&decoded==cap);
             State live;check(live.apply(cap).restart==no_restart&&live.active().fps_limit==limit);
+        }
+        for(unsigned mask=0;mask<8;++mask){
+            Preferences studio;studio.studio_effects=mask;
+            Preferences read;check(parse(serialize(studio),read,error)&&read==studio);
+            State live;auto change=live.apply(read);check(change.accepted&&change.restart==no_restart&&live.active()==read);
         }
         {Preferences hud;hud.performance_overlay=true;
          check(parse(serialize(hud),decoded,error)&&decoded==hud);
@@ -135,7 +141,7 @@ int main() {
             "version=2\nupscale_filter=dlss","version=2\nfsr_sharpness=101","version=1\nupscale_filter=fsr1",
             "version=2\ntexture_replace=2","version=2\ntexture_dump=on","version=1\ntexture_dump=1",
             "version=2\ntexture_auto_upscale=yes","version=1\ntexture_auto_upscale=1",
-            "version=2\nperformance_overlay=yes","version=2\nperformance_overlay=2","version=1\nperformance_overlay=1"}) {
+            "version=1\nstudio_effects=0","version=2\nstudio_effects=8","version=2\nperformance_overlay=yes","version=2\nperformance_overlay=2","version=1\nperformance_overlay=1"}) {
             check(!parse(bad,decoded,error)&&decoded==previous&&!error.empty());
         }
         check(!parse(std::string(4097,'x'),decoded,error));

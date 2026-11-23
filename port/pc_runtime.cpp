@@ -1,4 +1,5 @@
 #include "pc_runtime.h"
+#include "studio_graphics.h"
 #include "pc_settings_file.h"
 #include "pc_texture_upscaler.h"
 #include "ps3emu/host_controls.h"
@@ -45,6 +46,7 @@ void atomic_save(const buzz_pc::Preferences& p) {
     buzz_pc_write_file_atomic(preferences_file,buzz_pc::serialize(p));
 }
 void apply_live(const buzz_pc::Preferences& p) {
+    buzz::active_studio_effects().store(p.studio_effects.value_or(buzz::default_studio_effects()),std::memory_order_relaxed);
     performance_overlay.store(p.performance_overlay,std::memory_order_relaxed);
     ps3_host_set_volume(p.volume_percent);
     ps3_host_set_frame_limit(p.fps_limit);
@@ -108,6 +110,7 @@ bool buzz_pc_runtime_init() {
 #ifdef __ANDROID__
             apply_live(p);
 #else
+            buzz::active_studio_effects().store(buzz::default_studio_effects(),std::memory_order_relaxed);
             ps3_host_set_frame_limit(p.fps_limit);
 #endif
         }
