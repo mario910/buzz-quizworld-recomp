@@ -66,14 +66,16 @@ private slots:
         moved.exe = "/games/Buzz/dist/BuzzQuizWorldRecomp";
         moved.startDir = "/games/Buzz/dist";
         const auto twice = steam::upsert(once, moved);
-        const auto* shortcuts = steam::parse(twice).find("shortcuts");
+        const auto root = steam::parse(twice);
+        const auto* shortcuts = root.find("shortcuts");
         QCOMPARE(shortcuts->children.size(), size_t(2));
         QCOMPARE(shortcuts->children[1].find("StartDir")->value, QByteArray("\"/games/Buzz/dist\""));
         QCOMPARE(steam::upsert(twice, moved), twice);
     }
 
     void createsMissingFile() {
-        const auto* shortcuts = steam::parse(steam::upsert({}, buzz())).find("shortcuts");
+        const auto root = steam::parse(steam::upsert({}, buzz()));
+        const auto* shortcuts = root.find("shortcuts");
         QVERIFY(shortcuts);
         QCOMPARE(shortcuts->children.size(), size_t(1));
         QCOMPARE(shortcuts->children[0].key, QByteArray("0"));

@@ -299,7 +299,7 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
                 menu_requested=true;capture_locked(true);
             }
             previous_pad_buttons[i]=buttons;
-            if(!config.gamepads||config.pad_player[i]<0){router.release(buzz_input::gamepad0+i,true);continue;}
+            if(!config.gamepads||config.pad_player[i]==-1){router.release(buzz_input::gamepad0+i,true);continue;}
             const auto source=buzz_input::gamepad0+i;
             const auto mapped=buzz_input::map_pad(buttons,config.pad_buttons[i]);
             int player=config.pad_player[i];

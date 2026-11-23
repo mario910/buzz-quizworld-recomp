@@ -115,7 +115,7 @@ struct Server::Impl {
     unsigned port=0;
     std::string failure;
     std::vector<std::string> ips;
-    std::string state_path;
+    std::filesystem::path state_path;
     std::function<uint32_t()> occupied;
     std::function<void(uint32_t)> publish;
     // Under mutex: share the reserved slots and, for pairing changes, save them.
@@ -124,14 +124,15 @@ struct Server::Impl {
         if(publish)publish(sessions->reserved_mask());
         if(!save||state_path.empty())return;
         try {
-            const std::filesystem::path path(state_path),temp(state_path+".tmp");
+            auto temp=state_path;
+            temp+=".tmp";
             {
                 std::ofstream out(temp,std::ios::binary|std::ios::trunc);
                 out<<sessions->save();
                 if(!out)throw std::runtime_error("write failed");
             }
             std::filesystem::permissions(temp,std::filesystem::perms::owner_read|std::filesystem::perms::owner_write);
-            std::filesystem::rename(temp,path);
+            std::filesystem::rename(temp,state_path);
         } catch(const std::exception& e) {
             fprintf(stderr,"[phone] cannot save the pairing: %s\n",e.what());
         }
@@ -267,7 +268,7 @@ Status Server::status() const {
 void Server::set_locked(bool value){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->locked=value;impl_->changed(true);}}
 void Server::kick(unsigned player){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->kick(player);impl_->changed(true);}}
 void Server::reset(){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->reset();impl_->changed(true);}}
-void Server::set_persistence(std::string path){std::lock_guard lock(impl_->mutex);impl_->state_path=std::move(path);}
+void Server::set_persistence(std::filesystem::path path){std::lock_guard lock(impl_->mutex);impl_->state_path=std::move(path);}
 void Server::set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish){
     std::lock_guard lock(impl_->mutex);impl_->occupied=std::move(occupied);impl_->publish=std::move(publish);
 }

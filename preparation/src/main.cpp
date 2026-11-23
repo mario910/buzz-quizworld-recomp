@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     if (argc == 1) return runPreparationWizard(argc, argv);
     QCoreApplication app(argc, argv);
     app.setApplicationName("BuzzPrepare");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(BUZZ_PREPARE_VERSION);
     QCommandLineParser parser;
     parser.setApplicationDescription(
         "Native preparation commands. Start without arguments to open the wizard.");

@@ -141,7 +141,7 @@ unsigned buzz_pc_active_render_scale() {
 void buzz_pc_phone_initialize(unsigned players,buzz_phone::Server::Input input) {
     std::lock_guard lock(apply_mutex);phone_players=players;phone_input=std::move(input);
     // Phones keep their QR code and player slots across restarts.
-    buzz_phone::host().set_persistence((fs::current_path()/"phone-pairing.txt").string());
+    buzz_phone::host().set_persistence(fs::current_path()/"phone-pairing.txt");
     std::string error;
     if(state&&!configure_phone(state->active(),error))fprintf(stderr,"[phone] %s\n",error.c_str());
 }
