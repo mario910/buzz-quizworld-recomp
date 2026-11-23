@@ -138,9 +138,13 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          python -m pip install cmake==3.31.10 ninja==1.13.0
-          if ($LASTEXITCODE) { throw 'Game build tools installation failed' }
-          python tests/windows-game-build.py "$env:RUNNER_TEMP/prepare-smoke/BuzzPrepare/build-files" "$env:RUNNER_TEMP/game"
+          $project = "$env:RUNNER_TEMP/prepare-smoke/BuzzPrepare/build-files"
+          & "$project/scripts/Setup-Buzz.ps1" -BuildOnly
+          $tools = "$project/toolenv/Scripts"
+          $compiler = & "$tools/python.exe" -c "from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())"
+          if ($LASTEXITCODE) { throw 'Game compiler lookup failed' }
+          $env:PATH = "$compiler;$tools;$env:PATH"
+          & "$tools/python.exe" tests/windows-game-build.py $project "$env:RUNNER_TEMP/game"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: runner.os == 'Windows'
         with:

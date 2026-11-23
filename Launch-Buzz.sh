@@ -4,6 +4,8 @@
 here=$(dirname "$(readlink -f "$0")")
 if [ "${1:-}" = "--steam-deck" ]; then
     shift
+    # Older prepared binaries still need the explicit studio environment.
+    export BUZZ_STUDIO_DETAIL="${BUZZ_STUDIO_DETAIL:-balanced}" BUZZ_PRESENT_HOLD_MS="${BUZZ_PRESENT_HOLD_MS:-0}"
 fi
 if [ -x "$here/dist/BuzzQuizWorldRecomp" ]; then
     cd "$here/dist" && exec ./BuzzQuizWorldRecomp "$@"
