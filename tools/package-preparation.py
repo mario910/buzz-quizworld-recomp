@@ -18,7 +18,7 @@ QT_SOURCE = "qtbase-everywhere-src-6.8.3.tar.xz"
 QT_SHA256 = "56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80"
 PORT_PATHS = (
     "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
-    "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
+    "Launch-Buzz.sh", "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
     "preparation/CMakeLists.txt", "preparation/README.md", "preparation/src", "tools",
     "third_party/cpp-httplib", "third_party/qrcodegen",
 )

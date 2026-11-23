@@ -231,7 +231,9 @@ and extract it over the same package folder.
    keyboard or pad bindings. Use **Save settings** to keep the changes.
    On Linux, the checkout's `Launch-Buzz.sh` and `Prepare-Buzz.sh` correspond to
    the `.cmd` scripts. For a Steam Deck running a newly prepared EU 1.00
-   native Zen 2 build, use `./Launch-Buzz.sh --steam-deck`. This profile
+   native Zen 2 build, use `./Launch-Buzz.sh --steam-deck` in a checkout,
+   `./Play-Buzz.sh --steam-deck` in the extracted Linux package, or
+   `./BuzzSetup-x86_64.AppImage --play --steam-deck`. This profile
    omits floor reflections, bloom and the second audience lighting pass in
    the studio and disables the additional present delay. The audience remains
    visible. Launch normally for full effects. The Deck tests used the in-game

@@ -57,7 +57,8 @@ mkdir -p "$dst" || exit 1
 case "$1" in
     --play)
         shift
-        if [ -x "$dst/dist/BuzzQuizWorldRecomp" ]; then cd "$dst/dist" && exec ./BuzzQuizWorldRecomp "$@"; fi ;;
+        if [ -x "$dst/dist/BuzzQuizWorldRecomp" ]; then exec "$dst/Launch-Buzz.sh" "$@"; fi
+        if [ "${1:-}" = "--steam-deck" ]; then shift; fi ;;
     --launcher)
         shift
         exec "$here/usr/bin/BuzzLauncher" --project "$dst" "$@" ;;
@@ -81,11 +82,12 @@ prepared in ~/BuzzQuizWorld/build-files (set BUZZ_HOME to choose another
 folder on a regular drive; about 25 GB). Start the prepared game with
   BuzzSetup-x86_64.AppImage --play
 which is also the launch option to use when adding it to Steam as a non-Steam
-game. --launcher opens the native launcher (controls and button test).
+game. Use --play --steam-deck for the optional Deck studio profile.
+--launcher opens the native launcher (controls and button test).
 """
 PORT_PATHS = (
     "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
-    "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
+    "Launch-Buzz.sh", "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
     "preparation/CMakeLists.txt", "preparation/README.md", "preparation/src", "tools",
     "third_party/cpp-httplib", "third_party/qrcodegen",
 )
@@ -114,9 +116,8 @@ exec "$here/bin/BuzzPrepare" "$@"
 LAUNCH_GAME = """#!/bin/sh
 # Play the copy prepared with BuzzSetup, or open BuzzSetup if there is none yet.
 here=$(dirname "$(readlink -f "$0")")
-game="$here/build-files/dist"
-if [ -x "$game/BuzzQuizWorldRecomp" ]; then
-    cd "$game" && exec ./BuzzQuizWorldRecomp "$@"
+if [ -x "$here/build-files/dist/BuzzQuizWorldRecomp" ]; then
+    exec "$here/build-files/Launch-Buzz.sh" "$@"
 fi
 exec "$here/BuzzSetup"
 """
@@ -137,7 +138,8 @@ README = """Buzz! Quiz World - BuzzSetup for Linux x86-64
    container first; nothing is installed on the system itself. On Debian,
    Ubuntu, Fedora and Arch it can install the missing build packages instead.
 5. When it finishes, select Play Buzz!. Later, start the game with
-   ./Play-Buzz.sh. Steam: add Play-Buzz.sh as a non-Steam game.
+   ./Play-Buzz.sh. Use ./Play-Buzz.sh --steam-deck for the Deck studio profile.
+   You can add Play-Buzz.sh to Steam as a non-Steam game.
 
 Requirements: an x86-64 CPU with AVX2 and FMA, a Vulkan driver, SDL2, and
 glibc 2.39 or newer for BuzzSetup itself (SteamOS 3.6+, Ubuntu 24.04+,
