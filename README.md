@@ -120,8 +120,9 @@ a local decryption key file. Use **Download key file** in BuzzSetup to obtain
 the shared PS3 system keys from the pinned sources, or select a file you prepared.
 Already prepared `dev_flash` and `EBOOT.elf` can be used without a key file.
 See [built-in game and firmware import](docs/game-import.md#where-to-find-the-keys) for key sources and formats,
-command-line usage and validation. Still-encrypted disc images are
-not supported by this importer. Use files you are legally
+command-line usage and validation. For supported encrypted ISO dumps, BuzzSetup
+also fetches the matching public disc key automatically and decrypts sectors
+while extracting the game. Use files you are legally
 entitled to use under the rules in your jurisdiction.
 
 ## Build prerequisites
@@ -149,7 +150,7 @@ on the port, not required for playing a prepared copy.
    The package includes the compiled wizard and pinned build sources. It runs
    without Git or a separate source download.
 2. Select your ISO or disc dump, firmware PUP or `dev_flash`, and a key file
-   for encrypted inputs. **Download PS3 firmware** opens PlayStation's download
+   for encrypted EBOOT or firmware inputs. **Download PS3 firmware** opens PlayStation's download
    page and **Download key file** prepares and selects a local `ps3.keys`.
    Leave **Game update** empty for the optimized EU/US 1.00 build.
 3. Use the buttons shown for any missing Windows tools. In Visual Studio
@@ -177,7 +178,7 @@ and the system tools checklist.
    about 25 GB). The **BuzzPrepare-linux-x86_64.tar.gz** package is the same
    app unpacked: extract it into your home folder and run **`BuzzSetup`**.
 2. Select your ISO or disc dump, firmware PUP or `dev_flash`, and a key file
-   for encrypted inputs, as on Windows.
+   for encrypted EBOOT or firmware inputs, as on Windows.
 3. On SteamOS and other image-based systems without a compiler, click
    **Set up the build container**. BuzzSetup creates an Ubuntu 24.04 distrobox
    (`buzz-prepare`) and installs the build tools inside it; the system itself
@@ -274,8 +275,8 @@ example paths with your own EU or US **1.00** disc and firmware inputs:
 
 For an already decrypted disc dump plus installed firmware, `--game` can name
 the folder containing `PS3_GAME`, and `--firmware` can name `dev_flash`.
-The local key file is needed only for encrypted inputs. Omit `--keys` if none
-of your inputs need decryption. No update is passed in this example, so the
+The local key file is needed for encrypted EBOOT or firmware inputs. Omit `--keys`
+if both are already decrypted. No update is passed in this example, so the
 disc's 1.00 executable is selected.
 
 Linux: after installing the [Linux preparation dependencies](preparation/README.md#developer-build),

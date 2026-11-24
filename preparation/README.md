@@ -11,7 +11,9 @@ preparation targets Windows and Linux x86-64. The wizard checks the host and off
 dependency installation, accepts local game and firmware inputs, then uses
 the Python import and generation pipeline, with PowerShell build commands on Windows, to build a
 standalone Vulkan distribution in `dist/` beside the build sources. Native
-command-line import and analysis remain available on Windows and Linux.
+command-line import and analysis remain available on Windows and Linux for
+decrypted images and folder dumps. For automatic disc-key lookup and sector
+decryption, use the wizard or `tools/prepare-game.py`.
 UDF-only discs still need a native reader; the native CLI supports
 ISO9660/Joliet bridges, including hybrid UDF images with a readable bridge.
 

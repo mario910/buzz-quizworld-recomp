@@ -40,7 +40,7 @@ class Wizard:
         frame = ttk.Frame(root, padding=20)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Prepare your copy of Buzz! Quiz World", font=("Segoe UI", 18, "bold")).pack(anchor="w")
-        ttk.Label(frame, text="Prepare your ISO/dump and firmware directly. No RPCS3 installation is required. Encrypted inputs need a private local key file (see docs/game-import.md).", wraplength=920).pack(anchor="w", pady=(6, 14))
+        ttk.Label(frame, text="Disc keys for matching encrypted ISOs are fetched automatically. Encrypted EBOOT or firmware needs a local PS3 system key file (see docs/game-import.md).", wraplength=920).pack(anchor="w", pady=(6, 14))
         labels = dict(game="Game: ISO / folder", firmware="Firmware: PUP / dev_flash", keys="Decryption keys (local file)", update="Game update: PKG / EBOOT (optional)")
         self.entries = []
         for key, variable in self.fields.items():

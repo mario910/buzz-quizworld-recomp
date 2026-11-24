@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/disc_image.py', 'launcher/disc_keys.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'requirements.txt', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/disc_image.py', 'launcher/disc_keys.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'requirements.txt', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -34,6 +34,15 @@ jobs:
             libwayland-dev libxkbcommon-dev libegl1-mesa-dev xvfb
       - name: Test desktop adapter source encodings
         run: python -m unittest discover -s tests -p test_studio_adapter.py
+      - name: Test Python disc and firmware import on Linux
+        if: runner.os == 'Linux'
+        run: |
+          python -m venv "$RUNNER_TEMP/buzz-import"
+          tools="$RUNNER_TEMP/buzz-import/bin"
+          sed -nE '/^(pycdlib|pycryptodome)==/p' requirements.txt > "$RUNNER_TEMP/buzz-import-requirements.txt"
+          "$tools/python" -m pip install -r "$RUNNER_TEMP/buzz-import-requirements.txt"
+          "$tools/python" -m unittest discover -s tests -p test_ps3_import.py
+          "$tools/python" -m unittest discover -s tests -p test_setup_pipeline.py
       - name: Install developer Qt on Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -173,7 +182,7 @@ jobs:
         with:
           name: BuzzPrepare-linux-x86_64
           path: assets
-      - name: Publish Windows preparation release
+      - name: Publish Windows and Linux preparation release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -182,6 +191,6 @@ jobs:
           sha256sum --check SHA256SUMS.txt SHA256SUMS-linux.txt
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
             --title "BuzzSetup $TAG" \
-            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. Use the firmware and key file buttons or select your own files. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzSetup-x86_64.AppImage**, make it executable and run it (or use **BuzzPrepare-linux-x86_64.tar.gz** and its **BuzzSetup**). The game is prepared in ~/BuzzQuizWorld; on SteamOS and other image-based systems BuzzSetup builds inside a distrobox container without changing the system. Start the prepared game with **BuzzSetup-x86_64.AppImage --play** (also the Steam launch option).' \
+            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. For supported encrypted ISOs, BuzzSetup fetches the disc key and decrypts the image during extraction. Use the firmware and key file buttons or select your own files for the separate PS3 system keys. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzSetup-x86_64.AppImage**, make it executable and run it (or use **BuzzPrepare-linux-x86_64.tar.gz** and its **BuzzSetup**). The game is prepared in ~/BuzzQuizWorld; on SteamOS and other image-based systems BuzzSetup builds inside a distrobox container without changing the system. Start the prepared game with **BuzzSetup-x86_64.AppImage --play** (also the Steam launch option).' \
             BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz \
             BuzzSetup-x86_64.AppImage BuzzPrepare-linux-x86_64.tar.gz SHA256SUMS-linux.txt

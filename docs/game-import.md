@@ -14,7 +14,7 @@ adds the firmware HMAC. It saves the result under
 `runtime/keys/downloaded/ps3.keys` in the build sources folder.
 
 Choose your game ISO/dump, firmware PUP or installed `dev_flash`, an optional
-update PKG/EBOOT, and a private local key file for encrypted inputs. A key
+update PKG/EBOOT, and a private local key file for encrypted EBOOT or firmware. A key
 file at `runtime/keys/ps3.keys` is selected automatically when the wizard
 opens, followed by the downloaded file if the manual file is absent. Key values are
 not put in logs, preparation ledgers or source snapshots. The ledger stores
@@ -33,6 +33,22 @@ the disc executable. Use `--resume <session-directory>` with the same inputs
 to resume. Old sessions prepared with the RPCS3 helper are retained, but must
 be imported into a new session with the built-in importer. Existing prepared
 builds can still be played.
+
+## Encrypted disc images
+
+BuzzSetup and `tools/prepare-game.py` automatically match encrypted ISO dumps
+against four Redump records for Buzz! Quiz World (BCES00644, BCES00645, BCES00647
+and BCUS98209). They check the ISO size and SHA-1 locally, then download a
+pinned public disc key catalog. The request uses the same URL for all editions
+and sends no file name, hash or game data. The importer verifies the key's
+SHA-256, the recovered game files' headers and title ID, and decrypts sectors
+on read. The source ISO is kept intact and no second ISO is written.
+
+Already decrypted images and folder dumps import offline. If an encrypted
+image has no exact match, use a decrypted copy of your own disc. If the catalog
+is unavailable, you can resume after restoring connectivity. The disc key
+handles the outer encryption on the ISO. Use `ps3.keys` separately for the
+EBOOT and firmware layers when needed.
 
 ## Where to find the keys
 
@@ -132,9 +148,9 @@ Cancellation is checked during hashing, archive iteration, section decoding
 and PKG chunks. Incomplete firmware stays in an unpublished staging directory;
 it can be retained after cancellation, and resume starts a fresh extraction.
 
-Encrypted disc sectors, account-licensed PSN executables, ELF32/SPU SELF
-extraction, custom firmware layouts and unrecognized game versions are outside
-this importer's supported scope. SELF signing certificates are not verified.
+Account-licensed PSN executables, ELF32/SPU SELF extraction, custom firmware
+layouts and unrecognized game versions are outside this importer's supported
+scope. SELF signing certificates are not verified.
 This does not expand the runtime's supported game/firmware identities.
 
 ## Format references
@@ -144,4 +160,5 @@ The parsers were written from the public descriptions of
 [SELF/SPRX](https://www.psdevwiki.com/ps3/SELF_-_SPRX),
 [PUP](https://www.psdevwiki.com/ps3/Playstation_Update_Package_(PUP)) and
 [PKG](https://www.psdevwiki.com/ps3/PKG_files). No code from RPCS3 or scetool
-was copied or translated into the importer.
+was copied or translated into the importer. The PS3 ISO region parsing and
+sector IV layout follow the format documented in [PS3Dec](https://github.com/al3xtjames/PS3Dec/blob/master/src/PS3Dec.c).

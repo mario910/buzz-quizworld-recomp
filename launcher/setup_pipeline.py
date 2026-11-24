@@ -1,5 +1,4 @@
-"""Private, resumable in-process import/build pipeline. No game/key downloads;
-the only download is the opt-in texture upscaler (upscaler_install)."""
+"""Private, resumable in-process import/build pipeline for local game media."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -18,6 +17,7 @@ import time
 import uuid
 
 from . import model
+from . import disc_keys
 from .game_profiles import identify, KNOWN_TITLE_IDS
 
 MAX_GAME_BYTES = 64 * 1024**3
@@ -70,26 +70,34 @@ class Inputs:
 
 
 
-def fingerprint(path, cancel=None, log=None):
+def fingerprint(path, cancel=None, log=None, *, catalog=False):
     path = Path(path).resolve(strict=True)
     if path.is_dir():
         # A folder is used read-only, not copied. Track its executable and SFO.
         return {"path": str(path), "sfo": fingerprint(path / "PS3_GAME/PARAM.SFO", cancel, log),
                 "eboot": fingerprint(path / "PS3_GAME/USRDIR/EBOOT.BIN", cancel, log)}
-    size = path.stat().st_size
+    before = path.stat()
+    size = before.st_size
     hasher, done, last = hashlib.sha256(), 0, time.monotonic()
+    disc_hash = hashlib.sha1(usedforsecurity=False) if catalog and any(size == key[0] for key in disc_keys.DISCS) else None
     with path.open("rb") as stream:
         while chunk := stream.read(8 * 1024**2):
             if cancel is not None and cancel.is_set():
                 raise Cancelled("Input verification cancelled.")
             hasher.update(chunk)
+            if disc_hash is not None:
+                disc_hash.update(chunk)
             done += len(chunk)
             if log and time.monotonic() - last > 2:
                 log(f"Hash: {path.name}: {done / 1024**2:.0f}/{size / 1024**2:.0f} MiB")
                 last = time.monotonic()
-    if path.stat().st_size != size:
+    after = path.stat()
+    if done != size or (after.st_size, after.st_mtime_ns) != (size, before.st_mtime_ns):
         raise ValueError("Input changed during hashing; retry after it stops changing.")
-    return {"path": str(path), "size": size, "sha256": hasher.hexdigest()}
+    identity = {"path": str(path), "size": size, "sha256": hasher.hexdigest()}
+    if disc_hash is not None:
+        identity["disc_sha1"] = disc_hash.hexdigest()
+    return identity
 
 
 def safe_component(name):
@@ -160,28 +168,81 @@ def iso_plan(image):
                 raise ValueError("ISO exceeds import safety limits.")
             plan.append((relative, source, size))
     if not any(p.as_posix() == "PS3_GAME/PARAM.SFO" for p, _, _ in plan):
-        raise ValueError("No readable PS3_GAME/PARAM.SFO. The ISO may be encrypted or unsupported; "
-                         "supply your own decrypted ISO/dump. No keys are fetched automatically.")
+        raise ValueError("No readable PS3_GAME/PARAM.SFO in the ISO.")
     return mode, plan, total
 
 
-def extract_iso(path, destination, log, cancel):
+def iso_game_title(image, mode, plan, *, disc=None):
+    from .ps3_crypto import SCE_V2
+
+    sfo_path = "PS3_GAME/PARAM.SFO"
+    eboot_path = "PS3_GAME/USRDIR/EBOOT.BIN"
+    icon_path = "PS3_GAME/ICON0.PNG"
+    files = {path: (source, size) for relative, source, size in plan
+             if (path := relative.as_posix()) in (sfo_path, eboot_path, icon_path)}
+    if disc is not None or image.has_ps3_regions:
+        def readable(path, signatures):
+            if path not in files:
+                return False
+            with image.open_file_from_iso(**{mode: files[path][0]}) as stream:
+                return stream.read(8).startswith(signatures)
+
+        for path, signatures in ((eboot_path, (SCE_V2, b"\x7fELF\x02\x02")),
+                                 (icon_path, (b"\x89PNG\r\n\x1a\n",))):
+            if path == icon_path and path not in files:
+                continue
+            if not readable(path, signatures):
+                if disc is None:
+                    raise ValueError(f"The PS3 ISO appears encrypted or damaged ({Path(path).name} is unreadable). "
+                                     "Its size and SHA-1 do not match a supported catalog image. Use a decrypted disc dump.")
+                raise ValueError(f"The verified disc key for {disc.title_id} did not produce a readable {Path(path).name}.")
+
+    source, size = files[sfo_path]
+    if size > 1024 * 1024:
+        raise ValueError("Oversized PARAM.SFO.")
+    buffer = io.BytesIO()
+    image.get_file_from_iso_fp(buffer, **{mode: source})
+    try:
+        title = model.title_id(buffer.getvalue())
+    except ValueError as exc:
+        if image.has_ps3_regions and disc is None:
+            raise ValueError("The PS3 ISO has an unreadable PARAM.SFO. No exact catalog image matched. "
+                             "Use a decrypted disc dump.") from exc
+        raise
+    if disc is not None and title != disc.title_id:
+        raise ValueError(f"Decrypted disc title ID does not match the catalog entry for {disc.title_id}.")
+    if title not in KNOWN_TITLE_IDS:
+        raise ValueError("This title ID has no tested import/build profile yet.")
+    return title
+
+
+def extract_iso(path, destination, log, cancel, *, disc=None):
     from .disc_image import DiscImage
+    from pycdlib.pycdlibexception import PyCdlibException
+
+    check_cancel(cancel)
+    key = None
+    if disc is not None:
+        log(f"Matched encrypted PS3 disc {disc.title_id}. Fetching its public disc key…")
+        key = disc_keys.download_disc_key(disc, lambda: check_cancel(cancel))
     image = DiscImage()
     opened = False
     try:
-        image.open(str(path))
-        opened = True
-        if image.fallback_reason:
-            log(image.fallback_reason)
-        mode, plan, total = iso_plan(image)
-        sfo = next(item for item in plan if item[0].as_posix() == "PS3_GAME/PARAM.SFO")
-        if sfo[2] > 1024 * 1024:
-            raise ValueError("Oversized PARAM.SFO.")
-        buffer = io.BytesIO()
-        image.get_file_from_iso_fp(buffer, **{mode: sfo[1]})
-        if model.title_id(buffer.getvalue()) not in KNOWN_TITLE_IDS:
-            raise ValueError("This title ID has no tested import/build profile yet.")
+        try:
+            image.open(str(path), disc_key=key)
+            opened = True
+            if image.fallback_reason:
+                log(image.fallback_reason)
+            mode, plan, total = iso_plan(image)
+            title = iso_game_title(image, mode, plan, disc=disc)
+        except PyCdlibException as exc:
+            if disc is None and image.has_ps3_regions:
+                raise ValueError("Cannot read this PS3 disc filesystem. If the ISO is encrypted, it has no exact "
+                                 "match in the supported catalog. Use a decrypted disc dump.") from exc
+            raise ValueError(f"Cannot read the disc filesystem: {exc}") from exc
+        if disc is not None:
+            log(f"Verified disc key and game headers for {title}. Decrypting sectors during extraction…")
+        check_cancel(cancel)
         destination.mkdir(parents=True, exist_ok=True)
         if shutil.disk_usage(destination).free < total + 2 * 1024**3:
             raise ValueError("Not enough disk space for extraction plus build headroom (more space may be needed to compile).")
@@ -212,11 +273,15 @@ def extract_iso(path, destination, log, cancel):
             reject_links_below(destination, target)
             target.parent.mkdir(parents=True, exist_ok=True)
             partial = target.with_name(target.name + ".import-partial-" + uuid.uuid4().hex)
-            with partial.open("xb") as output:
-                image.get_file_from_iso_fp(Writer(output, size), **{mode: source})
-            if partial.stat().st_size != size:
-                raise ValueError("Truncated ISO extraction.")
-            os.replace(partial, target)
+            output = partial.open("xb")
+            try:
+                with output:
+                    image.get_file_from_iso_fp(Writer(output, size), **{mode: source})
+                    if output.tell() != size:
+                        raise ValueError("Truncated ISO extraction.")
+                os.replace(partial, target)
+            finally:
+                partial.unlink(missing_ok=True)
             if index % 50 == 0 or index == len(plan) - 1:
                 log(f"ISO: {index + 1}/{len(plan)} files, {total / 1024**3:.1f} GiB total")
     finally:
@@ -473,7 +538,9 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
     try:
         log(f"Session: {session}")
         log("Checking input fingerprints (a large ISO can take a while)…")
-        identities = {"game": fingerprint(inputs.game, cancel, log),
+        game_identity = fingerprint(inputs.game, cancel, log, catalog=True)
+        disc = disc_keys.DISCS.get((game_identity.get("size"), game_identity.pop("disc_sha1", None)))
+        identities = {"game": game_identity,
                       "keys": fingerprint(inputs.keys, cancel, log) if inputs.keys else None,
                       "importer": 1,
                       "firmware": firmware_identity(inputs.firmware),
@@ -495,7 +562,7 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         game = Path(inputs.game)
         if game.is_file():
             game = session / "game"
-            stage("extract ISO", lambda: extract_iso(inputs.game, game, log, cancel))
+            stage("extract ISO", lambda: extract_iso(inputs.game, game, log, cancel, disc=disc))
             reject_links_below(session, game / "PS3_GAME/PARAM.SFO")
         disc_title = model.title_id((game / "PS3_GAME/PARAM.SFO").read_bytes())
         if disc_title not in KNOWN_TITLE_IDS:

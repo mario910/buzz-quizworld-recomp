@@ -724,8 +724,9 @@ public:
         inputForm->setVerticalSpacing(8);
         inputCard->addLayout(inputForm);
         game = pathRow(*inputForm, "Game disc", "Disc images (*.iso)", true, "ISO or folder containing PS3_GAME", "ISO…");
+        game->setToolTip("BuzzSetup fetches the public disc key for a matching encrypted ISO during preparation.");
         firmware = pathRow(*inputForm, "Firmware", "PS3 firmware (*.pup)", true, "PS3UPDAT.PUP or dev_flash folder", "PUP…");
-        keys = pathRow(*inputForm, "Decryption keys", "All files (*)", false, "Required for encrypted files only");
+        keys = pathRow(*inputForm, "Decryption keys", "All files (*)", false, "For encrypted EBOOT or firmware");
         auto* inputHelp = new QHBoxLayout;
         inputCard->addLayout(inputHelp);
         button(*inputHelp, "Download PS3 firmware", [this] {
