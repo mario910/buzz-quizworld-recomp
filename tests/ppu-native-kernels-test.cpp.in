@@ -216,6 +216,9 @@ static void compare_scene(ppu_context c, unsigned i)
         write_be(c.gpr[29] + (uint32_t(c.gpr[8] + j) << 4), 4, terminal);
     compare("scene command dispatch", i, c, ref_command, new_command);
 
+    // Flags for slots 9 and 10 overlap the first two mock object pointers.
+    // A value of one must lead to a bounded, empty object in the fixture.
+    write_be(1 + 0x100, 4, 0);
     c.gpr[25] = 0x4800;
     c.gpr[26] = 0x4700;
     c.gpr[27] = 0x2000;

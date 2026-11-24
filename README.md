@@ -10,8 +10,9 @@ targets. Start with 1.00; no game update is needed.** These releases use their
 own hash-bound PPU adapters and share byte-identical SPU programs. The qualified
 Windows/Vulkan/AVX2 builds enable full native geometry and animation for both.
 Windows and Linux preparation enable Vulkan renderer optimizations by default
-for every supported edition, including EU 1.02. Preparation matches the studio
-dispatcher to the local game code. EU 1.02 uses its own native geometry,
+for every supported edition, including EU 1.02. Preparation matches the PPU kernels to the local game code. EU 1.02 maps all
+22 default scene, job, transform and record kernels and includes native radix,
+record and video transform kernels. EU 1.02 uses its own native geometry,
 animation, and completion adapters. Android has a separate ARM64 profile.
 Standard two-player gameplay has been tested on Polish assets in both EU releases
 and on US 1.00, including podium names, avatars and scoring. Full game validation

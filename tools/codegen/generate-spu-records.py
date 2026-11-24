@@ -1,4 +1,4 @@
-"""Generate the EU 1.00 radix and record kernels in a private build directory."""
+"""Generate the reviewed radix and record kernels in a private build directory."""
 import argparse
 import hashlib
 from pathlib import Path
@@ -17,25 +17,40 @@ BLOCKS = {
         '00000B28': 'edc27f1d90c6d8b32e7893ffe200b853fac468d404b2b1a3c9427e6143448067',
     },
 }
+UPDATE_BLOCKS = {
+    'buzz_job_2b4b': {
+        '00000198': ('000001A8', '03db597dd1ae56e5d88caa266cfb48fecd8a785cd6aff87604c49c9611c824b4'),
+        '00000250': ('00000260', 'eb9d931d632a9a500f8e67f88bd97dbe5611526c6157d8c54035c9232bf604bc'),
+        '000002D8': ('000002E8', '65bf91dfa5be1b3676d5f96da99353dd9d5b360b01f17d204e4bf8f1eb8ed6fe'),
+    },
+    'buzz_job_6874': {
+        '000008C8': ('000008E8', '9dcbda75f26d37124cb4b3a77b4bfcaa9b17db917d10c89e69d87ac4fbd8e950'),
+        '00000998': ('000009B0', '1fbb7c6599a2e749137716321c12458fb5db32683a1c05c538ff75bc9bef973c'),
+        '00000B28': ('00000B40', '43a402b4653ad8fc64479e87667e2c194de0b51d1b42f78c7d796c957c33a642'),
+    },
+}
 # The result of each rotated load and the original aligned register both
 # remain architectural outputs. Record which original load supplies each rotation.
 ROTATED = {
     '000008C8': (12, 10, 89),
     '00000B28': (51,),
+    '00000B40': (93,),
 }
 # Record buffers in the common layout are quadword aligned. The other
 # layouts execute the original body; only these proven shifts become constants.
 ALIGNED = {
     '000008C8': ((80, 90), {12: 4, 89: 0}),
     '00000B28': ((7,), {51: 12}),
+    '00000B40': ((7,), {93: 12}),
 }
 REG = r'ctx->gpr\[(\d+)\]'
 
 
-def span(body, pc):
+def span(body, pc, entry=None):
+    entry = entry or pc
     if pc not in ROTATED and pc != '00000998':
-        start = body.index('loc_' + pc + ':')
-        end = body.index('\n', body.index('goto loc_' + pc, start))
+        start = body.index('loc_' + entry + ':')
+        end = body.index('\n', body.index('goto loc_' + entry, start))
         if pc == '00000250':
             end = body.index('\n', body.index('ctx->gpr[65] = spu_il(16);', end))
         return start, end
@@ -45,12 +60,15 @@ def span(body, pc):
     elif pc == '00000998':
         start = body.index('        ctx->gpr[60] = spu_il(28)')
     else:
-        start = body.index('        ctx->gpr[53] = spu_il(28)')
+        offset_reg = 52 if entry == '00000B40' else 53
+        start = body.index(f'        ctx->gpr[{offset_reg}] = spu_il(28)')
     end = body.index('        { ctx->pc' if pc == '00000998' else '        if (', start)
     return start, end
 
 
-def native(region, pc):
+def native(region, pc, entry=None):
+    entry = entry or pc
+    layout = entry if entry in ROTATED else pc
     if pc == '00000998':
         # The pinned prologue computes these five CWD/CWX selectors before the
         # conditional jump. With both bases aligned each inserts one fixed word.
@@ -68,18 +86,18 @@ def native(region, pc):
     local = re.sub(REG, lambda m: 'r' + m[1], region).strip('\n')
     pre = []
     if pc in ROTATED:
-        for reg in ROTATED[pc]:
+        for reg in ROTATED[layout]:
             pattern = rf'r{reg} = spu_ls_read128\(ctx, (.+?)\);'
             local, count = re.subn(pattern, rf'const __m128i raw{reg} = record_quad(ctx, \1);\n        r{reg} = record_vector(_mm_shuffle_epi8(raw{reg}, record_word_order()));', local)
             if count != 1:
                 raise ValueError('Expected one record load')
-            shift = str(ALIGNED[pc][1][reg]) if reg in ALIGNED[pc][1] else r'\1._u32[0]'
+            shift = str(ALIGNED[layout][1][reg]) if reg in ALIGNED[layout][1] else r'\1._u32[0]'
             local, count = re.subn(rf'spu_rotqby\(r{reg}, (r\d+)\)', rf'record_rotated_quad(raw{reg}, {shift})', local)
             if count != 1:
                 raise ValueError('Expected one corresponding rotation')
     else:
-        local = local.replace('loc_' + pc + ':', '        do {')
-        local = local.replace('if (r14._u32[0] != 0) goto loc_' + pc + ';', '} while (r14._u32[0] != 0);')
+        local = local.replace('loc_' + entry + ':', '        do {')
+        local = local.replace('if (r14._u32[0] != 0) goto loc_' + entry + ';', '} while (r14._u32[0] != 0);')
         if pc == '00000250':
             # The final assignment to r65 kills this recurrence before any use.
             local = local.replace('        r65 = spu_shufb(r65, r65, r65);\n', '')
@@ -97,13 +115,21 @@ def function(src, name):
     return re.search(r'^void ' + name + r'\(spu_context\* ctx\) \{\n.*?^\}', src, re.M | re.S)
 
 
+def reviewed_blocks(src, image):
+    for role, digest in BLOCKS[image].items():
+        for entry, pin in ((role, digest), UPDATE_BLOCKS[image][role]):
+            match = function(src, image + '_spu_func_' + entry)
+            if match and hashlib.sha256(match[0].encode()).hexdigest() == pin:
+                yield role, entry, match
+                break
+        else:
+            raise ValueError(f'Unrecognized {image} record kernel {role}')
+
+
 def generate(src, image):
-    for pc, digest in BLOCKS[image].items():
-        name = image + '_spu_func_' + pc
-        m = function(src, name)
-        if not m or hashlib.sha256(m[0].encode()).hexdigest() != digest:
-            raise ValueError(f'Unrecognized EU 1.00 function {name}')
-        a, b = span(m[0], pc)
+    # Replace backwards to preserve offsets in the reviewed source.
+    for pc, entry, m in sorted(reviewed_blocks(src, image), key=lambda item: item[2].start(), reverse=True):
+        a, b = span(m[0], pc, entry)
         original = m[0][a:b]
         guard = 'ctx->ls == ctx->ls_store'
         if pc in ALIGNED:
@@ -114,7 +140,7 @@ def generate(src, image):
             isa = '__SSE4_1__'
             guard += ' && ((ctx->gpr[1]._u32[0] | (ctx->gpr[10]._u32[0] + ctx->gpr[9]._u32[0])) & 15u) == 0'
         code = (f'#if defined({isa}) && !SPU_LS_DEBUG_HOOKS\n'
-                f'    if ({guard}) {{\n' + native(original, pc) +
+                f'    if ({guard}) {{\n' + native(original, pc, entry) +
                 '    } else\n#endif\n    {\n' + original + '\n    }\n')
         src = src[:m.start()+a] + code + src[m.start()+b:]
     anchor = '#include "spu_helpers.h"'

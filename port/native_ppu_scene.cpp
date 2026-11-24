@@ -3,11 +3,11 @@
 #include "studio_effects.h"
 
 namespace buzz {
-void ppu_finish_scene_job(ppu_context& c)
+void ppu_finish_scene_job(ppu_context& c, uint32_t size_toc, bool late_size_store)
 {
     const uint64_t job = c.gpr[31], toc = c.gpr[2];
     const uint32_t parameters = uint32_t(c.gpr[24]);
-    const uint32_t program_bytes = vm_read32(toc - 0x10cc);
+    const uint32_t program_bytes = vm_read32(toc - size_toc);
     vm_write32(job + 0x8c, c.gpr[7]);
     vm_write32(job + 0x78, c.gpr[25] + 0x80);
     const uint32_t count = vm_read32(c.gpr[30] + 0x1a4);
@@ -24,20 +24,22 @@ void ppu_finish_scene_job(ppu_context& c)
     vm_write8(job + 0xb4, (vm_read32(flags) >> 7) & 1);
     const uint64_t arena = vm_read32(c.gpr[27]);
     const uint32_t units = (program_bytes + 15u) >> 4;
-    vm_write16(job + 8, units);
+    if (late_size_store) vm_write16(job + 0xb6, c.gpr[19]);
+    else vm_write16(job + 8, units);
     const uint32_t offset = vm_read32(arena + 0x4ecc) << 7;
     vm_write32(job + 0x94, arena + 0x2000);
-    vm_write16(job + 0xb6, c.gpr[19]);
+    if (!late_size_store) vm_write16(job + 0xb6, c.gpr[19]);
     vm_write32(job + 0x90, arena + offset);
     // The intervening writes can alias the flags and the command pointer.
     const uint32_t enabled = vm_read32(flags);
-    const uint32_t program = vm_read32(toc - 0x10d0);
+    const uint32_t program = vm_read32(toc - size_toc - 4);
     vm_write32(job + 0x9c, enabled);
     vm_write64(job, program);
     vm_write16(job + 0xa, 0x48);
     vm_write16(job + 0x1c, 0x240);
     vm_write32(job + 0x98, arena + 0x2080);
     vm_write8(job + 0xc0, 0);
+    if (late_size_store) vm_write16(job + 8, units);
     vm_write32(job + 0x10, 1);
     vm_write32(job + 0x14, 0xdf00);
     vm_write8(job + 0xb5, 0);
@@ -57,7 +59,7 @@ void ppu_finish_scene_job(ppu_context& c)
     c.gpr[29] = uint32_t(c.gpr[29]);
 }
 
-void ppu_scene_command(ppu_context& c)
+void ppu_scene_command(ppu_context& c, PpuSceneTargets targets)
 {
     uint64_t index = c.gpr[8];
     for (;;) {
@@ -67,32 +69,27 @@ void ppu_scene_command(ppu_context& c)
             const uint32_t slot = opcode * 4;
             const uint64_t target = c.gpr[30] + int32_t(vm_read32(c.gpr[30] + slot));
             c.ctr = target;
-            if (target == 0x00293278 && opcode == 24 &&
+            if (target == targets.effect && opcode == 24 &&
                 skip_studio_effect(uint32_t(c.gpr[28]), uint32_t(c.gpr[29]), uint32_t(index))) {
                 // Execute the original false branch, which lands on the subroutine return.
                 index += vm_read16(record + 4);
                 vm_write32(c.gpr[1] + 0x94, index);
                 continue;
             }
-            if (target == 0x002932fc && opcode == 11 &&
+            if (target == targets.audience && opcode == 11 &&
                 skip_audience_light(uint32_t(c.gpr[28]), uint32_t(c.gpr[29]), uint32_t(index))) {
                 vm_write32(c.gpr[1] + 0x94, ++index);
                 continue;
             }
             // Fold control-only commands. Indirect and patched targets still
             // dispatch through the original switch using the actual table value.
-            switch (uint32_t(target)) {
-            case 0x00293254:
+            if (uint32_t(target) == targets.mark) {
                 vm_write32(c.gpr[27] + 0x160, record + 4);
                 vm_write32(c.gpr[1] + 0x94, ++index);
-                break;
-            case 0x00293288:
+            } else if (uint32_t(target) == targets.clear) {
                 vm_write32(c.gpr[1] + 0x94, ++index);
                 vm_write32(c.gpr[27] + 0x160, 0);
-                break;
-            case 0x00293128:
-                break;
-            default:
+            } else if (uint32_t(target) != targets.advance) {
                 c.gpr[0] = target;
                 c.gpr[3] = uint32_t(record);
                 c.gpr[8] = index;

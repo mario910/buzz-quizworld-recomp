@@ -83,8 +83,8 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         raise ValueError("The generated translations do not match the selected executable.")
     disc = profile.adapter_family != "quizworld-102-verified"
     native_ppu = native_jobs and profile.adapter_family == "quizworld-eu100"
-    if ppu_columns != "none" and not native_ppu:
-        raise ValueError("PPU column kernels require the EU 1.00 profile and --native-jobs.")
+    if ppu_columns != "none" and not native_jobs:
+        raise ValueError("PPU column kernels require --native-jobs.")
     if not disc and (image39_fast or image39_native or geometry_cpu or geometry_zero_padding
                      or geometry_scalar_gather or geometry_index_cache):
         raise ValueError("The requested disc-specific geometry or image 39 adapter requires a 1.00 executable.")
@@ -99,7 +99,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     if audio_x86_rtz and not media_cpu:
         raise ValueError("Scoped x86 audio arithmetic requires --media-cpu.")
     if media_cpu and not disc:
-        raise ValueError("Native media kernels require a supported 1.00 executable.")
+        raise ValueError("Bundled audio kernels require a supported 1.00 executable.")
     python("tools/codegen/generate-mstream-modules.py", "--dev-flash", paths["dev_flash"])
     python("tools/codegen/generate-native-completion.py")
     completion = json.loads((analysis / "native-completion/profile.json").read_text())["source"]
@@ -141,9 +141,9 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     # a reused CMake cache must not silently keep a candidate's native paths.
     options.update({key: "" for key in ("PORT_GEOMETRY_SOURCE", "PORT_IMAGE7_SOURCE",
                     "PORT_IMAGE36_SOURCE", "PORT_IMAGE39_SOURCE", "PORT_IMAGE40_SOURCE")})
-    options.update(desktop_options(native_ppu=native_ppu, native_records=native_jobs and disc,
+    options.update(desktop_options(native_ppu=native_ppu, native_records=native_jobs,
                                    studio=native_jobs and not native_ppu, completion=options["PORT_COMPLETION_SOURCE"],
-                                   ppu_columns=ppu_columns, media_cpu=media_cpu,
+                                   ppu_columns=ppu_columns, media_cpu=media_cpu, video_cpu=native_jobs and not disc,
                                    audio_x86_rtz=audio_x86_rtz, renderer_cpu=renderer_cpu,
                                    renderer_bundle=renderer_bundle, geometry_cpu=geometry_cpu,
                                    geometry_index_cache=geometry_index_cache))
@@ -218,7 +218,7 @@ def main():
     parser.add_argument("--pgo-profile", type=Path, help="Use a private merged Clang profile for runtime/native optimization; requires --native-jobs")
     parser.add_argument("--zen2-tune", action="store_true", help="Tune Linux runtime/native host paths for Zen 2 with -O3, preserving strict FP")
     parser.add_argument("--ppu-columns", choices=("none", "matrices", "rotations", "all"),
-                        help="Experimental EU 1.00 PPU matrix and rotation kernels for Zen 2")
+                        help="Experimental PPU matrix and rotation kernels for Zen 2")
     parser.add_argument("--geometry-zero-padding", action="store_true", help="Zero only unindexed vertex alignment bytes to avoid padding-only native fallbacks; requires --native-jobs")
     parser.add_argument("--dma-diagnostics-optin", action="store_true", help="Make the DMA poison logging scan opt-in via BUZZ_DMA_POISON_SCAN=1")
     parser.add_argument("--image39-native", action="store_true", help="Image 39 native object bounds + descriptor requests (kernels adapter) and checked FP by default; Deck ABBA: heavy menu +2.5%%, reveal +3.3%%")

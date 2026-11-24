@@ -28,6 +28,13 @@ PPU adapters resolve Lua bindings from the loaded image, queue sites from
 firmware import calls and TLS from PT_TLS. The completion/selector bodies
 at `0x2689D0` / `0x26A2BC` in chunk 014 are independently pinned. Native
 completion preserves BUSY/error/success and exactly-once retirement.
+Desktop preparation now also scans the US translations for the 22 default
+native PPU kernels. It matches reviewed instruction streams, binds local
+branch targets, return sites and TOC offsets, and checks the record search
+callee before replacing its caller. The build writes the EU role IDs, matched
+US addresses and missing roles to `analysis/native-regional-ppu/mapping.json`
+in the prepared workspace. US coverage for this set awaits a US disc run.
+
 The manifest binds the EXE and defaults to this ELF; partial generation
 cannot resume with another executable.
 

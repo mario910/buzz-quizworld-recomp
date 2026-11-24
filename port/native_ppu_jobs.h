@@ -140,31 +140,45 @@ inline PpuJobFilter ppu_filter_jobs(ppu_context& c)
 }
 
 // gpr[7] is the address of the stream header accumulated before dcbz.
-inline void ppu_pack_stream_job(ppu_context& c)
+template<bool updated = false>
+inline void ppu_pack_stream_job(ppu_context& c, uint32_t size_toc = updated ? 0xe48 : 0x10ec)
 {
     const uint64_t out = c.gpr[31], mesh = c.gpr[28], stream = c.gpr[29];
     const uint64_t header = uint32_t(c.gpr[7]);
-    const uint32_t size_a = uint32_t(c.gpr[27]) << 4, size_b = uint32_t(c.gpr[24]) << 4;
-    const uint32_t header_size = vm_read32(c.gpr[2] - 0x10ec);
-    vm_write64(out + 0x30, ppu_job_pair(uint16_t(size_a), uint32_t(c.gpr[8])));
-    vm_write64(out + 0x38, ppu_job_pair(uint16_t(size_b), uint32_t(c.gpr[30] + 0xc0)));
-    const uint32_t root = vm_read32(stream + 8);
-    const uint32_t command = vm_read32(c.gpr[2] - 0x10f0);
-    vm_write16(out + 8, uint16_t((header_size + 15u) >> 4));
-    vm_write64(out, command);
+    const uint32_t size_a = uint32_t(c.gpr[updated ? 26 : 27]) << 4;
+    const uint32_t size_b = uint32_t(c.gpr[updated ? 23 : 24]) << 4;
+    const uint32_t header_size = vm_read32(c.gpr[2] - size_toc);
+    const uint64_t a = ppu_job_pair(uint16_t(size_a), uint32_t(c.gpr[8]));
+    const uint64_t b = ppu_job_pair(uint16_t(size_b), uint32_t(c.gpr[30] + 0xc0));
+    uint32_t root;
+    if constexpr (updated) {
+        const uint32_t command = vm_read32(c.gpr[2] - size_toc - 4);
+        vm_write64(out + 0x38, b);
+        vm_write64(out, command);
+        vm_write16(out + 8, uint16_t((header_size + 15u) >> 4));
+        vm_write64(out + 0x30, a);
+        root = vm_read32(stream + 8);
+    } else {
+        vm_write64(out + 0x30, a);
+        vm_write64(out + 0x38, b);
+        root = vm_read32(stream + 8);
+        const uint32_t command = vm_read32(c.gpr[2] - size_toc - 4);
+        vm_write16(out + 8, uint16_t((header_size + 15u) >> 4));
+        vm_write64(out, command);
+    }
     const uint32_t vertex_bytes = 48u * vm_read16(header + 0xc);
     const uint32_t first = vm_read32(uint64_t(root) + 0x14);
     vm_write64(out + 0x40, ppu_job_pair(uint16_t(vertex_bytes), root + first));
     const int32_t type = int32_t(vm_read32(mesh + 0x14));
     uint32_t extra = 0x40;
-    uint64_t pair = ppu_job_pair(extra, uint32_t(c.gpr[12]));
+    uint64_t pair = ppu_job_pair(extra, uint32_t(c.gpr[updated ? 27 : 12]));
     if (type == 2) {
         extra = 0;
         const uint32_t current = vm_read32(stream + 8);
         pair = uint32_t(current + vm_read32(uint64_t(current) + 0x14));
     }
     vm_write64(out + 0x48, pair);
-    const uint32_t arena = vm_read32(c.gpr[26]);
+    const uint32_t arena = vm_read32(c.gpr[updated ? 25 : 26]);
     vm_write64(out + 0x50, ppu_job_pair(0x30, arena + 0x2400));
     vm_write32(out + 0x14, size_a + size_b + vertex_bytes + extra);
     vm_write16(out + 0xa, 0x20);
@@ -179,7 +193,7 @@ inline void ppu_pack_stream_job(ppu_context& c)
     vm_write16(out + 0x1e, 0x1f40);
     const uint64_t source = c.gpr[3];
     vm_write64(out + 0x68, uint32_t(source));
-    vm_write64(out + 0x60, uint32_t(c.gpr[25]));
+    vm_write64(out + 0x60, uint32_t(c.gpr[updated ? 24 : 25]));
     vm_write32(out + 0x18, size + ((words * 4 + 15u) & ~15u));
     const uint64_t dest = c.gpr[4] + 0x70;
     const uint64_t row0 = vm_read64(source);
@@ -194,11 +208,12 @@ inline void ppu_pack_stream_job(ppu_context& c)
     const uint64_t before_last = vm_read64(source + 0x20);
     vm_write64(dest + 0x28, last);
     vm_write64(dest + 0x20, before_last);
-    const uint64_t flags = (c.gpr[27] << 48) | uint32_t(c.gpr[23]);
-    const uint64_t counts = flags | (c.gpr[24] << 32);
+    const uint64_t flags = (c.gpr[updated ? 26 : 27] << 48) | uint32_t(c.gpr[updated ? 22 : 23]);
+    const uint64_t counts = flags | (c.gpr[updated ? 23 : 24] << 32);
     vm_write64(out + 0xa0, counts);
     c.gpr[0] = vm_read32(uint64_t(metadata) + 0x78);
     vm_write64(out + 0xa8, c.gpr[0]);
+    if constexpr (updated) c.gpr[12] = size_a;
     c.gpr[5] = metadata;
     c.gpr[6] = flags;
     c.gpr[7] = row3;
@@ -209,7 +224,7 @@ inline void ppu_pack_stream_job(ppu_context& c)
     ppu_job_condition(c, type < 2 ? 8 : type == 2 ? 2 : 4);
 }
 
-inline void ppu_collect_job_objects(ppu_context& c)
+inline void ppu_collect_job_objects(ppu_context& c, uint32_t return_site = 0x00288188)
 {
     uint64_t index = c.gpr[30], matches = c.gpr[29];
     do {
@@ -217,7 +232,7 @@ inline void ppu_collect_job_objects(ppu_context& c)
         const uint32_t object = vm_read32(uint32_t(list + uint32_t(index)*4));
         c.gpr[3] = object;
         c.gpr[4] = c.gpr[27];
-        c.lr = 0x00288188;
+        c.lr = return_site;
         ppu_record_search(c);
         const uint64_t address = c.gpr[22] + int32_t(uint32_t(matches)*4);
         if (c.gpr[3]) {

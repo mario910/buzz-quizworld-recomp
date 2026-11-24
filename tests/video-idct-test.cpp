@@ -8,6 +8,7 @@ void buzz_video_idct_native(spu_context*);
 void buzz_video_idct_oracle(spu_context*);
 SPU_THREAD_LOCAL void (*g_spu_trampoline_fn)(spu_context*);
 void spu_0007_at_0080A080_spu_func_00020E14(spu_context*) {}
+void spu_0007_at_007F1E80_spu_func_00020394(spu_context*) {}
 }
 static spu_context reference, native;
 static uint8_t external_reference[SPU_LS_SIZE], external_native[SPU_LS_SIZE];
@@ -25,7 +26,7 @@ int main(){
         if((n&3)==0){native.ls=external_native;std::memcpy(native.ls,reference.ls,SPU_LS_SIZE);}
         g_spu_trampoline_fn=nullptr;buzz_video_idct_oracle(&reference);auto next=g_spu_trampoline_fn;
         g_spu_trampoline_fn=nullptr;buzz_spu_scoped_rtz(&native,buzz_video_idct_native);
-        assert(next==g_spu_trampoline_fn&&native.pc==0x20e14);
+        assert(next && next==g_spu_trampoline_fn && native.pc==reference.pc);
         assert(!std::memcmp(reference.ls,native.ls,SPU_LS_SIZE));
         native.ls=reference.ls;
         if(std::memcmp(&native,&reference,sizeof native)){

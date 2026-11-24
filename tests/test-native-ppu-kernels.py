@@ -1,6 +1,8 @@
 """Differential test on a Zen 2 host with a prepared EU 1.00 workspace."""
 import argparse
+import json
 import os
+import re
 from hashlib import sha256
 from pathlib import Path
 import runpy
@@ -128,13 +130,83 @@ def check_column_groups(translations, output):
                 assert actual.count("buzz::ppu_unpack_transform_rows(*ctx);") == 1
 
 
+def check_relocation(translations, output):
+    """A moved caller may inline only its matched record-search callee."""
+    sys.path.insert(0, str(ROOT))
+    from tools.regional_ppu import generate_regional
+
+    caller = gen["function"]((translations / "ppu_recomp_014.cpp").read_text(), gen["COLLECT"])[0]
+    search = gen["function"]((translations / "ppu_recomp_015.cpp").read_text(), gen["SEARCH"])[0]
+    obj = gen["function"]((translations / "ppu_recomp_014.cpp").read_text(), gen["OBJECT"])[0]
+    text = '#include "ppu_vmx.h"\n' + "\n".join((caller, search, obj))
+    text = re.sub(r'(loc_|func_|ctx->lr = 0x)([0-9A-F]{8})',
+                  lambda m: m[1] + f"{int(m[2], 16) + 0x44000:08X}", text)
+    text = re.sub(r'(vm_read32\(ctx->gpr\[2\] \+ -)0x([0-9A-F]+)',
+                  lambda m: m[1] + f"0x{int(m[2], 16) + 0x100:X}", text)
+    source = output / "lift" / "ppu_recomp_001.cpp"
+    source.parent.mkdir(parents=True)
+    for changed in (False, True):
+        source.write_text(text.replace(" + 0x4AC)", " + 0x4B8)") if changed else text)
+        generated, _ = generate_regional(source.parent, output / "native")
+        result = generated[0].read_text()
+        assert ("ppu_collect_job_objects(*ctx, 0x002CC188)" in result) == (not changed)
+        assert ("ppu_record_search(*ctx)" in result) == (not changed)
+        assert "ppu_object_transform(*ctx, 0x12AC)" in result
+
+
+def add_update_cases(source, workspace, output):
+    """Exercise the changed update schedules against their own lifted instructions."""
+    sys.path.insert(0, str(ROOT))
+    from tools.regional_ppu import generate_regional
+
+    translations = workspace / "port/recompiled"
+    completion = next((workspace / "analysis/native-completion").glob("ppu_recomp_*.cpp"))
+    generated, dispatcher = generate_regional(translations, output, completion)
+    mapping = json.loads((output / "mapping.json").read_text())
+    assert dispatcher and not mapping["unmatched"] and len(mapping["matched"]) == 22
+    wrappers = []
+    for role, label in (("WEIGHTED", "weighted"), ("OBJECT", "object"), ("STREAM", "stream"), ("SCENE_JOB", "scene")):
+        address = gen[role]
+        pc, = mapping["matched"][address]
+        for generated_file in generated:
+            match = gen["function"](generated_file.read_text(), pc)
+            if match:
+                break
+        else:
+            raise AssertionError(pc)
+        original = gen["function"]((translations / generated_file.name).read_text(), pc)[0]
+        actual = match[0]
+        # Extract exactly the block that the production generator substituted.
+        ref_lines = original.splitlines(keepends=True)
+        fast_lines = actual.splitlines(keepends=True)
+        first = next(i for i, pair in enumerate(zip(ref_lines, fast_lines)) if pair[0] != pair[1])
+        suffix = 0
+        while ref_lines[-suffix-1] == fast_lines[-suffix-1]:
+            suffix += 1
+        extra = ""
+        if role == "STREAM":
+            # The lifted secondary type branch lives after the epilogue and
+            # jumps back into the descriptor builder.
+            end = len(original) - len("".join(ref_lines[-suffix:]))
+            extra = "return;\n" + original[original.index("loc_", end):original.rindex("}")]
+        for prefix, lines in (("ref", ref_lines), ("new", fast_lines)):
+            span = "".join(lines[first:-suffix])
+            wrappers.append(f"static void {prefix}_update_{label}(ppu_context* ctx) {{\n{span}{extra}\n;}}")
+        for call in [line for line in source.splitlines() if 'compare("' in line and f"ref_{label}, new_{label})" in line]:
+            update = call.replace('compare("', 'compare("EU 1.02 ').replace(f"ref_{label}, new_{label}",
+                                                                         f"ref_update_{label}, new_update_{label}")
+            source = source.replace(call, call + "\n" + update)
+    return source.replace("static std::mt19937 rng", "\n".join(wrappers) + "\nstatic std::mt19937 rng")
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("workspace", type=Path)
+    parser.add_argument("--update-workspace", type=Path, help="Also compare the EU 1.02 compiled schedules")
     args = parser.parse_args()
     translations = args.workspace / "port/recompiled"
     with TemporaryDirectory() as directory:
         check_column_groups(translations, Path(directory) / "generated")
+        check_relocation(translations, Path(directory) / "relocated")
         source = Path(directory) / "test.cpp"
         program = Path(directory) / "test"
         subprocess.run(["clang++", "-std=c++17", "-I", ROOT / "port",
@@ -145,7 +217,10 @@ def main():
             if mode is not None:
                 environment["BUZZ_STUDIO_DETAIL"] = mode
             subprocess.run([program, mode or "balanced"], env=environment, check=True)
-        source.write_text(comparison_source(translations))
+        cases = comparison_source(translations)
+        if args.update_workspace:
+            cases = add_update_cases(cases, args.update_workspace, Path(directory) / "regional")
+        source.write_text(cases)
         for flags in [("-O1", "-fwrapv", "-fno-strict-aliasing"), ("-O2", "-frounding-math")]:
             subprocess.run(["clang++", *flags, "-std=gnu++20", "-march=znver2", "-ffp-contract=off",
                             "-I", ROOT / "port", "-I", translations, "-I",

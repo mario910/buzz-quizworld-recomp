@@ -12,14 +12,14 @@ GEN = runpy.run_path(str(ROOT / "tools/codegen/generate-spu-records.py"))
 def regions(workspace):
     functions = ['#include "spu_helpers.h"', '#include "native_spu_records.h"']
     names = []
-    for image, entries in GEN['BLOCKS'].items():
+    for image in GEN['BLOCKS']:
         original = (workspace/'port/spu'/image/'spu_recomp.c').read_text()
         optimized = GEN['generate'](original, image)
-        for pc in entries:
-            name = image + '_spu_func_' + pc
-            before = GEN['function'](original, name)[0]
+        for pc, entry, match in GEN['reviewed_blocks'](original, image):
+            name = image + '_spu_func_' + entry
+            before = match[0]
             after = GEN['function'](optimized, name)[0]
-            a, b = GEN['span'](before, pc)
+            a, b = GEN['span'](before, pc, entry)
             prefix, suffix = before[:a], before[b:]
             assert after.startswith(prefix) and after.endswith(suffix)
             for label, body in [('old', before[a:b]), ('new', after[len(prefix):-len(suffix)])]:

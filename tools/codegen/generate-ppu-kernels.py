@@ -71,7 +71,7 @@ def function(source, address):
                      source, re.MULTILINE | re.DOTALL)
 
 
-def transform_span(original, address):
+def transform_span(original, address, bind=str):
     if address == POSE:
         start = original.index("        vmx_vmaddfp(&ctx->vr[5], &ctx->vr[27], &ctx->vr[11], &ctx->vr[5]")
         end = original.index("        ctx->gpr[9] = vm_read32(ctx->gpr[31] + 0x0);", start)
@@ -81,7 +81,7 @@ def transform_span(original, address):
         end = original.index("        (void)vmx_vcmpeqfp(&ctx->vr[3], &ctx->vr[10], &ctx->vr[10])", start)
         return start, end, "ppu_refine_plane_lengths"
     if address == OBJECT:
-        start = original.index("\n", original.index("loc_00283128:")) + 1
+        start = original.index("\n", original.index(bind("loc_00283128:"))) + 1
         end = original.index("        { uint64_t ea = ((ctx->gpr[9] + ctx->gpr[10])) & ~0xFULL; vm_raw_st16", start)
         return start, end, "ppu_object_transform"
     if address == UNPACK:
@@ -120,7 +120,7 @@ def guarded_simd_block(reference, kernel):
             + reference + "        }\n")
 
 
-def job_span(original, address):
+def job_span(original, address, bind=str):
     regions = {
         SCENE_JOB: ("loc_00288A48:", "        ctx->lr = 0x00288B30;", "buzz::ppu_finish_scene_job(*ctx);"),
         COMMAND: ("loc_00293078:", "        switch ((uint32_t)ctx->ctr)", "buzz::ppu_scene_command(*ctx);"),
@@ -142,15 +142,15 @@ def job_span(original, address):
         TRACKS: ("loc_002DD3B0:", "        ctx->gpr[0] = vm_read32(ctx->gpr[28] + 0x174);",
                  "if (buzz::ppu_advance_tracks(*ctx)) goto loc_002DD7E4;"),
     }
-    first, last, call = regions[address]
+    first, last, call = map(bind, regions[address])
     start = original.index(first)
     if first.startswith("loc_"):
         start += len(first) + 1
     return start, original.index(last, start), call
 
 
-def adapt_job(original, address, condition=None):
-    start, end, call = job_span(original, address)
+def adapt_job(original, address, condition=None, bind=str):
+    start, end, call = job_span(original, address, bind)
     if address == COLLECT:
         condition = f"({condition}) && !g_trampoline_fn" if condition else "!g_trampoline_fn"
     head = f"if ({condition}) " if condition else ""
@@ -160,24 +160,24 @@ def adapt_job(original, address, condition=None):
             + original[start:end] + join + ":\n" + original[end:])
 
 
-def adapt_existing(original, address):
+def adapt_existing(original, address, bind=str):
     if address in JOBS or address in SCENE:
-        return adapt_job(original, address)
+        return adapt_job(original, address, bind=bind)
     if address in (OBJECT, UNPACK, WEIGHTED, PLANES, POSE):
-        start, end, kernel = transform_span(original, address)
+        start, end, kernel = transform_span(original, address, bind)
         if address == UNPACK:
             block = f"#if {MATRIX_ISA}\n        buzz::{kernel}(*ctx);\n#else\n{original[start:end]}#endif\n"
         else:
             block = guarded_simd_block(original[start:end], kernel)
-        return original[:start] + block + original[end:]
+        return original[:start] + block.replace(f"buzz::{kernel}(*ctx);", bind(f"buzz::{kernel}(*ctx);")) + original[end:]
     if address == SEARCH:
         return original[:original.index("{") + 1] + "\n    buzz::ppu_record_search(*ctx);\n}"
     if address == SLOTS:
-        return original.replace(SLOT_BRANCH, """        if (ctx->gpr[5] <= 4) {
+        return original.replace(SLOT_BRANCH, bind("""        if (ctx->gpr[5] <= 4) {
             buzz::ppu_prepare_slots(*ctx);
             goto loc_002B7054;
         }
-""" + SLOT_BRANCH)
+""") + SLOT_BRANCH)
     start = original.index(FIRST_LOAD)
     end = original.index(FIRST_STORE)
     # Keep the lifted prologue, output stores, and continuation for both paths.

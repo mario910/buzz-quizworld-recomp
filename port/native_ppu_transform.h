@@ -4,7 +4,7 @@
 
 namespace buzz
 {
-inline void ppu_object_transform(ppu_context& c)
+inline void ppu_object_transform(ppu_context& c, uint32_t toc_offset = 0x11ac)
 {
     __m128 weights[4], basis[4];
     weights[0] = ppu_matrix_load(c.gpr[4]);
@@ -15,7 +15,7 @@ inline void ppu_object_transform(ppu_context& c)
     c.gpr[9] = vm_read32(c.gpr[31] + 0x94);
     for (unsigned i : { 0u, 1u, 3u, 2u })
         basis[i] = ppu_matrix_load(address + i * 16);
-    c.gpr[11] = vm_read32(c.gpr[2] - 0x11ac);
+    c.gpr[11] = vm_read32(c.gpr[2] - toc_offset);
     c.gpr[0] = vm_read32(c.gpr[11]);
     vm_write32(c.gpr[31] + 0x24, c.gpr[0]);
     c.gpr[3] = c.gpr[31];
@@ -53,20 +53,21 @@ inline void ppu_unpack_transform_rows(ppu_context& c)
     memcpy(&c.vr[1], &z, 16);
 }
 
+template<bool updated = false>
 inline void ppu_accumulate_weighted_rows(ppu_context& c)
 {
-    constexpr unsigned destinations[] = { 8, 10, 11, 9 };
-    constexpr unsigned weights[] = { 8, 9, 11, 13 };
+    constexpr unsigned disc_dest[] = {8, 10, 11, 9}, update_dest[] = {10, 11, 6, 8, 7, 5, 29};
+    constexpr unsigned disc_weight[] = {8, 9, 11, 13}, update_weight[] = {10, 9, 8, 7, 6, 12, 11};
     const bool nj = (c.vscr & VMX_NJ) != 0;
-    const __m128 bias = ppu_matrix_flush(ppu_matrix_swap(_mm_castsi128_ps(ppu_vector_bits(c, 10))), nj);
+    const __m128 bias = ppu_matrix_flush(ppu_matrix_swap(_mm_castsi128_ps(ppu_vector_bits(c, updated ? 13 : 10))), nj);
     __m128 product, sum;
-    for (unsigned i = 0; i < 4; ++i) {
+    for (unsigned i = 0; i < (updated ? 7u : 4u); ++i) {
         // The source can be a previous destination. Reload it for each row.
-        const uint64_t address = c.gpr[destinations[i]] & ~uint64_t(15);
+        const uint64_t address = c.gpr[updated ? update_dest[i] : disc_dest[i]] & ~uint64_t(15);
         const __m128 source = ppu_matrix_flush(ppu_matrix_load(c.gpr[28]), nj);
         const __m128 accumulator = ppu_matrix_flush(ppu_matrix_load(address), nj);
         const __m128 weight
-            = ppu_matrix_flush(ppu_matrix_swap(_mm_castsi128_ps(ppu_vector_bits(c, weights[i]))), nj);
+            = ppu_matrix_flush(ppu_matrix_swap(_mm_castsi128_ps(ppu_vector_bits(c, updated ? update_weight[i] : disc_weight[i]))), nj);
         product = ppu_matrix_finish<false>(_mm_fmadd_ps(source, weight, bias), nj);
         // For NaN inputs, preserve the scalar VMX payload and exception behavior.
         const __m128i magnitude = _mm_and_si128(_mm_castps_si128(accumulator), _mm_set1_epi32(0x7fffffff));

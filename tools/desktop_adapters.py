@@ -6,21 +6,25 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from tools.studio_adapter import generate_studio
+from tools.regional_ppu import generate_regional
 
 
 def python(tool, *args):
     subprocess.run([sys.executable, ROOT / tool, *args], cwd=ROOT, check=True)
 
 
-def desktop_options(*, native_ppu=False, studio=False, completion=None, native_records=False, ppu_columns="none", media_cpu=False, audio_x86_rtz=False,
+def desktop_options(*, native_ppu=False, studio=False, completion=None, native_records=False, ppu_columns="none", media_cpu=False, video_cpu=False, audio_x86_rtz=False,
                     renderer_cpu=False, renderer_bundle=False, geometry_cpu=False, geometry_index_cache=False):
     analysis = ROOT / "analysis"
     options = {"PORT_PPU_KERNEL_DIR": ""}
     options["PORT_SPU_RECORDS_DIR"] = ""
     options["PORT_STUDIO_SOURCE"] = ""
+    options["PORT_REGIONAL_PPU_SOURCES"] = ""
+    options["PORT_REGIONAL_STUDIO"] = "OFF"
     if studio:
-        options["PORT_STUDIO_SOURCE"] = generate_studio(ROOT / "port/recompiled", analysis / "native-studio", completion) or ""
+        sources, dispatcher = generate_regional(ROOT / "port/recompiled", analysis / "native-regional-ppu", completion, ppu_columns)
+        options["PORT_REGIONAL_PPU_SOURCES"] = ";".join(path.as_posix() for path in sources)
+        options["PORT_REGIONAL_STUDIO"] = "ON" if dispatcher else "OFF"
     if native_ppu or native_records:
         records_dir = analysis / "native-spu-records"
         python("tools/codegen/generate-spu-records.py", ROOT / "port/spu", records_dir)
@@ -31,12 +35,13 @@ def desktop_options(*, native_ppu=False, studio=False, completion=None, native_r
         options["PORT_PPU_KERNEL_DIR"] = kernel_dir
     options.update({key: "" for key in ("PORT_VIDEO_IDCT_SOURCE", "PORT_AUDIO_COMPRESSOR_SOURCE",
                     "PORT_AUDIO_MIXER_SOURCE", "PORT_AUDIO_ATRAC_SOURCE")})
-    if media_cpu:
+    if media_cpu or video_cpu:
         python("tools/codegen/generate-video-idct.py")
+        options["PORT_VIDEO_IDCT_SOURCE"] = analysis / "native-video-idct/spu_recomp.c"
+    if media_cpu:
         python("tools/codegen/generate-audio-compressor.py", "--include-mixer", "--include-atrac",
                *(["--x86-rtz"] if audio_x86_rtz else []))
         options.update({
-            "PORT_VIDEO_IDCT_SOURCE": analysis / "native-video-idct/spu_recomp.c",
             "PORT_AUDIO_COMPRESSOR_SOURCE": analysis / "native-audio-compressor/spu_recomp.c",
             "PORT_AUDIO_MIXER_SOURCE": analysis / "native-audio-mixer/spu_recomp.c",
             "PORT_AUDIO_ATRAC_SOURCE": analysis / "native-audio-atrac/spu_recomp.c",
@@ -76,6 +81,7 @@ def desktop_options(*, native_ppu=False, studio=False, completion=None, native_r
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scene", action="store_true")
+    parser.add_argument("--native-video", action="store_true")
     parser.add_argument("--studio", action="store_true")
     parser.add_argument("--completion", type=Path)
     parser.add_argument("--renderer", action="store_true")
@@ -85,7 +91,8 @@ if __name__ == "__main__":
     optimized = args.optimized_vulkan
     renderer = args.renderer or optimized
     options = desktop_options(native_ppu=args.scene, studio=args.studio, completion=args.completion,
-                              native_records=optimized, media_cpu=optimized, audio_x86_rtz=optimized,
+                              native_records=optimized or args.native_video, media_cpu=optimized, video_cpu=args.native_video,
+                              audio_x86_rtz=optimized,
                               renderer_cpu=renderer, renderer_bundle=renderer,
                               geometry_cpu=optimized)
     args.output.write_text("".join(f"-D{key}={value}\n" for key, value in options.items()), encoding="utf-8")

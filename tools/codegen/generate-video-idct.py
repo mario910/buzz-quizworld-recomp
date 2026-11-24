@@ -1,7 +1,7 @@
-"""Generate a scoped native RTZ leaf for the EU 1.00 Sofdec transform.
+"""Generate a scoped native RTZ leaf for the reviewed Sofdec transforms.
 
 The image also contains double precision code. Only the reviewed, straight-line
-202B0 -> 20E14 block runs under the single-precision FP environment.
+transform block runs under the single-precision FP environment.
 """
 import argparse
 import hashlib
@@ -13,13 +13,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--workspace', type=Path, default=Path(__file__).resolve().parents[2])
     root = parser.parse_args().workspace
-    image = 'spu_0007_at_0080A080'
-    source_dir = root / 'port/spu' / image
-    raw = (source_dir / 'spu_recomp.c').read_bytes()
-    if hashlib.sha256(raw).hexdigest() != 'b04054f7b32c5f046263f3cbe33048a1da3080b405d6edb9f7dc6b5302303cda':
+    profiles = {
+        'spu_0007_at_0080A080': ('b04054f7b32c5f046263f3cbe33048a1da3080b405d6edb9f7dc6b5302303cda', '000202B0', '00020E14'),
+        'spu_0007_at_007F1E80': ('7635f0707fda2911aec34d13ca034e6fb044b188f64a118792e6ffc2a2c556a8', '0001F7BC', '00020394'),
+    }
+    images = list((root / 'port/spu').glob('spu_0007_at_*'))
+    if len(images) != 1 or images[0].name not in profiles:
+        raise SystemExit('Expected one reviewed video image')
+    source_dir = images[0]
+    image = source_dir.name
+    digest, entry, exit_pc = profiles[image]
+    source = (source_dir / 'spu_recomp.c').read_text(encoding='utf-8')
+    if hashlib.sha256(source.encode()).hexdigest() != digest:
         raise SystemExit('Video transform reference changed; re-audit before generation')
-    source = raw.decode()
-    name = image + '_spu_func_000202B0'
+    name = image + '_spu_func_' + entry
     marker = f'void {name}(spu_context* ctx) {{'
     assert source.count(marker) == 1
     start = source.index(marker)
@@ -27,7 +34,7 @@ def main():
     body = source[start + len(marker):end - 2]
     if re.search(r'spu_(?:df\w*|fesd|frds|fscr\w*|rdch|wrch|rchcnt|stop|halt)\(|spu_drain_call|SPU_RET', body):
         raise SystemExit('Unscopable FP/channel/call operation in video leaf')
-    if set(re.findall(r'g_spu_trampoline_fn = (\w+);', body)) != {image + '_spu_func_00020E14'}:
+    if set(re.findall(r'g_spu_trampoline_fn = (\w+);', body)) != {image + '_spu_func_' + exit_pc}:
         raise SystemExit('Unexpected video leaf exit')
     includes = ''.join(line + '\n' for line in source.splitlines() if line.startswith('#include'))
     wrapper = f'''
@@ -59,7 +66,7 @@ void {name}(spu_context* ctx) {{
         elif 'ctx->gpr[' in line:
             raise SystemExit('Unreviewed register access in video leaf')
     local = re.sub(register, lambda m: f'r{m.group(1)}', body)
-    tail = '        { ctx->pc = 0x20E14;'
+    tail = f'        {{ ctx->pc = 0x{int(exit_pc, 16):X};'
     assert local.count(tail) == 1
     local = local.replace(tail, ''.join(f'        ctx->gpr[{n}] = r{n};\n' for n in sorted(written)) + tail)
     declarations = ''.join(f'    u128 r{n}' + (f' = ctx->gpr[{n}]' if n in live else '') + ';\n' for n in sorted(used))

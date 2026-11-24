@@ -230,6 +230,7 @@ if ($DesktopOptimizations -and !$ProducerTrace -and $generation.family -in @('qu
     $adapterArgs += '--studio'
     if ($completionOverride) { $adapterArgs += @('--completion', $completionOverride) }
 }
+if ($desktopVulkan -and $generation.family -eq 'quizworld-102-verified') { $adapterArgs += '--native-video' }
 if ($desktopVulkan) { $adapterArgs += '--renderer' }
 if ($optimizedVulkan) { $adapterArgs += '--optimized-vulkan' }
 $optionFile = [IO.Path]::GetTempFileName()

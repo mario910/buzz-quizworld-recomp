@@ -12,7 +12,7 @@ SWITCH = '        switch ((uint32_t)ctx->ctr)'
 TABLE_WORD = r'/\* TODO: \.word 0x([0-9A-F]{8}) \*/;'
 
 
-def studio_targets(body):
+def studio_targets(body, *, all_commands=False):
     loop = re.search(r'loc_([0-9A-F]{8}):\n        ctx->gpr\[0\] = ppc_rlw64\(ctx->gpr\[8\], 4, 0, 27, 0, 0\);', body)
     words = [int(word, 16) for word in re.findall(TABLE_WORD, body)]
     cases = {int(pc, 16) for pc in re.findall(r'case 0x([0-9A-F]{8})u: goto loc_', body)}
@@ -34,7 +34,8 @@ def studio_targets(body):
     body = re.sub(r'func_[0-9A-F]{8}', lambda m: 'callee_' + str(callees.setdefault(m[0], len(callees))), body)
     body = re.sub(r'(vm_read32\(ctx->gpr\[2\] \+ )-?0x[0-9A-F]+', r'\1toc', body)
     if hashlib.sha256(body.encode('utf-8', errors='surrogateescape')).hexdigest() == DISPATCHER:
-        return int(loop[1], 16), targets[24], targets[11]
+        roles = (24, 11, 21, 22, 15) if all_commands else (24, 11)
+        return (int(loop[1], 16), *(targets[i] for i in roles))
     return None
 
 

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools import studio_adapter
+from tools import regional_ppu, studio_adapter
 
 
 class StudioAdapterTests(unittest.TestCase):
@@ -52,3 +52,15 @@ class StudioAdapterTests(unittest.TestCase):
             self.assertIn(b'#include "studio_effects.h"', patched)
             self.assertIn(b'buzz::skip_studio_effect', patched)
             self.assertIn(b'/* mixed comments: \x97 \xe2\x80\x94 */', patched)
+
+            # Desktop builds use the regional generator and also reread the
+            # generated translation when reusing a preparation workspace.
+            completion.write_bytes(b'/* cp1252 \x97 header */\n#include "ppu_vmx.h"\n' + completion.read_bytes())
+            with patch.object(studio_adapter, 'DISPATCHER', fingerprint), contextlib.redirect_stdout(io.StringIO()):
+                for _ in range(2):
+                    sources, matched = regional_ppu.generate_regional(root, out, completion)
+                    self.assertTrue(matched)
+                    self.assertEqual(sources, [out / completion.name])
+                    patched = sources[0].read_bytes()
+                    self.assertIn(b'buzz::ppu_scene_command', patched)
+                    self.assertIn(b'/* cp1252 \x97 header */', patched)
