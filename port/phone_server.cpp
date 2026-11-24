@@ -219,6 +219,7 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
             const bool resuming=!request.get_param_value("resume").empty();
             const auto joined=p.sessions->join(request.get_param_value("resume"),unsigned(slot),request.get_param_value("name"),now_ms());
             if(joined.status!=200){error(r,joined.status,joined.error);return;}
+            fprintf(stderr,"[phone] phone %s -> P%u\n",resuming?"resumed":"joined",joined.player+1);
             p.changed(!resuming);
             json(r,200,"{\"player\":"+std::to_string(joined.player)+",\"resume\":"+quote(joined.resume)+",\"control\":"+quote(joined.control)+",\"name\":"+quote(p.sessions->players[joined.player].name)+"}");
         });

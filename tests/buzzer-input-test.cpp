@@ -103,7 +103,12 @@ int main(){
         w.lights(3,2600);w.lights(15,3100);assert(w.joined()==3);               // P2 joined
         w.lights(0,3600);                                                       // screen ends: lights off
         assert(w.joined()==3&&w.open(3100+JoinWatch::window_ms)&&!w.open(3101+JoinWatch::window_ms));
+        assert(w.settled()==3); // the screen ended with the lights off: P1+P2
         w.lights(0,9000);w.lights(15,9000);assert(w.joined()==0); // steady repeats are ignored; new blink restarts
+        // The last free handset joins: blinking stops with all four steady on.
+        JoinWatch full;
+        full.lights(15,0);full.lights(7,500);full.lights(15,1000);assert(full.open(1000)&&full.joined()==7);
+        assert(!full.open(1001+JoinWatch::window_ms)&&full.settled()==15);
     }
     Router focus(250);focus.state(keyboard,1,100);focus.release(keyboard);
     assert(focus.sample(101)==1&&focus.sample(350)==0);

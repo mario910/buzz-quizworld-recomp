@@ -137,7 +137,7 @@ std::atomic<uint32_t> pad_slot_mask{0},phone_slot_mask{0};
 std::array<buzz_input::JoinWatch,2> join_watch{};
 bool join_was_open=false;
 std::atomic<bool> join_open_flag{false};
-void (*phone_release)(uint32_t)=nullptr;
+void (*phone_release)(uint32_t,bool)=nullptr;
 uint32_t joined_in_game(){return uint32_t(join_watch[0].joined())|(uint32_t(join_watch[1].joined())<<4);}
 // fixed: also count pads set to a fixed player. Those share their player with
 // other inputs (as before), so they never block unjoined menu input on P1.
@@ -148,23 +148,44 @@ uint32_t claimed_slots(bool fixed=true){
     for(int player:key_player)add(player);
     return mask;
 }
-void publish_pad_slots(){
-    // Phones skip places held by local devices and places the game shows as joined.
-    pad_slot_mask.store(claimed_slots()|(joined_in_game()&((1u<<config.players)-1)),std::memory_order_relaxed);
-}
 bool join_open(uint64_t now){return join_watch[0].open(now)||join_watch[1].open(now);}
+uint32_t all_players(){return (1u<<config.players)-1;}
+// Players the game kept after the last player screen closed.
+uint32_t in_game_mask=0;
+uint32_t in_game(uint64_t now){return (join_open(now)?joined_in_game():in_game_mask)&all_players();}
+uint32_t holders(){return claimed_slots()|phone_slot_mask.load(std::memory_order_relaxed);}
+// Joined in the game but held by no device or phone (a phone that left, a lost
+// session): the next device that presses takes it over, even mid-game.
+int unjoined_last=-1;uint64_t unjoined_last_at=0; // see claim_place
+uint32_t orphans(uint64_t now){
+    uint32_t mask=in_game(now)&~holders()&all_players();
+    // An early P1 press on the player screen belongs to the device that made it.
+    if(join_open(now)&&unjoined_last>=0&&now-unjoined_last_at<10000)mask&=~1u;
+    return mask;
+}
+// Slots phones may not take: on the player screen, places held by local
+// devices or by joined players; otherwise everything except orphaned places.
+uint32_t phone_occupied(uint64_t now){
+    const uint32_t free_orphans=orphans(now);
+    return join_open(now)?(claimed_slots()|(in_game(now)&~free_orphans)):(all_players()&~free_orphans);
+}
+void publish_pad_slots(){pad_slot_mask.store(phone_occupied(ticks()),std::memory_order_relaxed);}
 // The device that last drove P1 while unjoined (keyboard set N or 100+pad).
 // A press made before the blinking was recognised can already have joined P1
 // in the game; that same device then owns P1 instead of taking a second place.
-int unjoined_last=-1;uint64_t unjoined_last_at=0;
-// First free place for a device joining now; -1 if all are taken.
+// Place for a device joining now: an orphaned player first, then (only on the
+// player screen) the first free place; -1 if none.
 int claim_place(int device,uint64_t now){
-    const uint32_t devices=claimed_slots()|phone_slot_mask.load(std::memory_order_relaxed);
+    const uint32_t devices=holders();
     if((joined_in_game()&1)&&!(devices&1)&&unjoined_last==device&&now-unjoined_last_at<10000)return 0;
-    const uint32_t taken=devices|joined_in_game();
+    if(const uint32_t o=orphans(now))for(unsigned p=0;p<config.players;++p)if(o>>p&1)return int(p);
+    if(!join_open(now))return -1;
+    const uint32_t taken=devices|in_game(now);
     for(unsigned p=0;p<config.players;++p)if(!(taken>>p&1))return int(p);
     return -1;
 }
+// A device may claim now: on the player screen, or to take over an orphan.
+bool may_claim(uint64_t now){return join_open(now)||orphans(now);}
 // Where an unjoined device's buttons go: P1 for menus outside the join screen,
 // unless another device or phone already holds P1; nowhere while joining.
 int unjoined_target(int device,bool pressed,bool open,uint64_t now){
@@ -173,13 +194,28 @@ int unjoined_target(int device,bool pressed,bool open,uint64_t now){
     return 0;
 }
 // Places that did not join in the game are released when the screen closes.
-uint32_t close_join(uint64_t now){
+// When it opens, phone places whose phone is not connected (for example kept
+// from an earlier run) are offered for release too (offline_only), so new
+// players fill the places in order instead of leaving a gap the game skips.
+uint8_t joined_logged=0;
+uint32_t close_join(uint64_t now,bool& offline_only){
+    offline_only=false;
     const bool open=join_open(now);
     join_open_flag.store(open,std::memory_order_relaxed);
+    if(open&&uint8_t(joined_in_game())!=joined_logged){
+        joined_logged=uint8_t(joined_in_game());
+        fprintf(stderr,"[input] game shows joined mask=%02X\n",joined_logged);
+    }
     if(open==join_was_open)return 0;
     join_was_open=open;
-    if(open){fprintf(stderr,"[input] player-join screen open\n");return 0;}
-    const uint32_t joined=joined_in_game();
+    if(open){
+        fprintf(stderr,"[input] player-join screen open\n");
+        offline_only=true;return phone_slot_mask.load(std::memory_order_relaxed);
+    }
+    const uint32_t joined=uint32_t(join_watch[0].settled())|(uint32_t(join_watch[1].settled())<<4);
+    // Lit places that someone holds or the blinking confirmed are the game's
+    // players; lights left on at a title screen alone do not count.
+    in_game_mask=joined&(holders()|joined_in_game())&all_players();
     for(unsigned s=0;s<key_player.size();++s)if(key_player[s]>=0&&!(joined>>key_player[s]&1)){
         fprintf(stderr,"[input] keyboard set %u released P%d (not joined)\n",s+1,key_player[s]+1);key_player[s]=-1;}
     for(unsigned i=0;i<4;++i)if(pad_auto_player[i]>=0&&!(joined>>pad_auto_player[i]&1)){
@@ -221,7 +257,7 @@ void route_keyboard(uint64_t raw,uint64_t now){
     uint64_t mapped=0;
     for(unsigned s=0;s<config.players&&s<key_player.size();++s){
         const uint8_t buttons=uint8_t((raw>>(s*5))&31);
-        if(key_player[s]<0&&buttons&&open&&!menu_captured){
+        if(key_player[s]<0&&buttons&&may_claim(now)&&!menu_captured){
             key_player[s]=claim_place(int(s),now);
             if(key_player[s]>=0){fprintf(stderr,"[input] keyboard set %u joined -> P%d\n",s+1,key_player[s]+1);publish_pad_slots();}
         }
@@ -357,9 +393,9 @@ void buzz_input_key(uint32_t key,int down){
     route_keyboard(keyboard_held,ticks());
 }
 namespace {
-uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones){
+uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones,bool& offline_only){
     const auto now=ticks();const bool active=foreground();
-    release_phones=close_join(now);
+    release_phones=close_join(now,offline_only);
     uint64_t polled=0;
 #ifdef _WIN32
     if(active)for(unsigned p=0;p<config.players;++p)for(unsigned b=0;b<5;++b)
@@ -407,7 +443,7 @@ uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones){
                 // A press on the game's player-join screen takes the first
                 // place no device, phone or joined player holds, and joins it.
                 const bool open=join_open(now);
-                if(pad_auto_player[i]<0&&mapped&&open&&!menu_captured){
+                if(pad_auto_player[i]<0&&mapped&&may_claim(now)&&!menu_captured){
                     pad_auto_player[i]=claim_place(100+int(i),now);
                     if(pad_auto_player[i]>=0){
                         fprintf(stderr,"[input] Gamepad slot %u joined -> P%d\n",i,pad_auto_player[i]+1);
@@ -424,10 +460,10 @@ uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones){
 }
 }
 uint64_t buzz_input_poll(uint32_t scripted_pulses){
-    uint32_t release=0;uint64_t state=0;void (*notify)(uint32_t)=nullptr;
-    {std::lock_guard lock(input_mutex);state=poll_locked(scripted_pulses,release);notify=phone_release;}
+    uint32_t release=0;uint64_t state=0;bool offline_only=false;void (*notify)(uint32_t,bool)=nullptr;
+    {std::lock_guard lock(input_mutex);state=poll_locked(scripted_pulses,release,offline_only);notify=phone_release;}
     // Outside the input lock: releasing a phone calls back into buzz_input_remote.
-    if(release&&notify)notify(release);
+    if(release&&notify)notify(release,offline_only);
     return state;
 }
 void buzz_input_remote(unsigned player,uint8_t held,uint8_t pressed,bool disconnected){
@@ -496,18 +532,21 @@ extern "C" uint32_t buzz_sdl_key_code(int key){
 }
 #endif
 
-uint32_t buzz_input_pad_slots(){return pad_slot_mask.load(std::memory_order_relaxed);}
+// Live (phones leave and join between polls). Called by the phone server with
+// its own lock held; the input lock never calls into the phone server.
+uint32_t buzz_input_pad_slots(){std::lock_guard lock(input_mutex);return phone_occupied(ticks());}
 void buzz_input_set_phone_slots(uint32_t mask){phone_slot_mask.store(mask,std::memory_order_relaxed);}
 int buzz_input_pad_auto_player(unsigned slot){std::lock_guard lock(input_mutex);return slot<4?pad_auto_player[slot]:-1;}
 void buzz_input_lights(unsigned receiver,uint8_t handsets){
     if(receiver>=2)return;
-    uint32_t release=0;void (*notify)(uint32_t)=nullptr;
+    uint32_t release=0;bool offline_only=false;void (*notify)(uint32_t,bool)=nullptr;
     {
         std::lock_guard lock(input_mutex);const auto now=ticks();
         join_watch[receiver].lights(handsets,now);
-        publish_pad_slots();release=close_join(now);notify=phone_release;
+        publish_pad_slots();release=close_join(now,offline_only);notify=phone_release;
     }
-    if(release&&notify)notify(release);
+    if(release&&notify)notify(release,offline_only);
 }
-bool buzz_input_join_open(){return join_open_flag.load(std::memory_order_relaxed);}
-void buzz_input_set_phone_release(void (*release)(uint32_t)){std::lock_guard lock(input_mutex);phone_release=release;}
+// Phones may join on the player screen, or to take over an orphaned player.
+bool buzz_input_join_open(){std::lock_guard lock(input_mutex);return may_claim(ticks());}
+void buzz_input_set_phone_release(void (*release)(uint32_t,bool)){std::lock_guard lock(input_mutex);phone_release=release;}

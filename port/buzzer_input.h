@@ -72,6 +72,9 @@ public:
     }
     bool open(uint64_t now) const {return confirmed_at_&&now>=confirmed_at_&&now-confirmed_at_<=window_ms;}
     uint8_t joined() const {return joined_;} // last confirmed joined handsets (bits 0-3)
+    // At close: when the last free handset joins, the blinking stops with every
+    // light steady on, so the lights the game leaves on also count as joined.
+    uint8_t settled() const {return uint8_t(joined_|state_);}
 };
 struct Config {
     // Eight player slots by default; four remains available (restart).
@@ -129,14 +132,18 @@ bool buzz_input_format_config(const buzz_input::Config&,std::string& ini,std::st
 // (see JoinWatch); its press there takes the first free player and joins it.
 // Outside that screen an unjoined keyboard set or pad drives P1 for the menus
 // (unless a joined device holds P1); unjoined phones stay idle. When the
-// screen closes, places that did not join in the game are released.
+// screen closes, places that did not join in the game are released. A player
+// the game has joined but no device holds any more (a phone that left) is
+// taken over by the next device or phone that presses, even mid-game.
 uint32_t buzz_input_pad_slots();               // slots held by local devices or joined in the game
 void buzz_input_set_phone_slots(uint32_t mask); // slots reserved by phones
 int buzz_input_pad_auto_player(unsigned slot); // auto pad's current player, or -1
 void buzz_input_lights(unsigned receiver,uint8_t handsets); // guest light report, bit per handset
-bool buzz_input_join_open();                   // the player-join screen is showing
-// Called (outside input locks) with phone slots to release when joining closes.
-void buzz_input_set_phone_release(void (*release)(uint32_t mask));
+bool buzz_input_join_open();                   // player screen showing, or an orphaned player to take over
+// Called (outside input locks) with phone slots to release: when the player
+// screen closes, places that did not join; when it opens, every phone place
+// with offline_only set (release only phones that are not connected).
+void buzz_input_set_phone_release(void (*release)(uint32_t mask,bool offline_only));
 // Host HID receivers are independent sources, not guest USB devices. Receiver
 // slots map to P1-P4/P5-P8; the second requires the existing eight-player mode.
 void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool connected);

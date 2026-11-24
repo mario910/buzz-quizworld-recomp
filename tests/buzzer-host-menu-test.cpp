@@ -32,8 +32,8 @@ void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message)
 #undef GetWindowThreadProcessId
 #undef GetAsyncKeyState
 #undef GetTickCount64
-uint32_t phones_released=0;
-void record_phone_release(uint32_t mask){phones_released|=mask;}
+uint32_t phones_released=0,phones_offered=0;
+void record_phone_release(uint32_t mask,bool offline_only){(offline_only?phones_offered:phones_released)|=mask;}
 
 int main(){try {
     // This isolated process must not read a user's input file or legacy shell
@@ -62,7 +62,7 @@ int main(){try {
     buzz_input_capture(false);check(poll()==0,"Held answers cannot escape after closing");
     test_pads.fill(0);check(poll()==0,"Releasing after close is neutral");
     test_pads[0]=0x100;check((poll()&1)==1,"A fresh LB press works after release");
-    test_pads.fill(0);close_join();
+    test_pads.fill(0);buzz_input_lights(0,0);close_join(); // the game left the screen with nobody lit
     check(!buzz_input_join_open()&&buzz_input_pad_auto_player(0)==-1&&buzz_input_pad_auto_player(1)==-1,
           "Places the game did not show as joined are released when the screen closes");
 
@@ -76,21 +76,36 @@ int main(){try {
         test_pads[1]=0x8000;poll();check(buzz_input_pad_auto_player(1)==2,"Second pad -> P3");test_pads[1]=0;poll();
         buzz_input_set_phone_slots(1u<<3); // a phone took P4
         check((buzz_input_pad_slots()&0b111)==0b111,"Phones see the local places as taken");
-        buzz_input_lights(0,3);test_time+=300;buzz_input_lights(0,15); // the game shows P1+P2 joined
+        // The game shows P1+P2 joined, then leaves their lights on (as in the real log).
+        buzz_input_lights(0,3);test_time+=300;buzz_input_lights(0,15);test_time+=300;buzz_input_lights(0,3);
         close_join();
         check(key_player[0]==0&&buzz_input_pad_auto_player(0)==1&&buzz_input_pad_auto_player(1)==-1,"Joined places stay, P3 is released");
         check(phones_released==(1u<<3),"The unjoined phone place is released");
-        buzz_input_set_phone_slots(0);
-        test_pads[1]=0x100;check(poll()==0&&buzz_input_pad_auto_player(1)==-1,"An unjoined pad is idle while P1 belongs to a joined device");
+        // All four join (last one a phone): lights stay on, nobody is released.
+        phones_released=0;phones_offered=0;buzz_input_set_phone_slots(1u<<3);
+        open_join();check(phones_offered==(1u<<3),"Opening the player screen offers phone places for release if their phone is offline");test_pads[1]=0x8000;poll();test_pads[1]=0;poll();
+        buzz_input_lights(0,7);test_time+=300;buzz_input_lights(0,15);close_join();
+        check(buzz_input_pad_auto_player(1)==2&&phones_released==0,"With every handset joined the steady lights keep all four places");
         test_pads[1]=0;poll();
+        // The P4 phone leaves (or loses its session): P4 stays joined in the game.
+        buzz_input_set_phone_slots(0);
+        check(buzz_input_join_open()&&!(buzz_input_pad_slots()>>3&1),"An orphaned player can be taken over, also by a phone");
+        test_pads[2]=0x100;auto takeover=poll();
+        check(buzz_input_pad_auto_player(2)==3&&(takeover&buzz_input::bits(3,1)),"A pad pressing mid-game takes over the orphaned P4");
+        test_pads[2]=0;poll();check(!buzz_input_join_open(),"No orphan left, no joining outside the player screen");
+        test_time+=300; // let P4's retained tap pulse expire
+        test_pads[3]=0x100;check(poll()==0&&buzz_input_pad_auto_player(3)==-1,"An unjoined pad is idle while P1 belongs to a joined device");
+        test_pads[3]=0;poll();
         // Pressed before the blinking was recognised: the press already joined P1 in the game.
         std::string reset_error;check(buzz_input_reconfigure("pulse_ms=250\n",reset_error),"Reset places");
+        in_game_mask=0; // a new game: nobody joined yet
         test_pads[2]=0x100;poll();test_pads[2]=0;poll();
         buzz_input_lights(0,15);test_time+=300;buzz_input_lights(0,1);test_time+=300;buzz_input_lights(0,15);
         test_pads[3]=0x100;poll();test_pads[3]=0;poll();
         test_pads[2]=0x100;poll();test_pads[2]=0;poll();
         check(buzz_input_pad_auto_player(2)==0&&buzz_input_pad_auto_player(3)==1,"The device that joined P1 early owns P1");
-        close_join();check(buzz_input_reconfigure("pulse_ms=250\n",reset_error),"Reset places");poll();
+        close_join();check(buzz_input_reconfigure("pulse_ms=250\n",reset_error),"Reset places");
+        in_game_mask=0;poll(); // back to a game with nobody joined
     }
 
     buzz_input_capture(true);test_pads.fill(0);test_keys[32]=true;buzz_input_key(32,1);

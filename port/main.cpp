@@ -1043,8 +1043,13 @@ int main(int argc, char** argv)
     // lose places that did not join there when it closes.
     buzz_phone::host().set_occupancy([]{return buzz_input_pad_slots();},[](uint32_t mask){buzz_input_set_phone_slots(mask);},
         []{return buzz_input_join_open();});
-    buzz_input_set_phone_release([](uint32_t mask){
-        for(unsigned slot=0;slot<8;++slot)if(mask>>slot&1)buzz_phone::host().kick(slot);
+    buzz_input_set_phone_release([](uint32_t mask,bool offline_only){
+        const auto seats=buzz_phone::host().status().seats;
+        for(unsigned slot=0;slot<8;++slot)if(mask>>slot&1){
+            if(offline_only&&seats[slot].online)continue;
+            fprintf(stderr,"[phone] P%u released (%s)\n",slot+1,offline_only?"phone not connected when the player screen opened":"did not join on the player screen");
+            buzz_phone::host().kick(slot);
+        }
     });
     buzz_pc_phone_initialize(buzz_input_players(),buzz_input_remote);
     buzz_register_frame_limit();

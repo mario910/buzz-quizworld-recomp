@@ -69,8 +69,15 @@ PC settings still suppress phone gameplay input while the menu is open.
 - Select a named player in PC settings to remove that phone and free its slot.
 - **Leave player slot** on the phone frees it. A disconnected phone's slot stays
   reserved until it leaves, the host removes it, hosting ends or a player
-  screen closes without that player joining. A released phone goes back to
-  waiting and can join on the next player screen.
+  screen closes without that player joining. When a player screen opens,
+  places of phones that are not connected (for example kept from an earlier
+  run) are released too, so new players fill places in order. A released phone
+  goes back to waiting and can join on the next player screen.
+- A player the game has joined but no device holds any more (a phone that
+  tapped **Leave player slot** or lost its session) is taken over by the next
+  phone, pad or keyboard set that presses a button, also in the middle of a
+  game. A phone that left can therefore get its place back by getting ready
+  and pressing again.
 - **Full screen** depends on browser support. Keep the page visible during play;
   if the phone auto-locks, wake it before answering.
 
