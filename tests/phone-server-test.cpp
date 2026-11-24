@@ -24,7 +24,8 @@ int main(int argc,char** argv){try {
     check(port!=0);const auto status=server.status();check(status.running&&!status.urls.empty());
     Server competing;std::string conflict;
     check(!competing.start(port,4,[](unsigned,uint8_t,uint8_t,bool){},conflict)&&!conflict.empty());
-    const auto room=status.urls[0].substr(status.urls[0].find('#')+1);check(room.size()==32);
+    // Plain bookmarkable address: no pairing key in the URL.
+    check(status.urls[0].find('#')==std::string::npos&&status.urls[0].back()=='/');
     httplib::Client client("127.0.0.1",int(port));client.set_connection_timeout(2);client.set_read_timeout(3);
     auto page=client.Get("/");check(page&&page->status==200&&page->body.find("Your phone. Your buzzer.")!=std::string::npos);
     check(page->get_header_value("Content-Security-Policy").find("frame-ancestors 'none'")!=std::string::npos);
@@ -33,13 +34,13 @@ int main(int argc,char** argv){try {
     auto no_header=client.Post("/api/join","room=x","application/x-www-form-urlencoded");check(no_header&&no_header->status==403);
     const httplib::Headers headers{{"X-Buzz-Controller","1"}};
     auto post=[&](const char* path,const std::string& data){auto r=client.Post(path,headers,data,"application/x-www-form-urlencoded");check(bool(r));return r;};
-    check(post("/api/lobby","room=bad")->status==403);
-    check(post("/api/lobby","room="+room)->status==200);
-    auto joined=post("/api/join","room="+room+"&player=7&name=Ada");check(joined->status==200);
+    check(post("/api/lobby","")->status==200);
+    check(post("/api/lobby","room=anything")->status==200); // keys from old QR codes are ignored
+    auto joined=post("/api/join","player=7&name=Ada");check(joined->status==200);
     const auto control=field(joined->body,"control"),resume=field(joined->body,"resume");
     check(control.size()==32&&resume.size()==32&&control!=resume);
     check(server.status().seats[7].reserved&&server.status().seats[7].online);
-    check(post("/api/join","room="+room+"&player=7&name=Bob")->status==409);
+    check(post("/api/join","player=7&name=Bob")->status==409);
     const auto input="control="+control+"&seq=1&held=31&pressed=31";
     check(post("/api/input",input)->status==200&&held==31&&edges==1);
     check(post("/api/input",input)->status==200&&edges==1);
@@ -51,7 +52,7 @@ int main(int argc,char** argv){try {
     else if(rejected->status!=403)std::cerr<<"Origin response: "<<rejected->status<<' '<<rejected->body<<'\n';
     check(rejected&&rejected->status==403);
     check(post("/api/input",std::string(4096,'x'))->status==413);
-    server.set_locked(true);check(post("/api/join","room="+room+"&player=0&name=Bob")->status==423);
+    server.set_locked(true);check(post("/api/join","player=0&name=Bob")->status==423);
     auto recovered=post("/api/join","resume="+resume+"&player=0");check(recovered->status==200);
     const auto current=field(recovered->body,"control");check(current!=control&&held==0);
     check(post("/api/input",input)->status==401);
@@ -60,12 +61,12 @@ int main(int argc,char** argv){try {
     check(post("/api/input","control="+current+"&seq=2&held=0&pressed=0")->status==200);
     server.kick(7);check(!server.status().seats[7].reserved);
     check(post("/api/input","control="+current+"&seq=3&held=1&pressed=1")->status==401);
-    server.reset();check(server.status().urls[0]!=status.urls[0]);check(post("/api/lobby","room="+room)->status==403);
-    const auto next_url=server.status().urls[0],next_room=next_url.substr(next_url.find('#')+1);
+    server.reset();check(server.status().urls[0]==status.urls[0]&&!server.status().locked);
+    check(post("/api/lobby","")->status==200); // the same address keeps working
     std::atomic<unsigned> completed{0},failed{0};std::vector<std::thread> phones;
     for(unsigned player=0;player<8;++player)phones.emplace_back([&,player] {
         httplib::Client phone("127.0.0.1",int(port));phone.set_read_timeout(3);
-        auto joined=phone.Post("/api/join",headers,"room="+next_room+"&player="+std::to_string(player)+"&name=Phone"+std::to_string(player+1),"application/x-www-form-urlencoded");
+        auto joined=phone.Post("/api/join",headers,"player="+std::to_string(player)+"&name=Phone"+std::to_string(player+1),"application/x-www-form-urlencoded");
         if(!joined||joined->status!=200){++failed;return;}
         const auto control=field(joined->body,"control");
         for(unsigned sequence=1;sequence<=3;++sequence) {
@@ -78,6 +79,6 @@ int main(int argc,char** argv){try {
     for(const auto& seat:server.status().seats)check(seat.reserved&&seat.online);
     client.stop();server.stop();check(!server.status().running&&releases>0);
     check(!server.start(80,4,[](unsigned,uint8_t,uint8_t,bool){},error)&&!error.empty());
-    std::cout<<"PASS embedded HTTP: assets, real pairing/input, auth/origin/size limits, sequence protection, resume, expiry, host kick/reset/stop\n";
+    std::cout<<"PASS embedded HTTP: assets, open joining without a key, input, auth/origin/size limits, sequence protection, resume, expiry, host kick/reset/stop\n";
     return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -70,6 +70,13 @@ int main(){
         assert(is_previous_default_pad_mapping({0x10,0x8000,0x1000,0x2000,0x4000})&&is_previous_default_pad_mapping({0x200,0x4,0x2,0x8,0x1}));
         assert(is_previous_default_pad_mapping({0x100,0x1000,0x2000,0x4000,0x8000}));
         assert(parse_config("gamepad.4=4,LB,A,B,X,Y\n",migrated,error)&&migrated.pad_buttons[3][0]==0x300);
+        // The old fixed layout (pads 1-4 -> players 1-4) becomes automatic joining.
+        auto fixed=defaults();
+        assert(parse_config("gamepad.1=1,START,Y,A,B,X\ngamepad.2=2,START,Y,A,B,X\ngamepad.3=3,START,Y,A,B,X\ngamepad.4=4,START,Y,A,B,X\n",fixed,error));
+        for(int player:fixed.pad_player)assert(player==Config::pad_auto);
+        assert(parse_config("gamepad.1=2,LB,A,B,X,Y\ngamepad.2=1,LB,A,B,X,Y\ngamepad.3=3,LB,A,B,X,Y\ngamepad.4=4,LB,A,B,X,Y\n",fixed,error));
+        assert(fixed.pad_player[0]==1&&fixed.pad_player[1]==0&&fixed.pad_player[3]==3); // a real choice is kept
+        assert(parse_config("gamepad.1=1,LB,A,B,X,Y\n",fixed,error)&&fixed.pad_player[0]==0); // a single explicit line too
         assert(!is_previous_default_pad_mapping(defaults().pad_buttons[0]));
     }
     assert(parse_config("players=8\nkeyboard.8=F1,F2,F3,F4,F5\ngamepads=1\ngamepad.2=8,START,Y,A,B,RB\npulse_ms=100\n",config,error));
@@ -87,6 +94,17 @@ int main(){
     assert(parse_config("\xef\xbb\xbfplayers=4\r\npulse_ms=80\r\n",config,error));
     assert(config.players==4&&config.pulse_ms==80);
     assert(parse_config("gamepad.1=NONE\n",config,error)&&config.pad_player[0]==-1);
+    {   // Player-join screen read from the light blinking seen in the real game:
+        // all on <-> joined only. Steady or one-off changes never open it.
+        JoinWatch w;
+        w.lights(15,100);w.lights(0,600);assert(!w.open(700)&&w.joined()==0); // title: on, then off
+        w.lights(15,1100);assert(w.open(1100)&&w.joined()==0);                 // blinking, nobody yet
+        w.lights(1,1600);w.lights(15,2100);assert(w.open(2100)&&w.joined()==1); // P1 joined
+        w.lights(3,2600);w.lights(15,3100);assert(w.joined()==3);               // P2 joined
+        w.lights(0,3600);                                                       // screen ends: lights off
+        assert(w.joined()==3&&w.open(3100+JoinWatch::window_ms)&&!w.open(3101+JoinWatch::window_ms));
+        w.lights(0,9000);w.lights(15,9000);assert(w.joined()==0); // steady repeats are ignored; new blink restarts
+    }
     Router focus(250);focus.state(keyboard,1,100);focus.release(keyboard);
     assert(focus.sample(101)==1&&focus.sample(350)==0);
     Router edges(10);edges.state(keyboard,1,0);edges.state(keyboard,1,5);edges.state(keyboard,0,6);

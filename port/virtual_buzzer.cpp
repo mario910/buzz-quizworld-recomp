@@ -147,6 +147,13 @@ uint32_t control_response(const Transfer& t)
     } else if (t.request[1]==9 || t.request[1]==10 || t.request[1]==11) {
         // SET_CONFIGURATION / HID SET_REPORT (LEDs) / SET_IDLE / SET_PROTOCOL.
         n=t.size;
+        // HID SET_REPORT (output): 00, then one light byte per handset (00 off,
+        // FF on). The input router reads the player-join screen from them.
+        if (t.request[1]==9 && (t.request[0]&0x60)==0x20 && t.buffer && t.size>=5) {
+            uint8_t handsets=0;
+            for (unsigned k=0;k<4;++k) if (vm_base[t.buffer+1+k]) handsets|=uint8_t(1u<<k);
+            buzz_input_lights(t.receiver,handsets);
+        }
     } else {
         fprintf(stderr,"[buzzer] unsupported control %02X/%02X\n",t.request[0],t.request[1]);
         return UINT32_MAX;

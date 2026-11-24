@@ -53,6 +53,26 @@ public:
     }
 };
 
+// The game's player-join screen, read from the handset lights it sends to one
+// receiver: they blink between "all four on" and "only the joined players".
+// Each return to all-on confirms the state before it as the joined set, so
+// joining is open while those confirmations keep coming. A steady state, or the
+// last change after the screen ends, is never mistaken for joined players.
+class JoinWatch {
+    uint8_t state_=0, joined_=0;
+    uint64_t confirmed_at_=0;
+    bool seen_=false;
+public:
+    static constexpr uint64_t window_ms=2000;
+    void lights(uint8_t four,uint64_t now) {
+        four&=15;
+        if(seen_&&four==state_)return;
+        if(seen_&&four==15&&state_!=15){joined_=state_;confirmed_at_=now?now:1;}
+        state_=four;seen_=true;
+    }
+    bool open(uint64_t now) const {return confirmed_at_&&now>=confirmed_at_&&now-confirmed_at_<=window_ms;}
+    uint8_t joined() const {return joined_;} // last confirmed joined handsets (bits 0-3)
+};
 struct Config {
     // Eight player slots by default; four remains available (restart).
     unsigned players=8, pulse_ms=250;
@@ -70,6 +90,8 @@ struct Config {
 Config defaults();
 // Strict, transactional parser: unknown/duplicate entries and invalid mappings
 // are errors; no partially applied configuration escapes on failure.
+// Migrations: button mappings equal to an earlier default become the current
+// default; four pads on the old fixed layout (players 1-4) become AUTO.
 bool parse_config(const std::string& text,Config& config,std::string& error);
 bool parse_keys(const std::string& text,std::array<unsigned,5>& keys);
 uint8_t map_pad(uint16_t buttons,const std::array<uint16_t,5>& mapping);
@@ -102,11 +124,19 @@ void buzz_input_enable_menu(bool enabled);
 uint16_t buzz_input_host_pad_buttons(unsigned slot); // focused host input, not guest input
 bool buzz_input_host_pad_connected(unsigned slot);
 bool buzz_input_format_config(const buzz_input::Config&,std::string& ini,std::string& error);
-// Automatic player slots. Each side publishes the player slots it holds as a
-// lock-free mask so pads and phones never take the same free slot.
-uint32_t buzz_input_pad_slots();               // slots held by gamepads now
+// Automatic player slots. Keyboard key sets, AUTO pads and phones are equal
+// devices: none has a player until it joins on the game's player-join screen
+// (see JoinWatch); its press there takes the first free player and joins it.
+// Outside that screen an unjoined keyboard set or pad drives P1 for the menus
+// (unless a joined device holds P1); unjoined phones stay idle. When the
+// screen closes, places that did not join in the game are released.
+uint32_t buzz_input_pad_slots();               // slots held by local devices or joined in the game
 void buzz_input_set_phone_slots(uint32_t mask); // slots reserved by phones
 int buzz_input_pad_auto_player(unsigned slot); // auto pad's current player, or -1
+void buzz_input_lights(unsigned receiver,uint8_t handsets); // guest light report, bit per handset
+bool buzz_input_join_open();                   // the player-join screen is showing
+// Called (outside input locks) with phone slots to release when joining closes.
+void buzz_input_set_phone_release(void (*release)(uint32_t mask));
 // Host HID receivers are independent sources, not guest USB devices. Receiver
 // slots map to P1-P4/P5-P8; the second requires the existing eight-player mode.
 void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool connected);

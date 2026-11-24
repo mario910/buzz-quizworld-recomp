@@ -32,6 +32,8 @@ void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message)
 #undef GetWindowThreadProcessId
 #undef GetAsyncKeyState
 #undef GetTickCount64
+uint32_t phones_released=0;
+void record_phone_release(uint32_t mask){phones_released|=mask;}
 
 int main(){try {
     // This isolated process must not read a user's input file or legacy shell
@@ -43,15 +45,53 @@ int main(){try {
     // below; eight is the shipped default. Pads use the default AUTO slots.
     config.players=4;
     auto poll=[](){test_time+=10;return buzz_input_poll(0);};
+    // The game's player screen, as seen in the real game: lights blink all on <-> joined.
+    auto open_join=[]{buzz_input_lights(0,15);test_time+=300;buzz_input_lights(0,0);test_time+=300;buzz_input_lights(0,15);};
+    auto close_join=[&]{test_time+=buzz_input::JoinWatch::window_ms+100;poll();};
+    buzz_input_set_phone_release(record_phone_release);
     check(poll()==0,"Initial neutral input");
+    test_pads[0]=0x100;auto state=poll();
+    check(buzz_input_pad_auto_player(0)==-1&&(state&1),"Outside the player screen an unjoined pad drives P1 for menus without taking a place");
+    test_pads[0]=0;poll();
+    open_join();check(buzz_input_join_open(),"Blinking lights open the player screen");
     test_pads[0]=0x100;test_pads[1]=0x8000;
-    auto state=poll();check((state&buzz_input::bits(0,1))&&(state&buzz_input::bits(1,16)),"LB red and Triangle/Y blue on separate players");
+    state=poll();check((state&buzz_input::bits(0,1))&&(state&buzz_input::bits(1,16)),"LB red and Triangle/Y blue join as separate players");
     test_pads[0]|=0x10;
     check(poll()==0&&buzz_input_take_menu_request(),"START captures immediately before a guest answer can escape");
     check(poll()==0&&!buzz_input_take_menu_request(),"Holding START does not repeatedly toggle the menu");
     buzz_input_capture(false);check(poll()==0,"Held answers cannot escape after closing");
     test_pads.fill(0);check(poll()==0,"Releasing after close is neutral");
     test_pads[0]=0x100;check((poll()&1)==1,"A fresh LB press works after release");
+    test_pads.fill(0);close_join();
+    check(!buzz_input_join_open()&&buzz_input_pad_auto_player(0)==-1&&buzz_input_pad_auto_player(1)==-1,
+          "Places the game did not show as joined are released when the screen closes");
+
+    {   // Keyboard key sets and pads are equal devices: press order on the player screen decides.
+        open_join();
+        test_keys[32]=true;buzz_input_key(32,1);poll();check(key_player[0]==0,"Keyboard joins first -> P1");
+        test_keys[32]=false;buzz_input_key(32,0);poll();
+        test_pads[0]=0x100;auto joined=poll();
+        check(buzz_input_pad_auto_player(0)==1&&(joined&buzz_input::bits(1,1)),"Pad joins next -> P2, not the keyboard's P1");
+        test_pads[0]=0;poll();
+        test_pads[1]=0x8000;poll();check(buzz_input_pad_auto_player(1)==2,"Second pad -> P3");test_pads[1]=0;poll();
+        buzz_input_set_phone_slots(1u<<3); // a phone took P4
+        check((buzz_input_pad_slots()&0b111)==0b111,"Phones see the local places as taken");
+        buzz_input_lights(0,3);test_time+=300;buzz_input_lights(0,15); // the game shows P1+P2 joined
+        close_join();
+        check(key_player[0]==0&&buzz_input_pad_auto_player(0)==1&&buzz_input_pad_auto_player(1)==-1,"Joined places stay, P3 is released");
+        check(phones_released==(1u<<3),"The unjoined phone place is released");
+        buzz_input_set_phone_slots(0);
+        test_pads[1]=0x100;check(poll()==0&&buzz_input_pad_auto_player(1)==-1,"An unjoined pad is idle while P1 belongs to a joined device");
+        test_pads[1]=0;poll();
+        // Pressed before the blinking was recognised: the press already joined P1 in the game.
+        std::string reset_error;check(buzz_input_reconfigure("pulse_ms=250\n",reset_error),"Reset places");
+        test_pads[2]=0x100;poll();test_pads[2]=0;poll();
+        buzz_input_lights(0,15);test_time+=300;buzz_input_lights(0,1);test_time+=300;buzz_input_lights(0,15);
+        test_pads[3]=0x100;poll();test_pads[3]=0;poll();
+        test_pads[2]=0x100;poll();test_pads[2]=0;poll();
+        check(buzz_input_pad_auto_player(2)==0&&buzz_input_pad_auto_player(3)==1,"The device that joined P1 early owns P1");
+        close_join();check(buzz_input_reconfigure("pulse_ms=250\n",reset_error),"Reset places");poll();
+    }
 
     buzz_input_capture(true);test_pads.fill(0);test_keys[32]=true;buzz_input_key(32,1);
     check(poll()==0,"Menu captures keyboard input");

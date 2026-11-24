@@ -9,17 +9,18 @@ Sessions::Sessions(unsigned n,std::function<std::string()> token,
     if(n!=4&&n!=8)throw std::invalid_argument("Phone controllers require four or eight slots");
     room=token_();
 }
-Join Sessions::join(const std::string& key,const std::string& resume,unsigned slot,const std::string& name,uint64_t now) {
+Join Sessions::join(const std::string& resume,unsigned slot,const std::string& name,uint64_t now) {
     // A resume credential is sufficient after joining; the room may be locked.
     if(!resume.empty())for(unsigned i=0;i<count;++i)if(players[i].resume==resume) {
         auto& p=players[i];const auto control=token_();
         input_(i,0,0,true);p.held=0;p.control=control;p.sequence=0;p.last_seen=now;p.online=true;p.needs_neutral=false;
         return {200,i,p.resume,p.control,{}};
     }
-    if(key!=room)return {403,0,{},{},"Scan the current QR code on the PC"};
+    // No pairing key: anyone who can open the game's local address may join.
     if(!resume.empty())return {401,0,{},{},"This session ended. Join again"};
     if(locked)return {423,0,{},{},"Joining is locked by the host"};
     if(slot==auto_slot) {
+        if(open_&&!open_())return {425,0,{},{},"Wait for the game's player screen, then press again"};
         const uint32_t taken=occupied_?occupied_():0;
         for(unsigned i=0;i<count;++i)if(players[i].resume.empty()&&!(taken>>i&1)){slot=i;break;}
         if(slot==auto_slot)return {409,0,{},{},"All player slots are taken"};

@@ -118,6 +118,7 @@ struct Server::Impl {
     std::filesystem::path state_path;
     std::function<uint32_t()> occupied;
     std::function<void(uint32_t)> publish;
+    std::function<bool()> join_open;
     // Under mutex: share the reserved slots and, for pairing changes, save them.
     void changed(bool save) {
         if(!sessions)return;
@@ -160,6 +161,7 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
             std::lock_guard lock(p.mutex);
             p.port=port;p.ips=addresses();p.sessions=std::make_unique<Sessions>(players,token,std::move(input));
             if(p.occupied)p.sessions->set_occupied(p.occupied);
+            if(p.join_open)p.sessions->set_join_open(p.join_open);
             // Keep the previous run's QR code and players, so phones reconnect.
             if(!p.state_path.empty()) {
                 std::ifstream in(p.state_path,std::ios::binary);
@@ -200,7 +202,6 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
         http.Post("/api/lobby",[&p](const auto& request,auto& r) {
             if(!api_request(request,r))return;
             std::lock_guard lock(p.mutex);const auto& s=*p.sessions;
-            if(request.get_param_value("room")!=s.room){error(r,403,"Scan the current QR code on the PC");return;}
             std::string text="{\"locked\":"+std::string(s.locked?"true":"false")+",\"players\":[";
             for(unsigned i=0;i<s.count;++i) {
                 if(i)text+=',';const auto& seat=s.players[i];
@@ -216,7 +217,7 @@ bool Server::start(unsigned port,unsigned players,Input input,std::string& messa
             if(!choice.empty()&&choice!="auto"&&(!number(choice,slot)||slot>7)){error(r,400,"Choose a player");return;}
             std::lock_guard lock(p.mutex);
             const bool resuming=!request.get_param_value("resume").empty();
-            const auto joined=p.sessions->join(request.get_param_value("room"),request.get_param_value("resume"),unsigned(slot),request.get_param_value("name"),now_ms());
+            const auto joined=p.sessions->join(request.get_param_value("resume"),unsigned(slot),request.get_param_value("name"),now_ms());
             if(joined.status!=200){error(r,joined.status,joined.error);return;}
             p.changed(!resuming);
             json(r,200,"{\"player\":"+std::to_string(joined.player)+",\"resume\":"+quote(joined.resume)+",\"control\":"+quote(joined.control)+",\"name\":"+quote(p.sessions->players[joined.player].name)+"}");
@@ -260,7 +261,8 @@ Status Server::status() const {
     result.running=p.running;result.port=p.port;result.error=p.failure;
     if(p.sessions) {
         result.locked=p.sessions->locked;
-        for(const auto& ip:p.ips)result.urls.push_back("http://"+ip+":"+std::to_string(p.port)+"/#"+p.sessions->room);
+        // Plain addresses: phones can bookmark them; no pairing key is needed.
+        for(const auto& ip:p.ips)result.urls.push_back("http://"+ip+":"+std::to_string(p.port)+"/");
         for(unsigned i=0;i<p.sessions->count;++i){const auto& s=p.sessions->players[i];result.seats[i]={s.name,!s.resume.empty(),s.online};}
     }
     return result;
@@ -269,8 +271,8 @@ void Server::set_locked(bool value){std::lock_guard lock(impl_->mutex);if(impl_-
 void Server::kick(unsigned player){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->kick(player);impl_->changed(true);}}
 void Server::reset(){std::lock_guard lock(impl_->mutex);if(impl_->sessions){impl_->sessions->reset();impl_->changed(true);}}
 void Server::set_persistence(std::filesystem::path path){std::lock_guard lock(impl_->mutex);impl_->state_path=std::move(path);}
-void Server::set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish){
-    std::lock_guard lock(impl_->mutex);impl_->occupied=std::move(occupied);impl_->publish=std::move(publish);
+void Server::set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish,std::function<bool()> join_open){
+    std::lock_guard lock(impl_->mutex);impl_->occupied=std::move(occupied);impl_->publish=std::move(publish);impl_->join_open=std::move(join_open);
 }
 Server& host(){static Server instance;return instance;}
 }

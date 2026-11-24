@@ -1,7 +1,7 @@
 # Phone buzzers over local Wi-Fi
 
-The game hosts an HTTP controller page. Players scan a QR code, choose a player
-number and use five large buttons in their phone browser. No account, external
+The game hosts an HTTP controller page. Players open its local address (QR code or a bookmark), get ready, join on
+the game's player screen and use five large buttons in their phone browser. No account, external
 server, browser installation, Python or PWA is involved.
 
 ## Start playing
@@ -10,7 +10,8 @@ server, browser installation, Python or PWA is involved.
    also works if phones can reach it through the same router.
 2. Open **Escape / START → Phone buzzers** and enable **Host phone buzzers**.
    The native launcher's shared preferences can also enable hosting before
-   launch. Hosting is off by default; the default port is **8073**.
+   launch. Hosting is off by default; the default port is **8073**. The switch
+   is remembered at once: hosting that was on starts again with the next launch.
 3. Select the PC's LAN address above the QR code. VPNs and virtual adapters may
    have additional addresses. `127.0.0.1` works only on the PC itself.
 4. If Windows Firewall prompts, allow this game's port on your private network.
@@ -19,21 +20,32 @@ server, browser installation, Python or PWA is involved.
    has no firewall enabled by default.
    No firewall rules or router forwarding are added automatically. Guest Wi-Fi
    and client isolation can block phones from reaching the PC.
-5. Scan the QR code. Enter a name and tap **Join game**: the phone takes the
-   first free player slot (one that no other phone and no gamepad holds). To
-   pick a specific player, tap its number first; tap it again to go back to
-   automatic. The name identifies the phone in the host list; choose the quiz
-   contestant's name separately in the game.
+5. Scan the QR code or open the address (for example `http://192.168.1.20:8073/`).
+   No pairing key is needed, so a bookmark on the phone works every time the
+   game runs with hosting on. Enter a name and tap **Get ready**: the phone
+   waits without a player, so any number of phones can be ready. When the game
+   shows its player screen, the phone's first press takes the first free player
+   slot and joins it in the game; there is no player number to pick. With ten
+   phones ready and eight slots, the first eight to press play and the others
+   are told that all players are in. The name identifies the phone in the host
+   list; choose the quiz contestant's name separately in the game.
 6. Close PC settings to resume gameplay. Use red for the buzzer and the answer
    colors on the TV. The handset order is red, blue, orange, green, yellow;
    each answer also has a number label.
-7. Choose **Save settings** if hosting should start on subsequent launches.
+7. Bookmark the page on each phone for the next game night.
 
 Eight player slots are the default; four remain available in PC settings
-(Controls → Buzzer slots, restart required). Gamepads default to **AUTO**: a
-pad takes the first free player slot when its first buzzer button is pressed
-and frees it when unplugged; Controls → Assign controllers to players also
-offers fixed players or Unassigned. Phones, keyboard, XInput and physical
+(Controls → Buzzer slots, restart required). Keyboard key sets, gamepads
+(default **AUTO**) and phones are equal devices; none has a player until it
+joins on the game's player screen. The game blinks the handset lights there
+(all on ↔ joined players), which is how the PC knows joining is open and who
+joined. A device's press on that screen takes the first free player and joins
+it, in press order. Outside that screen an unjoined keyboard set or pad drives
+P1 for the menus (for example the language choice) unless a joined device holds
+P1; unjoined phones stay idle. When the screen closes, places that did not join
+in the game are released; unplugging a pad also frees its place. Settings saved
+with the old fixed layout (pad 1-4 = player 1-4) switch to AUTO when loaded;
+Controls → Assign controllers to players also offers fixed players or Unassigned. Phones, keyboard, XInput and physical
 buzzers can be mixed. Inputs assigned to the same player are combined; give each
 person their own player number. Phones work when the PC window lacks focus.
 PC settings still suppress phone gameplay input while the menu is open.
@@ -43,31 +55,34 @@ PC settings still suppress phone gameplay input while the menu is open.
 - A phone keeps its slot while sleeping, switching apps or losing Wi-Fi. Reopen
   the same URL/browser to resume. Recovery across reloads requires local storage;
   private browsing or clearing site data may lose it.
-- The QR code and the joined players are kept across game restarts in
-  `runtime/phone-pairing.txt` (owner-only; room secret, player names and resume
-  credentials, never input state). After a restart the same QR code works and a
-  phone that already joined reconnects to its player by reopening the page.
+- The joined players are kept across game restarts in
+  `runtime/phone-pairing.txt` (owner-only; player names and resume credentials,
+  never input state). After a restart a phone that already joined reconnects to
+  its player by reopening the page.
 - Brief failures reconnect automatically. After a longer failure, tap
-  **Reconnect**. **New code / Remove all phones** ends all phone sessions and
-  rotates the QR code; scan the new code.
+  **Reconnect**. **Remove all phones** ends all phone sessions; phones can join
+  again from the same address.
 - Reloading restores the same player and invalidates the previous tab's controls.
   Use one tab at a time for a saved session.
-- **Joining: Locked** prevents new players while existing players can resume.
+- Anyone who can reach the address on the network can join. **Joining: Locked**
+  prevents new players while existing players can resume.
 - Select a named player in PC settings to remove that phone and free its slot.
-  **New code / Remove all phones** also rotates the QR pairing secret.
 - **Leave player slot** on the phone frees it. A disconnected phone's slot stays
-  reserved until it leaves, the host removes it or hosting ends.
+  reserved until it leaves, the host removes it, hosting ends or a player
+  screen closes without that player joining. A released phone goes back to
+  waiting and can join on the next player screen.
 - **Full screen** depends on browser support. Keep the page visible during play;
   if the phone auto-locks, wake it before answering.
 
 Hosting is separate from the PSN offline setting. HTTP is for trusted local
-networks: pairing and session credentials travel without TLS. Do not forward
+networks: joining is open to the local network and session credentials travel
+without TLS. Do not forward
 the port to the Internet.
 
 ## Input and transport
 
-All assets are embedded and served at fixed routes. Pairing uses a random
-128-bit room secret in the URL fragment. Each player receives separate 128-bit
+All assets are embedded and served at fixed routes. Joining needs no pairing
+key (keys in older QR codes are ignored). Each player receives separate 128-bit
 resume and active-control credentials. APIs accept POST forms with a custom
 header, reject cross-origin browser requests and enforce a 2 KiB request limit.
 Credentials are not accepted in GET query strings. HTTP workers, queued

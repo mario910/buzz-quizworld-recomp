@@ -116,6 +116,12 @@ bool parse_config(const std::string& text,Config& config,std::string& error){
             candidate.pad_player[n-1]=automatic?Config::pad_auto:int(player-1);candidate.pad_buttons[n-1]=mapping;
         }else return fail();
     }
+    // Before automatic slots, pads were fixed to players 1-4 (pad N -> PN), and
+    // older launchers still write that. A file whose four pads are exactly that
+    // layout never chose it: players join with whichever pad they press first.
+    if(seen.count("gamepad.1")&&seen.count("gamepad.2")&&seen.count("gamepad.3")&&seen.count("gamepad.4")&&
+       candidate.pad_player==std::array<int,4>{{0,1,2,3}})
+        candidate.pad_player.fill(Config::pad_auto);
     config=candidate;error.clear();return true;
 }
 bool is_previous_default_pad_mapping(const std::array<uint16_t,5>& mapping){

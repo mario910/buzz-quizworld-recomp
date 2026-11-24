@@ -29,7 +29,9 @@ public:
     // joined phones) across restarts, and the slot masks shared with local
     // controllers for automatic player slots.
     void set_persistence(std::filesystem::path path);
-    void set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish);
+    // join_open (optional): automatic joins wait until it returns true.
+    void set_occupancy(std::function<uint32_t()> occupied,std::function<void(uint32_t)> publish,
+                       std::function<bool()> join_open={});
     bool start(unsigned port,unsigned players,Input input,std::string& error);
     void stop();
     Status status() const;

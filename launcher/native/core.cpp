@@ -149,6 +149,10 @@ Settings settings_from_json(const Json& j) {
         // Never-customised earlier defaults move to the current default layout.
         using Buttons=std::array<std::string,5>;
         if(s.pads[i].buttons==Buttons{"START","Y","A","B","X"}||s.pads[i].buttons==Buttons{"RB","LEFT","DOWN","RIGHT","UP"}||s.pads[i].buttons==Buttons{"LB","A","B","X","Y"})s.pads[i].buttons=Pad{}.buttons; }
+    // The old fixed layout (pad N -> player N) becomes automatic: players join
+    // with whichever pad they press first.
+    if(s.pads[0].player==0&&s.pads[1].player==1&&s.pads[2].player==2&&s.pads[3].player==3)
+        for(auto& pad:s.pads)pad.player=pad_auto;
     validate_settings(s);return s;
 }
 Settings load_settings(const fs::path& root) {

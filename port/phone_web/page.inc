@@ -15,11 +15,10 @@ R"BUZZ(<!doctype html>
   <div id="connection" role="status" aria-live="polite">Connecting to the game…</div>
   <section id="lobby" aria-labelledby="join-title">
     <h1 id="join-title">Your phone. Your buzzer.</h1>
-    <p>Enter your name and join: you get the next free player. Tap a player number first to pick one yourself. Keep this page open while you play.</p>
+    <p>Enter your name and get ready. When the game shows its player screen, press any button to join: the first to press take the free places. Keep this page open while you play.</p>
     <form id="join-form">
       <label for="name">Your name</label><input id="name" maxlength="24" autocomplete="nickname" placeholder="Player name" required>
-      <fieldset><legend>Player number (optional)</legend><div id="seats"></div></fieldset>
-      <button id="join" class="primary" disabled>Join game</button>
+      <button id="join" class="primary" disabled>Get ready</button>
     </form>
     <p class="hint">Already joined? Reopening this page restores your player, also after the game restarts. A sleeping phone keeps its place.</p>
   </section>
@@ -37,6 +36,6 @@ R"BUZZ(<!doctype html>
   </section>
   <p id="message" role="alert"></p>
   <button id="retry" class="primary" type="button" hidden>Reconnect</button>
-  <p class="network-help">Same Wi-Fi as the PC · No account or app needed<br>If the game closes, scan its new QR code next time.</p>
+  <p class="network-help">Same Wi-Fi as the PC · No account or app needed<br>Bookmark this page: it works whenever the game runs with phone buzzers on.</p>
 </main>
 </body></html>)BUZZ"

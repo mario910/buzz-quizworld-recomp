@@ -23,6 +23,7 @@ std::unique_ptr<buzz_pc::State> state;
 std::mutex apply_mutex;
 std::atomic<bool> performance_overlay{false};
 fs::path preferences_file;
+buzz_pc::Preferences started_with; // settings this run started with (file or defaults)
 unsigned phone_players=8;
 buzz_phone::Server::Input phone_input;
 bool configure_phone(const buzz_pc::Preferences& p,std::string& error) {
@@ -44,6 +45,23 @@ bool renderer_available(buzz_pc::Renderer r) {
 }
 void atomic_save(const buzz_pc::Preferences& p) {
     buzz_pc_write_file_atomic(preferences_file,buzz_pc::serialize(p));
+}
+// Phone hosting is remembered as soon as it is switched, without also saving
+// other live changes the player has not chosen to save. Base: the saved file,
+// or (none yet) the settings this run started with.
+void save_phone_hosting(const buzz_pc::Preferences& p,const buzz_pc::Preferences& fallback) {
+    buzz_pc::Preferences saved=fallback;
+    std::error_code ec;
+    if(fs::is_regular_file(preferences_file,ec)&&fs::file_size(preferences_file,ec)<=4096) {
+        std::ifstream in(preferences_file,std::ios::binary);
+        std::string text{std::istreambuf_iterator<char>(in),{}},error;bool display_reset=false;
+        buzz_pc::Preferences parsed=fallback;
+        if(in.is_open()&&buzz_pc::parse_with_display_fallback(text,parsed,error,display_reset))saved=parsed;
+    }
+    if(saved.phone_buzzers==p.phone_buzzers&&saved.phone_port==p.phone_port)return;
+    saved.phone_buzzers=p.phone_buzzers;saved.phone_port=p.phone_port;
+    atomic_save(saved);
+    fprintf(stderr,"[phone] hosting %s is remembered for the next start\n",p.phone_buzzers?"on":"off");
 }
 void apply_live(const buzz_pc::Preferences& p) {
     buzz::active_studio_effects().store(p.studio_effects.value_or(buzz::default_studio_effects()),std::memory_order_relaxed);
@@ -124,7 +142,7 @@ bool buzz_pc_runtime_init() {
             if(!ps3_host_set_texture_pack(reinterpret_cast<const char*>(dir.c_str()),flags))
                 fprintf(stderr,"[pc-settings] texture pack folder path is too long; texture packs disabled\n");
         }
-        state=std::make_unique<buzz_pc::State>(p);
+        state=std::make_unique<buzz_pc::State>(p);started_with=p;
         performance_overlay.store(p.performance_overlay,std::memory_order_relaxed);
         fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%% texture_replace=%d texture_dump=%d texture_auto_upscale=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale,p.texture_replace,p.texture_dump,p.texture_auto_upscale);
         return true;
@@ -161,6 +179,10 @@ buzz_pc::Change buzz_pc_apply_preferences(const buzz_pc::Preferences& p,bool per
             return {false,0,0,error};
         }
         if(persist)atomic_save(p);
+        else if(p.phone_buzzers!=previous.phone_buzzers||p.phone_port!=previous.phone_port) {
+            try {save_phone_hosting(p,started_with);}
+            catch(const std::exception& e){fprintf(stderr,"[phone] could not remember hosting: %s\n",e.what());}
+        }
         auto result=state->apply(p);
         if(result.accepted)apply_live(state->active());
         return result;

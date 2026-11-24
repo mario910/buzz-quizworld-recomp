@@ -128,18 +128,66 @@ std::array<uint16_t,4> previous_pad_buttons{};
 std::array<uint32_t,2> physical_held{};
 std::array<bool,2> physical_connected{};
 std::array<uint8_t,8> remote_held{};
-// Automatic pad slots: the player an AUTO pad took on its first press (-1:
-// none yet). Published as masks; phones publish theirs the same way.
+// Automatic places: the player an AUTO pad or a keyboard key set took when it
+// joined on the game's player-join screen (-1: none yet). Published as masks;
+// phones publish theirs the same way.
 std::array<int,4> pad_auto_player{{-1,-1,-1,-1}};
+std::array<int,8> key_player{{-1,-1,-1,-1,-1,-1,-1,-1}};
 std::atomic<uint32_t> pad_slot_mask{0},phone_slot_mask{0};
-void publish_pad_slots(){
+std::array<buzz_input::JoinWatch,2> join_watch{};
+bool join_was_open=false;
+std::atomic<bool> join_open_flag{false};
+void (*phone_release)(uint32_t)=nullptr;
+uint32_t joined_in_game(){return uint32_t(join_watch[0].joined())|(uint32_t(join_watch[1].joined())<<4);}
+// fixed: also count pads set to a fixed player. Those share their player with
+// other inputs (as before), so they never block unjoined menu input on P1.
+uint32_t claimed_slots(bool fixed=true){
     uint32_t mask=0;
-    for(unsigned i=0;i<4;++i){
-        const int player=config.pad_player[i]==buzz_input::Config::pad_auto?pad_auto_player[i]:
-            (connected[i]?config.pad_player[i]:-1);
-        if(player>=0&&unsigned(player)<config.players)mask|=1u<<player;
-    }
-    pad_slot_mask.store(mask,std::memory_order_relaxed);
+    auto add=[&](int player){if(player>=0&&unsigned(player)<config.players)mask|=1u<<player;};
+    for(unsigned i=0;i<4;++i)add(config.pad_player[i]==buzz_input::Config::pad_auto?pad_auto_player[i]:(fixed&&connected[i]?config.pad_player[i]:-1));
+    for(int player:key_player)add(player);
+    return mask;
+}
+void publish_pad_slots(){
+    // Phones skip places held by local devices and places the game shows as joined.
+    pad_slot_mask.store(claimed_slots()|(joined_in_game()&((1u<<config.players)-1)),std::memory_order_relaxed);
+}
+bool join_open(uint64_t now){return join_watch[0].open(now)||join_watch[1].open(now);}
+// The device that last drove P1 while unjoined (keyboard set N or 100+pad).
+// A press made before the blinking was recognised can already have joined P1
+// in the game; that same device then owns P1 instead of taking a second place.
+int unjoined_last=-1;uint64_t unjoined_last_at=0;
+// First free place for a device joining now; -1 if all are taken.
+int claim_place(int device,uint64_t now){
+    const uint32_t devices=claimed_slots()|phone_slot_mask.load(std::memory_order_relaxed);
+    if((joined_in_game()&1)&&!(devices&1)&&unjoined_last==device&&now-unjoined_last_at<10000)return 0;
+    const uint32_t taken=devices|joined_in_game();
+    for(unsigned p=0;p<config.players;++p)if(!(taken>>p&1))return int(p);
+    return -1;
+}
+// Where an unjoined device's buttons go: P1 for menus outside the join screen,
+// unless another device or phone already holds P1; nowhere while joining.
+int unjoined_target(int device,bool pressed,bool open,uint64_t now){
+    if(open||((claimed_slots(false)|phone_slot_mask.load(std::memory_order_relaxed))&1))return -1;
+    if(pressed){unjoined_last=device;unjoined_last_at=now;}
+    return 0;
+}
+// Places that did not join in the game are released when the screen closes.
+uint32_t close_join(uint64_t now){
+    const bool open=join_open(now);
+    join_open_flag.store(open,std::memory_order_relaxed);
+    if(open==join_was_open)return 0;
+    join_was_open=open;
+    if(open){fprintf(stderr,"[input] player-join screen open\n");return 0;}
+    const uint32_t joined=joined_in_game();
+    for(unsigned s=0;s<key_player.size();++s)if(key_player[s]>=0&&!(joined>>key_player[s]&1)){
+        fprintf(stderr,"[input] keyboard set %u released P%d (not joined)\n",s+1,key_player[s]+1);key_player[s]=-1;}
+    for(unsigned i=0;i<4;++i)if(pad_auto_player[i]>=0&&!(joined>>pad_auto_player[i]&1)){
+        fprintf(stderr,"[input] Gamepad slot %u released P%d (not joined)\n",i,pad_auto_player[i]+1);pad_auto_player[i]=-1;}
+    publish_pad_slots();
+    const uint32_t phones=phone_slot_mask.load(std::memory_order_relaxed)&~joined;
+    fprintf(stderr,"[input] player-join screen closed; joined mask=%02X\n",joined);
+    return phones;
 }
 std::array<buzz_pc::MenuInputGate,buzz_input::provider_count> menu_gates{};
 #ifdef _WIN32
@@ -165,6 +213,22 @@ void route_physical(unsigned receiver,bool active,uint64_t now) {
     const auto allowed=(uint64_t{1}<<(config.players*5))-1;
     if(!active){menu_gates[source].require_neutral();menu_gates[source].filter(mask);router.release(source,true);return;}
     router.state(source,menu_gates[source].filter(mask)&allowed,now);
+}
+// raw: key-set buttons in player bit layout (set N at bits(N,...)). Each key
+// set is its own device and joins like a pad.
+void route_keyboard(uint64_t raw,uint64_t now){
+    const bool open=join_open(now);
+    uint64_t mapped=0;
+    for(unsigned s=0;s<config.players&&s<key_player.size();++s){
+        const uint8_t buttons=uint8_t((raw>>(s*5))&31);
+        if(key_player[s]<0&&buttons&&open&&!menu_captured){
+            key_player[s]=claim_place(int(s),now);
+            if(key_player[s]>=0){fprintf(stderr,"[input] keyboard set %u joined -> P%d\n",s+1,key_player[s]+1);publish_pad_slots();}
+        }
+        const int target=key_player[s]>=0?key_player[s]:unjoined_target(int(s),buttons!=0,open,now);
+        if(target>=0&&buttons)mapped|=buzz_input::bits(unsigned(target),buttons);
+    }
+    router.state(buzz_input::keyboard,menu_gates[buzz_input::keyboard].filter(mapped),now);
 }
 }
 void buzz_input_init(){
@@ -281,7 +345,7 @@ bool buzz_input_reconfigure(const std::string& text,std::string& error){
     for(unsigned i=0;i<menu_gates.size();++i){menu_gates[i].require_neutral();router.release(i,true);}
     config=next;router.set_pulse(config.pulse_ms);keyboard_held=0;
     next_pad_poll=0;next_connect.fill(0);
-    pad_auto_player.fill(-1);publish_pad_slots();
+    pad_auto_player.fill(-1);key_player.fill(-1);publish_pad_slots();
     return true;
 }
 void buzz_input_key(uint32_t key,int down){
@@ -290,17 +354,19 @@ void buzz_input_key(uint32_t key,int down){
     for(unsigned p=0;p<config.players;++p)for(unsigned b=0;b<5;++b)
         if(config.keys[p][b]&&config.keys[p][b]==key){const auto bit=buzz_input::bits(p,uint8_t(1u<<b));
             if(down)keyboard_held|=bit;else keyboard_held&=~bit;}
-    router.state(buzz_input::keyboard,menu_gates[buzz_input::keyboard].filter(keyboard_held),ticks());
+    route_keyboard(keyboard_held,ticks());
 }
-uint64_t buzz_input_poll(uint32_t scripted_pulses){
-    std::lock_guard lock(input_mutex);const auto now=ticks();const bool active=foreground();
+namespace {
+uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones){
+    const auto now=ticks();const bool active=foreground();
+    release_phones=close_join(now);
     uint64_t polled=0;
 #ifdef _WIN32
     if(active)for(unsigned p=0;p<config.players;++p)for(unsigned b=0;b<5;++b)
         if(config.keys[p][b]&&(GetAsyncKeyState(int(config.keys[p][b]))&0x8000))polled|=buzz_input::bits(p,uint8_t(1u<<b));
 #endif
     if(!active){keyboard_held=0;router.release(buzz_input::keyboard,true);}
-    router.state(buzz_input::keyboard,menu_gates[buzz_input::keyboard].filter(keyboard_held|polled),now);
+    route_keyboard(keyboard_held|polled,now);
     if(!active){touch_held=0;router.release(buzz_input::touchscreen,true);}
     router.state(buzz_input::touchscreen,menu_gates[buzz_input::touchscreen].filter(touch_held),now);
     for(unsigned receiver=0;receiver<2;++receiver)route_physical(receiver,active,now);
@@ -338,23 +404,31 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
             const auto mapped=buzz_input::map_pad(buttons,config.pad_buttons[i]);
             int player=config.pad_player[i];
             if(player==buzz_input::Config::pad_auto){
-                // The first buzzer press takes the first player slot that no
-                // other pad and no phone holds.
-                if(pad_auto_player[i]<0&&mapped){
-                    const uint32_t taken=pad_slot_mask.load(std::memory_order_relaxed)|phone_slot_mask.load(std::memory_order_relaxed);
-                    for(unsigned p=0;p<config.players;++p)if(!(taken>>p&1)){pad_auto_player[i]=int(p);break;}
+                // A press on the game's player-join screen takes the first
+                // place no device, phone or joined player holds, and joins it.
+                const bool open=join_open(now);
+                if(pad_auto_player[i]<0&&mapped&&open&&!menu_captured){
+                    pad_auto_player[i]=claim_place(100+int(i),now);
                     if(pad_auto_player[i]>=0){
-                        fprintf(stderr,"[input] Gamepad slot %u -> P%d (first free)\n",i,pad_auto_player[i]+1);
+                        fprintf(stderr,"[input] Gamepad slot %u joined -> P%d\n",i,pad_auto_player[i]+1);
                         publish_pad_slots();
                     }
                 }
-                player=pad_auto_player[i];
+                player=pad_auto_player[i]>=0?pad_auto_player[i]:unjoined_target(100+int(i),mapped!=0,open,now);
             }
             const auto raw=player>=0&&unsigned(player)<config.players ? buzz_input::bits(unsigned(player),mapped):0;
             router.state(source,menu_gates[source].filter(raw),now);
         }
     }
     return menu_captured?0:router.sample(now);
+}
+}
+uint64_t buzz_input_poll(uint32_t scripted_pulses){
+    uint32_t release=0;uint64_t state=0;void (*notify)(uint32_t)=nullptr;
+    {std::lock_guard lock(input_mutex);state=poll_locked(scripted_pulses,release);notify=phone_release;}
+    // Outside the input lock: releasing a phone calls back into buzz_input_remote.
+    if(release&&notify)notify(release);
+    return state;
 }
 void buzz_input_remote(unsigned player,uint8_t held,uint8_t pressed,bool disconnected){
     std::lock_guard lock(input_mutex);
@@ -425,3 +499,15 @@ extern "C" uint32_t buzz_sdl_key_code(int key){
 uint32_t buzz_input_pad_slots(){return pad_slot_mask.load(std::memory_order_relaxed);}
 void buzz_input_set_phone_slots(uint32_t mask){phone_slot_mask.store(mask,std::memory_order_relaxed);}
 int buzz_input_pad_auto_player(unsigned slot){std::lock_guard lock(input_mutex);return slot<4?pad_auto_player[slot]:-1;}
+void buzz_input_lights(unsigned receiver,uint8_t handsets){
+    if(receiver>=2)return;
+    uint32_t release=0;void (*notify)(uint32_t)=nullptr;
+    {
+        std::lock_guard lock(input_mutex);const auto now=ticks();
+        join_watch[receiver].lights(handsets,now);
+        publish_pad_slots();release=close_join(now);notify=phone_release;
+    }
+    if(release&&notify)notify(release);
+}
+bool buzz_input_join_open(){return join_open_flag.load(std::memory_order_relaxed);}
+void buzz_input_set_phone_release(void (*release)(uint32_t)){std::lock_guard lock(input_mutex);phone_release=release;}

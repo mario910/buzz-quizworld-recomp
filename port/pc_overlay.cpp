@@ -230,7 +230,7 @@ void act(buzz_pc::MenuAction action) {
         if(row==0){preferences.phone_buzzers=!preferences.phone_buzzers;apply_live();}
         else if(row==1&&!accept){preferences.phone_port=unsigned(std::clamp(int(preferences.phone_port)+direction,1024,65535));apply_live();}
         else if(row==2&&accept)buzz_phone::host().set_locked(!phone_status.locked);
-        else if(row==3&&accept){buzz_phone::host().reset();status="New pairing code created. All phone sessions released.";}
+        else if(row==3&&accept){buzz_phone::host().reset();status="All phones removed. They can join again from the same address.";}
         else if(row==4&&accept)menu.show(MenuPage::phone_seats);
         return;
     }
@@ -470,7 +470,7 @@ std::string row_label(int row) {
         if(row==0)return std::string("HOST PHONE BUZZERS: ")+(phone_status.running?"ON":preferences.phone_buzzers?"ON [unavailable]":"OFF");
         if(row==1)return "HTTP PORT: "+std::to_string(preferences.phone_port);
         if(row==2)return std::string("JOINING: ")+(phone_status.locked?"LOCKED":"OPEN");
-        if(row==3)return "NEW CODE / REMOVE ALL PHONES";
+        if(row==3)return "REMOVE ALL PHONES";
         return "MANAGE PAIRED PHONES  >";
     }
     if(menu.page()==MenuPage::phone_seats) {

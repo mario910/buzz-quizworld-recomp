@@ -55,6 +55,16 @@ int main(){try {
     p.volume_percent=21;check(buzz_pc_apply_preferences(p,true).accepted&&buzz_phone::host().status().urls==pairing);
     p.phone_buzzers=false;check(buzz_pc_apply_preferences(p,true).accepted&&!buzz_phone::host().status().running);
     p.volume_percent=20;check(buzz_pc_apply_preferences(p,true).accepted);
+    {   // Switching phone hosting live is remembered at once, without saving other live changes.
+        p.volume_percent=33;p.phone_buzzers=true;
+        check(buzz_pc_apply_preferences(p,false).accepted&&buzz_phone::host().status().running);
+        buzz_pc::Preferences saved;std::string error;
+        check(buzz_pc::parse(read(file),saved,error)&&saved.phone_buzzers&&saved.phone_port==18751&&saved.volume_percent==20);
+        check(buzz_pc_runtime_init()&&buzz_pc_requested_preferences().phone_buzzers&&ps3_host_get_volume()==20);
+        p.volume_percent=20;p.phone_buzzers=false;
+        check(buzz_pc_apply_preferences(p,false).accepted&&!buzz_phone::host().status().running);
+        saved={};check(buzz_pc::parse(read(file),saved,error)&&!saved.phone_buzzers);
+    }
     const auto before=read(file);auto bad=p;bad.volume_percent=101;
     check(!buzz_pc_apply_preferences(bad,true).accepted&&read(file)==before&&ps3_host_get_volume()==20);
 #ifdef _WIN32

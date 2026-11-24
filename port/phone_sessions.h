@@ -22,16 +22,20 @@ class Sessions {
     std::function<std::string()> token_;
     std::function<void(unsigned,uint8_t,uint8_t,bool)> input_;
     std::function<uint32_t()> occupied_;
+    std::function<bool()> open_;
 public:
     unsigned count;
     bool locked=false;
-    std::string room;
+    std::string room; // pairing-file generation only; joining no longer needs it
     std::array<Player,8> players{};
     Sessions(unsigned count,std::function<std::string()> token,
              std::function<void(unsigned,uint8_t,uint8_t,bool)> input);
     // Slots held by other inputs (gamepads); auto_slot joins skip them.
     void set_occupied(std::function<uint32_t()> occupied){occupied_=std::move(occupied);}
-    Join join(const std::string& room,const std::string& resume,unsigned slot,const std::string& name,uint64_t now);
+    // When set, auto_slot joins wait (425) until the game's player-join screen is open.
+    void set_join_open(std::function<bool()> open){open_=std::move(open);}
+    // Open joining: no pairing key is needed (lock() still stops new players).
+    Join join(const std::string& resume,unsigned slot,const std::string& name,uint64_t now);
     // 200 includes duplicates (idempotent acknowledgement), 409 is an old packet.
     int update(const std::string& control,uint64_t sequence,unsigned held,unsigned pressed,uint64_t now);
     bool leave(const std::string& control);
