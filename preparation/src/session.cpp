@@ -157,24 +157,17 @@ QJsonObject importSession(const Inputs &inputs, const QString &requestedSession,
     const auto title = titleId(readFile(QDir(game).filePath("PS3_GAME/PARAM.SFO"), 1024 * 1024));
     require(QSet<QString>{"BCES00647", "BCES00644", "BCES00645", "BCUS98209"}.contains(title),
             "Unsupported disc title ID.");
-    auto flash = inputs.firmware;
     const auto home = QDir(session).filePath("import");
     rejectLinks(session, home);
-    if (QFileInfo(flash).isFile()) {
-        flash = QDir(home).filePath("dev_flash");
-        stage(
-            "install firmware",
-            [&] {
-                extractFirmware(inputs.firmware, home, KeyStore::fromFile(inputs.keys), log, cancel,
-                                hooks.firmware);
-            },
-            [&] { return treeFingerprint(flash, cancel); });
-    }
-    hooks.firmware(flash);
     auto executable = QDir(game).filePath("PS3_GAME/USRDIR/EBOOT.BIN");
     if (!inputs.update.isEmpty()) {
         executable = inputs.update;
-        if (QFileInfo(inputs.update).suffix().compare("pkg", Qt::CaseInsensitive) == 0) {
+        QFile updateFile(inputs.update);
+        require(updateFile.open(QIODevice::ReadOnly), "Cannot open the selected game update.");
+        const auto magic = updateFile.read(Ps3PackageMagic.size());
+        require(updateFile.error() == QFileDevice::NoError, "Cannot read the selected game update.");
+        updateFile.close();
+        if (magic == Ps3PackageMagic) {
             const auto update = QDir(home).filePath("dev_hdd0/game/" + title);
             rejectLinks(session, update);
             stage(
@@ -196,6 +189,18 @@ QJsonObject importSession(const Inputs &inputs, const QString &requestedSession,
         },
         [&] { return fingerprint(elf, cancel); });
     const auto digest = fileHash(elf, cancel), family = hooks.profile(title, digest);
+    auto flash = inputs.firmware;
+    if (QFileInfo(flash).isFile()) {
+        flash = QDir(home).filePath("dev_flash");
+        stage(
+            "install firmware",
+            [&] {
+                extractFirmware(inputs.firmware, home, KeyStore::fromFile(inputs.keys), log, cancel,
+                                hooks.firmware);
+            },
+            [&] { return treeFingerprint(flash, cancel); });
+    }
+    hooks.firmware(flash);
     state["profile"] = QJsonObject{{"title_id", title}, {"elf_sha256", digest}, {"adapter_family", family}};
     state["paths"] = QJsonObject{{"game_root", QFileInfo(game).canonicalFilePath()},
                                  {"dev_flash", QFileInfo(flash).canonicalFilePath()},

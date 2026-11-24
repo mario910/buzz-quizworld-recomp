@@ -22,7 +22,7 @@ def sfo(title="BCES00647"):
             + struct.pack("<HHIII", 0, 0x204, len(value), len(value), 0) + key + value)
 
 
-def make_iso(path, title="BCES00647", udf=False, joliet=False):
+def make_iso(path, title="BCES00647", udf=False, joliet=False, *, eboot=b"SCE\0synthetic"):
     image = pycdlib.PyCdlib()
     options = dict(interchange_level=3)
     if udf:
@@ -34,7 +34,7 @@ def make_iso(path, title="BCES00647", udf=False, joliet=False):
     image.add_directory(iso_path="/PS3_GAME", **extra("/PS3_GAME"))
     image.add_directory(iso_path="/PS3_GAME/USRDIR", **extra("/PS3_GAME/USRDIR"))
     buffers = []
-    for name, data in (("PARAM.SFO", sfo(title)), ("USRDIR/EBOOT.BIN", b"SCE\0synthetic")):
+    for name, data in (("PARAM.SFO", sfo(title)), ("USRDIR/EBOOT.BIN", eboot)):
         buffer = io.BytesIO(data)
         buffers.append(buffer)
         image.add_fp(buffer, len(data), iso_path="/PS3_GAME/" + name + ";1",

@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -143,6 +143,10 @@ jobs:
           $project = "$env:RUNNER_TEMP/prepare-smoke/BuzzPrepare/build-files"
           & "$project/scripts/Setup-Buzz.ps1" -BuildOnly
           $tools = "$project/toolenv/Scripts"
+          & "$tools/python.exe" -m unittest discover -s tests -p test_ps3_import.py
+          if ($LASTEXITCODE) { throw 'Python import tests failed' }
+          & "$tools/python.exe" -m unittest discover -s tests -p test_setup_pipeline.py
+          if ($LASTEXITCODE) { throw 'Python preparation tests failed' }
           $compiler = & "$tools/python.exe" -c "from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())"
           if ($LASTEXITCODE) { throw 'Game compiler lookup failed' }
           $env:PATH = "$compiler;$tools;$env:PATH"

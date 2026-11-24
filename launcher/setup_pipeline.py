@@ -500,17 +500,15 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         disc_title = model.title_id((game / "PS3_GAME/PARAM.SFO").read_bytes())
         if disc_title not in KNOWN_TITLE_IDS:
             raise ValueError("Unsupported title ID; no files in the source dump were changed.")
-        flash = Path(inputs.firmware)
         home = session / "import"
         reject_links_below(session, home)
-        if flash.is_file():
-            stage("install firmware", lambda: install_firmware(inputs, home, log, cancel))
-            flash = home / "dev_flash"
-        firmware_validator(flash)
         executable = game / "PS3_GAME/USRDIR/EBOOT.BIN"
         if inputs.update:
+            from .ps3_crypto import PKG_MAGIC
             update = Path(inputs.update)
-            if update.suffix.lower() == ".pkg":
+            with update.open("rb") as stream:
+                is_package = stream.read(len(PKG_MAGIC)) == PKG_MAGIC
+            if is_package:
                 from .ps3_import import extract_update
                 update_home = home / f"dev_hdd0/game/{disc_title}"
                 reject_links_below(session, update_home)
@@ -535,6 +533,11 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
                 raise ValueError("Import did not produce a big-endian ELF64.")
         stage("prepare executable", decode)
         profile = identify(disc_title, fingerprint(elf)["sha256"])
+        flash = Path(inputs.firmware)
+        if flash.is_file():
+            stage("install firmware", lambda: install_firmware(inputs, home, log, cancel))
+            flash = home / "dev_flash"
+        firmware_validator(flash)
         state["profile"] = asdict(profile)
         state["paths"] = dict(game_root=str(game.resolve()), dev_flash=str(flash.resolve()), eboot_elf=str(elf.resolve()))
         save()

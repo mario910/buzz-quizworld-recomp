@@ -17,7 +17,7 @@ from launcher import ps3_crypto as crypto, ps3_import as importer
 from launcher.setup_pipeline import Cancelled, check_cancel
 from launcher import setup_pipeline as pipeline
 from launcher.game_profiles import PROFILES
-from test_setup_pipeline import sfo
+from test_setup_pipeline import make_iso, sfo
 
 
 ROOT_KEY, ROOT_IV = bytes(range(32)), bytes(range(16))
@@ -322,9 +322,10 @@ class ImportTests(unittest.TestCase):
         (game / "PS3_GAME/PARAM.SFO").write_bytes(sfo())
         (game / "PS3_GAME/USRDIR/EBOOT.BIN").write_bytes(b"disc not selected")
         wire, expected = certified([b"update executable"], npdrm=True)
-        update = self.root / "update.pkg"
+        update = self.root / "update.bin"
         update.write_bytes(pkg_bytes([("PARAM.SFO", sfo()), ("USRDIR/EBOOT.BIN", wire)]))
-        inputs = pipeline.Inputs(str(game), str(self.firmware()), str(self.keyfile), str(update))
+        firmware = self.firmware()
+        inputs = pipeline.Inputs(str(game), str(firmware), str(self.keyfile), str(update))
         expected_digest = hashlib.sha256(expected).hexdigest()
         def identify(title, digest):
             if (title, digest) != ("BCES00647", expected_digest):
@@ -334,9 +335,16 @@ class ImportTests(unittest.TestCase):
              patch("subprocess.Popen", side_effect=AssertionError("external process")):
             session, state = pipeline.prepare(inputs, self.root, self.logs.append, self.event, build=False)
             self.assertEqual(Path(state["paths"]["eboot_elf"]).read_bytes(), expected)
+            self.assertEqual(state["done"], ["install game update", "prepare executable", "install firmware"])
             _, resumed = pipeline.prepare(inputs, self.root, self.logs.append, self.event, build=False, resume=session)
             self.assertEqual(state["done"], resumed["done"])
             self.assertNotIn(ROOT_KEY.hex(), (session / "state.json").read_text())
+            renamed_elf = self.root / "standalone.pkg"
+            renamed_elf.write_bytes(expected)
+            elf_inputs = pipeline.Inputs(str(game), str(firmware), str(self.keyfile), str(renamed_elf))
+            _, direct = pipeline.prepare(elf_inputs, self.root, self.logs.append, self.event, build=False)
+            self.assertEqual(direct["done"], ["prepare executable", "install firmware"])
+            self.assertEqual(Path(direct["paths"]["eboot_elf"]).read_bytes(), expected)
             self.keyfile.write_text(self.keyfile.read_text() + "\n")
             with self.assertRaisesRegex(ValueError, "Inputs changed"):
                 pipeline.prepare(inputs, self.root, self.logs.append, self.event, build=False, resume=session)
@@ -356,6 +364,47 @@ class ImportTests(unittest.TestCase):
         self.assertNotIn("prepare executable", state["done"])
         self.assertFalse((session / "executable/EBOOT.elf").exists())
         self.assertFalse((session / "running.lock").exists())
+
+    def test_bad_executable_header_identifies_selected_input(self):
+        game = self.root / "game"
+        disc_eboot = game / "PS3_GAME/USRDIR/EBOOT.BIN"
+        disc_eboot.parent.mkdir(parents=True)
+        (game / "PS3_GAME/PARAM.SFO").write_bytes(sfo())
+        firmware = self.firmware()
+        update = self.root / "update.bin"
+        archive = self.root / "archive.bin"
+        disc_eboot.write_bytes(bytes(range(32)))
+        update.write_bytes(b"\x7fELF\x01\x01" + bytes(26))
+        archive.write_bytes(b"PK\x03\x04" + bytes(28))
+
+        with patch.object(pipeline, "install_firmware") as install_firmware:
+            for selected, hint in ((disc_eboot, "disc image was decrypted"),
+                                   (update, "unsupported class or byte order"),
+                                   (archive, "This is a compressed archive")):
+                with self.subTest(selected=selected.name):
+                    inputs = pipeline.Inputs(str(game), str(firmware), str(self.keyfile),
+                                             update="" if selected == disc_eboot else str(selected))
+                    with self.assertRaisesRegex(ValueError, "Unsupported PS3 executable header") as caught:
+                        pipeline.prepare(inputs, self.root, self.logs.append, self.event, build=False)
+                    message = str(caught.exception)
+                    self.assertIn(f'"{selected}"', message)
+                    self.assertIn(f"32 bytes, header {selected.read_bytes()[:12].hex(' ')}", message)
+                    self.assertIn("Expected a PS3 SELF or a big-endian ELF64", message)
+                    self.assertIn(hint, message)
+            install_firmware.assert_not_called()
+
+    def test_iso_with_unreadable_eboot_stops_before_firmware(self):
+        image = self.root / "game.iso"
+        payload = bytes(range(32))
+        make_iso(image, udf=True, eboot=payload)
+        inputs = pipeline.Inputs(str(image), str(self.firmware()), str(self.keyfile))
+        with patch.object(pipeline, "install_firmware") as install_firmware:
+            with self.assertRaisesRegex(ValueError, "Unsupported PS3 executable header") as caught:
+                pipeline.prepare(inputs, self.root, self.logs.append, self.event, build=False)
+            install_firmware.assert_not_called()
+        self.assertIn("EBOOT.BIN", str(caught.exception))
+        self.assertIn(payload[:12].hex(" "), str(caught.exception))
+        self.assertIn("disc image was decrypted", str(caught.exception))
 
 
 if __name__ == "__main__":

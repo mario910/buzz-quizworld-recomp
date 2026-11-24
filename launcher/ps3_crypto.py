@@ -18,6 +18,8 @@ import zlib
 
 MAX_BINARY = 256 * 1024**2
 MAX_HEADER = 16 * 1024**2
+SCE_V2 = b"SCE\0\0\0\0\x02"
+PKG_MAGIC = b"\x7fPKG"
 
 
 def part(data, offset, size):
@@ -121,9 +123,9 @@ class KeyStore:
 class CertifiedFile:
     def __init__(self, data, keys, cancel=lambda: None):
         self.data, self.cancel = data, cancel
-        magic, version, self.revision, self.category, extended, self.header_size, self.data_size = unpack(
-            ">4sIHHIQQ", data)
-        if magic != b"SCE\0" or version != 2 or self.category not in (1, 3):
+        self.revision, self.category, extended, self.header_size, self.data_size = unpack(
+            ">HHIQQ", data, len(SCE_V2))
+        if not data.startswith(SCE_V2) or self.category not in (1, 3):
             raise ValueError("Unsupported PS3 Certified File (expected SELF or firmware package).")
         if not 0x20 <= self.header_size <= min(len(data), MAX_HEADER):
             raise ValueError("Invalid PS3 Certified File header size.")
@@ -286,10 +288,25 @@ class CertifiedFile:
 
 def decrypt_elf(source, keys, cancel=lambda: None):
     source = Path(source)
-    if not 0 < source.stat().st_size <= MAX_BINARY:
+    if source.stat().st_size > MAX_BINARY:
         raise ValueError("Executable exceeds the preparation size limit.")
     cancel()
     data = source.read_bytes()
     if data[:6] == b"\x7fELF\x02\x02":
         return data
+    if len(data) < 32 or not data.startswith(SCE_V2) or data[10:12] != b"\x00\x01":
+        header = data[:12].hex(" ") or "empty"
+        hint = "If using an ISO, verify that the disc image was decrypted before import."
+        if data.startswith(PKG_MAGIC):
+            hint = "This is a PS3 package. Select it under Game update (optional)."
+        elif data.startswith(b"\x7fELF"):
+            hint = "This ELF has an unsupported class or byte order."
+        elif data.startswith(b"SCE\0"):
+            hint = "This SCE container is truncated or uses an unsupported version or type."
+        elif data.startswith((b"PK\x03\x04", b"7z\xbc\xaf\x27\x1c", b"Rar!\x1a\x07")):
+            hint = "This is a compressed archive. Extract it first and select the game dump or update inside."
+        raise ValueError(
+            f'Unsupported PS3 executable header in "{source}" ({len(data)} bytes, header {header}). '
+            f"Expected a PS3 SELF or a big-endian ELF64. {hint}"
+        )
     return CertifiedFile(data, keys, cancel).elf()

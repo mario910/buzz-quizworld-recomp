@@ -17,7 +17,7 @@ import struct
 import tarfile
 import uuid
 
-from .ps3_crypto import CertifiedFile, KeyStore, MAX_BINARY, part, unpack
+from .ps3_crypto import CertifiedFile, KeyStore, MAX_BINARY, PKG_MAGIC, part, unpack
 
 MAX_FIRMWARE = 2 * 1024**3
 MAX_FILES = 20000
@@ -227,7 +227,7 @@ def extract_update(source, destination, title, log, cancel):
     with source.open("rb") as stream:
         size = source.stat().st_size
         header = stream.read(0xc0)
-        if len(header) < 0xc0 or header[:4] != b"\x7fPKG":
+        if len(header) < 0xc0 or not header.startswith(PKG_MAGIC):
             raise ValueError("Invalid PS3 update PKG.")
         revision, platform = unpack(">HH", header, 4)
         count = unpack(">I", header, 0x14)[0]

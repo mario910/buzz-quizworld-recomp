@@ -2,6 +2,10 @@
 #include <QSet>
 
 namespace prepare {
+static bool hasSceV2Header(const QByteArray &data) {
+    return data.startsWith(QByteArrayView("SCE\0\0\0\0\x02", 8));
+}
+
 CertifiedFile::CertifiedFile(QByteArray data, const KeyStore &keys, Cancel cancel)
     : data_(std::move(data)), cancel_(std::move(cancel)) {
     cancelled(cancel_);
@@ -9,8 +13,7 @@ CertifiedFile::CertifiedFile(QByteArray data, const KeyStore &keys, Cancel cance
     revision_ = be16(data_, 8);
     category_ = be16(data_, 10);
     headerSize_ = be64(data_, 16);
-    require(data_.left(4) == QByteArray("SCE\0", 4) && be32(data_, 4) == 2 &&
-                (category_ == 1 || category_ == 3),
+    require(hasSceV2Header(data_) && (category_ == 1 || category_ == 3),
             "Unsupported PS3 Certified File.");
     require(headerSize_ >= 0x20 && headerSize_ <= quint64(data_.size()) && headerSize_ <= 16 * 1024 * 1024,
             "Invalid PS3 Certified File header size.");
@@ -193,11 +196,26 @@ QByteArray CertifiedFile::elf() const {
 QByteArray decryptElf(const QString &path, const KeyStore &keys, const Cancel &cancel) {
     cancelled(cancel);
     const auto data = readFile(path);
-    require(!data.isEmpty(), "Empty executable.");
     if (data.left(6) == QByteArray("\x7f"
                                    "ELF\x02\x02",
                                    6))
         return data;
+    if (data.size() < 32 || !hasSceV2Header(data) || be16(data, 10) != 1) {
+        const auto header = data.isEmpty() ? QString("empty") : QString::fromLatin1(data.left(12).toHex(' '));
+        QString hint = "If using an ISO, verify that the disc image was decrypted before import.";
+        if (data.startsWith(Ps3PackageMagic))
+            hint = "This is a PS3 package. Select it under Game update (optional).";
+        else if (data.startsWith("\x7f" "ELF"))
+            hint = "This ELF has an unsupported class or byte order.";
+        else if (data.startsWith(QByteArrayView("SCE\0", 4)))
+            hint = "This SCE container is truncated or uses an unsupported version or type.";
+        else if (data.startsWith("PK\x03\x04") || data.startsWith("7z\xbc\xaf\x27\x1c") ||
+                 data.startsWith("Rar!\x1a\x07"))
+            hint = "This is a compressed archive. Extract it first and select the game dump or update inside.";
+        fail(QString("Unsupported PS3 executable header in \"%1\" (%2 bytes, header %3). "
+                     "Expected a PS3 SELF or a big-endian ELF64. %4")
+                 .arg(path, QString::number(data.size()), header, hint));
+    }
     return CertifiedFile(data, keys, cancel).elf();
 }
 } // namespace prepare

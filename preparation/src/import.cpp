@@ -241,10 +241,7 @@ void extractUpdate(const QString &source, const QString &destination, const QStr
     QFile file(source);
     require(file.open(QIODevice::ReadOnly), "Cannot open update PKG.");
     const auto header = readAt(file, 0, 0xc0);
-    require(header.left(4) == QByteArray("\x7f"
-                                         "PKG",
-                                         4),
-            "Invalid PS3 update PKG.");
+    require(header.startsWith(Ps3PackageMagic), "Invalid PS3 update PKG.");
     const auto revision = be16(header, 4);
     const quint64 count = be32(header, 0x14), offset = be64(header, 0x20), length = be64(header, 0x28);
     require((revision == 0 || revision == 0x8000) && be16(header, 6) == 1,

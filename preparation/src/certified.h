@@ -3,6 +3,8 @@
 #include <array>
 
 namespace prepare {
+inline constexpr QByteArrayView Ps3PackageMagic("\x7f" "PKG", 4);
+
 struct Section {
     quint64 offset, size;
     quint32 type, index, signing, digest, encryption, key, iv, compression;

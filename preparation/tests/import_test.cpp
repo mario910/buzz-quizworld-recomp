@@ -120,7 +120,7 @@ class ImportTest final : public QObject {
         QVERIFY(QDir().mkpath(game + "/PS3_GAME/USRDIR"));
         write(game + "/PS3_GAME/PARAM.SFO", readFile(fixture("sfo.fixture")));
         write(game + "/PS3_GAME/USRDIR/EBOOT.BIN", "unselected disc");
-        const auto firmware = temp.filePath("firmware.pup"), update = temp.filePath("update.pkg");
+        const auto firmware = temp.filePath("firmware.pup"), update = temp.filePath("update.bin");
         write(firmware, readFile(fixture("firmware.fixture")));
         write(update, readFile(fixture("update-certified.fixture")));
         Inputs inputs;
@@ -142,12 +142,16 @@ class ImportTest final : public QObject {
         const auto session = temp.filePath("session");
         auto state = importSession(inputs, session, false, {}, {}, hooks);
         QCOMPARE(readFile(session + "/executable/EBOOT.elf"), expected);
-        QCOMPARE(state["done"].toArray().size(), 3);
+        QCOMPARE(state["done"].toArray(), QJsonArray({"install game update", "prepare executable", "install firmware"}));
         QCOMPARE(importSession(inputs, session, true, {}, {}, hooks)["done"], state["done"]);
+        auto previous = state;
+        previous["done"] = QJsonArray({"install firmware", "install game update", "prepare executable"});
+        write(session + "/state.json", QJsonDocument(previous).toJson());
+        QCOMPARE(importSession(inputs, session, true, {}, {}, hooks)["done"], previous["done"]);
         // Simulate a process ending after the firmware directory was published
         // but before its completion was saved in the ledger.
         auto done = state["done"].toArray();
-        done.removeAt(0);
+        done.removeLast();
         state["done"] = done;
         auto outputs = state["outputs"].toObject();
         outputs.remove("install firmware");
@@ -193,7 +197,7 @@ class ImportTest final : public QObject {
         QVERIFY_EXCEPTION_THROWN(importSession(input, another, true, {}, {}, hooks), std::runtime_error);
         QVERIFY(!QFileInfo::exists(temp.filePath("last-ready.json")));
     }
-    void nativeSessionImportsPupAndUpdateWithoutPublishingUnrecognizedExecutable() {
+    void nativeSessionRejectsUnrecognizedUpdateBeforeFirmware() {
         QTemporaryDir temp;
         const auto game = temp.filePath("game");
         QVERIFY(QDir().mkpath(game + "/PS3_GAME/USRDIR"));
@@ -211,7 +215,7 @@ class ImportTest final : public QObject {
         hooks.firmware = [](const QString &) {};
         const auto session = temp.filePath("session");
         QVERIFY_EXCEPTION_THROWN(importSession(input, session, false, {}, {}, hooks), std::runtime_error);
-        QVERIFY(QFileInfo::exists(session + "/import/dev_flash/data/font/test.TTF"));
+        QVERIFY(!QFileInfo::exists(session + "/import/dev_flash"));
         QVERIFY(!QFileInfo::exists(session + "/executable/EBOOT.elf"));
         QVERIFY(QFileInfo::exists(session + "/state.json"));
         QVERIFY_EXCEPTION_THROWN(importSession(input, session, true, {}, {}, hooks), std::runtime_error);
@@ -257,6 +261,30 @@ class ImportTest final : public QObject {
         for (const auto &name : {QString("npdrm"), QString("unsigned")})
             QCOMPARE(CertifiedFile(readFile(fixture(name + ".fixture")), keys()).elf(),
                      readFile(fixture(name + "-expected.fixture")));
+    }
+    void unsupportedExecutableHeaderIdentifiesInput() {
+        QTemporaryDir temp;
+        const auto path = temp.filePath("EBOOT.BIN");
+        const QList<QPair<QByteArray, QString>> samples{
+            {"534345000000000200000003", "unsupported version or type"},
+            {"7f454c460101", "unsupported class or byte order"},
+            {"7f504b47", "Game update (optional)"},
+            {"504b0304", "compressed archive"},
+        };
+        for (const auto &[hex, hint] : samples) {
+            const auto bytes = QByteArray::fromHex(hex).leftJustified(32, '\0');
+            write(path, bytes);
+            try {
+                decryptElf(path, {});
+                QFAIL("invalid header accepted as an executable");
+            } catch (const std::runtime_error &error) {
+                const auto message = QString::fromUtf8(error.what());
+                QVERIFY(message.contains("Unsupported PS3 executable header"));
+                QVERIFY(message.contains(path));
+                QVERIFY(message.contains("32 bytes, header " + QString::fromLatin1(bytes.left(12).toHex(' '))));
+                QVERIFY(message.contains(hint));
+            }
+        }
     }
     void missingKeysCancellationAndRedactedErrors() {
         const auto bytes = readFile(fixture("self-1-2.fixture"));
