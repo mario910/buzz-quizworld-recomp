@@ -74,6 +74,25 @@ static void vk_swapchain_lost(void)
       s_vk.sc_client_w=cw;s_vk.sc_client_h=ch;
       VK_LOG("physical client %ux%u, swapchain extent %ux%u (Windows DPI excluded)\\n", cw, ch, ext.width, ext.height); }
 ]=])
+        # Acquire and present compare the swapchain with the window size seen
+        # from the calling thread. Outside the bracket, a scaled desktop
+        # (e.g. 175%) reports virtualized coordinates, every frame comes back
+        # SUBOPTIMAL/OUT_OF_DATE and the swapchain is recreated per frame:
+        # a black or white window while the game renders normally.
+        buzz_upload_replace([=[
+    VkResult r = pvkAcquireNextImageKHR(s_vk.device, s_vk.swapchain, UINT64_MAX,
+                                        s_vk.sem_acquire, VK_NULL_HANDLE, &idx);
+]=] [=[
+    void* acquire_dpi = rsx_host_window_dpi_enter();
+    VkResult r = pvkAcquireNextImageKHR(s_vk.device, s_vk.swapchain, UINT64_MAX,
+                                        s_vk.sem_acquire, VK_NULL_HANDLE, &idx);
+    rsx_host_window_dpi_leave(acquire_dpi);
+]=])
+        buzz_upload_replace("    r = vk_queue_present(&pi);\n" [=[
+    { void* present_dpi = rsx_host_window_dpi_enter();
+      r = vk_queue_present(&pi);
+      rsx_host_window_dpi_leave(present_dpi); }
+]=])
     endif()
     buzz_upload_replace("    int async_requested,async_ready;"
         "    int async_requested,async_ready;\n    int upload_mode;\n    vk_buffer upload_ring[4];\n    VkDeviceSize upload_head[4];")
