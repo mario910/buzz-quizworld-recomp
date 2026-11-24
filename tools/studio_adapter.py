@@ -33,7 +33,7 @@ def studio_targets(body):
     body = re.sub(r'ctx->lr = 0x[0-9A-F]{8}', 'ctx->lr = return_site', body)
     body = re.sub(r'func_[0-9A-F]{8}', lambda m: 'callee_' + str(callees.setdefault(m[0], len(callees))), body)
     body = re.sub(r'(vm_read32\(ctx->gpr\[2\] \+ )-?0x[0-9A-F]+', r'\1toc', body)
-    if hashlib.sha256(body.encode()).hexdigest() == DISPATCHER:
+    if hashlib.sha256(body.encode('utf-8', errors='surrogateescape')).hexdigest() == DISPATCHER:
         return int(loop[1], 16), targets[24], targets[11]
     return None
 
@@ -42,7 +42,9 @@ def generate_studio(source_dir, out_dir, completion=None):
     matches = []
     for original in sorted(source_dir.glob('ppu_recomp_*.cpp')):
         source = completion if completion and original.name == completion.name else original
-        text = source.read_text(encoding='utf-8')
+        # The lifter uses the locale encoding. Preserve legacy Windows bytes
+        # while matching and editing the generated ASCII code.
+        text = source.read_text(encoding='utf-8', errors='surrogateescape')
         for occurrence in re.finditer(re.escape(ANCHOR), text):
             start = text.rfind('\nvoid func_', 0, occurrence.start()) + 1
             if not start:
@@ -75,5 +77,5 @@ def generate_studio(source_dir, out_dir, completion=None):
             '#include "ppu_recomp.h"\n#include "studio_effects.h"', 1)
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / name
-    out.write_text(text, encoding='utf-8')
+    out.write_text(text, encoding='utf-8', errors='surrogateescape')
     return out

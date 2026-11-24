@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'launcher/native/**', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,6 +32,8 @@ jobs:
           sudo apt-get install -y ninja-build qt6-base-dev libssl-dev libgl1-mesa-dev libopengl-dev patchelf \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
             libwayland-dev libxkbcommon-dev libegl1-mesa-dev xvfb
+      - name: Test desktop adapter source encodings
+        run: python -m unittest discover -s tests -p test_studio_adapter.py
       - name: Install developer Qt on Windows
         if: runner.os == 'Windows'
         shell: pwsh
