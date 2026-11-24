@@ -379,8 +379,21 @@ def stage_update_content(source, workspace, cancel, log):
     log("Staged EU 1.02 update assets only (no profiles, saves, or plaintext caches).")
 
 
+def copy_source_file(original, dest, now):
+    """Copy one build source, never leaving it dated in the future.
+
+    ZIP entries carry a wall-clock time without a time zone: the release is
+    packaged in UTC, so west of UTC its sources look hours newer than the
+    build files CMake generates and Ninja regenerates build.ninja forever
+    ("still dirty after 100 tries")."""
+    shutil.copy2(original, dest)
+    if dest.stat().st_mtime > now:
+        os.utime(dest, (now, now))
+
+
 def copy_sources(project, destination):
     """Copy public working source, not .git, VFS, binaries or private analyses."""
+    now = time.time()
     bundled = project / "release-sources.json"
     if bundled.is_file() and not (project / ".git").exists():
         reject_links_below(project, bundled)
@@ -396,7 +409,7 @@ def copy_sources(project, destination):
             if not original.is_file():
                 raise ValueError(f"Missing bundled build source: {name}. Extract the complete BuzzPrepare ZIP.")
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(original, dest)
+            copy_source_file(original, dest, now)
         return
 
     for source, target in ((project, destination), (project / "ps3recomp", destination / "ps3recomp"),
@@ -415,7 +428,7 @@ def copy_sources(project, destination):
                 continue
             dest = target / relative
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(original, dest)
+            copy_source_file(original, dest, now)
 
 
 def build_workspace(project, workspace, profile, jobs, log, cancel, stage, standalone, linux, extra_linux_options=()):

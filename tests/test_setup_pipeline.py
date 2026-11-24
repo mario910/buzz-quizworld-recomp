@@ -4,10 +4,12 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import struct
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -109,6 +111,21 @@ class SetupTests(unittest.TestCase):
         manifest.write_text(json.dumps({"files": ["../outside"]}), encoding="utf-8")
         with self.assertRaises(ValueError):
             pipeline.copy_sources(self.root, workspace)
+
+    def test_release_sources_dated_in_the_future_are_clamped(self):
+        # A UTC-packaged ZIP extracted west of UTC: Ninja would loop forever.
+        workspace = self.root / "runtime/setup/workspace"
+        future, past = time.time() + 6 * 3600, time.time() - 24 * 3600
+        for name, stamp in (("CMakeLists.txt", future), ("cmake/old.cmake", past)):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(name, encoding="utf-8")
+            os.utime(path, (stamp, stamp))
+        (self.root / "release-sources.json").write_text(
+            json.dumps({"files": ["CMakeLists.txt", "cmake/old.cmake"]}), encoding="utf-8")
+        pipeline.copy_sources(self.root, workspace)
+        self.assertLessEqual((workspace / "CMakeLists.txt").stat().st_mtime, time.time())
+        self.assertAlmostEqual((workspace / "cmake/old.cmake").stat().st_mtime, past, delta=2)
 
     def test_publish_distribution_is_local_and_keeps_existing_copy(self):
         workspace = self.root / "workspace"
