@@ -56,7 +56,9 @@ public:
 struct Config {
     // Eight player slots by default; four remains available (restart).
     unsigned players=8, pulse_ms=250;
-    bool gamepads=true, background_gamepads=false;
+    // Gamepad support is always on. Older files may still carry gamepads=0/1;
+    // the parser accepts and ignores it. Unassign a slot with gamepad.N=NONE.
+    bool background_gamepads=false;
     std::array<std::array<unsigned,5>,8> keys{};
     // XInput slots 0..3; each may be assigned to any one logical player,
     // pad_auto (default: the first free player when the pad is first used,
@@ -71,7 +73,18 @@ Config defaults();
 bool parse_config(const std::string& text,Config& config,std::string& error);
 bool parse_keys(const std::string& text,std::array<unsigned,5>& keys);
 uint8_t map_pad(uint16_t buttons,const std::array<uint16_t,5>& mapping);
+// Earlier defaults (START,Y,A,B,X; RB,LEFT,DOWN,RIGHT,UP; LB,A,B,X,Y). A saved
+// mapping equal to one of them was never customised: parse_config replaces it
+// with the current default. Any other mapping is kept as the user's choice.
+bool is_previous_default_pad_mapping(const std::array<uint16_t,5>& mapping);
 const char* pad_button_name(uint16_t button);
+// Host slot for a non-XInput pad (DualShock 4 / DualSense via RawInput): the
+// lowest of the four slots not occupied by an XInput pad or another such pad,
+// like SDL's player index. -1 if all four are taken.
+constexpr int pick_pad_slot(uint8_t occupied) {
+    for(int slot=0;slot<4;++slot)if(!((occupied>>slot)&1))return slot;
+    return -1;
+}
 }
 
 void buzz_input_init();
@@ -99,6 +112,9 @@ int buzz_input_pad_auto_player(unsigned slot); // auto pad's current player, or 
 void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool connected);
 bool buzz_input_physical_connected(unsigned receiver);
 uint8_t buzz_input_host_physical_buttons(); // OR of handsets, focused menu navigation only
+// Windows RawInput DualShock 4 / DualSense pads (adapter index 0..3), as
+// XInput-style button bits. They share the four gamepad slots with XInput.
+void buzz_input_hid_pad(unsigned index,uint16_t buttons,bool connected);
 // Independent remote source per player; expiry/kick drops retained pulses too.
 void buzz_input_remote(unsigned player,uint8_t held,uint8_t pressed,bool disconnected);
 void buzz_input_touch(unsigned player,uint8_t held,bool cancel);

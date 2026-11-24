@@ -80,14 +80,16 @@ keyboard.3=A,G,F,D,S
 keyboard.4=Z,B,V,C,X
 gamepads=1
 background_gamepads=0
-gamepad.1=1,RB,LEFT,DOWN,RIGHT,UP
-gamepad.2=2,RB,LEFT,DOWN,RIGHT,UP
-gamepad.3=3,RB,LEFT,DOWN,RIGHT,UP
-gamepad.4=4,RB,LEFT,DOWN,RIGHT,UP
+gamepad.1=1,LB+RB,A,B,X,Y
+gamepad.2=2,LB+RB,A,B,X,Y
+gamepad.3=3,LB+RB,A,B,X,Y
+gamepad.4=4,LB+RB,A,B,X,Y
 ```
 
-Use `gamepad.N=NONE` to disable an individual XInput slot. The runtime does not
-poll disabled slots; the PC launcher uses this for unassigned controllers.
+Game controller support is always on; there is no switch to turn it off.
+`gamepads=0` in older files is accepted and ignored, and saved files always
+write `gamepads=1`. Use `gamepad.N=NONE` to leave an individual slot unassigned;
+the PC launcher uses this for unassigned controllers.
 
 Keyboard tokens: A–Z, 0–9, Space, Enter, Tab, Esc, Backspace, arrows,
 LShift/RShift, LCtrl/RCtrl, F1–F24, numeric VK codes such as 0x60, or NONE.
@@ -105,16 +107,34 @@ four players; their historical format has not been silently widened.
 
 ## Controllers
 
-The Windows provider uses XInput 1.4. New defaults enable it (`gamepads=1`), loaded
+The Windows provider uses XInput 1.4 (always enabled), loaded
 from the system directory, not the working directory. Four XInput slots can be
 assigned to any four logical players. Slot N corresponds to `gamepad.N+1` in
 the file. XInput itself supports only four controllers; eight logical players
 do not mean eight physical XInput pads. [Microsoft XInput documentation](https://learn.microsoft.com/en-us/windows/win32/xinput/getting-started-with-xinput).
 
-Mappings support START, BACK, A, B, X, Y, LB, RB, LS, RS and D-pad directions.
-Default red/confirm is R1/RB. D-pad Up/Right/Down/Left are blue/orange/green/yellow.
-START is unused by the new buzzer preset and reserved for the PC menu. Existing
-saved mappings remain explicit; the native launcher offers an opt-in preset reset.
+PlayStation DualShock 4 (054C:05C4/09CC) and DualSense / DualSense Edge
+(054C:0CE6/0DF2) are not XInput devices, so XInput alone never sees them. The
+Windows game reads them through the same RawInput gamepad registration as the
+Buzz! receivers, over USB or Bluetooth, without sending any report to the pad.
+Each Sony pad takes the lowest of the four gamepad slots that no XInput pad
+uses (like SDL's player index) and behaves like an XInput pad there: Cross/Circle/
+Square/Triangle = A/B/X/Y, L1/R1 = LB/RB, Options = START, Share/Create = BACK,
+L3/R3 = LS/RS. If an XInput pad later appears on that slot, the Sony pad moves to
+the next free one. The log shows `[buzz-hid] DualShock 4 controller 1 connected
+(USB)` and `[input] Sony controller 1 -> gamepad slot 0`.
+Tools such as DS4Windows that add a virtual Xbox pad without hiding the real
+one would give two pads for one controller; hide the real pad there, or start
+the game with `BUZZ_SONY_PADS=0`. The PS4 USB wireless adapter (054C:0BA0) is
+not supported yet. Buzz! receiver detection (054C:0002/1000) is unchanged.
+
+Mappings support START, BACK, A, B, X, Y, LB, RB, LB+RB (either bumper), LS, RS and D-pad directions.
+The default matches RPCS3 and PCSX2: red is either bumper, L1/LB or R1/RB (`LB+RB`), and the four colours follow
+the handset from top to bottom: Triangle/Y blue, Square/X orange, Circle/B
+green, Cross/A yellow. START is reserved for the PC menu. Saved mappings that
+still equal an earlier default (`START,Y,A,B,X`, `RB,LEFT,DOWN,RIGHT,UP` or `LB,A,B,X,Y`)
+were never customised and are switched to this default when loaded; any other
+saved mapping is kept as it is.
 Controller state is polled at most every 8 ms; disconnected slots are retried
 once a second. Disconnect releases that provider's held state and pulses.
 By default controllers affect the game only while its window has focus.

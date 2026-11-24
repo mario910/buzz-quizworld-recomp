@@ -108,7 +108,7 @@ if($Seconds) {
         $saved=Get-Content -LiteralPath (Join-Path $caseRoot 'runtime\pc-settings.ini') -Raw
         $savedInput=Get-Content -LiteralPath (Join-Path $caseRoot 'runtime\input-settings.ini') -Raw
         if($saved -notmatch '(?m)^volume=0\s*$' -or $saved -notmatch '(?m)^fps_limit=30\s*$'){throw 'Menu did not persist expected live settings'}
-        if($savedInput -notmatch '(?m)^gamepad.1=1,RB,LEFT,DOWN,RIGHT,UP\s*$'){throw 'R1 + clockwise D-pad preset was not preserved'}
+        if($savedInput -notmatch '(?m)^gamepad.1=1,LB\+RB,A,B,X,Y\s*$'){throw 'L1/R1 + face buttons preset was not preserved'}
         if($savedInput -notmatch '(?m)^pulse_ms=260\s*$'){throw 'In-game controller change was not saved'}
         $dry=Start-Process -FilePath $exe -ArgumentList ('--project "'+$caseRoot+'" --dry-run') -WindowStyle Hidden -Wait -PassThru -RedirectStandardOutput (Join-Path $caseRoot 'after-menu-dry-run.log') -RedirectStandardError (Join-Path $caseRoot 'after-menu-dry-run.err.log')
         if($dry.ExitCode -ne 0){throw 'Native launcher could not reload in-game settings'}

@@ -105,11 +105,13 @@ is performed by the launcher itself.
 
 ## Three tabs
 
-For new configurations, XInput is enabled and the default buzzer layout is
-**R1/RB = red, D-pad Up = blue, Right = orange, Down = green, Left = yellow**.
-START is no longer a buzzer action in this preset. Existing saved mappings and
-an explicit disabled-controller setting are retained; choose **Use R1 + D-pad
-preset** in Controls, then Save, to opt into the new defaults.
+Game controllers (XInput, DualShock 4, DualSense) are always on. The default
+buzzer layout matches RPCS3 and PCSX2: **L1/LB or R1/RB = red, Triangle/Y = blue,
+Square/X = orange, Circle/B = green, Cross/A = yellow** (the handset's colours
+from top to bottom). START is not a buzzer action. Saved mappings that still
+equal an earlier default are moved to this layout automatically; customised
+mappings are kept. **Use default preset (L1/R1 + face buttons)** in Controls, then
+Save, resets a customised mapping.
 
 - **Game:** choose the dump folder, `dev_flash`, and decrypted `EBOOT.elf`;
   check identity/build hashes; toggle offline mode, Store visibility and
@@ -188,8 +190,8 @@ private local paths; review them before sharing.
 ## Validation and diagnostics
 
 The Windows/D3D12 game now includes a PC settings overlay. Open/close it with
-**Escape** or **START** on an XInput controller. R1/RB remains the red buzzer;
-D-pad Up/Right/Down/Left are blue/orange/green/yellow. Custom legacy mappings
+**Escape** or **START**/Options on a controller. L1/LB or R1/RB is the red buzzer;
+Triangle/Square/Circle/Cross (Y/X/B/A) are blue/orange/green/yellow. Custom legacy mappings
 that use START as a buzzer keep that binding; use Escape for the menu until
 you select the new preset. The keyboard uses arrows, Enter/Space and Backspace;
 controllers use D-pad, A/R1 to select and B to go back. Mouse buttons also work.

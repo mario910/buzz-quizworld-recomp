@@ -403,8 +403,9 @@ It shares per-build settings with the native launcher. On Vulkan the game is
 paused while the menu is open (guest clock, vblank and audio held); on the
 D3D12 fallback the quiz keeps running. The optional 30/60 FPS cap paces the game's
 CPU thread and is off by default; see [frame pacing](docs/frame-pacing.md).
-R1/RB is the red buzzer; D-pad Up/Right/Down/Left select
-blue/orange/green/yellow. Windows physical Buzz HID is experimental and
+L1/LB or R1/RB is the red buzzer; Triangle/Square/Circle/Cross (Y/X/B/A) select
+blue/orange/green/yellow, as in RPCS3/PCSX2. DualShock 4 and DualSense work
+like XInput pads. Windows physical Buzz HID is experimental and
 hardware-unverified. `Build-Buzz.ps1` builds both renderers (`-Renderer Vulkan`
 or `D3D12` for one); the launcher prefers Vulkan unless PC settings select
 `renderer=d3d12`. See [renderer architecture](docs/renderer.md) for submission,

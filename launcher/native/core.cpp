@@ -126,6 +126,8 @@ void validate_settings(const Settings& s) {
             require(std::find(std::begin(pad_names),std::end(pad_names),b)!=std::end(pad_names),"Unknown controller button");
             require(used.insert(b).second,"Duplicate controller button");
         }
+        // LB+RB already covers both bumpers.
+        require(!used.count("LB+RB")||(!used.count("LB")&&!used.count("RB")),"Duplicate controller button");
     }
 }
 Json settings_json(const Settings& s) {
@@ -140,10 +142,13 @@ Settings settings_from_json(const Json& j) {
     require(integer(j.at("version"),"version")==1,"Unsupported settings version");
     Settings s;shape(j.at("paths"),{"game_root","dev_flash","eboot_elf"},"paths");s.paths=j.at("paths").get<decltype(s.paths)>();
     s.places=integer(j.at("places"),"slots");s.pulse_ms=integer(j.at("pulse_ms"),"pulse duration");
-    s.offline=boolean(j.at("offline"));s.hide_store=boolean(j.at("hide_store"));s.gamepads=boolean(j.at("gamepads"));s.background=boolean(j.at("background"));
+    s.offline=boolean(j.at("offline"));s.hide_store=boolean(j.at("hide_store"));boolean(j.at("gamepads"));s.gamepads=true;/* legacy key: controllers are always on */s.background=boolean(j.at("background"));
     require(j.at("players").is_array()&&j.at("players").size()==8&&j.at("pads").is_array()&&j.at("pads").size()==4,"Expected 8 player rows and 4 controllers");
     for(int i=0;i<8;++i) { auto& p=j.at("players").at(i);shape(p,{"name","keys"},"player");require(p.at("keys").is_array()&&p.at("keys").size()==5,"Expected five keys");s.players[i]={p.at("name").get<std::string>(),p.at("keys").get<std::array<std::string,5>>()};if(s.players[i].name=="Gracz "+std::to_string(i+1))s.players[i].name="Player "+std::to_string(i+1); }
-    for(int i=0;i<4;++i) { auto& p=j.at("pads").at(i);shape(p,{"player","buttons"},"controller");require(p.at("buttons").is_array()&&p.at("buttons").size()==5,"Expected five controller buttons");s.pads[i]={p.at("player").is_null()?-1:p.at("player")==Json("auto")?pad_auto:integer(p.at("player"),"controller player"),p.at("buttons").get<std::array<std::string,5>>()}; }
+    for(int i=0;i<4;++i) { auto& p=j.at("pads").at(i);shape(p,{"player","buttons"},"controller");require(p.at("buttons").is_array()&&p.at("buttons").size()==5,"Expected five controller buttons");s.pads[i]={p.at("player").is_null()?-1:p.at("player")==Json("auto")?pad_auto:integer(p.at("player"),"controller player"),p.at("buttons").get<std::array<std::string,5>>()};
+        // Never-customised earlier defaults move to the current default layout.
+        using Buttons=std::array<std::string,5>;
+        if(s.pads[i].buttons==Buttons{"START","Y","A","B","X"}||s.pads[i].buttons==Buttons{"RB","LEFT","DOWN","RIGHT","UP"}||s.pads[i].buttons==Buttons{"LB","A","B","X","Y"})s.pads[i].buttons=Pad{}.buttons; }
     validate_settings(s);return s;
 }
 Settings load_settings(const fs::path& root) {
@@ -161,7 +166,7 @@ Settings load_settings(const fs::path& root) {
 }
 std::string input_ini(const Settings& s) {
     validate_settings(s);std::ostringstream out;
-    out<<"# Native Buzz launcher; red,yellow,green,orange,blue.\nplayers="<<s.places<<"\npulse_ms="<<s.pulse_ms<<"\ngamepads="<<s.gamepads<<"\nbackground_gamepads="<<s.background_gamepads<<'\n';
+    out<<"# Native Buzz launcher; red,yellow,green,orange,blue.\nplayers="<<s.places<<"\npulse_ms="<<s.pulse_ms<<"\ngamepads=1\nbackground_gamepads="<<s.background_gamepads<<'\n';
     for(int p=0;p<8;++p) { out<<"keyboard."<<p+1<<'=';for(int b=0;b<5;++b) { if(b)out<<',';auto k=key_code(s.players[p].keys[b]);if(k)out<<"0x"<<std::hex<<std::uppercase<<std::setw(2)<<std::setfill('0')<<k<<std::dec;else out<<"NONE"; }out<<'\n'; }
     for(int i=0;i<4;++i) { out<<"gamepad."<<i+1<<'=';auto& p=s.pads[i];if(p.player==-1)out<<"NONE";else {if(p.player==pad_auto)out<<"AUTO";else out<<p.player+1;for(auto& b:p.buttons)out<<','<<b;}out<<'\n'; }
     return out.str();

@@ -32,7 +32,7 @@ public:
         else if((buttons&15)&&now>=repeat_due_){arrows=uint16_t(buttons&15);repeat_due_=now+110;}
         if(!(buttons&15))repeat_due_=0;
         previous_=buttons;
-        return uint16_t(arrows|(pressed&(0x1000|0x200|0x2000)));
+        return uint16_t(arrows|(pressed&(0x1000|0x100|0x200|0x2000)));
     }
 };
 // Settings page rows. Display (window/swapchain) size and the internal
@@ -89,7 +89,7 @@ public:
     int selection()const{return selection_;}
     int option_rows()const{
         if(page_==MenuPage::settings)return tab_==MenuTab::display?5:tab_==MenuTab::graphics?(studio_controls_?6:3):4;
-        return page_==MenuPage::controllers||page_==MenuPage::phones?5:
+        return page_==MenuPage::controllers?4:page_==MenuPage::phones?5:
             page_==MenuPage::bindings?8:page_==MenuPage::pad_assignments?5:
             page_==MenuPage::controller_options?4:page_==MenuPage::phone_seats?9:2;
     }

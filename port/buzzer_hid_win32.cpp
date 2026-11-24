@@ -1,6 +1,7 @@
 #include "buzzer_hid_win32.h"
 #include "buzzer_hid.h"
 #include "buzzer_input.h"
+#include "sony_pad.h"
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -30,6 +31,17 @@ struct Device {
     PHIDP_PREPARSED_DATA data(){return reinterpret_cast<PHIDP_PREPARSED_DATA>(preparsed.data());}
 };
 std::array<Device,2> devices;
+// DualShock 4 / DualSense pads are not XInput devices; they are read here and
+// published as XInput-style buttons. Index = adapter-side pad, not a game slot.
+struct Pad {
+    HANDLE handle=nullptr;
+    std::wstring key;
+    buzz_sony::Model model=buzz_sony::Model::none;
+    bool bluetooth=false,active=false;
+    uint16_t buttons=0;
+};
+std::array<Pad,4> pads;
+bool buzzers_enabled=true,sony_enabled=true;
 std::unordered_set<HANDLE> ignored;
 std::vector<DWORD> raw_buffer;
 HWND owner=nullptr;
@@ -48,18 +60,58 @@ void remove(unsigned slot) {
     fprintf(stderr,"[buzz-hid] receiver %u disconnected\n",slot+1);
 }
 int find(HANDLE handle){for(unsigned i=0;i<devices.size();++i)if(devices[i].active&&devices[i].handle==handle)return int(i);return -1;}
-bool identify(HANDLE handle,Device& candidate) {
-    RID_DEVICE_INFO info{};info.cbSize=sizeof(info);UINT size=sizeof(info);
-    if(GetRawInputDeviceInfoW(handle,RIDI_DEVICEINFO,&info,&size)==UINT(-1)||info.dwType!=RIM_TYPEHID||
-       !buzz_hid::supported(info.hid.dwVendorId,info.hid.dwProductId))return false;
-    if(info.hid.usUsagePage!=1||(info.hid.usUsage!=4&&info.hid.usUsage!=5))return false;
+int find_pad(HANDLE handle){for(unsigned i=0;i<pads.size();++i)if(pads[i].active&&pads[i].handle==handle)return int(i);return -1;}
+bool device_info(HANDLE handle,RID_DEVICE_INFO& info) {
+    info={};info.cbSize=sizeof(info);UINT size=sizeof(info);
+    if(GetRawInputDeviceInfoW(handle,RIDI_DEVICEINFO,&info,&size)==UINT(-1)||info.dwType!=RIM_TYPEHID)return false;
+    return info.hid.usUsagePage==1&&(info.hid.usUsage==4||info.hid.usUsage==5);
+}
+bool device_key(HANDLE handle,std::wstring& key) {
     UINT chars=0;
     if(GetRawInputDeviceInfoW(handle,RIDI_DEVICENAME,nullptr,&chars)==UINT(-1)||!chars||chars>4096)return false;
     std::vector<wchar_t> name(chars+1,0);
     if(GetRawInputDeviceInfoW(handle,RIDI_DEVICENAME,name.data(),&chars)==UINT(-1))return false;
-    candidate.key=name.data();for(auto& c:candidate.key)c=wchar_t(std::towlower(c));
+    key=name.data();for(auto& c:key)c=wchar_t(std::towlower(c));
+    return !key.empty();
+}
+bool identify(HANDLE handle,Device& candidate) {
+    RID_DEVICE_INFO info{};
+    if(!buzzers_enabled||!device_info(handle,info)||!buzz_hid::supported(info.hid.dwVendorId,info.hid.dwProductId))return false;
     candidate.handle=handle;candidate.product=info.hid.dwProductId;
-    return !candidate.key.empty();
+    return device_key(handle,candidate.key);
+}
+bool identify_pad(HANDLE handle,Pad& candidate) {
+    RID_DEVICE_INFO info{};
+    if(!sony_enabled||!device_info(handle,info))return false;
+    candidate.model=buzz_sony::model(info.hid.dwVendorId,info.hid.dwProductId);
+    if(candidate.model==buzz_sony::Model::none||!device_key(handle,candidate.key))return false;
+    candidate.handle=handle;candidate.bluetooth=buzz_sony::bluetooth_path(candidate.key);
+    return true;
+}
+void remove_pad(unsigned index) {
+    auto& p=pads[index];if(!p.active)return;
+    buzz_input_hid_pad(index,0,false);p.active=false;p.handle=nullptr;p.buttons=0;
+    fprintf(stderr,"[buzz-hid] %s controller %u disconnected\n",buzz_sony::name(p.model),index+1);
+}
+void add_pad(Pad candidate) {
+    if(find_pad(candidate.handle)>=0)return;
+    for(const auto& p:pads)if(p.active&&p.key==candidate.key)return;
+    int index=-1;
+    for(unsigned i=0;i<pads.size();++i)if(!pads[i].active&&pads[i].key==candidate.key){index=int(i);break;}
+    if(index<0)for(unsigned i=0;i<pads.size();++i)if(!pads[i].active){index=int(i);break;}
+    if(index<0) {
+        if(ignored.size()<256)ignored.insert(candidate.handle);
+        fprintf(stderr,"[buzz-hid] ignored %s: four Sony controllers already connected\n",buzz_sony::name(candidate.model));return;
+    }
+    candidate.active=true;candidate.buttons=0;pads[unsigned(index)]=std::move(candidate);
+    const auto& p=pads[unsigned(index)];
+    fprintf(stderr,"[buzz-hid] %s controller %d connected (%s)\n",buzz_sony::name(p.model),index+1,p.bluetooth?"Bluetooth":"USB");
+    buzz_input_hid_pad(unsigned(index),0,true);
+}
+void pad_report(unsigned index,const uint8_t* bytes,size_t count) {
+    auto& p=pads[index];uint16_t buttons=0;
+    if(!buzz_sony::parse(p.model,p.bluetooth,bytes,count,buttons)||buttons==p.buttons)return;
+    p.buttons=buttons;buzz_input_hid_pad(index,buttons,true);
 }
 bool capabilities(Device& d) {
     UINT bytes=0;
@@ -99,24 +151,34 @@ void rescan() {
     std::vector<RAWINPUTDEVICELIST> list(count);
     UINT copied=count?GetRawInputDeviceList(list.data(),&count,sizeof(RAWINPUTDEVICELIST)):0;
     if(copied==UINT(-1)||copied>list.size())return;
-    std::vector<Device> candidates;
-    for(UINT i=0;i<copied;++i)if(list[i].dwType==RIM_TYPEHID&&find(list[i].hDevice)<0) {
-        Device d;if(identify(list[i].hDevice,d))candidates.push_back(std::move(d));
+    std::vector<Device> candidates;std::vector<Pad> pad_candidates;
+    for(UINT i=0;i<copied;++i)if(list[i].dwType==RIM_TYPEHID&&find(list[i].hDevice)<0&&find_pad(list[i].hDevice)<0) {
+        Device d;Pad p;
+        if(identify(list[i].hDevice,d))candidates.push_back(std::move(d));
+        else if(identify_pad(list[i].hDevice,p))pad_candidates.push_back(std::move(p));
     }
     std::sort(candidates.begin(),candidates.end(),[](const Device& a,const Device& b){return a.key<b.key;});
     for(auto& d:candidates)add(std::move(d));
+    std::sort(pad_candidates.begin(),pad_candidates.end(),[](const Pad& a,const Pad& b){return a.key<b.key;});
+    for(auto& p:pad_candidates)add_pad(std::move(p));
 }
 void attach(HWND window) {
     if(owner==window)return;
     shutdown_locked();owner=window;
     const char* enabled=getenv("BUZZ_PHYSICAL_BUZZERS");
-    if(enabled&&std::string(enabled)=="0"){fprintf(stderr,"[buzz-hid] disabled by developer override\n");return;}
+    const char* sony=getenv("BUZZ_SONY_PADS");
+    buzzers_enabled=!(enabled&&std::string(enabled)=="0");
+    sony_enabled=!(sony&&std::string(sony)=="0");
+    if(!buzzers_enabled)fprintf(stderr,"[buzz-hid] receivers disabled by developer override\n");
+    if(!sony_enabled)fprintf(stderr,"[buzz-hid] DualShock 4 / DualSense input disabled (BUZZ_SONY_PADS=0)\n");
+    if(!buzzers_enabled&&!sony_enabled)return;
     // Only joystick/gamepad collections, never keyboard or mouse. INPUTSINK
     // observes releases in the background; the input router never sends them
     // to gameplay while unfocused. No NOLEGACY/capture/exclusive flags.
     RAWINPUTDEVICE registrations[]={{1,4,RIDEV_DEVNOTIFY|RIDEV_INPUTSINK,window},{1,5,RIDEV_DEVNOTIFY|RIDEV_INPUTSINK,window}};
     if(!RegisterRawInputDevices(registrations,2,sizeof(RAWINPUTDEVICE))){fprintf(stderr,"[buzz-hid] RawInput registration failed (%lu)\n",GetLastError());return;}
-    registered=true;fprintf(stderr,"[buzz-hid] RawInput ready; original receivers enabled (hardware-unverified)\n");rescan();
+    registered=true;fprintf(stderr,"[buzz-hid] RawInput ready; original receivers %s (hardware-unverified), DualShock 4/DualSense %s\n",
+        buzzers_enabled?"enabled":"disabled",sony_enabled?"enabled":"disabled");rescan();
 }
 void report(unsigned slot,const uint8_t* bytes,size_t count) {
     auto& d=devices[slot];std::array<uint8_t,buzz_hid::max_report_bytes> prepared{};uint8_t id=0;
@@ -138,24 +200,32 @@ void report(unsigned slot,const uint8_t* bytes,size_t count) {
 void input(HRAWINPUT handle) {
     RAWINPUTHEADER header{};UINT size=sizeof(header);
     if(GetRawInputData(handle,RID_HEADER,&header,&size,sizeof(header))!=sizeof(header)||header.dwType!=RIM_TYPEHID)return;
-    int slot=find(header.hDevice);
-    if(slot<0) {
+    int slot=find(header.hDevice),pad=slot<0?find_pad(header.hDevice):-1;
+    if(slot<0&&pad<0) {
         if(ignored.count(header.hDevice))return;
-        Device candidate;if(identify(header.hDevice,candidate))add(std::move(candidate));
+        Device candidate;Pad pad_candidate;
+        if(identify(header.hDevice,candidate))add(std::move(candidate));
+        else if(identify_pad(header.hDevice,pad_candidate))add_pad(std::move(pad_candidate));
         else if(ignored.size()<256)ignored.insert(header.hDevice);
-        slot=find(header.hDevice);if(slot<0)return;
+        slot=find(header.hDevice);pad=slot<0?find_pad(header.hDevice):-1;
+        if(slot<0&&pad<0)return;
     }
+    // A malformed pad packet only releases that pad; the next report recovers it.
+    auto fail=[&]{if(slot>=0)suspend(unsigned(slot));else{pads[unsigned(pad)].buttons=0;buzz_input_hid_pad(unsigned(pad),0,true);}};
     size=0;
     constexpr size_t offset=offsetof(RAWINPUT,data.hid.bRawData);
-    if(GetRawInputData(handle,RID_INPUT,nullptr,&size,sizeof(header))==UINT(-1)||size<offset||size>65536){suspend(unsigned(slot));return;}
+    if(GetRawInputData(handle,RID_INPUT,nullptr,&size,sizeof(header))==UINT(-1)||size<offset||size>65536){fail();return;}
     raw_buffer.resize((size+sizeof(DWORD)-1)/sizeof(DWORD));
     const UINT copied=GetRawInputData(handle,RID_INPUT,raw_buffer.data(),&size,sizeof(header));
-    if(copied==UINT(-1)||copied<offset||copied>raw_buffer.size()*sizeof(DWORD)){suspend(unsigned(slot));return;}
+    if(copied==UINT(-1)||copied<offset||copied>raw_buffer.size()*sizeof(DWORD)){fail();return;}
     const auto& raw=*reinterpret_cast<const RAWINPUT*>(raw_buffer.data());
     const auto& hid=raw.data.hid;
     if(raw.header.dwType!=RIM_TYPEHID||raw.header.hDevice!=header.hDevice||raw.header.dwSize>copied||raw.header.dwSize<offset||
-       !hid.dwSizeHid||hid.dwSizeHid>buzz_hid::max_report_bytes||!hid.dwCount||hid.dwCount>512||hid.dwCount>(raw.header.dwSize-offset)/hid.dwSizeHid){suspend(unsigned(slot));return;}
-    for(unsigned i=0;i<hid.dwCount;++i)report(unsigned(slot),hid.bRawData+size_t(i)*hid.dwSizeHid,hid.dwSizeHid);
+       !hid.dwSizeHid||hid.dwSizeHid>buzz_hid::max_report_bytes||!hid.dwCount||hid.dwCount>512||hid.dwCount>(raw.header.dwSize-offset)/hid.dwSizeHid){fail();return;}
+    for(unsigned i=0;i<hid.dwCount;++i) {
+        const auto* bytes=hid.bRawData+size_t(i)*hid.dwSizeHid;
+        if(slot>=0)report(unsigned(slot),bytes,hid.dwSizeHid);else pad_report(unsigned(pad),bytes,hid.dwSizeHid);
+    }
 }
 void shutdown_locked() {
     if(registered.exchange(false)) {
@@ -163,6 +233,7 @@ void shutdown_locked() {
         RegisterRawInputDevices(registrations,2,sizeof(RAWINPUTDEVICE));
     }
     for(unsigned i=0;i<devices.size();++i)remove(i);
+    for(unsigned i=0;i<pads.size();++i)remove_pad(i);
     ignored.clear();raw_buffer.clear();owner=nullptr;
 }
 }
@@ -174,7 +245,12 @@ void buzz_hid_host_message(void* window,unsigned message,uintptr_t wparam,intptr
         if(message==WM_INPUT)input(reinterpret_cast<HRAWINPUT>(lparam));
         else if(message==WM_INPUT_DEVICE_CHANGE) {
             ignored.erase(reinterpret_cast<HANDLE>(lparam));
-            if(wparam==GIDC_REMOVAL){int slot=find(reinterpret_cast<HANDLE>(lparam));if(slot>=0)remove(unsigned(slot));}
+            if(wparam==GIDC_REMOVAL) {
+                const auto handle=reinterpret_cast<HANDLE>(lparam);
+                const int slot=find(handle),pad=find_pad(handle);
+                if(slot>=0)remove(unsigned(slot));
+                if(pad>=0)remove_pad(unsigned(pad));
+            }
             rescan();
         }else if(message==WM_DESTROY)shutdown_locked();
     }catch(const std::exception& e){fprintf(stderr,"[buzz-hid] input stopped: %s\n",e.what());shutdown_locked();}

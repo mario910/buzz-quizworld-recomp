@@ -178,6 +178,11 @@ void assign_binding(std::array<Code,5>& mapping,Code code) {
     if(code) {
         const auto existing=std::find(mapping.begin(),mapping.end(),code);
         if(existing!=mapping.end())*existing=selected;
+        // Pad codes are button masks (LB+RB covers both bumpers): take the new
+        // button away from another colour instead of letting two colours share it.
+        if constexpr(std::is_same_v<Code,uint16_t>)
+            for(auto& other:mapping)if(&other!=&selected&&other!=code&&(other&code))
+                other=(other&~code)&&buzz_input::pad_button_name(Code(other&~code))?Code(other&~code):selected;
     }
     selected=code;
     binding_button=-1;
@@ -247,7 +252,7 @@ void act(buzz_pc::MenuAction action) {
         return;
     }
     if(menu.page()==MenuPage::controller_options) {
-        if(row==0&&accept){input.pad_buttons=buzz_input::defaults().pad_buttons;input.gamepads=true;apply_input();}
+        if(row==0&&accept){input.pad_buttons=buzz_input::defaults().pad_buttons;apply_input();}
         else if(row==1&&!accept){input.pulse_ms=unsigned(std::clamp(int(input.pulse_ms)+direction*10,10,5000));apply_input();}
         else if(row==2){input.background_gamepads=!input.background_gamepads;apply_input();}
         else if(row==3&&accept)menu.back();
@@ -299,11 +304,11 @@ void act(buzz_pc::MenuAction action) {
         else if(setting==row_texture_auto){preferences.texture_auto_upscale=!preferences.texture_auto_upscale;apply_live();}
         else if(setting==row_offline){preferences.offline=!preferences.offline;apply_live();}
     }else {
-        if(row==0){input.gamepads=!input.gamepads;apply_input();}
-        else if(row==1&&accept)menu.show(MenuPage::pad_assignments);
-        else if(row==2&&accept){binding_target=0;menu.show(MenuPage::bindings);}
-        else if(row==3){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
-        else if(row==4&&accept)menu.show(MenuPage::controller_options);
+        // Game controllers are always on; there is no switch to turn them off.
+        if(row==0&&accept)menu.show(MenuPage::pad_assignments);
+        else if(row==1&&accept){binding_target=0;menu.show(MenuPage::bindings);}
+        else if(row==2){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
+        else if(row==3&&accept)menu.show(MenuPage::controller_options);
     }
 }
 // Key values are the portable saved binding codes (Win32 VK numbers).
@@ -452,7 +457,7 @@ void controller() {
     if(physical&2)buttons|=4;if(physical&4)buttons|=8;
     const auto pressed=pad_navigation.sample(buttons,menu_ticks());
     if(pressed&1)act(MenuAction::up);if(pressed&2)act(MenuAction::down);if(pressed&4)act(MenuAction::left);if(pressed&8)act(MenuAction::right);
-    if(pressed&(0x1000|0x200))act(MenuAction::accept); // A or R1/RB
+    if(pressed&(0x1000|0x100|0x200))act(MenuAction::accept); // A/Cross, LB/L1 (red) or RB/R1
     if(pressed&0x2000)act(MenuAction::back);
 }
 std::string row_label(int row) {
@@ -481,7 +486,7 @@ std::string row_label(int row) {
             :input.pad_player[row]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[row]+1));
     }
     if(menu.page()==MenuPage::controller_options) {
-        if(row==0)return "USE R1 + D-PAD PRESET";
+        if(row==0)return "USE DEFAULT PRESET (L1/R1 + FACE BUTTONS)";
         if(row==1)return "TAP RETENTION                  "+std::to_string(input.pulse_ms)+" ms";
         if(row==2)return std::string("BACKGROUND GAMEPADS      ")+(input.background_gamepads?"ON":"OFF");
         return "BACK";
@@ -537,10 +542,9 @@ std::string row_label(int row) {
         }
     }
     switch(row) {
-        case 0:return std::string("GAME CONTROLLERS                   ")+(input.gamepads?"ON":"OFF");
-        case 1:return "ASSIGN CONTROLLERS TO PLAYERS  >";
-        case 2:return "KEYBOARD AND PAD BINDINGS  >";
-        case 3:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
+        case 0:return "ASSIGN CONTROLLERS TO PLAYERS  >";
+        case 1:return "KEYBOARD AND PAD BINDINGS  >";
+        case 2:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
         default:return "ADVANCED CONTROLLER OPTIONS  >";
     }
 }
@@ -742,7 +746,7 @@ void test_actions() {
         if(test_stage==1&&elapsed>=2500){press(2);verify(menu.tab()==buzz_pc::MenuTab::display&&menu.tabs_focused(),"Display");press(0);press(4);++test_stage;}
         if(test_stage==2&&elapsed>=4000){press(2);verify(menu.tab()==buzz_pc::MenuTab::graphics,"Graphics");press(0);press(4);++test_stage;}
         if(test_stage==3&&elapsed>=5500){
-            press(2);press(0);press(3);press(0);verify(menu.page()==buzz_pc::MenuPage::pad_assignments,"Assignments");
+            press(2);press(0);press(0);verify(menu.page()==buzz_pc::MenuPage::pad_assignments,"Assignments");
             press(3,4);press(0);verify(menu.page()==buzz_pc::MenuPage::controllers,"Controls-back");press(4);++test_stage;
         }
         if(test_stage==4&&elapsed>=7000){

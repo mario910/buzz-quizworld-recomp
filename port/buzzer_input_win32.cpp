@@ -28,12 +28,36 @@ uint64_t touch_held=0;
 #ifdef _WIN32
 using GetState=DWORD(WINAPI*)(DWORD,XINPUT_STATE*);
 GetState get_state=nullptr;
-bool controllers_available(){return get_state!=nullptr;}
-bool read_pad(unsigned slot,uint16_t& buttons){
+// DualShock 4 / DualSense pads are not XInput devices. The RawInput adapter
+// (buzzer_hid_win32.cpp) publishes them by adapter index; each is bound to
+// one of the four gamepad slots that XInput does not occupy.
+std::array<uint16_t,4> hid_buttons{};
+std::array<bool,4> hid_online{};
+std::array<int,4> hid_slot{{-1,-1,-1,-1}};
+bool controllers_available(){return true;} // XInput and/or RawInput Sony pads
+bool xinput_state(unsigned slot,uint16_t& buttons){
     XINPUT_STATE state{};
     if(!get_state||get_state(slot,&state)!=ERROR_SUCCESS)return false;
     buttons=state.Gamepad.wButtons;
     return true;
+}
+uint8_t xinput_slots(){uint8_t mask=0;uint16_t ignored=0;for(unsigned s=0;s<4;++s)if(xinput_state(s,ignored))mask|=uint8_t(1u<<s);return mask;}
+void place_hid_pad(unsigned index,uint8_t occupied){
+    for(unsigned i=0;i<4;++i)if(i!=index&&hid_online[i]&&hid_slot[i]>=0)occupied|=uint8_t(1u<<hid_slot[i]);
+    const int previous=hid_slot[index];
+    hid_slot[index]=buzz_input::pick_pad_slot(occupied);
+    if(hid_slot[index]==previous)return;
+    if(hid_slot[index]<0)fprintf(stderr,"[input] Sony controller %u: all four gamepad slots are in use\n",index+1);
+    else fprintf(stderr,"[input] Sony controller %u -> gamepad slot %d\n",index+1,hid_slot[index]);
+}
+bool read_pad(unsigned slot,uint16_t& buttons){
+    if(xinput_state(slot,buttons)){
+        // An XInput pad appeared on a slot a Sony pad was using: move that one.
+        for(unsigned i=0;i<4;++i)if(hid_online[i]&&hid_slot[i]==int(slot))place_hid_pad(i,uint8_t(xinput_slots()|(1u<<slot)));
+        return true;
+    }
+    for(unsigned i=0;i<4;++i)if(hid_online[i]&&hid_slot[i]==int(slot)){buttons=hid_buttons[i];return true;}
+    return false;
 }
 uint64_t ticks(){return GetTickCount64();}
 #else
@@ -192,15 +216,15 @@ void buzz_input_init(){
             wcscat_s(path,L"\\xinput1_4.dll");
             if(auto module=LoadLibraryW(path))get_state=reinterpret_cast<GetState>(GetProcAddress(module,"XInputGetState"));
         }
-        if(!get_state){fprintf(stderr,"[input] XInput unavailable; keyboard remains active\n");config.gamepads=false;}
+        if(!get_state)fprintf(stderr,"[input] XInput unavailable; DualShock 4/DualSense and keyboard remain active\n");
     }
 #else
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS,"1");
     controllers_ready=SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER)==0;
-    if(!controllers_ready)config.gamepads=false;
+    if(!controllers_ready)fprintf(stderr,"[input] SDL game controllers unavailable: %s\n",SDL_GetError());
 #endif
     fprintf(stderr,"[input] logical-players=%u receivers=%u pulse=%ums gamepads=%s background-pads=%s\n",
-        config.players,config.players/4,config.pulse_ms,config.gamepads?"on":"off",config.background_gamepads?"on":"off");
+        config.players,config.players/4,config.pulse_ms,controllers_available()?"on":"unavailable",config.background_gamepads?"on":"off");
 }
 unsigned buzz_input_players(){std::lock_guard lock(input_mutex);return config.players;}
 void buzz_input_capture(bool open){
@@ -227,6 +251,17 @@ void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool is_connec
     if(!is_connected)menu_gates[buzz_input::physical0+receiver].require_neutral();
     route_physical(receiver,foreground(),ticks());
 }
+void buzz_input_hid_pad(unsigned index,uint16_t buttons,bool is_connected){
+#ifdef _WIN32
+    if(index>=4)return;
+    std::lock_guard lock(input_mutex);
+    if(!is_connected){hid_online[index]=false;hid_buttons[index]=0;hid_slot[index]=-1;return;}
+    hid_buttons[index]=buttons;
+    if(!hid_online[index]||hid_slot[index]<0){hid_online[index]=true;place_hid_pad(index,xinput_slots());}
+#else
+    (void)index;(void)buttons;(void)is_connected; // SDL GameController covers these pads
+#endif
+}
 bool buzz_input_physical_connected(unsigned receiver){
     std::lock_guard lock(input_mutex);return receiver<2&&physical_connected[receiver];
 }
@@ -241,7 +276,6 @@ bool buzz_input_reconfigure(const std::string& text,std::string& error){
     auto next=config;
     if(!buzz_input::parse_config(text,next,error))return false;
     if(next.players!=config.players){error="Changing the receiver count requires restarting the game";return false;}
-    if(next.gamepads&&!controllers_available()){error="Gamepad input is unavailable on this system";return false;}
     // Re-map held physical buttons only after they have been released; do not
     // create answers from the button used to confirm an overlay setting.
     for(unsigned i=0;i<menu_gates.size();++i){menu_gates[i].require_neutral();router.release(i,true);}
@@ -299,7 +333,7 @@ uint64_t buzz_input_poll(uint32_t scripted_pulses){
                 menu_requested=true;capture_locked(true);
             }
             previous_pad_buttons[i]=buttons;
-            if(!config.gamepads||config.pad_player[i]==-1){router.release(buzz_input::gamepad0+i,true);continue;}
+            if(config.pad_player[i]==-1){router.release(buzz_input::gamepad0+i,true);continue;}
             const auto source=buzz_input::gamepad0+i;
             const auto mapped=buzz_input::map_pad(buttons,config.pad_buttons[i]);
             int player=config.pad_player[i];

@@ -38,16 +38,41 @@ int main(){
         for (unsigned answer = 0; answer < 4; ++answer)
             assert(config.keys[player][blue - answer] == unsigned(answer_rows[player][answer]));
     }
-    assert(config.gamepads);
-    for(auto& mapping:config.pad_buttons){
-        assert(map_pad(0x200,mapping)==(1u<<red));
-        assert(map_pad(0x4,mapping)==(1u<<yellow));
-        assert(map_pad(0x2,mapping)==(1u<<green));
-        assert(map_pad(0x8,mapping)==(1u<<orange));
-        assert(map_pad(0x1,mapping)==(1u<<blue));
-        assert(map_pad(0x10,mapping)==0); // START must not answer a question.
+    {   // Pads are always on: legacy gamepads=0/1 parses, is ignored and is saved as 1.
+        auto legacy=defaults();std::string text;
+        assert(parse_config("gamepads=0\n",legacy,error)&&legacy.pad_player==defaults().pad_player);
+        assert(buzz_input_format_config(legacy,text,error)&&text.find("\ngamepads=1\n")!=std::string::npos);
     }
-    assert(parse_config("players=8\nkeyboard.8=F1,F2,F3,F4,F5\ngamepads=1\ngamepad.2=8,START,Y,A,B,X\npulse_ms=100\n",config,error));
+    for(auto& mapping:config.pad_buttons){
+        // RPCS3/PCSX2 layout: LB or RB red; Y/X/B/A = handset top to bottom.
+        assert(map_pad(0x100,mapping)==(1u<<red)&&map_pad(0x200,mapping)==(1u<<red)&&map_pad(0x300,mapping)==(1u<<red));
+        assert(map_pad(0x1000,mapping)==(1u<<yellow)); // A / Cross
+        assert(map_pad(0x2000,mapping)==(1u<<green));  // B / Circle
+        assert(map_pad(0x4000,mapping)==(1u<<orange)); // X / Square
+        assert(map_pad(0x8000,mapping)==(1u<<blue));   // Y / Triangle
+        assert(map_pad(0x10,mapping)==0); // START must not answer a question.
+        assert(map_pad(0xf,mapping)==0); // the D-pad is free
+    }
+    {   // LB+RB: one entry for both bumpers; it round-trips and cannot share a bumper.
+        auto both=defaults();std::string text;
+        assert(parse_config("gamepad.1=1,LB+RB,A,B,X,Y\n",both,error)&&both.pad_buttons[0][0]==0x300);
+        assert(buzz_input_format_config(both,text,error)&&text.find("gamepad.1=1,LB+RB,A,B,X,Y\n")!=std::string::npos);
+        for(const char* overlap:{"gamepad.1=1,LB+RB,LB,B,X,Y","gamepad.1=1,LB+RB,A,RB,X,Y"})
+            assert(!parse_config(overlap,both,error));
+        assert(parse_config("gamepad.1=1,LB,RB,B,X,Y\n",both,error)&&both.pad_buttons[0][1]==0x200); // separate bumpers stay valid
+    }
+    {   // Never-customised earlier defaults migrate; real customisations stay.
+        auto migrated=defaults();
+        assert(parse_config("gamepad.1=AUTO,START,Y,A,B,X\ngamepad.2=2,RB,LEFT,DOWN,RIGHT,UP\ngamepad.3=3,RB,UP,DOWN,RIGHT,LEFT\n",migrated,error));
+        assert(migrated.pad_buttons[0]==defaults().pad_buttons[0]&&migrated.pad_player[0]==Config::pad_auto);
+        assert(migrated.pad_buttons[1]==defaults().pad_buttons[1]&&migrated.pad_player[1]==1);
+        assert(migrated.pad_buttons[2][1]==0x1&&migrated.pad_buttons[2][4]==0x4); // custom order kept
+        assert(is_previous_default_pad_mapping({0x10,0x8000,0x1000,0x2000,0x4000})&&is_previous_default_pad_mapping({0x200,0x4,0x2,0x8,0x1}));
+        assert(is_previous_default_pad_mapping({0x100,0x1000,0x2000,0x4000,0x8000}));
+        assert(parse_config("gamepad.4=4,LB,A,B,X,Y\n",migrated,error)&&migrated.pad_buttons[3][0]==0x300);
+        assert(!is_previous_default_pad_mapping(defaults().pad_buttons[0]));
+    }
+    assert(parse_config("players=8\nkeyboard.8=F1,F2,F3,F4,F5\ngamepads=1\ngamepad.2=8,START,Y,A,B,RB\npulse_ms=100\n",config,error));
     assert(config.players==8&&config.keys[7][0]==112&&config.pad_player[1]==7&&config.pulse_ms==100);
     assert(map_pad(0xffff,config.pad_buttons[1])==31);
     assert(map_pad(0x1000,config.pad_buttons[1])==(1u<<green));

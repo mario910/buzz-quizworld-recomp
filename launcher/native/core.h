@@ -17,11 +17,11 @@ inline constexpr const char* elf102 = "9303ccce9bc223ca6da2eb837256ef08be6f1f460
 inline constexpr const char* elf100 = "6b07344c81a669174586ea637634f3b522eb91a7824e9e88623581b88d0405a8";
 inline constexpr const char* elfUS = "fb78b9e6d30ba5eaa76b7e31bc3afa838736dcb5cde40fc602a628f2305ebb5d";
 inline constexpr const char* button_names[] = {"Red", "Yellow", "Green", "Orange", "Blue"};
-inline constexpr const char* pad_names[] = {"START","BACK","A","B","X","Y","LB","RB","UP","DOWN","LEFT","RIGHT","LS","RS"};
+inline constexpr const char* pad_names[] = {"START","BACK","A","B","X","Y","LB","RB","LB+RB","UP","DOWN","LEFT","RIGHT","LS","RS"};
 struct Player { std::string name; std::array<std::string,5> keys; };
 // player: 0..7, -1 unassigned, pad_auto = first free player when first used.
 constexpr int pad_auto = -2;
-struct Pad { int player = -1; std::array<std::string,5> buttons = {"RB","LEFT","DOWN","RIGHT","UP"}; };
+struct Pad { int player = -1; std::array<std::string,5> buttons = {"LB+RB","A","B","X","Y"}; }; // red,yellow,green,orange,blue (RPCS3/PCSX2 layout; red on either bumper)
 struct SharedRevision {
     // Runtime-only revision metadata, never serialized into legacy JSON.
     fs::path root;

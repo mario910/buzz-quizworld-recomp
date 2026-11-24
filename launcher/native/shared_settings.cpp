@@ -14,7 +14,7 @@ std::optional<std::string> digest(const std::optional<std::string>& text) {
 void check(bool ok,const std::string& message){if(!ok)throw std::runtime_error(message);}
 void import_input(Settings& s,const buzz_input::Config& c) {
     s.places=int(c.players);s.pulse_ms=int(c.pulse_ms);
-    s.gamepads=c.gamepads;s.background_gamepads=c.background_gamepads;
+    s.gamepads=true;s.background_gamepads=c.background_gamepads;
     for(unsigned p=0;p<8;++p)for(unsigned b=0;b<5;++b)s.players[p].keys[b]=key_label(c.keys[p][b]);
     for(unsigned slot=0;slot<4;++slot) {
         s.pads[slot].player=c.pad_player[slot];

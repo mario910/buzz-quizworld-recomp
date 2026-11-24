@@ -9,7 +9,7 @@
 
 namespace buzz_input {
 namespace {
-constexpr std::pair<uint16_t,const char*> pad_names[]={{0x10,"START"},{0x20,"BACK"},{0x1000,"A"},{0x2000,"B"},{0x4000,"X"},{0x8000,"Y"},{0x100,"LB"},{0x200,"RB"},{1,"UP"},{2,"DOWN"},{4,"LEFT"},{8,"RIGHT"},{0x40,"LS"},{0x80,"RS"}};
+constexpr std::pair<uint16_t,const char*> pad_names[]={{0x10,"START"},{0x20,"BACK"},{0x1000,"A"},{0x2000,"B"},{0x4000,"X"},{0x8000,"Y"},{0x100,"LB"},{0x200,"RB"},{0x300,"LB+RB"},{1,"UP"},{2,"DOWN"},{4,"LEFT"},{8,"RIGHT"},{0x40,"LS"},{0x80,"RS"}};
 std::string trim(std::string s){
     const auto first=s.find_first_not_of(" \t\r\n");
     if(first==std::string::npos)return {};
@@ -17,7 +17,8 @@ std::string trim(std::string s){
 }
 bool format_config_impl(const buzz_input::Config& config,std::string& text,std::string& error) {
     std::ostringstream out;out<<"# PC-menu controller preferences; red,yellow,green,orange,blue\nplayers="<<config.players
-        <<"\npulse_ms="<<config.pulse_ms<<"\ngamepads="<<config.gamepads<<"\nbackground_gamepads="<<config.background_gamepads<<'\n';
+        // gamepads=1 only keeps older builds (which could switch pads off) enabled.
+        <<"\npulse_ms="<<config.pulse_ms<<"\ngamepads=1\nbackground_gamepads="<<config.background_gamepads<<'\n';
     for(unsigned p=0;p<8;++p){out<<"keyboard."<<p+1<<'=';for(unsigned b=0;b<5;++b){if(b)out<<',';if(config.keys[p][b])out<<"0x"<<std::hex<<config.keys[p][b]<<std::dec;else out<<"NONE";}out<<'\n';}
     for(unsigned i=0;i<4;++i){out<<"gamepad."<<i+1<<'=';if(config.pad_player[i]==-1){out<<"NONE\n";continue;}
         if(config.pad_player[i]==Config::pad_auto)out<<"AUTO";else out<<config.pad_player[i]+1;
@@ -60,9 +61,11 @@ Config defaults(){
     Config c;
     c.keys[0]={32,'4','3','2','1'};c.keys[1]={'Q','T','R','E','W'};
     c.keys[2]={'A','G','F','D','S'};c.keys[3]={'Z','B','V','C','X'};
-    // R1/RB = red; clockwise D-pad = blue, orange, green, yellow.
-    // Wire order stays red,yellow,green,orange,blue. START is reserved for PC UI.
-    for(auto& mapping:c.pad_buttons)mapping={0x200,0x4,0x2,0x8,0x1};
+    // RPCS3/PCSX2 Buzz! layout: red on the shoulder (L1/LB, and R1/RB too);
+    // face buttons in the handset's top-to-bottom order: Triangle/Y blue,
+    // Square/X orange, Circle/B green, Cross/A yellow. Wire order stays
+    // red,yellow,green,orange,blue. START is reserved for the PC menu.
+    for(auto& mapping:c.pad_buttons)mapping={0x300,0x1000,0x2000,0x4000,0x8000};
     return c;
 }
 const char* pad_button_name(uint16_t button){for(const auto& entry:pad_names)if(entry.first==button)return entry.second;return nullptr;}
@@ -95,7 +98,8 @@ bool parse_config(const std::string& text,Config& config,std::string& error){
             if(!number(value,n,5000)||n<10)return fail();candidate.pulse_ms=n;
         }else if(name=="gamepads"||name=="background_gamepads"){
             if(value!="0"&&value!="1")return fail();
-            (name=="gamepads"?candidate.gamepads:candidate.background_gamepads)=value=="1";
+            // Legacy gamepads=0 from older launchers/menus is ignored: pads are always on.
+            if(name=="background_gamepads")candidate.background_gamepads=value=="1";
         }else if(name.rfind("keyboard.",0)==0){
             if(!number(name.substr(9),n,8)||!n||!parse_keys(value,candidate.keys[n-1]))return fail();
         }else if(name.rfind("gamepad.",0)==0){
@@ -104,13 +108,21 @@ bool parse_config(const std::string& text,Config& config,std::string& error){
             auto tokens=split(value);unsigned player=0;
             const bool automatic=tokens.size()==6&&tokens[0]=="AUTO";
             if(tokens.size()!=6||(!automatic&&(!number(tokens[0],player,8)||!player)))return fail();
-            std::array<uint16_t,5> mapping{};std::set<uint16_t> used;
+            // LB+RB is one entry covering both bumpers: colours may not share a button.
+            std::array<uint16_t,5> mapping{};uint16_t used=0;
             for(unsigned i=0;i<5;++i){mapping[i]=pad_button(tokens[i+1]);
-                if(!mapping[i]||!used.insert(mapping[i]).second)return fail();}
+                if(!mapping[i]||(used&mapping[i]))return fail();used|=mapping[i];}
+            if(is_previous_default_pad_mapping(mapping))mapping=defaults().pad_buttons[n-1];
             candidate.pad_player[n-1]=automatic?Config::pad_auto:int(player-1);candidate.pad_buttons[n-1]=mapping;
         }else return fail();
     }
     config=candidate;error.clear();return true;
+}
+bool is_previous_default_pad_mapping(const std::array<uint16_t,5>& mapping){
+    constexpr std::array<uint16_t,5> start_face{{0x10,0x8000,0x1000,0x2000,0x4000}}; // START,Y,A,B,X
+    constexpr std::array<uint16_t,5> rb_dpad{{0x200,0x4,0x2,0x8,0x1}};              // RB,LEFT,DOWN,RIGHT,UP
+    constexpr std::array<uint16_t,5> lb_face{{0x100,0x1000,0x2000,0x4000,0x8000}};   // LB,A,B,X,Y (before LB+RB)
+    return mapping==start_face||mapping==rb_dpad||mapping==lb_face;
 }
 uint8_t map_pad(uint16_t buttons,const std::array<uint16_t,5>& mapping){
     uint8_t result=0;for(unsigned i=0;i<5;++i)if(buttons&mapping[i])result|=uint8_t(1u<<i);return result;

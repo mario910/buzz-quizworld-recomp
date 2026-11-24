@@ -67,8 +67,9 @@ struct Pads {
             if(std::find(ids.begin(),ids.end(),list[j])!=ids.end())continue;
             auto p=SDL_OpenGamepad(list[j]);if(!p)continue;
 #ifdef _WIN32
-            // The game still consumes XInput slots. Do not promise that an
-            // unrelated SDL HID controller will work in the Windows game.
+            // The game uses XInput slots, plus DualShock 4 / DualSense on the
+            // lowest free slot (matching SDL's player index). Do not promise
+            // that other SDL HID controllers work in the Windows game.
             int slot=SDL_GetGamepadPlayerIndex(p);
 #else
             int slot=0;while(slot<4&&opened[slot])++slot;
@@ -351,14 +352,13 @@ void controls_tab(App& app) {
         if(app.recording==p)ImGui::TextColored(accent,"Press %s (%d/5). Esc cancels.",button_names[app.record_count],app.record_count+1);
         ImGui::PopID();ImGui::Spacing();
     }
-    ImGui::Separator();ImGui::Checkbox("Enable game controllers",&app.settings.gamepads);
-    if(ImGui::Button("Use R1 + D-pad preset")) {
+    ImGui::Separator(); // Game controllers are always on.
+    if(ImGui::Button("Use default preset (L1/R1 + face buttons)")) {
         for(auto& pad:app.settings.pads)pad.buttons=Pad{}.buttons;
-        app.settings.gamepads=true;
-        app.status="Preset applied: R1/RB red; Up blue, Right orange, Down green, Left yellow. Save to keep it.";
+        app.status="Preset applied: L1 or R1 (LB/RB) red; Triangle/Y blue, Square/X orange, Circle/B green, Cross/A yellow. Save to keep it.";
     }
-    ImGui::TextWrapped("Default: R1/RB red; D-pad Up blue, Right orange, Down green, Left yellow. START is reserved for the PC menu.");
-    ImGui::TextWrapped("Windows: four XInput slots. Other SDL controller types are not yet wired into the game's Windows input adapter.");
+    ImGui::TextWrapped("Default (as in RPCS3/PCSX2): L1 or R1 (LB/RB) red; Triangle/Y blue, Square/X orange, Circle/B green, Cross/A yellow - the handset's colours from top to bottom. START is reserved for the PC menu.");
+    ImGui::TextWrapped("Windows: four slots shared by XInput (Xbox) controllers and DualShock 4 / DualSense (USB or Bluetooth). Other controller types are not yet wired into the game's Windows input adapter.");
     for(int i=0;i<4;++i) {
         ImGui::PushID(100+i);ImGui::Text("Controller slot %d",i+1);ImGui::SameLine();
         auto label=app.settings.pads[i].player==pad_auto?std::string("Automatic (first free player)"):app.settings.pads[i].player<0?std::string("Unassigned"):"Player "+std::to_string(app.settings.pads[i].player+1);
@@ -385,7 +385,7 @@ void preview_tab(App& app,bool focused) {
     try {
         auto config=input_config(app.settings);auto pads=app.pads.sample(focused&&!app.smoke);
         if(focused&&!app.smoke)for(int p=0;p<app.settings.places;++p)for(int b=0;b<5;++b)if(config.keys[p][b]&&app.held.count(config.keys[p][b]))masks[p]|=uint8_t(1u<<b);
-        if(app.settings.gamepads)for(int i=0;i<4;++i)if(config.pad_player[i]>=0)masks[config.pad_player[i]]|=buzz_input::map_pad(pads[i],config.pad_buttons[i]);
+        for(int i=0;i<4;++i)if(config.pad_player[i]>=0)masks[config.pad_player[i]]|=buzz_input::map_pad(pads[i],config.pad_buttons[i]);
         for(int i=0;i<4;++i)if(app.assign_player>=0&&(pads[i]&0x10)&&!(app.previous[i]&0x10)) {
             bool duplicate=false;for(int j=0;j<4;++j)if(j!=i&&app.settings.pads[j].player==app.assign_player)duplicate=true;
             if(duplicate)app.status="That player already has a controller. Unassign it in Controls first.";

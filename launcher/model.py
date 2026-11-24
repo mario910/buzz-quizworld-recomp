@@ -15,8 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 from launcher.paths import EXPECTED_ELF_SHA256 as ELF_SHA256
 BUTTONS = ('Red', 'Yellow', 'Green', 'Orange', 'Blue')
 PAD_BITS = {'START': 0x10, 'BACK': 0x20, 'A': 0x1000, 'B': 0x2000,
-            'X': 0x4000, 'Y': 0x8000, 'LB': 0x100, 'RB': 0x200,
+            'X': 0x4000, 'Y': 0x8000, 'LB': 0x100, 'RB': 0x200, 'LB+RB': 0x300,
             'UP': 1, 'DOWN': 2, 'LEFT': 4, 'RIGHT': 8, 'LS': 0x40, 'RS': 0x80}
+
+
+def _or_bits(values) -> int:
+    result = 0
+    for value in values:
+        result |= value
+    return result
 KEY_NAMES = {'SPACE': 32, 'ENTER': 13, 'TAB': 9, 'ESC': 27, 'BACKSPACE': 8,
              'UP': 38, 'DOWN': 40, 'LEFT': 37, 'RIGHT': 39,
              'LSHIFT': 160, 'RSHIFT': 161, 'LCTRL': 162, 'RCTRL': 163, 'NONE': 0}
@@ -59,7 +66,7 @@ class Player:
 @dataclass
 class Pad:
     player: int | None = None  # Zero-based logical player, not an XInput slot.
-    buttons: list[str] = field(default_factory=lambda: ['RB', 'LEFT', 'DOWN', 'RIGHT', 'UP'])
+    buttons: list[str] = field(default_factory=lambda: ['LB+RB', 'A', 'B', 'X', 'Y'])
 
 
 @dataclass
@@ -110,7 +117,8 @@ class Settings:
                 if pad.player in assigned:
                     raise ValueError('Assign at most one controller to each player in the launcher.')
                 assigned.add(pad.player)
-            if len(pad.buttons) != 5 or any(b not in PAD_BITS for b in pad.buttons) or len(set(pad.buttons)) != 5:
+            if (len(pad.buttons) != 5 or any(b not in PAD_BITS for b in pad.buttons)
+                    or sum(PAD_BITS[b] for b in pad.buttons) != _or_bits(PAD_BITS[b] for b in pad.buttons)):  # no shared buttons
                 raise ValueError(f'Controller {n}: choose five different buttons.')
 
     def warnings(self) -> list[str]:
@@ -156,6 +164,11 @@ def from_dict(data: dict) -> Settings:
             if player.name == f'Gracz {n}':
                 player.name = f'Player {n}'
         values['pads'] = [Pad(**p) for p in values['pads']]
+        # Never-customised earlier defaults move to the current default layout.
+        for pad in values['pads']:
+            if list(pad.buttons) in (['START', 'Y', 'A', 'B', 'X'], ['RB', 'LEFT', 'DOWN', 'RIGHT', 'UP'],
+                                     ['LB', 'A', 'B', 'X', 'Y']):
+                pad.buttons = Pad().buttons
         settings = Settings(**values)
         settings.validate()
         return settings

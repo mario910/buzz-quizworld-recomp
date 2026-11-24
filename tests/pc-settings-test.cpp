@@ -67,7 +67,7 @@ int main() {
         {auto custom=next_window_size({1000,700},1);check(custom.width==0);check(next_window_size({1000,700},-1).width==3840);}
         check(next_render_scale(100,1)==150&&next_render_scale(300,1)==300&&next_render_scale(100,-1)==100);
         check(next_render_scale(175,-1)==150&&next_render_scale(175,1)==200);
-        menu.show(MenuPage::controllers);check(menu.rows()==8&&menu.tab()==MenuTab::controllers);
+        menu.show(MenuPage::controllers);check(menu.rows()==7&&menu.tab()==MenuTab::controllers);
         for(auto page:{MenuPage::bindings,MenuPage::pad_assignments,MenuPage::controller_options}){
             menu.show(page);menu.navigate(MenuAction::back);check(menu.open()&&menu.page()==MenuPage::controllers);
         }

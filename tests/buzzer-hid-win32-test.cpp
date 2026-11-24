@@ -14,15 +14,19 @@
 #include <vector>
 namespace {
 void check(bool b,const char* message){if(!b)throw std::runtime_error(message);}
-struct FakeDevice {HANDLE handle;unsigned vendor,product;std::wstring name;bool online=true;};
+struct FakeDevice {HANDLE handle;unsigned vendor,product;std::wstring name;bool online=true;USHORT usage=4;};
 std::vector<FakeDevice> fake_devices;
 std::array<uint32_t,2> fake_buttons{};
 std::array<bool,2> fake_online{};
+std::array<uint16_t,4> fake_pad_buttons{};
+std::array<bool,4> fake_pad_online{};
+unsigned pad_events=0;
 std::vector<uint8_t> fake_packet;
 unsigned register_count=0,remove_count=0,body_reads=0,button_events=0;
 bool fake_bad_caps=false;
 HANDLE device_handle(unsigned id){return reinterpret_cast<HANDLE>(uintptr_t(id));}
 FakeDevice* fake_device(HANDLE h){for(auto& d:fake_devices)if(d.handle==h&&d.online)return &d;return nullptr;}
+FakeDevice& fake_device_any(HANDLE h){for(auto& d:fake_devices)if(d.handle==h)return d;throw std::runtime_error("No such fake device");}
 BOOL fake_register(PCRAWINPUTDEVICE list,UINT count,UINT size){
     check(count==2&&size==sizeof(RAWINPUTDEVICE),"Registration dimensions");
     for(unsigned i=0;i<count;++i) {
@@ -43,7 +47,7 @@ UINT fake_info(HANDLE h,UINT command,LPVOID output,PUINT size){
     if(command==RIDI_DEVICEINFO){
         if(*size<sizeof(RID_DEVICE_INFO))return UINT(-1);
         auto& info=*static_cast<RID_DEVICE_INFO*>(output);check(info.cbSize==sizeof(info),"Device info cbSize");
-        info.dwType=RIM_TYPEHID;info.hid.dwVendorId=d->vendor;info.hid.dwProductId=d->product;info.hid.usUsagePage=1;info.hid.usUsage=4;
+        info.dwType=RIM_TYPEHID;info.hid.dwVendorId=d->vendor;info.hid.dwProductId=d->product;info.hid.usUsagePage=1;info.hid.usUsage=d->usage;
         return sizeof(info);
     }
     if(command==RIDI_DEVICENAME){UINT needed=UINT(d->name.size()+1);if(!output){*size=needed;return 0;}if(*size<needed)return UINT(-1);std::memcpy(output,d->name.c_str(),needed*sizeof(wchar_t));return needed;}
@@ -76,6 +80,18 @@ void make_packet(HANDLE device,const std::vector<uint32_t>& masks){
 }
 }
 void buzz_input_physical_state(unsigned slot,uint32_t buttons,bool online){check(slot<2,"Receiver slot bound");fake_buttons[slot]=buttons;fake_online[slot]=online;++button_events;}
+void buzz_input_hid_pad(unsigned index,uint16_t buttons,bool online){check(index<4,"Sony pad index bound");fake_pad_buttons[index]=buttons;fake_pad_online[index]=online;++pad_events;}
+// One RawInput packet holding several same-size reports, as Windows delivers them.
+void make_raw_packet(HANDLE device,const std::vector<std::vector<uint8_t>>& reports){
+    const auto offset=offsetof(RAWINPUT,data.hid.bRawData);const size_t stride=reports.at(0).size();
+    fake_packet.assign(offset+stride*reports.size(),0);
+    auto& packet=*reinterpret_cast<RAWINPUT*>(fake_packet.data());packet.header.dwType=RIM_TYPEHID;packet.header.dwSize=UINT(fake_packet.size());packet.header.hDevice=device;
+    packet.data.hid.dwCount=DWORD(reports.size());packet.data.hid.dwSizeHid=DWORD(stride);
+    for(size_t i=0;i<reports.size();++i){check(reports[i].size()==stride,"Equal report stride");std::memcpy(packet.data.hid.bRawData+i*stride,reports[i].data(),stride);}
+}
+std::vector<uint8_t> sony_report(uint8_t id,size_t size,size_t offset,uint8_t face,uint8_t shoulders){
+    std::vector<uint8_t> r(size,0x80);r[0]=id;r[offset]=face;r[offset+1]=shoulders;r[offset+2]=0;return r;
+}
 #define RegisterRawInputDevices fake_register
 #define GetRawInputDeviceList fake_list
 #define GetRawInputDeviceInfoW fake_info
@@ -125,8 +141,36 @@ int main(){try {
     send(a,{8});check(fake_buttons[0]==8&&fake_online[1],"Reconnect reclaims original slot");
     buzz_hid_host_shutdown();check(!buzz_hid_host_registered()&&!fake_online[0]&&!fake_online[1]&&remove_count==2,"Teardown removes only own joystick/gamepad registrations");
     fake_bad_caps=true;buzz_hid_host_message(window,WM_CREATE,0,0);check(!fake_online[0]&&!fake_online[1],"Incomplete descriptors are rejected");buzz_hid_host_shutdown();fake_bad_caps=false;
-    _putenv_s("BUZZ_PHYSICAL_BUZZERS","0");const auto prior=register_count;buzz_hid_host_message(window,WM_CREATE,0,0);
-    check(!buzz_hid_host_registered()&&register_count==prior,"Diagnostic disable never registers devices");buzz_hid_host_shutdown();
-    std::cout<<"PASS real RawInput adapter with synthetic APIs: bounded reports, descriptor validation, two receivers, focus-safe registration, hotplug, fault recovery and device filtering\n";
+    // DualShock 4 (USB) and DualSense (Bluetooth): read through the same
+    // registration, published as XInput-style buttons, never as receivers.
+    const auto ds4=device_handle(4),ds5=device_handle(5);
+    fake_devices.push_back({ds5,0x054c,0x0ce6,L"\\\\?\\HID#{00001124-0000-1000-8000-00805F9B34FB}_VID&0002054C_PID&0CE6#9&1&0000",true,5});
+    fake_devices.push_back({ds4,0x054c,0x05c4,L"\\\\?\\HID#VID_054C&PID_05C4#8&1&0000",true,5});
+    buzz_hid_host_message(window,WM_CREATE,0,0);
+    check(fake_online[0]&&fake_online[1]&&fake_pad_online[0]&&fake_pad_online[1]&&!fake_pad_online[2],"Receivers and both Sony pads attached");
+    const auto receiver_events=button_events;
+    auto send_pad=[&](HANDLE h,std::vector<std::vector<uint8_t>> reports){make_raw_packet(h,reports);buzz_hid_host_message(window,WM_INPUT,0,123);};
+    send_pad(ds4,{sony_report(0x01,64,5,0x08,0x02)});check(fake_pad_buttons[0]==0x200&&!fake_pad_buttons[1],"DS4 USB R1 -> RB on sorted index 0");
+    send_pad(ds4,{sony_report(0x01,64,5,0x00,0x00),sony_report(0x01,64,5,0x28,0x00)});check(fake_pad_buttons[0]==0x1000,"Several DS4 reports per packet: last state wins");
+    send_pad(ds5,{sony_report(0x31,78,9,0x06,0x20)});check(fake_pad_buttons[1]==(0x4|0x10),"DualSense Bluetooth full report: left + Options");
+    send_pad(ds5,{sony_report(0x01,78,5,0x08,0x01)});check(fake_pad_buttons[1]==0x100,"DualSense Bluetooth simple report: L1");
+    const auto before_unrelated=pad_events;send_pad(ds5,{sony_report(0x05,78,9,0x00,0xff)});
+    check(pad_events==before_unrelated&&fake_pad_buttons[1]==0x100,"Unrelated pad reports keep the previous state");
+    check(button_events==receiver_events&&fake_buttons[0]==0&&fake_buttons[1]==0,"Pad input never reaches buzz receivers");
+    make_raw_packet(ds4,{sony_report(0x01,64,5,0x28,0x00)});reinterpret_cast<RAWINPUT*>(fake_packet.data())->data.hid.dwCount=999999;
+    buzz_hid_host_message(window,WM_INPUT,0,123);check(fake_pad_online[0]&&fake_pad_buttons[0]==0,"Malformed pad packet releases buttons, keeps the pad");
+    send_pad(ds4,{sony_report(0x01,64,5,0x28,0x00)});check(fake_pad_buttons[0]==0x1000,"Next valid report recovers the pad");
+    fake_device(ds4)->online=false;buzz_hid_host_message(window,WM_INPUT_DEVICE_CHANGE,GIDC_REMOVAL,reinterpret_cast<intptr_t>(ds4));
+    check(!fake_pad_online[0]&&fake_pad_buttons[0]==0&&fake_pad_online[1]&&fake_online[0],"Unplugging the DS4 leaves the rest");
+    fake_device_any(ds4).online=true;buzz_hid_host_message(window,WM_INPUT_DEVICE_CHANGE,GIDC_ARRIVAL,reinterpret_cast<intptr_t>(ds4));
+    check(fake_pad_online[0],"Replug reclaims the same pad index");
+    buzz_hid_host_shutdown();check(!fake_pad_online[0]&&!fake_pad_online[1],"Teardown disconnects Sony pads");
+    _putenv_s("BUZZ_SONY_PADS","0");buzz_hid_host_message(window,WM_CREATE,0,0);
+    check(fake_online[0]&&!fake_pad_online[0]&&!fake_pad_online[1],"BUZZ_SONY_PADS=0 keeps only receivers");buzz_hid_host_shutdown();
+    _putenv_s("BUZZ_SONY_PADS","");_putenv_s("BUZZ_PHYSICAL_BUZZERS","0");buzz_hid_host_message(window,WM_CREATE,0,0);
+    check(buzz_hid_host_registered()&&!fake_online[0]&&!fake_online[1]&&fake_pad_online[0]&&fake_pad_online[1],"Disabling receivers keeps Sony pads");buzz_hid_host_shutdown();
+    _putenv_s("BUZZ_SONY_PADS","0");const auto prior=register_count;buzz_hid_host_message(window,WM_CREATE,0,0);
+    check(!buzz_hid_host_registered()&&register_count==prior,"Diagnostic disable of both never registers devices");buzz_hid_host_shutdown();
+    std::cout<<"PASS real RawInput adapter with synthetic APIs: bounded reports, descriptor validation, two receivers, focus-safe registration, hotplug, fault recovery, device filtering and DualShock 4/DualSense pads\n";
     return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
