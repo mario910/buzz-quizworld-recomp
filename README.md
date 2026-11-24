@@ -5,9 +5,14 @@ Windows and Linux x86-64, with an experimental EU 1.00 Android ARM64 target.
 Vulkan is the standalone renderer, with Direct3D 12
 available for Windows developer builds. Startup films, menus, audio and
 single-player rounds have run in the Windows tests.
-**Original-disc EU and US 1.00 are the primary development and optimization
-targets. Start with 1.00; no game update is needed.** These releases use their
-own hash-bound PPU adapters and share byte-identical SPU programs. The qualified
+
+**Use the original 1.00 disc version (EU or US) for play and performance testing.**
+Leave **Game update (optional)** empty in Buzz Prepare. On Steam Deck, EU 1.02
+ran slower in a four-player *Trigger Finger* round. Over the same 58-second
+window at 1280×720 with the frame rate uncapped, EU 1.00 averaged **41.0 FPS**
+and EU 1.02 averaged **20.7 FPS**. The runs drew different questions and camera shots.
+
+The 1.00 releases use their own hash-bound PPU adapters and share byte-identical SPU programs. The qualified
 Windows/Vulkan/AVX2 builds enable full native geometry and animation for both.
 Windows and Linux preparation enable Vulkan renderer optimizations by default
 for every supported edition, including EU 1.02. Preparation matches the PPU kernels to the local game code. EU 1.02 maps all
