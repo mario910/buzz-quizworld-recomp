@@ -248,6 +248,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 
 | Switch | Source default | Meaning / defining source |
 |---|---|---|
+| `PORT_REGIONAL_STUDIO` | `OFF` | Regional PPU translations include the studio dispatcher ([source](../port/CMakeLists.txt)) |
 | `BUZZ_ANDROID_SHADER_CONTEXT_CHECKS` | `OFF` | Run expensive SPIRV-Tools debug IR consistency checks ([source](../port/CMakeLists.txt)) |
 | `BUZZ_EXPERIMENTAL_VULKAN` | `OFF` | Developer-only Vulkan game build; keep outside build-windows ([source](../port/CMakeLists.txt)) |
 | `PORT_ENABLE_SPU` | `ON` | Compile and register the title's lifted SPU images ([source](../port/CMakeLists.txt)) |
@@ -277,6 +278,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_HOST_COMMANDS` | `OFF` | Build and publish geometry command packets with host integer control ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_ZERO_VERTEX_PADDING` | `OFF` | Zero unindexed vertex alignment bytes instead of evaluating a padding vertex ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
+| `PORT_REGIONAL_PPU_SOURCES` | `empty` | Reviewed regional PPU translation units ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_INPUTS` | `empty` | Input files to scan for all embedded SPU ELF programs (semicolon-separated decrypted ELF/PRX/data paths) ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_OPT` | `-O2` | Optimization level of the lifted SPU TUs ([source](../port/CMakeLists.txt)) |
@@ -313,12 +315,12 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_SPU_DIRECT_HOPS` | `${BUZZ_ZEN2_TUNE}` | Direct tail calls between lifted SPU job fragments ([source](../cmake/BuzzSpuDirectHops.cmake)) |
 | `BUZZ_SPU_WRCH_INLINE` | `OFF` | Inline MFC parameter channel writes in lifted SPU sources ([source](../cmake/BuzzSpuDirectHops.cmake)) |
 | `BUZZ_SPU_JOB_RETURN` | `OFF` | Complete admitted SPURS job-manager returns on the native driver stack ([source](../cmake/BuzzSpuJobReturn.cmake)) |
-| `BUZZ_SPU_WRCH_WRAP` | `OFF` | Link-time fast front for MFC parameter channel writes ([source](../cmake/BuzzSpuWrchWrap.cmake)) |
 | `BUZZ_SPURS_EXECUTION_TRACE` | `OFF` | Diagnostic SPURS execution CPU counters and native-thread channel waits ([source](../cmake/BuzzSpursExecutionTrace.cmake)) |
 | `BUZZ_SPURS_INPUT_CLEAR` | `OFF` | Skip clearing SPURS input bytes immediately overwritten by staging ([source](../cmake/BuzzSpursInputClear.cmake)) |
 | `BUZZ_SPURS_POOL_LAYOUT` | `OFF` | Separate SPURS polling and bookkeeping cache lines ([source](../cmake/BuzzSpursPoolLayout.cmake)) |
 | `BUZZ_SPURS_POOL_AUTO_SPIN_US` | `-1` | Automatic SPURS worker poll on 12+ logical CPUs (-1: SDK policy, 0..1000 us) ([source](../cmake/BuzzSpursPoolSpin.cmake)) |
 | `BUZZ_SPURS_IDLE_SPIN_US` | `-1` | Experimental SPURS idle polling in microseconds (-1: SDK policy, 0..1000: override) ([source](../cmake/BuzzSpursWaits.cmake)) |
+| `BUZZ_SPU_WRCH_WRAP` | `OFF` | Link-time fast front for MFC parameter channel writes ([source](../cmake/BuzzSpuWrchWrap.cmake)) |
 | `BUZZ_VK_BATCH_UPLOAD` | `OFF` | Queue immutable texture uploads with draw batches ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_VK_DESCRIPTOR_BATCH` | `OFF` | Reuse retired immutable draw descriptor sets ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_VK_DESCRIPTOR_WRITES` | `OFF` | Skip unchanged bindings of retired draw descriptor sets ([source](../cmake/BuzzVulkanUpload.cmake)) |
