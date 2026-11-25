@@ -23,13 +23,20 @@ int main(int argc,char** argv) {
         check(settings_json(settings_from_json(settings_json(s)))==settings_json(s),"Settings roundtrip");
         auto bad=settings_json(s);bad["version"]=true;rejects([&]{settings_from_json(bad);});
         bad=settings_json(s);bad["players"][0]["keys"][1]="Space";rejects([&]{settings_from_json(bad);});
-        bad=settings_json(s);bad["pads"][0]["player"]=0;bad["pads"][1]["player"]=0;rejects([&]{settings_from_json(bad);});
-        // Defaults: eight players, every pad takes the first free player when used.
-        check(Settings{}.places==8&&Settings{}.pads[3].player==pad_auto,"Expected 8-player automatic defaults");
-        check(settings_json(Settings{})["pads"][0]["player"]=="auto"&&settings_from_json(settings_json(Settings{})).pads[2].player==pad_auto,"AUTO pad JSON round trip");
-        check(input_ini(Settings{}).find("gamepad.1=AUTO,")!=std::string::npos,"AUTO pad input.ini");
-        s.players[0].name="Adam żółć";s.pads[0].player=-1;
-        auto config=input_config(s);check(config.keys[0][1]==52&&config.pad_player[0]==-1,"INI/game parser parity");
+        bad=settings_json(s);bad["pad_buttons"][1]="LB+RB";rejects([&]{settings_from_json(bad);});
+        // Defaults: eight players and one shared gamepad layout; pads have no player.
+        check(Settings{}.places==8&&Settings{}.pad_buttons==default_pad_buttons,"Expected 8 players and the default pad layout");
+        check(settings_json(Settings{})["pad_buttons"][0]=="LB+RB"&&!settings_json(Settings{}).contains("pads"),"Shared pad layout JSON");
+        check(input_ini(Settings{}).find("\ngamepad=LB+RB,A,B,X,Y\n")!=std::string::npos&&input_ini(Settings{}).find("gamepad.1")==std::string::npos,"Shared pad layout input.ini");
+        {   // An older launcher file with per-slot pads: slot 1's buttons, players dropped.
+            auto legacy=settings_json(Settings{});legacy.erase("pad_buttons");
+            legacy["pads"]=Json::array();
+            for(int i=0;i<4;++i)legacy["pads"].push_back({{"player",i},{"buttons",i?Json::array({"START","Y","A","B","X"}):Json::array({"LB","RB","B","X","Y"})}});
+            auto old=settings_from_json(legacy);
+            check(old.pad_buttons==std::array<std::string,5>{"LB","RB","B","X","Y"},"Legacy per-slot pads import slot 1's layout");
+        }
+        s.players[0].name="Adam żółć";
+        auto config=input_config(s);check(config.keys[0][1]==52&&config.pad_buttons[0]==0x300,"INI/game parser parity");
         check(settings_from_json(settings_json(s)).players[0].name==s.players[0].name,"Unicode JSON roundtrip");
         check(sha256_text("abc")=="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","SHA256 vector");
         check(identify("BCES00647",elf100).family=="quizworld-eu100","EU profile");

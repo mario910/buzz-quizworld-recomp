@@ -29,16 +29,20 @@ class NativeLauncherMigrationTests(unittest.TestCase):
             result = self.oracle(asdict(settings))
             self.assertEqual(result.returncode, 0, result.stderr)
             native = json.loads(result.stdout)
-            self.assertEqual(native['settings'], asdict(settings))
-            # Comments identify the writer; all values must be identical.
-            values = lambda text: [s for s in text.splitlines() if s and not s.startswith('#')]
+            # The native launcher keeps one shared pad layout (no per-slot players);
+            # everything else must match the Python launcher exactly.
+            expected = asdict(settings); pads = expected.pop('pads')
+            got = dict(native['settings']); self.assertEqual(got.pop('pad_buttons'), pads[1]['buttons'])
+            self.assertEqual(got, expected)
+            # Comments identify the writer; all non-gamepad values must be identical.
+            values = lambda text: [s for s in text.splitlines() if s and not s.startswith('#') and not s.startswith('gamepad')]
             self.assertEqual(values(native['input_ini']), values(settings.input_ini()))
 
     def test_invalid_config_is_not_silently_repaired(self):
         for mutate in (lambda d: d.update(version=True),
                        lambda d: d.update(pulse_ms=9),
                        lambda d: d['players'][0]['keys'].__setitem__(1, 'Space'),
-                       lambda d: d['pads'][1].update(player=0)):
+                       lambda d: d['pads'][0]['buttons'].__setitem__(1, 'LB+RB')):
             data = asdict(model.Settings())
             mutate(data)
             result = self.oracle(data)

@@ -12,5 +12,6 @@ buzz_pc::Preferences buzz_pc_requested_preferences();
 // The internal resolution this run renders at (fixed at startup).
 unsigned buzz_pc_active_render_scale();
 bool buzz_pc_performance_overlay_enabled();
+bool buzz_pc_button_hints_enabled(); // live "button_hints" preference, lock-free
 buzz_pc::Change buzz_pc_apply_preferences(const buzz_pc::Preferences&,bool persist);
 bool buzz_pc_save_input_preferences(const buzz_input::Config&,std::string& error);

@@ -22,14 +22,14 @@ int main(){try {
 
     buzz_pc::Preferences preferences;preferences.volume_percent=43;preferences.offline=false;preferences.fullscreen=true;
     auto controls=buzz_input::defaults();controls.players=8;controls.pulse_ms=310;
-    controls.pad_player[0]=4;controls.pad_buttons[1][0]=0x10; // keep a legacy custom START binding
+    controls.pad_buttons[0]=0x10; // keep a custom START binding
     controls.keys[4]={112,113,114,115,116};controls.background_gamepads=true;
     std::string text,error;check(buzz_input_format_config(controls,text,error),"Synthetic in-game controls");
     atomic_text(pc,buzz_pc::serialize(preferences));atomic_text(input,text);
     auto imported=load_settings(root);
     check(imported.pc==preferences&&!imported.offline&&imported.places==8&&imported.pulse_ms==310,"Import in-game audio/video and input");
     check(imported.players[0].name==legacy.players[0].name&&imported.paths==legacy.paths&&imported.background,"Keep launcher-only fields");
-    check(imported.pads[0].player==4&&imported.pads[1].buttons[0]=="START"&&imported.players[4].keys[0]=="F1","Keep assignments and custom mappings");
+    check(imported.pad_buttons[0]=="START"&&imported.players[4].keys[0]=="F1","Keep custom mappings");
     check(input_config(imported).background_gamepads,"Preserve focused/background controller policy");
     check(read_text(json)==original_json,"Read-only import preserves legacy JSON");
 
@@ -37,7 +37,7 @@ int main(){try {
     save_shared_settings(root,imported);
     auto reloaded=load_settings(root);
     check(reloaded.pc.volume_percent==72&&reloaded.pc.fps_limit==60&&reloaded.pc.offline&&reloaded.offline,"Launcher changes are shared with the game");
-    check(reloaded.players[0].keys[0]=="F8"&&reloaded.pads[1].buttons[0]=="START","Controller changes survive a new load");
+    check(reloaded.players[0].keys[0]=="F8"&&reloaded.pad_buttons[0]=="START","Controller changes survive a new load");
     check(read_text(json)==original_json,"Canonical save leaves legacy labels and paths untouched");
 
     const auto old_input=read_text(input);auto stale=reloaded;

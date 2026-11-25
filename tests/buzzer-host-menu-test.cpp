@@ -130,10 +130,12 @@ int main(){try {
     test_pads.fill(0);poll();
     test_pads[0]=0x100;check((poll()&1)==1,"Pads stay on despite legacy gamepads=0; LB is red");
     test_pads.fill(0);poll();
-    check(buzz_input_reconfigure("gamepad.1=NONE\n",error),"Unassign slot 1");poll();
-    test_pads[0]=0x100;check(poll()==0,"An unassigned slot answers nothing");
+    // Pads cannot be unassigned any more: an old "NONE" slot is ignored.
+    check(buzz_input_reconfigure("gamepad.1=NONE\n",error),"Old unassigned slot still parses");poll();
+    test_pads[0]=0x100;check((poll()&1)==1,"An old NONE slot does not switch a pad off");
     test_pads.fill(0);poll();
-    check(buzz_input_reconfigure("gamepad.1=1,LB,A,B,X,Y\n",error),"Reassign slot 1");poll();
+    check(buzz_input_reconfigure("gamepad=LB,A,B,X,Y\n",error),"Shared layout");poll();
+    test_pads[1]=0x100;check((poll()&1)==1,"The shared layout applies to every pad");test_pads[1]=0;poll();
     test_pads[0]=0x100;check((poll()&1)==1,"Reassigned LB");
     test_focused=false;check(poll()==0,"Unfocused XInput cannot retain answers");
     test_focused=true;test_connected[0]=false;check(poll()==0,"Disconnect clears the controller");

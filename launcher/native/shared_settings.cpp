@@ -16,12 +16,9 @@ void import_input(Settings& s,const buzz_input::Config& c) {
     s.places=int(c.players);s.pulse_ms=int(c.pulse_ms);
     s.gamepads=true;s.background_gamepads=c.background_gamepads;
     for(unsigned p=0;p<8;++p)for(unsigned b=0;b<5;++b)s.players[p].keys[b]=key_label(c.keys[p][b]);
-    for(unsigned slot=0;slot<4;++slot) {
-        s.pads[slot].player=c.pad_player[slot];
-        for(unsigned b=0;b<5;++b) {
-            const char* label=buzz_input::pad_button_name(c.pad_buttons[slot][b]);
-            check(label!=nullptr,"Unknown saved controller button");s.pads[slot].buttons[b]=label;
-        }
+    for(unsigned b=0;b<5;++b) {
+        const char* label=buzz_input::pad_button_name(c.pad_buttons[b]);
+        check(label!=nullptr,"Unknown saved controller button");s.pad_buttons[b]=label;
     }
 }
 }

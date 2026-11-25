@@ -56,14 +56,14 @@ int main(){try {
     // Default buzzer preset (RPCS3/PCSX2): L1 or R1 red, Triangle/Square/Circle/Cross
     // = blue/orange/green/yellow, the handset's colours from top to bottom.
     const auto defaults=buzz_input::defaults();
-    const auto& map=defaults.pad_buttons[0];
+    const auto& map=defaults.pad_buttons;
     check(buzz_input::map_pad(to_xinput(8,0x01),map)==1u<<buzz_input::red,"L1 is red");
     check(buzz_input::map_pad(to_xinput(8,0x02),map)==1u<<buzz_input::red,"R1 is red too");
     check(buzz_input::map_pad(to_xinput(0x88,0),map)==1u<<buzz_input::blue,"Triangle is blue");
     check(buzz_input::map_pad(to_xinput(0x18,0),map)==1u<<buzz_input::orange,"Square is orange");
     check(buzz_input::map_pad(to_xinput(0x48,0),map)==1u<<buzz_input::green,"Circle is green");
     check(buzz_input::map_pad(to_xinput(0x28,0),map)==1u<<buzz_input::yellow,"Cross is yellow");
-    check(buzz_input::map_pad(to_xinput(8,0x20),defaults.pad_buttons[0])==0,"Options (START) stays reserved for the PC menu");
+    check(buzz_input::map_pad(to_xinput(8,0x20),defaults.pad_buttons)==0,"Options (START) stays reserved for the PC menu");
 
     using buzz_input::pick_pad_slot;
     check(pick_pad_slot(0)==0&&pick_pad_slot(0b0001)==1&&pick_pad_slot(0b1011)==2&&pick_pad_slot(0b0111)==3,"Lowest free slot");

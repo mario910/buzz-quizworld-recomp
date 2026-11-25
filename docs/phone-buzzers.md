@@ -44,8 +44,9 @@ it, in press order. Outside that screen an unjoined keyboard set or pad drives
 P1 for the menus (for example the language choice) unless a joined device holds
 P1; unjoined phones stay idle. When the screen closes, places that did not join
 in the game are released; unplugging a pad also frees its place. Settings saved
-with the old fixed layout (pad 1-4 = player 1-4) switch to AUTO when loaded;
-Controls → Assign controllers to players also offers fixed players or Unassigned. Phones, keyboard, XInput and physical
+from older builds with per-pad players load with those players dropped; all
+pads share one button layout (Controls → Keyboard and pad bindings → Gamepads).
+Phones, keyboard, XInput and physical
 buzzers can be mixed. Inputs assigned to the same player are combined; give each
 person their own player number. Phones work when the PC window lacks focus.
 PC settings still suppress phone gameplay input while the menu is open.

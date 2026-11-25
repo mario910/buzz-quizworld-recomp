@@ -80,16 +80,15 @@ keyboard.3=A,G,F,D,S
 keyboard.4=Z,B,V,C,X
 gamepads=1
 background_gamepads=0
-gamepad.1=1,LB+RB,A,B,X,Y
-gamepad.2=2,LB+RB,A,B,X,Y
-gamepad.3=3,LB+RB,A,B,X,Y
-gamepad.4=4,LB+RB,A,B,X,Y
+gamepad=LB+RB,A,B,X,Y
 ```
 
 Game controller support is always on; there is no switch to turn it off.
 `gamepads=0` in older files is accepted and ignored, and saved files always
-write `gamepads=1`. Use `gamepad.N=NONE` to leave an individual slot unassigned;
-the PC launcher uses this for unassigned controllers.
+write `gamepads=1`. `gamepad=` is the one button layout every controller shares;
+controllers have no fixed player and join on the game's player screen. Older
+files with per-slot `gamepad.N=player,buttons` lines still load: the lowest
+slot's buttons become the shared layout and the players (and `NONE`) are dropped.
 
 Keyboard tokens: A–Z, 0–9, Space, Enter, Tab, Esc, Backspace, arrows,
 LShift/RShift, LCtrl/RCtrl, F1–F24, numeric VK codes such as 0x60, or NONE.
@@ -108,10 +107,10 @@ four players; their historical format has not been silently widened.
 ## Controllers
 
 The Windows provider uses XInput 1.4 (always enabled), loaded
-from the system directory, not the working directory. Four XInput slots can be
-assigned to any four logical players. Slot N corresponds to `gamepad.N+1` in
-the file. XInput itself supports only four controllers; eight logical players
-do not mean eight physical XInput pads. [Microsoft XInput documentation](https://learn.microsoft.com/en-us/windows/win32/xinput/getting-started-with-xinput).
+from the system directory, not the working directory. Up to four controllers
+are read at once (XInput itself supports only four); eight logical players do
+not mean eight physical pads. Every controller uses the same `gamepad=` layout
+and takes a player when it joins on the game's player screen. [Microsoft XInput documentation](https://learn.microsoft.com/en-us/windows/win32/xinput/getting-started-with-xinput).
 
 PlayStation DualShock 4 (054C:05C4/09CC) and DualSense / DualSense Edge
 (054C:0CE6/0DF2) are not XInput devices, so XInput alone never sees them. The

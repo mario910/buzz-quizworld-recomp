@@ -182,7 +182,8 @@ class LauncherTests(unittest.TestCase):
             parsed=json.loads(result.stdout)
             self.assertEqual(parsed['players'],places)
             self.assertEqual(parsed['keys'],[[model.key_code(k) for k in p.keys] for p in settings.players])
-            self.assertEqual(parsed['pad_players'],[-1,1,2,3])
+            # The game keeps one shared layout: the lowest assigned slot's buttons.
+            self.assertEqual(parsed['pad_buttons'],[model.PAD_BITS[b] for b in settings.pads[1].buttons])
 
     def test_native_adapter_unicode_config(self):
         adapter=os.environ.get('BUZZ_INPUT_ADAPTER_CHECK')

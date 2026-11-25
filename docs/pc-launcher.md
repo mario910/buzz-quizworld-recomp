@@ -118,12 +118,13 @@ Save, resets a customised mapping.
   background game start. Hash checks run off the UI thread; editing is disabled
   while a check is in progress.
 - **Controls:** 4/8 logical buzzers, player labels, five keyboard buttons,
-  transactional recording of five keys, tap retention, and four controller-slot
-  assignments. Duplicate buttons within a handset are rejected; incomplete or
+  transactional recording of five keys, tap retention, and one button layout
+  shared by every controller (controllers have no fixed player: each joins on
+  the game's player screen). Duplicate buttons within a handset are rejected; incomplete or
   shared-key mappings require confirmation before Play.
-- **Button test:** show raw held buttons and identify a controller with START.
-  No desktop injection/global keyboard hooks; input is observed only while the
-  launcher is focused. Recording/identification is canceled on focus loss.
+- **Button test:** show the keyboard buzzers and each connected controller's
+  colours under the shared layout. No desktop injection/global keyboard hooks;
+  input is observed only while the launcher is focused. Recording is canceled on focus loss.
 
 Player labels do not rename in-game profiles. Eight logical handsets do not
 imply eight physical gamepads or force eight contestants into the selected mode.
@@ -137,8 +138,9 @@ and stores its bindings through the in-game menu.
 The in-game settings menu has five tabs. **General, Display, Graphics, Controls,
 and Phones** share a fixed footer with **Save settings, Resume game, and Quit**.
 On supported builds, **Graphics** includes live switches for studio floor
-reflections, bloom and extra audience lighting alongside the texture options. Controller assignments,
-advanced input options, bindings, and paired phones use short subpages with a
+reflections, bloom and extra audience lighting alongside the texture options. Controls has
+button hints on the answers (on/off); advanced input options, bindings (keyboard
+sets and the one gamepad layout) and paired phones use short subpages with a
 Back option. Settings are applied and saved exactly as before.
 
 Open with **Escape / controller START**. With a physical buzzer or any player's
@@ -197,7 +199,7 @@ you select the new preset. The keyboard uses arrows, Enter/Space and Backspace;
 controllers use D-pad, A/R1 to select and B to go back. Mouse buttons also work.
 
 The purple/navy overlay has volume, a 30 / 60 / Uncapped frame limit, borderless fullscreen,
-restart-only offline mode, controller assignments, the R1/D-pad preset, tap
+restart-only offline mode, the gamepad layout and its L1/R1 preset, tap
 retention and a restart-only 4/8-buzzer count. It **does not pause the quiz**.
 Guest buzzer input is suppressed while open and held buttons must be released
 after closing/remapping before they can answer a question. Quit requires a

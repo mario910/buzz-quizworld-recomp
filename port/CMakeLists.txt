@@ -528,6 +528,7 @@ set(game_sources
     buzzer_input_config.cpp
     buzzer_input_win32.cpp
     buzzer_hid_win32.cpp
+    answer_hints.cpp
     pc_settings.cpp
     pc_runtime.cpp
     frame_limit.cpp

@@ -793,6 +793,7 @@ static void harness_guest_caller(uint32_t opd, uint64_t a0, uint64_t a1,
 
 #include "pc_runtime.h"
 #include "pc_overlay.h"
+#include "answer_hints.h"
 #include "spu_interp_counts.h"
 static int report_replay_interpreter_counts()
 {
@@ -1054,6 +1055,7 @@ int main(int argc, char** argv)
     buzz_pc_phone_initialize(buzz_input_players(),buzz_input_remote);
     buzz_register_frame_limit();
     buzz_pc_overlay_register();
+    buzz_hints::install(); // reads answer-board draws for the "button hints" setting
 
     /* Install the guest-callback hook, then start the frame clock. It no-ops
      * until the title registers its vblank and flip handlers during init. */

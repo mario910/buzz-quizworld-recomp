@@ -80,7 +80,7 @@ int main(){try {
     const auto saved_input=read(root/"input-settings.ini");
     auto parsed_input=buzz_input::defaults();check(buzz_input::parse_config(saved_input,parsed_input,input_error));
     check(parsed_input.keys==input.keys&&parsed_input.pad_buttons==input.pad_buttons&&parsed_input.pulse_ms==300);
-    input.pad_buttons[0][0]=0x1234;
+    input.pad_buttons[0]=0x1234;
     check(!buzz_pc_save_input_preferences(input,input_error)&&read(root/"input-settings.ini")==saved_input);
     p.volume_percent=10;check(!buzz_pc_apply_preferences(p,true).accepted&&ps3_host_get_volume()==20);
     std::cout<<"PASS runtime settings: Unicode persistence, live host controls, restart-only offline policy, unsupported renderer and failed-save transaction\n";

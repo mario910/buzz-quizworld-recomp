@@ -5,6 +5,7 @@
 #include <set>
 #include <sstream>
 #include <iomanip>
+#include <optional>
 #include <vector>
 
 namespace buzz_input {
@@ -20,9 +21,10 @@ bool format_config_impl(const buzz_input::Config& config,std::string& text,std::
         // gamepads=1 only keeps older builds (which could switch pads off) enabled.
         <<"\npulse_ms="<<config.pulse_ms<<"\ngamepads=1\nbackground_gamepads="<<config.background_gamepads<<'\n';
     for(unsigned p=0;p<8;++p){out<<"keyboard."<<p+1<<'=';for(unsigned b=0;b<5;++b){if(b)out<<',';if(config.keys[p][b])out<<"0x"<<std::hex<<config.keys[p][b]<<std::dec;else out<<"NONE";}out<<'\n';}
-    for(unsigned i=0;i<4;++i){out<<"gamepad."<<i+1<<'=';if(config.pad_player[i]==-1){out<<"NONE\n";continue;}
-        if(config.pad_player[i]==Config::pad_auto)out<<"AUTO";else out<<config.pad_player[i]+1;
-        for(auto button:config.pad_buttons[i]){const char* name=pad_button_name(button);if(!name){error="Unknown controller button";return false;}out<<','<<name;}out<<'\n';}
+    // One layout for every gamepad; pads have no fixed player.
+    out<<"gamepad=";
+    for(unsigned b=0;b<5;++b){const char* name=pad_button_name(config.pad_buttons[b]);if(!name){error="Unknown controller button";return false;}out<<(b?",":"")<<name;}
+    out<<'\n';
     auto candidate=buzz_input::defaults();const auto value=out.str();
     if(!buzz_input::parse_config(value,candidate,error))return false;
     text=value;error.clear();return true;
@@ -65,7 +67,7 @@ Config defaults(){
     // face buttons in the handset's top-to-bottom order: Triangle/Y blue,
     // Square/X orange, Circle/B green, Cross/A yellow. Wire order stays
     // red,yellow,green,orange,blue. START is reserved for the PC menu.
-    for(auto& mapping:c.pad_buttons)mapping={0x300,0x1000,0x2000,0x4000,0x8000};
+    c.pad_buttons={0x300,0x1000,0x2000,0x4000,0x8000};
     return c;
 }
 const char* pad_button_name(uint16_t button){for(const auto& entry:pad_names)if(entry.first==button)return entry.second;return nullptr;}
@@ -81,6 +83,17 @@ bool parse_keys(const std::string& text,std::array<unsigned,5>& keys){
 bool parse_config(const std::string& text,Config& config,std::string& error){
     if(text.size()>65536){error="input config exceeds 64 KiB";return false;}
     Config candidate=config;std::set<std::string> seen;std::istringstream input(text);
+    // Older per-slot lines ("gamepad.N=player,buttons"): the lowest slot's
+    // buttons become the shared layout unless "gamepad=" is present.
+    std::array<std::optional<std::array<uint16_t,5>>,4> legacy{};
+    auto pad_layout=[](const std::vector<std::string>& tokens,size_t first,std::array<uint16_t,5>& mapping){
+        if(tokens.size()!=first+5)return false;
+        // LB+RB is one entry covering both bumpers: colours may not share a button.
+        uint16_t used=0;
+        for(unsigned i=0;i<5;++i){mapping[i]=pad_button(tokens[first+i]);
+            if(!mapping[i]||(used&mapping[i]))return false;used|=mapping[i];}
+        return true;
+    };
     std::string line;unsigned line_no=0;
     while(std::getline(input,line)){
         ++line_no;
@@ -102,26 +115,23 @@ bool parse_config(const std::string& text,Config& config,std::string& error){
             if(name=="background_gamepads")candidate.background_gamepads=value=="1";
         }else if(name.rfind("keyboard.",0)==0){
             if(!number(name.substr(9),n,8)||!n||!parse_keys(value,candidate.keys[n-1]))return fail();
+        }else if(name=="gamepad"){
+            std::array<uint16_t,5> mapping{};
+            if(!pad_layout(split(value),0,mapping))return fail();
+            candidate.pad_buttons=mapping;
         }else if(name.rfind("gamepad.",0)==0){
             if(!number(name.substr(8),n,4)||!n)return fail();
-            if(value=="NONE"){candidate.pad_player[n-1]=-1;continue;}
+            if(value=="NONE")continue; // an unassigned slot from an older file
             auto tokens=split(value);unsigned player=0;
-            const bool automatic=tokens.size()==6&&tokens[0]=="AUTO";
-            if(tokens.size()!=6||(!automatic&&(!number(tokens[0],player,8)||!player)))return fail();
-            // LB+RB is one entry covering both bumpers: colours may not share a button.
-            std::array<uint16_t,5> mapping{};uint16_t used=0;
-            for(unsigned i=0;i<5;++i){mapping[i]=pad_button(tokens[i+1]);
-                if(!mapping[i]||(used&mapping[i]))return fail();used|=mapping[i];}
-            if(is_previous_default_pad_mapping(mapping))mapping=defaults().pad_buttons[n-1];
-            candidate.pad_player[n-1]=automatic?Config::pad_auto:int(player-1);candidate.pad_buttons[n-1]=mapping;
+            // The player (AUTO or 1-8) is validated, then dropped.
+            if(tokens.empty()||(tokens[0]!="AUTO"&&(!number(tokens[0],player,8)||!player)))return fail();
+            std::array<uint16_t,5> mapping{};
+            if(!pad_layout(tokens,1,mapping))return fail();
+            legacy[n-1]=mapping;
         }else return fail();
     }
-    // Before automatic slots, pads were fixed to players 1-4 (pad N -> PN), and
-    // older launchers still write that. A file whose four pads are exactly that
-    // layout never chose it: players join with whichever pad they press first.
-    if(seen.count("gamepad.1")&&seen.count("gamepad.2")&&seen.count("gamepad.3")&&seen.count("gamepad.4")&&
-       candidate.pad_player==std::array<int,4>{{0,1,2,3}})
-        candidate.pad_player.fill(Config::pad_auto);
+    if(!seen.count("gamepad"))for(const auto& mapping:legacy)if(mapping){candidate.pad_buttons=*mapping;break;}
+    if(is_previous_default_pad_mapping(candidate.pad_buttons))candidate.pad_buttons=defaults().pad_buttons;
     config=candidate;error.clear();return true;
 }
 bool is_previous_default_pad_mapping(const std::array<uint16_t,5>& mapping){

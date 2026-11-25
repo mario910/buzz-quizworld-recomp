@@ -5,7 +5,7 @@
 #include "buzzer_input.h"
 namespace buzz_pc {
 enum class MenuAction {toggle,up,down,left,right,accept,back};
-enum class MenuPage {settings,controllers,quit_confirm,phones,bindings,pad_assignments,controller_options,phone_seats};
+enum class MenuPage {settings,controllers,quit_confirm,phones,bindings,controller_options,phone_seats};
 enum class MenuTab {general,display,graphics,controllers,phones,count};
 inline constexpr const char* menu_tab_names[]={"General","Display","Graphics","Controls","Phones"};
 // Same five colours for physical handsets and configured keyboard buzzers.
@@ -90,7 +90,7 @@ public:
     int option_rows()const{
         if(page_==MenuPage::settings)return tab_==MenuTab::display?5:tab_==MenuTab::graphics?(studio_controls_?6:3):4;
         return page_==MenuPage::controllers?4:page_==MenuPage::phones?5:
-            page_==MenuPage::bindings?8:page_==MenuPage::pad_assignments?5:
+            page_==MenuPage::bindings?8:
             page_==MenuPage::controller_options?4:page_==MenuPage::phone_seats?9:2;
     }
     int rows()const{return option_rows()+(root()?3:0);}
@@ -118,7 +118,7 @@ public:
     }
     void back(){
         if(root()){focus_tabs();return;}
-        if(page_==MenuPage::bindings||page_==MenuPage::pad_assignments||page_==MenuPage::controller_options)set_tab(MenuTab::controllers);
+        if(page_==MenuPage::bindings||page_==MenuPage::controller_options)set_tab(MenuTab::controllers);
         else if(page_==MenuPage::phone_seats)set_tab(MenuTab::phones);
         else set_tab(tab_);
         enter_options();

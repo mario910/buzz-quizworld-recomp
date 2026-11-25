@@ -22,6 +22,7 @@ namespace fs=std::filesystem;
 std::unique_ptr<buzz_pc::State> state;
 std::mutex apply_mutex;
 std::atomic<bool> performance_overlay{false};
+std::atomic<bool> button_hints{true};
 fs::path preferences_file;
 buzz_pc::Preferences started_with; // settings this run started with (file or defaults)
 unsigned phone_players=8;
@@ -66,6 +67,7 @@ void save_phone_hosting(const buzz_pc::Preferences& p,const buzz_pc::Preferences
 void apply_live(const buzz_pc::Preferences& p) {
     buzz::active_studio_effects().store(p.studio_effects.value_or(buzz::default_studio_effects()),std::memory_order_relaxed);
     performance_overlay.store(p.performance_overlay,std::memory_order_relaxed);
+    button_hints.store(p.button_hints,std::memory_order_relaxed);
     ps3_host_set_volume(p.volume_percent);
     ps3_host_set_frame_limit(p.fps_limit);
     ps3_host_set_fullscreen(p.fullscreen);
@@ -144,6 +146,7 @@ bool buzz_pc_runtime_init() {
         }
         state=std::make_unique<buzz_pc::State>(p);started_with=p;
         performance_overlay.store(p.performance_overlay,std::memory_order_relaxed);
+        button_hints.store(p.button_hints,std::memory_order_relaxed);
         fprintf(stderr,"[pc-settings] configured=%d volume=%u%% cap=%u fullscreen=%d offline=%d window=%ux%u render_scale=%u%% texture_replace=%d texture_dump=%d texture_auto_upscale=%d\n",configured,p.volume_percent,p.fps_limit,p.fullscreen,p.offline,p.window_width,p.window_height,p.render_scale,p.texture_replace,p.texture_dump,p.texture_auto_upscale);
         return true;
     }catch(const std::exception& e){fprintf(stderr,"[pc-settings] %s\n",e.what());return false;}
@@ -151,6 +154,9 @@ bool buzz_pc_runtime_init() {
 buzz_pc::Preferences buzz_pc_requested_preferences() {
     std::lock_guard lock(apply_mutex);
     return state?state->requested():buzz_pc::Preferences{};
+}
+bool buzz_pc_button_hints_enabled() {
+    return button_hints.load(std::memory_order_relaxed);
 }
 bool buzz_pc_performance_overlay_enabled() {
     return performance_overlay.load(std::memory_order_relaxed);

@@ -139,12 +139,10 @@ bool join_was_open=false;
 std::atomic<bool> join_open_flag{false};
 void (*phone_release)(uint32_t,bool)=nullptr;
 uint32_t joined_in_game(){return uint32_t(join_watch[0].joined())|(uint32_t(join_watch[1].joined())<<4);}
-// fixed: also count pads set to a fixed player. Those share their player with
-// other inputs (as before), so they never block unjoined menu input on P1.
-uint32_t claimed_slots(bool fixed=true){
+uint32_t claimed_slots(){
     uint32_t mask=0;
     auto add=[&](int player){if(player>=0&&unsigned(player)<config.players)mask|=1u<<player;};
-    for(unsigned i=0;i<4;++i)add(config.pad_player[i]==buzz_input::Config::pad_auto?pad_auto_player[i]:(fixed&&connected[i]?config.pad_player[i]:-1));
+    for(int player:pad_auto_player)add(player);
     for(int player:key_player)add(player);
     return mask;
 }
@@ -189,7 +187,7 @@ bool may_claim(uint64_t now){return join_open(now)||orphans(now);}
 // Where an unjoined device's buttons go: P1 for menus outside the join screen,
 // unless another device or phone already holds P1; nowhere while joining.
 int unjoined_target(int device,bool pressed,bool open,uint64_t now){
-    if(open||((claimed_slots(false)|phone_slot_mask.load(std::memory_order_relaxed))&1))return -1;
+    if(open||((claimed_slots()|phone_slot_mask.load(std::memory_order_relaxed))&1))return -1;
     if(pressed){unjoined_last=device;unjoined_last_at=now;}
     return 0;
 }
@@ -344,6 +342,24 @@ bool buzz_input_host_pad_connected(unsigned slot){
     uint16_t buttons=0;
     return slot<4&&read_pad(slot,buttons);
 }
+// From the last poll (no device reads): cheap enough for every overlay frame.
+PadKind buzz_input_pad_kind(unsigned slot){
+    std::lock_guard lock(input_mutex);
+    if(slot>=4||!connected[slot])return PadKind::none;
+#ifdef _WIN32
+    for(unsigned i=0;i<4;++i)if(hid_online[i]&&hid_slot[i]==int(slot))return PadKind::playstation;
+    return PadKind::xbox;
+#else
+    if(auto* pad=pads[slot]) {
+        switch(SDL_GameControllerGetType(pad)) {
+        case SDL_CONTROLLER_TYPE_PS3: case SDL_CONTROLLER_TYPE_PS4: case SDL_CONTROLLER_TYPE_PS5:
+            return PadKind::playstation;
+        default: break;
+        }
+    }
+    return PadKind::xbox;
+#endif
+}
 void buzz_input_physical_state(unsigned receiver,uint32_t buttons,bool is_connected){
     if(receiver>=2)return;
     std::lock_guard lock(input_mutex);
@@ -420,9 +436,7 @@ uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones,bool& off
             if(!connected[i]&&now<next_connect[i])continue;
             uint16_t buttons=0;const bool found=read_pad(i,buttons);
             if(found!=connected[i]){
-                if(config.pad_player[i]==buzz_input::Config::pad_auto)
-                    fprintf(stderr,"[input] Gamepad slot %u %s (automatic player)\n",i,found?"connected":"disconnected");
-                else fprintf(stderr,"[input] Gamepad slot %u %s -> P%d\n",i,found?"connected":"disconnected",config.pad_player[i]+1);
+                fprintf(stderr,"[input] Gamepad slot %u %s (automatic player)\n",i,found?"connected":"disconnected");
                 connected[i]=found;
                 if(!found)pad_auto_player[i]=-1; // a reconnected pad takes the first free slot again
                 publish_pad_slots();
@@ -430,28 +444,24 @@ uint64_t poll_locked(uint32_t scripted_pulses,uint32_t& release_phones,bool& off
             if(!found){next_connect[i]=now+1000;router.release(buzz_input::gamepad0+i,true);continue;}
             // Legacy custom START bindings remain gameplay bindings. Only the
             // new preset reserves START; never steal a configured buzzer key.
-            const bool start_mapped=std::find(config.pad_buttons[i].begin(),config.pad_buttons[i].end(),uint16_t(0x10))!=config.pad_buttons[i].end();
+            const bool start_mapped=std::find(config.pad_buttons.begin(),config.pad_buttons.end(),uint16_t(0x10))!=config.pad_buttons.end();
             if(menu_enabled&&active&&!start_mapped&&(buttons&0x10)&&!(previous_pad_buttons[i]&0x10)) {
                 menu_requested=true;capture_locked(true);
             }
             previous_pad_buttons[i]=buttons;
-            if(config.pad_player[i]==-1){router.release(buzz_input::gamepad0+i,true);continue;}
             const auto source=buzz_input::gamepad0+i;
-            const auto mapped=buzz_input::map_pad(buttons,config.pad_buttons[i]);
-            int player=config.pad_player[i];
-            if(player==buzz_input::Config::pad_auto){
-                // A press on the game's player-join screen takes the first
-                // place no device, phone or joined player holds, and joins it.
-                const bool open=join_open(now);
-                if(pad_auto_player[i]<0&&mapped&&may_claim(now)&&!menu_captured){
-                    pad_auto_player[i]=claim_place(100+int(i),now);
-                    if(pad_auto_player[i]>=0){
-                        fprintf(stderr,"[input] Gamepad slot %u joined -> P%d\n",i,pad_auto_player[i]+1);
-                        publish_pad_slots();
-                    }
+            const auto mapped=buzz_input::map_pad(buttons,config.pad_buttons);
+            // A press on the game's player-join screen takes the first place
+            // no device, phone or joined player holds, and joins it.
+            const bool open=join_open(now);
+            if(pad_auto_player[i]<0&&mapped&&may_claim(now)&&!menu_captured){
+                pad_auto_player[i]=claim_place(100+int(i),now);
+                if(pad_auto_player[i]>=0){
+                    fprintf(stderr,"[input] Gamepad slot %u joined -> P%d\n",i,pad_auto_player[i]+1);
+                    publish_pad_slots();
                 }
-                player=pad_auto_player[i]>=0?pad_auto_player[i]:unjoined_target(100+int(i),mapped!=0,open,now);
             }
+            const int player=pad_auto_player[i]>=0?pad_auto_player[i]:unjoined_target(100+int(i),mapped!=0,open,now);
             const auto raw=player>=0&&unsigned(player)<config.players ? buzz_input::bits(unsigned(player),mapped):0;
             router.state(source,menu_gates[source].filter(raw),now);
         }

@@ -8,7 +8,7 @@ int main(){
     std::cout<<"{\"players\":"<<config.players<<",\"keys\":[";
     for(unsigned p=0;p<8;++p){if(p)std::cout<<',';std::cout<<'[';
         for(unsigned b=0;b<5;++b){if(b)std::cout<<',';std::cout<<config.keys[p][b];}std::cout<<']';}
-    std::cout<<"],\"pad_players\":[";
-    for(unsigned n=0;n<4;++n){if(n)std::cout<<',';std::cout<<config.pad_player[n];}
+    std::cout<<"],\"pad_buttons\":["; // the one layout every gamepad shares
+    for(unsigned b=0;b<5;++b){if(b)std::cout<<',';std::cout<<config.pad_buttons[b];}
     std::cout<<"]}\n";
 }

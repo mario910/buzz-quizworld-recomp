@@ -14,6 +14,8 @@ struct Preferences {
     unsigned volume_percent = 100;
     unsigned fps_limit = 30; // 0 (uncapped), 30 or 60; not a simulation-speed knob.
     bool performance_overlay = false; // Live, non-interactive FPS/draw/resolution HUD.
+    // Controller button icons beside the answer boards (port/answer_hints.h). Live.
+    bool button_hints = true;
     std::optional<unsigned> studio_effects; // Unset inherits BUZZ_STUDIO_DETAIL.
     bool fullscreen = false; // Borderless at the desktop resolution of the window's monitor.
     // Windowed client size in physical pixels. 0x0 keeps the backend's own

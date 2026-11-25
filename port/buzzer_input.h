@@ -80,21 +80,19 @@ struct Config {
     // Eight player slots by default; four remains available (restart).
     unsigned players=8, pulse_ms=250;
     // Gamepad support is always on. Older files may still carry gamepads=0/1;
-    // the parser accepts and ignores it. Unassign a slot with gamepad.N=NONE.
+    // the parser accepts and ignores it.
     bool background_gamepads=false;
     std::array<std::array<unsigned,5>,8> keys{};
-    // XInput slots 0..3; each may be assigned to any one logical player,
-    // pad_auto (default: the first free player when the pad is first used,
-    // released when it disconnects) or -1 (unassigned).
-    static constexpr int pad_auto=-2;
-    std::array<int,4> pad_player{{pad_auto,pad_auto,pad_auto,pad_auto}};
-    std::array<std::array<uint16_t,5>,4> pad_buttons{};
+    // One button layout shared by every gamepad (saved as "gamepad="). Pads
+    // have no fixed player: each joins on the game's player screen.
+    std::array<uint16_t,5> pad_buttons{};
 };
 Config defaults();
 // Strict, transactional parser: unknown/duplicate entries and invalid mappings
 // are errors; no partially applied configuration escapes on failure.
-// Migrations: button mappings equal to an earlier default become the current
-// default; four pads on the old fixed layout (players 1-4) become AUTO.
+// Older files with per-slot "gamepad.N=player,buttons" lines still load: the
+// lowest slot's buttons become the shared layout and the players are dropped.
+// A layout equal to an earlier default becomes the current default.
 bool parse_config(const std::string& text,Config& config,std::string& error);
 bool parse_keys(const std::string& text,std::array<unsigned,5>& keys);
 uint8_t map_pad(uint16_t buttons,const std::array<uint16_t,5>& mapping);
@@ -125,6 +123,9 @@ buzz_input::Config buzz_input_current_config();
 bool buzz_input_take_menu_request();
 void buzz_input_enable_menu(bool enabled);
 uint16_t buzz_input_host_pad_buttons(unsigned slot); // focused host input, not guest input
+// What is connected in a gamepad slot, for on-screen button symbols.
+enum class PadKind : unsigned { none, xbox, playstation };
+PadKind buzz_input_pad_kind(unsigned slot);
 bool buzz_input_host_pad_connected(unsigned slot);
 bool buzz_input_format_config(const buzz_input::Config&,std::string& ini,std::string& error);
 // Automatic player slots. Keyboard key sets, AUTO pads and phones are equal

@@ -9,7 +9,7 @@ int main(int argc,char** argv){
     buzz_input_enable_menu(true);
     assert(!buzz_input_take_menu_request());
     const auto initial_config=buzz_input_current_config();
-    assert(initial_config.pad_buttons[0][0]==0x300); // LB or RB = red; START reserved
+    assert(initial_config.pad_buttons[0]==0x300); // LB or RB = red; START reserved
     assert(buzz_input_players()==unsigned(std::atoi(argv[1])));
     // Internal scripted input only. This does not inject an OS key event.
     assert((buzz_input_poll(1)&1)==1);

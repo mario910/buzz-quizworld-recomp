@@ -6,6 +6,8 @@
 #include "pc_performance.h"
 #include "buzzer_hid_win32.h"
 #include "phone_server.h"
+#include "answer_hints.h"
+#include "buzzer_input.h"
 #include "../third_party/qrcodegen/qrcodegen.hpp"
 #include "ps3emu/host_overlay.h"
 #include "ps3emu/host_controls.h"
@@ -19,6 +21,7 @@ extern "C" void buzz_android_menu_pause(int paused);
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -94,8 +97,9 @@ int binding_target=0, binding_button=-1;
 bool binding_pad_neutral=false;
 constexpr const char* binding_colors[]={"RED","YELLOW","GREEN","ORANGE","BLUE"};
 
-bool binding_pad(){return binding_target>=int(input.players);}
-unsigned binding_pad_slot(){return unsigned(binding_target-int(input.players));}
+// Binding targets: 0 is the one layout all gamepads share, then keyboard sets 1..players.
+bool binding_pad(){return binding_target==0;}
+unsigned binding_keyboard(){return unsigned(binding_target-1);}
 
 void capture(){buzz_input_capture(menu.open());}
 void release_resources() {
@@ -239,18 +243,6 @@ void act(buzz_pc::MenuAction action) {
         else if(row==8&&accept)menu.back();
         return;
     }
-    if(menu.page()==MenuPage::pad_assignments) {
-        if(row==4&&accept)menu.back();
-        else if(row<4) {
-            // AUTO -> UNASSIGNED -> PLAYER 1..N -> AUTO
-            const int choices=int(input.players)+2;
-            int old=input.pad_player[row];
-            int next=(old+2+direction+choices)%choices-2;
-            for(int i=0;i<4;++i)if(i!=row&&next>=0&&input.pad_player[i]==next)input.pad_player[i]=old;
-            input.pad_player[row]=next;apply_input();
-        }
-        return;
-    }
     if(menu.page()==MenuPage::controller_options) {
         if(row==0&&accept){input.pad_buttons=buzz_input::defaults().pad_buttons;apply_input();}
         else if(row==1&&!accept){input.pulse_ms=unsigned(std::clamp(int(input.pulse_ms)+direction*10,10,5000));apply_input();}
@@ -260,13 +252,9 @@ void act(buzz_pc::MenuAction action) {
     }
     if(menu.page()==MenuPage::bindings) {
         if(row==0) {
-            const int count=int(input.players)+4;
+            const int count=int(input.players)+1;
             binding_target=(binding_target+direction+count)%count;
         } else if(row<=5&&accept) {
-            if(binding_pad()&&input.pad_player[binding_pad_slot()]==-1) {
-                status="Assign this controller to a player first.";
-                return;
-            }
             binding_button=row-1;
             binding_pad_neutral=false;
             status=binding_pad()?"Release the controller buttons, then press the desired button. Escape cancels."
@@ -305,9 +293,10 @@ void act(buzz_pc::MenuAction action) {
         else if(setting==row_offline){preferences.offline=!preferences.offline;apply_live();}
     }else {
         // Game controllers are always on; there is no switch to turn them off.
-        if(row==0&&accept)menu.show(MenuPage::pad_assignments);
-        else if(row==1&&accept){binding_target=0;menu.show(MenuPage::bindings);}
-        else if(row==2){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
+        // Pads join players automatically on the game's player screen.
+        if(row==0&&accept){binding_target=0;menu.show(MenuPage::bindings);}
+        else if(row==1){input.players=input.players==4?8:4;status="Buzzer count is saved for the next game start.";}
+        else if(row==2){preferences.button_hints=!preferences.button_hints;apply_live();}
         else if(row==3&&accept)menu.show(MenuPage::controller_options);
     }
 }
@@ -317,7 +306,7 @@ void key_down(unsigned key,bool repeated){
     if(key==27){if(!repeated)navigate(MenuAction::toggle);return;}
     if(binding_button>=0){
         if(!repeated&&!binding_pad()&&key>0&&key<=255)
-            assign_binding(input.keys[unsigned(binding_target)],key==8?0u:key);
+            assign_binding(input.keys[binding_keyboard()],key==8?0u:key);
         return;
     }
     if(menu.open()) {
@@ -438,10 +427,10 @@ void controller() {
     if(buzz_input_take_menu_request())navigate(MenuAction::toggle);
     if(!menu.open()){pad_navigation.reset();return;}
     if(binding_button>=0&&binding_pad()) {
-        const uint16_t buttons=buzz_input_host_pad_buttons(binding_pad_slot());
+        uint16_t buttons=0;for(unsigned i=0;i<4;++i)buttons|=buzz_input_host_pad_buttons(i); // any pad
         if(!buttons)binding_pad_neutral=true;
         if(binding_pad_neutral&&buttons&&buttons!=0x10&&buzz_input::pad_button_name(buttons))
-            assign_binding(input.pad_buttons[binding_pad_slot()],buttons);
+            assign_binding(input.pad_buttons,buttons);
         // Track raw buttons while capturing so the newly assigned press never
         // navigates the menu when capture ends.
         pad_navigation.sample(buttons,menu_ticks());
@@ -479,12 +468,6 @@ std::string row_label(int row) {
         if(player>=buzz_input_players())return "P"+std::to_string(player+1)+": unavailable (4-slot mode)";
         return "P"+std::to_string(player+1)+": "+(seat.reserved?seat.name+(seat.online?" [online]":" [away]")+" - REMOVE":"available");
     }
-    if(menu.page()==MenuPage::pad_assignments) {
-        if(row==4)return "BACK";
-        return "PAD "+std::to_string(row+1)+(buzz_input_host_pad_connected(unsigned(row))?" [connected]":" [not connected]")+"  >  "+(input.pad_player[row]==buzz_input::Config::pad_auto
-            ?(buzz_input_pad_auto_player(unsigned(row))>=0?"AUTO (PLAYER "+std::to_string(buzz_input_pad_auto_player(unsigned(row))+1)+")":"AUTO (FIRST FREE)")
-            :input.pad_player[row]<0?"UNASSIGNED":"PLAYER "+std::to_string(input.pad_player[row]+1));
-    }
     if(menu.page()==MenuPage::controller_options) {
         if(row==0)return "USE DEFAULT PRESET (L1/R1 + FACE BUTTONS)";
         if(row==1)return "TAP RETENTION                  "+std::to_string(input.pulse_ms)+" ms";
@@ -492,15 +475,15 @@ std::string row_label(int row) {
         return "BACK";
     }
     if(menu.page()==MenuPage::bindings) {
-        if(row==0)return binding_pad()?"EDIT PAD "+std::to_string(binding_pad_slot()+1)
-                                     :"EDIT KEYBOARD PLAYER "+std::to_string(binding_target+1);
+        if(row==0)return binding_pad()?std::string("EDIT GAMEPADS (ALL PADS)")
+                                     :"EDIT KEYBOARD PLAYER "+std::to_string(binding_target);
         if(row==6)return "SAVE CONTROLLER SETTINGS";
         if(row==7)return "BACK";
         const auto color=unsigned(row-1);
         std::string value;
-        if(binding_pad())value=buzz_input::pad_button_name(input.pad_buttons[binding_pad_slot()][color]);
+        if(binding_pad())value=buzz_input::pad_button_name(input.pad_buttons[color]);
         else {
-            const auto key=input.keys[unsigned(binding_target)][color];
+            const auto key=input.keys[binding_keyboard()][color];
             if(!key)value="NONE";
             else if(key==32)value="SPACE";
             else if((key>='A'&&key<='Z')||(key>='0'&&key<='9'))value=char(key);
@@ -542,9 +525,9 @@ std::string row_label(int row) {
         }
     }
     switch(row) {
-        case 0:return "ASSIGN CONTROLLERS TO PLAYERS  >";
-        case 1:return "KEYBOARD AND PAD BINDINGS  >";
-        case 2:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
+        case 0:return "KEYBOARD AND PAD BINDINGS  >";
+        case 1:return "BUZZER SLOTS [restart]                  "+std::to_string(input.players);
+        case 2:return std::string("BUTTON HINTS ON ANSWERS            ")+(preferences.button_hints?"ON":"OFF");
         default:return "ADVANCED CONTROLLER OPTIONS  >";
     }
 }
@@ -552,7 +535,6 @@ bool row_adjustable(int row) {
     const int setting=menu.setting_row(row);
     return (menu.page()==buzz_pc::MenuPage::settings&&(setting==buzz_pc::row_volume||setting==buzz_pc::row_frame_lock||setting==buzz_pc::row_window_size||setting==buzz_pc::row_render_scale||setting==buzz_pc::row_sharpness))||
         (menu.page()==buzz_pc::MenuPage::controller_options&&row==1)||
-        (menu.page()==buzz_pc::MenuPage::pad_assignments&&row<4)||
         (menu.page()==buzz_pc::MenuPage::bindings&&row==0)||
         (menu.page()==buzz_pc::MenuPage::phones&&row==1);
 }
@@ -636,7 +618,6 @@ void draw_menu() {
     if(!menu.root()){
         const auto page=menu.page();
         ImGui::TextDisabled("%s",page==buzz_pc::MenuPage::bindings?"KEYBOARD / PAD BINDINGS":
-            page==buzz_pc::MenuPage::pad_assignments?"ASSIGN CONTROLLERS":
             page==buzz_pc::MenuPage::controller_options?"ADVANCED CONTROLLER OPTIONS":
             page==buzz_pc::MenuPage::phone_seats?"PAIRED PHONES":"QUIT GAME?");
     }
@@ -729,6 +710,75 @@ void draw_performance(const ps3_host_overlay_frame& frame) {
     draw->AddRectFilled(low,high,IM_COL32(8,9,24,215),7*scale);
     draw->AddText(font,font_size,ImVec2(low.x+pad,low.y+pad),IM_COL32(235,242,255,255),text);
 }
+// One round controller button: dark face, ring in the board's colour, white
+// symbol. PlayStation face buttons are drawn as shapes, everything else as text.
+void draw_pad_button(ImDrawList* draw,ImVec2 c,float r,uint16_t mask,PadKind kind,ImU32 ring,float alpha){
+    const ImU32 white=IM_COL32(245,247,255,int(255*alpha));
+    draw->AddCircleFilled(c,r,IM_COL32(14,16,34,int(225*alpha)),40);
+    draw->AddCircle(c,r,ring,40,std::max(2.0f,r*0.14f));
+    const float s=r*0.48f,line=std::max(1.5f,r*0.12f);
+    if(kind==PadKind::playstation&&(mask==0x8000||mask==0x4000||mask==0x2000||mask==0x1000)) {
+        if(mask==0x8000)draw->AddTriangle(ImVec2(c.x,c.y-s),ImVec2(c.x-s*0.95f,c.y+s*0.65f),ImVec2(c.x+s*0.95f,c.y+s*0.65f),white,line);
+        else if(mask==0x4000)draw->AddRect(ImVec2(c.x-s*0.75f,c.y-s*0.75f),ImVec2(c.x+s*0.75f,c.y+s*0.75f),white,0,0,line);
+        else if(mask==0x2000)draw->AddCircle(c,s*0.85f,white,32,line);
+        else {draw->AddLine(ImVec2(c.x-s*0.75f,c.y-s*0.75f),ImVec2(c.x+s*0.75f,c.y+s*0.75f),white,line);
+              draw->AddLine(ImVec2(c.x+s*0.75f,c.y-s*0.75f),ImVec2(c.x-s*0.75f,c.y+s*0.75f),white,line);}
+        return;
+    }
+    const bool ps=kind==PadKind::playstation;
+    const char* text=mask==0x8000?"Y":mask==0x4000?"X":mask==0x2000?"B":mask==0x1000?"A":
+        mask==0x100?(ps?"L1":"LB"):mask==0x200?(ps?"R1":"RB"):mask==0x300?(ps?"L1":"LB"):
+        mask==0x10?(ps?"OPT":"START"):mask==0x20?(ps?"SHR":"BACK"):mask==0x40?(ps?"L3":"LS"):mask==0x80?(ps?"R3":"RS"):nullptr;
+    if(mask==1||mask==2||mask==4||mask==8) { // D-pad: an arrow
+        const ImVec2 d=mask==1?ImVec2(0,-1):mask==2?ImVec2(0,1):mask==4?ImVec2(-1,0):ImVec2(1,0);
+        const ImVec2 n(-d.y,d.x);
+        draw->AddTriangleFilled(ImVec2(c.x+d.x*s,c.y+d.y*s),ImVec2(c.x-d.x*s*0.6f+n.x*s*0.8f,c.y-d.y*s*0.6f+n.y*s*0.8f),
+                                ImVec2(c.x-d.x*s*0.6f-n.x*s*0.8f,c.y-d.y*s*0.6f-n.y*s*0.8f),white);
+        return;
+    }
+    if(!text)return;
+    auto* font=ImGui::GetFont();
+    const float size=r*(std::strlen(text)>2?0.62f:std::strlen(text)>1?0.85f:1.15f);
+    const auto extent=font->CalcTextSizeA(size,FLT_MAX,0,text);
+    draw->AddText(font,size,ImVec2(c.x-extent.x*0.5f,c.y-extent.y*0.5f),white,text);
+}
+// Button icons beside the game's answer boards (setting "button hints").
+// Returns false when there is nothing to show, so no overlay frame is drawn.
+bool button_hints_visible(){
+    if(menu.open()||!buzz_pc_button_hints_enabled())return false;
+    bool any_pad=false;for(unsigned i=0;i<4;++i)any_pad|=buzz_input_pad_kind(i)!=PadKind::none;
+    if(!any_pad)return false;
+    for(const auto& board:buzz_hints::visible_boards())if(board)return true;
+    return false;
+}
+void draw_button_hints(const ps3_host_overlay_frame& frame){
+    // Symbols follow the connected pads and the first connected pad's mapping.
+    const auto config=buzz_input_current_config();
+    bool kinds[3]{};int slot=-1;
+    for(unsigned i=0;i<4;++i){const auto k=buzz_input_pad_kind(i);if(k==PadKind::none)continue;kinds[unsigned(k)]=true;if(slot<0)slot=int(i);}
+    if(slot<0)return;
+    const auto& io=ImGui::GetIO();
+    const float fx=io.DisplayFramebufferScale.x>0?io.DisplayFramebufferScale.x:1,fy=io.DisplayFramebufferScale.y>0?io.DisplayFramebufferScale.y:1;
+    const auto fit=ps3_host_fit_rect(frame.width,frame.height,frame.render_width?frame.render_width:1280,frame.render_height?frame.render_height:720);
+    auto* draw=ImGui::GetForegroundDrawList();
+    const auto boards=buzz_hints::visible_boards();
+    for(int b=0;b<buzz_hints::board_count;++b){
+        if(!boards[size_t(b)])continue;
+        const auto& box=*boards[size_t(b)];
+        const float left=(fit.x+box.left*fit.width)/fx,right=(fit.x+box.right*fit.width)/fx;
+        const float top=(fit.y+box.top*fit.height)/fy,bottom=(fit.y+box.bottom*fit.height)/fy;
+        const float height=bottom-top;(void)left;
+        const float r=height*0.36f,cy=(top+bottom)*0.5f;
+        const ImU32 ring=IM_COL32(int(buzz_hints::colors[b][0]*255),int(buzz_hints::colors[b][1]*255),int(buzz_hints::colors[b][2]*255),255);
+        const uint16_t mask=config.pad_buttons[buzz_hints::wire_button[b]];
+        float cx=right+r*1.35f;
+        for(PadKind kind:{PadKind::playstation,PadKind::xbox}){
+            if(!kinds[unsigned(kind)])continue;
+            draw_pad_button(draw,ImVec2(cx,cy),r,mask,kind,ring,1.0f);
+            cx+=r*2.3f;
+        }
+    }
+}
 void test_actions() {
     // Explicit test mode only; this is internal menu input, never desktop input.
     if(!test_mode)return;
@@ -746,8 +796,8 @@ void test_actions() {
         if(test_stage==1&&elapsed>=2500){press(2);verify(menu.tab()==buzz_pc::MenuTab::display&&menu.tabs_focused(),"Display");press(0);press(4);++test_stage;}
         if(test_stage==2&&elapsed>=4000){press(2);verify(menu.tab()==buzz_pc::MenuTab::graphics,"Graphics");press(0);press(4);++test_stage;}
         if(test_stage==3&&elapsed>=5500){
-            press(2);press(0);press(0);verify(menu.page()==buzz_pc::MenuPage::pad_assignments,"Assignments");
-            press(3,4);press(0);verify(menu.page()==buzz_pc::MenuPage::controllers,"Controls-back");press(4);++test_stage;
+            press(2);press(0);press(0);verify(menu.page()==buzz_pc::MenuPage::bindings,"Bindings");
+            press(3,7);press(0);verify(menu.page()==buzz_pc::MenuPage::controllers,"Controls-back");press(4);++test_stage;
         }
         if(test_stage==4&&elapsed>=7000){
             press(2);press(0);press(3,4);press(0);verify(menu.page()==buzz_pc::MenuPage::phone_seats,"Phone-seats");
@@ -813,7 +863,8 @@ void draw(const ps3_host_overlay_frame* frame) {
     test_actions();controller();
     const bool show_performance=buzz_pc_performance_overlay_enabled();
     if(!show_performance)performance_sample.reset();
-    if(!menu.open()&&!show_performance)return;
+    const bool show_hints=button_hints_visible();
+    if(!menu.open()&&!show_performance&&!show_hints)return;
     if(!initialized&&!init(*frame)){release_resources();failed=true;menu.close();pause_events(false);capture();buzz_input_enable_menu(false);fprintf(stderr,"[pc-menu] overlay init FAILED\n");return;}
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
     if(frame->api==PS3_HOST_OVERLAY_VULKAN) {
@@ -824,7 +875,7 @@ void draw(const ps3_host_overlay_frame* frame) {
         ImGui_ImplSDL2_NewFrame();
 #endif
         auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
-        ImGui::NewFrame();if(menu.open())draw_menu();if(show_performance)draw_performance(*frame);ImGui::Render();
+        ImGui::NewFrame();if(menu.open())draw_menu();if(show_hints)draw_button_hints(*frame);if(show_performance)draw_performance(*frame);ImGui::Render();
         ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(),static_cast<VkCommandBuffer>(frame->commands));
         return;
     }
@@ -832,7 +883,7 @@ void draw(const ps3_host_overlay_frame* frame) {
 #ifdef _WIN32
     ImGui_ImplDX12_NewFrame();ImGui_ImplWin32_NewFrame();
     auto& io=ImGui::GetIO();io.DisplayFramebufferScale=ImVec2(frame->width/io.DisplaySize.x,frame->height/io.DisplaySize.y);
-    ImGui::NewFrame();if(menu.open())draw_menu();if(show_performance)draw_performance(*frame);ImGui::Render();
+    ImGui::NewFrame();if(menu.open())draw_menu();if(show_hints)draw_button_hints(*frame);if(show_performance)draw_performance(*frame);ImGui::Render();
     auto commands=static_cast<ID3D12GraphicsCommandList*>(frame->commands);
     commands->SetDescriptorHeaps(1,&descriptors);D3D12_CPU_DESCRIPTOR_HANDLE rtv{frame->rtv};commands->OMSetRenderTargets(1,&rtv,FALSE,nullptr);
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),commands);

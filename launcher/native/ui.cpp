@@ -340,6 +340,23 @@ void controls_tab(App& app) {
     int slots=app.settings.places==8?1:0;ImGui::SetNextItemWidth(145);
     if(ImGui::Combo("Available handsets",&slots,"4 players\0" "8 players\0"))app.settings.places=slots?8:4;
     ImGui::SetNextItemWidth(145);ImGui::InputInt("Tap retention (ms)",&app.settings.pulse_ms,10,50);
+    // Gamepads first (always on, one layout for every controller), then keyboards.
+    ImGui::Separator();ImGui::TextColored(accent,"GAMEPADS");
+    if(ImGui::Button("Use default preset (L1/R1 + face buttons)")) {
+        app.settings.pad_buttons=default_pad_buttons;
+        app.status="Preset applied: L1 or R1 (LB/RB) red; Triangle/Y blue, Square/X orange, Circle/B green, Cross/A yellow. Save to keep it.";
+    }
+    ImGui::TextWrapped("Default (as in RPCS3/PCSX2): L1 or R1 (LB/RB) red; Triangle/Y blue, Square/X orange, Circle/B green, Cross/A yellow - the handset's colours from top to bottom. START is reserved for the PC menu.");
+    ImGui::TextWrapped("Windows: four slots shared by XInput (Xbox) controllers and DualShock 4 / DualSense (USB or Bluetooth). Other controller types are not yet wired into the game's Windows input adapter.");
+    // One layout for every gamepad; pads join players on the game's player screen.
+    ImGui::TextWrapped("Gamepad buttons (all controllers). Each controller joins as the next free player when it presses a button on the game's player screen.");
+    if(ImGui::BeginTable("pad_buttons",5,ImGuiTableFlags_SizingStretchSame)) {
+        for(int b=0;b<5;++b) {ImGui::TableNextColumn();ImGui::TextColored(button_colors[b],"%s",button_names[b]);}
+        ImGui::TableNextRow();
+        for(int b=0;b<5;++b) {ImGui::TableNextColumn();ImGui::PushID(200+b);ImGui::SetNextItemWidth(-1);auto& button=app.settings.pad_buttons[size_t(b)];if(ImGui::BeginCombo("##button",button.c_str())) {for(const auto* name:pad_names)if(ImGui::Selectable(name,button==name))button=name;ImGui::EndCombo();}ImGui::PopID();}
+        ImGui::EndTable();
+    }
+    ImGui::Separator();ImGui::TextColored(accent,"KEYBOARD");
     for(int p=0;p<app.settings.places;++p) {
         ImGui::PushID(p);ImGui::Separator();ImGui::TextColored(accent,"PLAYER %d",p+1);ImGui::SameLine();ImGui::SetNextItemWidth(190);ImGui::InputText("##name",&app.settings.players[p].name);
         ImGui::SameLine();if(ImGui::Button(app.recording==p?"Cancel recording":"Record 5 keys")) {if(app.recording==p)app.recording=-1;else {app.recording=p;app.record_count=0;app.status="Press red, yellow, green, orange, blue keys. Esc cancels; changes apply only after all five.";}}
@@ -352,46 +369,15 @@ void controls_tab(App& app) {
         if(app.recording==p)ImGui::TextColored(accent,"Press %s (%d/5). Esc cancels.",button_names[app.record_count],app.record_count+1);
         ImGui::PopID();ImGui::Spacing();
     }
-    ImGui::Separator(); // Game controllers are always on.
-    if(ImGui::Button("Use default preset (L1/R1 + face buttons)")) {
-        for(auto& pad:app.settings.pads)pad.buttons=Pad{}.buttons;
-        app.status="Preset applied: L1 or R1 (LB/RB) red; Triangle/Y blue, Square/X orange, Circle/B green, Cross/A yellow. Save to keep it.";
-    }
-    ImGui::TextWrapped("Default (as in RPCS3/PCSX2): L1 or R1 (LB/RB) red; Triangle/Y blue, Square/X orange, Circle/B green, Cross/A yellow - the handset's colours from top to bottom. START is reserved for the PC menu.");
-    ImGui::TextWrapped("Windows: four slots shared by XInput (Xbox) controllers and DualShock 4 / DualSense (USB or Bluetooth). Other controller types are not yet wired into the game's Windows input adapter.");
-    for(int i=0;i<4;++i) {
-        ImGui::PushID(100+i);ImGui::Text("Controller slot %d",i+1);ImGui::SameLine();
-        auto label=app.settings.pads[i].player==pad_auto?std::string("Automatic (first free player)"):app.settings.pads[i].player<0?std::string("Unassigned"):"Player "+std::to_string(app.settings.pads[i].player+1);
-        ImGui::SetNextItemWidth(145);
-        if(ImGui::BeginCombo("##player",label.c_str())) {
-            if(ImGui::Selectable("Automatic (first free player)",app.settings.pads[i].player==pad_auto))app.settings.pads[i].player=pad_auto;
-            if(ImGui::Selectable("Unassigned",app.settings.pads[i].player==-1))app.settings.pads[i].player=-1;
-            for(int p=0;p<app.settings.places;++p)if(ImGui::Selectable(("Player "+std::to_string(p+1)).c_str(),app.settings.pads[i].player==p))app.settings.pads[i].player=p;
-            ImGui::EndCombo();
-        }
-        if(ImGui::BeginTable("pad_buttons",5,ImGuiTableFlags_SizingStretchSame)) {
-            for(int b=0;b<5;++b) {ImGui::TableNextColumn();ImGui::TextColored(button_colors[b],"%s",button_names[b]);}
-            ImGui::TableNextRow();
-            for(int b=0;b<5;++b) {ImGui::TableNextColumn();ImGui::PushID(b);ImGui::SetNextItemWidth(-1);if(ImGui::BeginCombo("##button",app.settings.pads[i].buttons[b].c_str())) {for(const auto* name:pad_names)if(ImGui::Selectable(name,app.settings.pads[i].buttons[b]==name))app.settings.pads[i].buttons[b]=name;ImGui::EndCombo();}ImGui::PopID();}
-            ImGui::EndTable();
-        }
-        ImGui::PopID();
-    }
 }
 void preview_tab(App& app,bool focused) {
     heading("BUTTON TEST","Inputs are observed only while this launcher is focused. Nothing is injected into the desktop or game.");
     ImGui::TextColored(focused?accent:ImVec4(1,.65f,.25f,1),"%s",focused?"Input test active":"Paused - launcher is not focused");
-    std::array<uint8_t,8> masks{};
+    std::array<uint8_t,8> masks{};std::array<uint8_t,4> pad_masks{};
     try {
         auto config=input_config(app.settings);auto pads=app.pads.sample(focused&&!app.smoke);
         if(focused&&!app.smoke)for(int p=0;p<app.settings.places;++p)for(int b=0;b<5;++b)if(config.keys[p][b]&&app.held.count(config.keys[p][b]))masks[p]|=uint8_t(1u<<b);
-        for(int i=0;i<4;++i)if(config.pad_player[i]>=0)masks[config.pad_player[i]]|=buzz_input::map_pad(pads[i],config.pad_buttons[i]);
-        for(int i=0;i<4;++i)if(app.assign_player>=0&&(pads[i]&0x10)&&!(app.previous[i]&0x10)) {
-            bool duplicate=false;for(int j=0;j<4;++j)if(j!=i&&app.settings.pads[j].player==app.assign_player)duplicate=true;
-            if(duplicate)app.status="That player already has a controller. Unassign it in Controls first.";
-            else {app.settings.pads[i].player=app.assign_player;app.status="Controller assigned to Player "+std::to_string(app.assign_player+1);}
-            app.assign_player=-1;
-        }
+        for(int i=0;i<4;++i)pad_masks[size_t(i)]=buzz_input::map_pad(pads[size_t(i)],config.pad_buttons);
         app.previous=pads;
     } catch(const std::exception& e) {ImGui::TextWrapped("Mapping needs attention: %s",e.what());}
     for(int p=0;p<app.settings.places;++p) {
@@ -401,11 +387,13 @@ void preview_tab(App& app,bool focused) {
         ImGui::PopID();ImGui::Spacing();
     }
     ImGui::Separator();
-    for(int i=0;i<4;++i)ImGui::Text("Slot %d: %s",i+1,app.pads.opened[i]?SDL_GetGamepadName(app.pads.opened[i]):"not connected");
-    ImGui::SetNextItemWidth(145);const char* names[]={"Player 1","Player 2","Player 3","Player 4","Player 5","Player 6","Player 7","Player 8"};
-    ImGui::Combo("Assign controller to",&app.assign_choice,names,app.settings.places);ImGui::SameLine();
-    if(ImGui::Button("Press START to identify")) {app.assign_player=app.assign_choice;app.status="Press START on the controller. Esc cancels.";}
-    if(app.assign_player>=0)ImGui::TextColored(accent,"Waiting for START for Player %d...",app.assign_player+1);
+    // Controllers have no player here: in the game each joins on the player screen.
+    for(int i=0;i<4;++i) {
+        ImGui::PushID(300+i);ImGui::Text("Controller %d: %s",i+1,app.pads.opened[i]?SDL_GetGamepadName(app.pads.opened[i]):"not connected");
+        if(app.pads.opened[i])for(int b=0;b<5;++b) {ImGui::SameLine();auto color=button_colors[b];if(!(pad_masks[size_t(i)]&(1<<b))){color.x*=.25f;color.y*=.25f;color.z*=.25f;}
+            ImGui::PushStyleColor(ImGuiCol_Button,color);ImGui::Button((std::string("##pad")+std::to_string(b)).c_str(),ImVec2(30,20));ImGui::PopStyleColor();}
+        ImGui::PopID();
+    }
 }
 void draw(App& app,SDL_Window* window,bool focused,int forced_tab) {
     auto& io=ImGui::GetIO();ImGui::SetNextWindowPos(ImVec2(0,0));ImGui::SetNextWindowSize(io.DisplaySize);

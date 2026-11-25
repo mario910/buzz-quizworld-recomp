@@ -68,7 +68,7 @@ int main() {
         check(next_render_scale(100,1)==150&&next_render_scale(300,1)==300&&next_render_scale(100,-1)==100);
         check(next_render_scale(175,-1)==150&&next_render_scale(175,1)==200);
         menu.show(MenuPage::controllers);check(menu.rows()==7&&menu.tab()==MenuTab::controllers);
-        for(auto page:{MenuPage::bindings,MenuPage::pad_assignments,MenuPage::controller_options}){
+        for(auto page:{MenuPage::bindings,MenuPage::controller_options}){
             menu.show(page);menu.navigate(MenuAction::back);check(menu.open()&&menu.page()==MenuPage::controllers);
         }
         menu.show(MenuPage::quit_confirm);check(menu.rows()==2&&menu.selection()==0);
@@ -87,9 +87,7 @@ int main() {
         check(buzz_input_format_config(controls,controls_text,error));
         auto loaded_controls=buzz_input::defaults();check(buzz_input::parse_config(controls_text,loaded_controls,error));
         check(loaded_controls.keys==controls.keys&&loaded_controls.pad_buttons==controls.pad_buttons);
-        // Gamepads default to automatic player slots, which survive the round trip.
-        check(controls.pad_player[0]==buzz_input::Config::pad_auto&&loaded_controls.pad_player==controls.pad_player);
-        controls.pad_buttons[0][0]=0x1234;const auto old_text=controls_text;check(!buzz_input_format_config(controls,controls_text,error)&&controls_text==old_text);
+        controls.pad_buttons[0]=0x1234;const auto old_text=controls_text;check(!buzz_input_format_config(controls,controls_text,error)&&controls_text==old_text);
         check(p.volume_percent==100&&p.fps_limit==30&&p.offline);
         Preferences decoded;check(parse(serialize(p),decoded,error)&&decoded==p);
         for(unsigned limit:frame_limit_presets){
@@ -106,6 +104,16 @@ int main() {
          check(parse("version=2\nperformance_overlay=0",decoded,error)&&!decoded.performance_overlay);
          State live;auto change=live.apply(hud);check(change.accepted&&change.restart==no_restart&&live.active().performance_overlay);
          check(live.apply(Preferences{}).restart==no_restart&&!live.active().performance_overlay);}
+        {   // Button hints: on by default and absent from a default file; "off" is
+            // a live, version-2 key that older builds drop with the display keys.
+            Preferences hints;check(hints.button_hints&&serialize(hints).find("button_hints")==std::string::npos);
+            hints.button_hints=false;const auto text=serialize(hints);
+            check(text.find("button_hints=0")!=std::string::npos&&text.find("version=2")!=std::string::npos);
+            check(parse(text,decoded,error)&&decoded==hints&&!decoded.button_hints);
+            check(!parse("version=1\nbutton_hints=0",decoded,error));
+            bool reset=false;check(parse_with_display_fallback("version=2\nbutton_hints=2",decoded,error,reset)&&reset&&decoded.button_hints);
+            State live;check(live.apply(hints).restart==no_restart&&!live.active().button_hints);
+        }
         // Default display settings keep the exact version-1 file for older builds.
         check(serialize(p).find("version=1\n")!=std::string::npos&&serialize(p).find("window_width")==std::string::npos);
         check(parse("version=1\nvolume=7\nfullscreen=1",decoded,error)&&decoded.volume_percent==7&&decoded.fullscreen&&

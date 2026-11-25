@@ -40,11 +40,13 @@ int main(){
     }
     {   // Pads are always on: legacy gamepads=0/1 parses, is ignored and is saved as 1.
         auto legacy=defaults();std::string text;
-        assert(parse_config("gamepads=0\n",legacy,error)&&legacy.pad_player==defaults().pad_player);
+        assert(parse_config("gamepads=0\n",legacy,error)&&legacy.pad_buttons==defaults().pad_buttons);
         assert(buzz_input_format_config(legacy,text,error)&&text.find("\ngamepads=1\n")!=std::string::npos);
+        // One shared layout, saved as "gamepad=": no per-slot lines, no players.
+        assert(text.find("\ngamepad=LB+RB,A,B,X,Y\n")!=std::string::npos&&text.find("gamepad.")==std::string::npos);
     }
-    for(auto& mapping:config.pad_buttons){
-        // RPCS3/PCSX2 layout: LB or RB red; Y/X/B/A = handset top to bottom.
+    {   // RPCS3/PCSX2 layout: LB or RB red; Y/X/B/A = handset top to bottom.
+        const auto& mapping=config.pad_buttons;
         assert(map_pad(0x100,mapping)==(1u<<red)&&map_pad(0x200,mapping)==(1u<<red)&&map_pad(0x300,mapping)==(1u<<red));
         assert(map_pad(0x1000,mapping)==(1u<<yellow)); // A / Cross
         assert(map_pad(0x2000,mapping)==(1u<<green));  // B / Circle
@@ -55,46 +57,42 @@ int main(){
     }
     {   // LB+RB: one entry for both bumpers; it round-trips and cannot share a bumper.
         auto both=defaults();std::string text;
-        assert(parse_config("gamepad.1=1,LB+RB,A,B,X,Y\n",both,error)&&both.pad_buttons[0][0]==0x300);
-        assert(buzz_input_format_config(both,text,error)&&text.find("gamepad.1=1,LB+RB,A,B,X,Y\n")!=std::string::npos);
-        for(const char* overlap:{"gamepad.1=1,LB+RB,LB,B,X,Y","gamepad.1=1,LB+RB,A,RB,X,Y"})
+        assert(parse_config("gamepad=LB+RB,A,B,X,Y\n",both,error)&&both.pad_buttons[0]==0x300);
+        assert(buzz_input_format_config(both,text,error)&&text.find("gamepad=LB+RB,A,B,X,Y\n")!=std::string::npos);
+        for(const char* overlap:{"gamepad=LB+RB,LB,B,X,Y","gamepad=LB+RB,A,RB,X,Y","gamepad.1=1,LB+RB,LB,B,X,Y"})
             assert(!parse_config(overlap,both,error));
-        assert(parse_config("gamepad.1=1,LB,RB,B,X,Y\n",both,error)&&both.pad_buttons[0][1]==0x200); // separate bumpers stay valid
+        assert(parse_config("gamepad=LB,RB,B,X,Y\n",both,error)&&both.pad_buttons[1]==0x200); // separate bumpers stay valid
+        assert(!parse_config("gamepad=LB,A,B,X\n",both,error)&&!parse_config("gamepad=AUTO,LB,A,B,X,Y\n",both,error));
     }
-    {   // Never-customised earlier defaults migrate; real customisations stay.
-        auto migrated=defaults();
-        assert(parse_config("gamepad.1=AUTO,START,Y,A,B,X\ngamepad.2=2,RB,LEFT,DOWN,RIGHT,UP\ngamepad.3=3,RB,UP,DOWN,RIGHT,LEFT\n",migrated,error));
-        assert(migrated.pad_buttons[0]==defaults().pad_buttons[0]&&migrated.pad_player[0]==Config::pad_auto);
-        assert(migrated.pad_buttons[1]==defaults().pad_buttons[1]&&migrated.pad_player[1]==1);
-        assert(migrated.pad_buttons[2][1]==0x1&&migrated.pad_buttons[2][4]==0x4); // custom order kept
+    {   // Older per-slot files: the lowest slot's buttons become the shared layout,
+        // players (AUTO, fixed or NONE) are dropped; "gamepad=" wins when present.
+        auto old=defaults();
+        assert(parse_config("gamepad.1=NONE\ngamepad.2=3,RB,UP,DOWN,RIGHT,LEFT\ngamepad.3=AUTO,START,Y,A,B,X\n",old,error));
+        assert(old.pad_buttons[0]==0x200&&old.pad_buttons[1]==0x1&&old.pad_buttons[4]==0x4); // slot 2's custom layout
+        assert(parse_config("gamepad.1=1,LB,RB,B,X,Y\ngamepad=Y,A,B,X,LB\n",old,error)&&old.pad_buttons[0]==0x8000);
+        assert(!parse_config("gamepad.1=9,START,Y,A,B,X",old,error)&&!parse_config("gamepad.5=AUTO,LB,A,B,X,Y",old,error));
+        // Never-customised earlier defaults migrate; real customisations stay.
+        for(const char* earlier:{"gamepad.1=AUTO,START,Y,A,B,X\n","gamepad.1=1,RB,LEFT,DOWN,RIGHT,UP\n","gamepad.4=4,LB,A,B,X,Y\n","gamepad=START,Y,A,B,X\n"}){
+            auto migrated=defaults();migrated.pad_buttons={0x1,0x2,0x4,0x8,0x10};
+            assert(parse_config(earlier,migrated,error)&&migrated.pad_buttons==defaults().pad_buttons);
+        }
         assert(is_previous_default_pad_mapping({0x10,0x8000,0x1000,0x2000,0x4000})&&is_previous_default_pad_mapping({0x200,0x4,0x2,0x8,0x1}));
-        assert(is_previous_default_pad_mapping({0x100,0x1000,0x2000,0x4000,0x8000}));
-        assert(parse_config("gamepad.4=4,LB,A,B,X,Y\n",migrated,error)&&migrated.pad_buttons[3][0]==0x300);
-        // The old fixed layout (pads 1-4 -> players 1-4) becomes automatic joining.
-        auto fixed=defaults();
-        assert(parse_config("gamepad.1=1,START,Y,A,B,X\ngamepad.2=2,START,Y,A,B,X\ngamepad.3=3,START,Y,A,B,X\ngamepad.4=4,START,Y,A,B,X\n",fixed,error));
-        for(int player:fixed.pad_player)assert(player==Config::pad_auto);
-        assert(parse_config("gamepad.1=2,LB,A,B,X,Y\ngamepad.2=1,LB,A,B,X,Y\ngamepad.3=3,LB,A,B,X,Y\ngamepad.4=4,LB,A,B,X,Y\n",fixed,error));
-        assert(fixed.pad_player[0]==1&&fixed.pad_player[1]==0&&fixed.pad_player[3]==3); // a real choice is kept
-        assert(parse_config("gamepad.1=1,LB,A,B,X,Y\n",fixed,error)&&fixed.pad_player[0]==0); // a single explicit line too
-        assert(!is_previous_default_pad_mapping(defaults().pad_buttons[0]));
+        assert(is_previous_default_pad_mapping({0x100,0x1000,0x2000,0x4000,0x8000})&&!is_previous_default_pad_mapping(defaults().pad_buttons));
     }
-    assert(parse_config("players=8\nkeyboard.8=F1,F2,F3,F4,F5\ngamepads=1\ngamepad.2=8,START,Y,A,B,RB\npulse_ms=100\n",config,error));
-    assert(config.players==8&&config.keys[7][0]==112&&config.pad_player[1]==7&&config.pulse_ms==100);
-    assert(map_pad(0xffff,config.pad_buttons[1])==31);
-    assert(map_pad(0x1000,config.pad_buttons[1])==(1u<<green));
+    assert(parse_config("players=8\nkeyboard.8=F1,F2,F3,F4,F5\ngamepads=1\ngamepad=START,Y,A,B,RB\npulse_ms=100\n",config,error));
+    assert(config.players==8&&config.keys[7][0]==112&&config.pulse_ms==100);
+    assert(map_pad(0xffff,config.pad_buttons)==31);
+    assert(map_pad(0x1000,config.pad_buttons)==(1u<<green));
     const auto previous=config;
-    for(const char* bad:{"players=6","players=8\nplayers=4","players=4\nunknown=1", "keyboard.0=A,B,C,D,E", "keyboard.9=A,B,C,D,E", "keyboard.1=A,A,C,D,E", "keyboard.1=A,B,C,D", "keyboard.1=0x100,B,C,D,E", "gamepad.1=9,START,Y,A,B,X", "gamepad.1=1,A,A,B,X,Y", "gamepads=2", "pulse_ms=0"}){
+    for(const char* bad:{"players=6","players=8\nplayers=4","players=4\nunknown=1", "keyboard.0=A,B,C,D,E", "keyboard.9=A,B,C,D,E", "keyboard.1=A,A,C,D,E", "keyboard.1=A,B,C,D", "keyboard.1=0x100,B,C,D,E", "gamepad.1=9,START,Y,A,B,X", "gamepad=A,A,B,X,Y", "gamepads=2", "pulse_ms=0", "gamepad=LB,A,B,X,Y\ngamepad=LB,A,B,X,Y"}){
         assert(!parse_config(bad,config,error));assert(!error.empty());
-        assert(config.players==previous.players&&config.keys==previous.keys&&config.pad_player==previous.pad_player);
+        assert(config.players==previous.players&&config.keys==previous.keys&&config.pad_buttons==previous.pad_buttons);
     }
     assert(!parse_config(std::string(65537,'a'),config,error));
     assert(parse_config("# comment\nkeyboard.1=Space,4,3,2,1\nkeyboard.5=NONE,NONE,NONE,NONE,NONE\n",config,error));
     assert(config.keys[0][1]=='4'&&config.keys[4][0]==0);
     assert(parse_config("\xef\xbb\xbfplayers=4\r\npulse_ms=80\r\n",config,error));
-    assert(config.players==4&&config.pulse_ms==80);
-    assert(parse_config("gamepad.1=NONE\n",config,error)&&config.pad_player[0]==-1);
-    {   // Player-join screen read from the light blinking seen in the real game:
+    assert(config.players==4&&config.pulse_ms==80);    {   // Player-join screen read from the light blinking seen in the real game:
         // all on <-> joined only. Steady or one-off changes never open it.
         JoinWatch w;
         w.lights(15,100);w.lights(0,600);assert(!w.open(700)&&w.joined()==0); // title: on, then off
