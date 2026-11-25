@@ -1,5 +1,7 @@
 #include "controller.h"
 #include "languages.h"
+#include "ps3_source.h"
+#include "project_media.h"
 #include "tts.h"
 #include <QCoreApplication>
 #include <QDesktopServices>
@@ -30,7 +32,7 @@ bool textValid(const studio::Question &q) {
                q.answers.begin(), q.answers.end(), [](const QString &s) { return s.trimmed().isEmpty(); });
 }
 bool emptyTranslation(const QJsonObject &value) {
-    for (const auto &key : {"question", "image", "speech", "topic", "tts_text"})
+    for (const auto &key : {"question", "image", "speech", "video", "topic", "tts_text"})
         if (!value[key].toString().isEmpty())
             return false;
     for (const auto &answer : value["answers"].toArray())
@@ -343,7 +345,10 @@ void StudioController::prepareImport(const QUrl &url, bool append) {
         watcher->deleteLater();
         busy_ = false;
         emit busyChanged();
-        if (!result.ok()) {
+        if (!result.ok() && !result.license.isEmpty()) {
+            setStatus(tr("Potrzebna licencja paczki"));
+            emit licenseRequested(url, append, result.license, result.error);
+        } else if (!result.ok()) {
             setStatus(tr("Nie udało się wczytać pliku"));
             emit errorOccurred(result.error);
         } else if (!result.project && result.codes.size() > 1) {
@@ -356,6 +361,12 @@ void StudioController::prepareImport(const QUrl &url, bool append) {
         }
     });
     watcher->setFuture(QtConcurrent::run([path] { return studio::inspectLanguages(path); }));
+}
+QString StudioController::addLicense(const QString &contentId, const QUrl &rap) {
+    QString error;
+    if (!rap.isLocalFile() || !studio::ps3::rememberLicense(contentId, rap.toLocalFile(), &error))
+        return error.isEmpty() ? tr("Wybierz plik licencji .rap.") : error;
+    return {};
 }
 void StudioController::finishImport(const QString &language) {
     if (pendingImport_.isEmpty())
@@ -382,6 +393,11 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
         watcher->deleteLater();
         busy_ = false;
         emit busyChanged();
+        if (!result.ok() && !result.license.isEmpty()) {
+            setStatus(tr("Potrzebna licencja paczki"));
+            emit licenseRequested(QUrl::fromLocalFile(path), append, result.license, result.error);
+            return;
+        }
         if (!result.ok()) {
             setStatus(tr("Nie udało się wczytać pliku"));
             emit errorOccurred(result.error);
@@ -441,7 +457,9 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
             model_.reset(std::move(result.document));
             selected_ = model_.rowCount() ? model_.document.questions[0].id : QString();
             // Imported archives/JSON remain sources; Save As creates a Studio project.
-            projectPath_ = path.endsWith(".buzz.json", Qt::CaseInsensitive) ? path : QString();
+            projectPath_ = !result.projectPath.isEmpty()                    ? result.projectPath
+                           : path.endsWith(".buzz.json", Qt::CaseInsensitive) ? path
+                                                                              : QString();
             if (projectPath_.isEmpty())
                 history_.resetClean();
             else
@@ -464,6 +482,15 @@ bool StudioController::saveFile(const QUrl &url, bool legacy) {
     if (path.isEmpty())
         return false;
     QString error;
+    studio::MediaReport media;
+    if (!legacy) {
+        // A project keeps its own copy of every picture, recording and video.
+        media = studio::collectMedia(model_.document, QFileInfo(path).absolutePath());
+        if (!media.ok()) {
+            emit errorOccurred(media.error);
+            return false;
+        }
+    }
     if (!studio::saveDocument(model_.document, path, &error, legacy)) {
         emit errorOccurred(error);
         return false;
@@ -474,8 +501,27 @@ bool StudioController::saveFile(const QUrl &url, bool legacy) {
         QFile::remove(recoveryPath_);
         remember(path);
     }
-    setStatus(legacy ? tr("Wyeksportowano JSON dla buzzpack") : tr("Projekt zapisany"));
+    if (legacy)
+        setStatus(tr("Wyeksportowano JSON dla buzzpack"));
+    else if (media.missing)
+        setStatus(tr("Projekt zapisany · brakuje %1 plików mediów").arg(media.missing));
+    else if (media.copied)
+        setStatus(tr("Projekt zapisany · skopiowano %1 plików do folderu media").arg(media.copied));
+    else
+        setStatus(tr("Projekt zapisany"));
     notifyContent();
+    return true;
+}
+bool StudioController::exportProject(const QUrl &url) {
+    if (busy_ || !url.isLocalFile())
+        return false;
+    const auto report = studio::exportProjectArchive(model_.document, url.toLocalFile());
+    if (!report.ok()) {
+        emit errorOccurred(report.error);
+        return false;
+    }
+    setStatus(report.missing ? tr("Wyeksportowano projekt · brakuje %1 plików mediów").arg(report.missing)
+                             : tr("Wyeksportowano projekt z %1 plikami mediów").arg(report.copied));
     return true;
 }
 void StudioController::select(const QString &id) {
@@ -533,6 +579,8 @@ void StudioController::updateCurrent(const QVariantMap &patch) {
         q.image = studio::localPath(patch["image"].toString());
     if (patch.contains("speech"))
         q.speech = studio::localPath(patch["speech"].toString());
+    if (patch.contains("video"))
+        q.video = studio::localPath(patch["video"].toString());
     if (patch.contains("answer_index")) {
         const int i = patch["answer_index"].toInt();
         if (i >= 0 && i < 4)
@@ -596,6 +644,11 @@ void StudioController::openAudio() {
     const int row = model_.find(selected_);
     if (row >= 0 && !model_.document.questions[row].speech.isEmpty())
         QDesktopServices::openUrl(QUrl::fromLocalFile(model_.document.questions[row].speech));
+}
+void StudioController::openVideo() {
+    const int row = model_.find(selected_);
+    if (row >= 0 && !model_.document.questions[row].video.isEmpty())
+        QDesktopServices::openUrl(QUrl::fromLocalFile(model_.document.questions[row].video));
 }
 QVariantList StudioController::ttsVoices() const {
     if (!voicesLoaded_) {

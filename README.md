@@ -64,19 +64,23 @@ in its entirety by this repository's MIT license. See
 
 ## Question Studio (Windows / Linux)
 
-[Buzz! Question Studio](docs/question-studio.md) is a separate native C++ / Qt Quick
+[Buzz! Question Studio](docs/question-studio.md) is a separate native C++ / Qt Widgets
 editor for question libraries. The first version provides question editing,
-undo/redo, preview, JSON import/export, KiP JSON import, text/speech import
-from unencrypted Quiz World / Quiz TV packs, and local WAV TTS (Windows SAPI /
-Linux eSpeak NG). It builds independently of the game.
+undo/redo, preview, JSON import/export, and local WAV TTS (Windows SAPI /
+Linux eSpeak NG). It imports questions from unencrypted Quiz World / Quiz TV
+packs, PS3 disc images and DLC packages (paid DLC with your own `.rap` license),
+the PS2 and PSP Buzz! games (disc images or extracted files) and Knowledge Is
+Power (PS4 `.pkg`), without Python. It builds independently of the game.
 The editor also builds native Quiz World EDAT packs with images and audio, and
 installs them into a selected runtime with validation and backups.
 Interface language (Polish/English), source import language and authored content
 languages are independent. Projects preserve translations; imports skip questions
 that do not contain the selected source language.
 See the linked guide for the implementation roadmap, current limits and build
-instructions for both platforms. On Windows, `Launch-Question-Studio.cmd` starts
-the locally packaged editor after building it.
+instructions for both platforms. Release packages include it: open **Question
+Studio** in BuzzSetup (or `Question-Studio.sh` / `BuzzSetup-x86_64.AppImage --studio`
+on Linux) and its build dialog already points at your prepared copy. In a checkout,
+`Launch-Question-Studio.cmd` starts the locally packaged editor after building it.
 
 ## Supported game — exact match required
 

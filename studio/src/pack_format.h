@@ -1,4 +1,5 @@
 #pragma once
+#include <QBuffer>
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QFile>
@@ -7,6 +8,7 @@
 #include <QtEndian>
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <stdexcept>
 
 // Shared bounds-checked stored-ZIP reader and binary primitives.
@@ -47,12 +49,36 @@ struct Entry {
     quint16 method = 0, flags = 0;
 };
 class Archive {
+    QFile disk;
+    QBuffer memory;
+    std::unique_ptr<QIODevice> owned;
+
   public:
-    QFile file;
+    // Reads go through this device: the file on disk, an archive held in
+    // memory (a ZIP nested in another archive) or any random-access device
+    // (a file inside a disc image, a decrypted PS3 package entry).
+    QIODevice &file;
     QMap<QString, Entry> entries;
-    explicit Archive(const QString &path) : file(path) {
-        if (!file.open(QIODevice::ReadOnly))
+    explicit Archive(const QString &path) : disk(path), file(disk) {
+        if (!disk.open(QIODevice::ReadOnly))
+            fail(disk.errorString());
+        readDirectory();
+    }
+    explicit Archive(const QByteArray &bytes) : file(memory) {
+        memory.setData(bytes);
+        memory.open(QIODevice::ReadOnly);
+        readDirectory();
+    }
+    explicit Archive(std::unique_ptr<QIODevice> device) : owned(std::move(device)), file(*owned) {
+        if (!file.isOpen() && !file.open(QIODevice::ReadOnly))
             fail(file.errorString());
+        readDirectory();
+    }
+    Archive(const Archive &) = delete;
+    Archive &operator=(const Archive &) = delete;
+
+  private:
+    void readDirectory() {
         if (file.size() < 22)
             fail(QCoreApplication::translate("BuzzImport", "To nie jest archiwum paczki Buzz."));
         file.seek(std::max<qint64>(0, file.size() - 65557));
@@ -95,6 +121,8 @@ class Archive {
             p += 46 + n + extra + comment;
         }
     }
+
+  public:
     QByteArray read(const QString &name) {
         if (!entries.contains(name))
             fail(QCoreApplication::translate("BuzzImport", "Brak pliku %1.").arg(name));

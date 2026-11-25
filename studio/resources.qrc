@@ -1,3 +1,6 @@
 <RCC><qresource prefix="/">
-<file alias="studio.svg">resources/studio.svg</file>
+<file alias="studio.png">resources/studio.png</file>
+<file alias="studio.qss">resources/studio.qss</file>
+<file alias="arrow-down.png">resources/arrow-down.png</file>
+<file alias="arrow-up.png">resources/arrow-up.png</file>
 </qresource></RCC>

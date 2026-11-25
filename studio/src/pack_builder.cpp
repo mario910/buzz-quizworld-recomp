@@ -258,6 +258,18 @@ QVector<Call> roundSetup(int number, const QString &dir, const QMap<QString, QSt
         }
     return calls;
 }
+QString &configuredGameDirectory() {
+    static QString value;
+    return value;
+}
+// BuzzSetup's dist/runtime holds EBOOT.elf and the disc; the game creates
+// dev_hdd0 on its first start.
+bool preparedRuntime(const QDir &runtime) {
+    return QFileInfo(runtime.filePath("EBOOT.elf")).isFile() && QDir(runtime.filePath("disc/PS3_GAME")).exists();
+}
+bool usableRuntime(const QDir &runtime) {
+    return QDir(runtime.filePath("dev_hdd0")).exists() || preparedRuntime(runtime);
+}
 } // namespace
 QVariantMap BuildResult::map() const {
     return {{"error", error},
@@ -629,6 +641,8 @@ BuildResult installPack(const QString &source, const QString &runtimeRoot, const
             fail(QCoreApplication::translate("PackBuilder",
                                              "Wybierz obsługiwany identyfikator gry Quiz World."));
         const auto root = QDir::fromNativeSeparators(QFileInfo(runtimeRoot).canonicalFilePath());
+        if (!root.isEmpty() && !QDir(QDir(root).filePath("dev_hdd0")).exists() && preparedRuntime(QDir(root)))
+            QDir(root).mkpath("dev_hdd0"); // A prepared copy that has not been started yet.
         if (root.isEmpty() || !QDir(QDir(root).filePath("dev_hdd0")).exists())
             fail(QCoreApplication::translate("PackBuilder", "Wybierz katalog runtime zawierający dev_hdd0."));
         QLockFile lock(QDir(root).filePath(".question-studio-install.lock"));
@@ -746,6 +760,10 @@ QString defaultFfmpeg() {
 #endif
     return QFileInfo::exists(bundled) ? bundled : QStandardPaths::findExecutable("ffmpeg");
 }
+void setGameDirectory(const QString &directory) {
+    configuredGameDirectory() = directory.isEmpty() ? QString() : QDir(directory).absolutePath();
+}
+QString gameDirectory() { return configuredGameDirectory(); }
 QVariantMap suggestBuildSettings(const QString &language) {
     QSettings settings;
     QVariantMap options{{"number", settings.value("build/number", 103)},
@@ -758,23 +776,55 @@ QVariantMap suggestBuildSettings(const QString &language) {
                         {"runtimeRoot", settings.value("build/runtimeRoot", QString())},
                         {"titleId", settings.value("build/titleId", "BCES00647")},
                         {"ffmpeg", settings.value("build/ffmpeg", defaultFfmpeg())}};
+    // Forget remembered paths that no longer exist (moved or deleted copies).
+    if (!QFileInfo(options["templatePath"].toString()).isFile())
+        options["templatePath"] = QString();
+    if (!QFileInfo(options["runtimeRoot"].toString()).isDir())
+        options["runtimeRoot"] = QString();
+    if (!QFileInfo(options["ffmpeg"].toString()).isFile())
+        options["ffmpeg"] = defaultFfmpeg();
+    const auto sameLanguage = [&language](const QString &file) {
+        return languageCode(QFileInfo(file).fileName().left(3)).section('-', 0, 0) ==
+               language.section('-', 0, 0);
+    };
+    const auto offerTemplates = [&](const QString &folder, bool replace) {
+        for (const auto &file : QDir(folder).entryInfoList({"*PACK0100.PAK"}, QDir::Files)) {
+            if (!sameLanguage(file.fileName()))
+                continue;
+            const auto current = options["templatePath"].toString();
+            if (replace || current.isEmpty() || !sameLanguage(current))
+                options["templatePath"] = file.absoluteFilePath();
+            return;
+        }
+    };
+    // The game BuzzSetup started us for wins over remembered settings.
+    const auto game = gameDirectory();
+    if (!game.isEmpty()) {
+        const QDir runtime(QDir(game).filePath("runtime"));
+        if (usableRuntime(runtime)) {
+            options["runtimeRoot"] = runtime.absolutePath();
+            offerTemplates(runtime.filePath("disc/PS3_GAME/USRDIR/PACK0100"), true);
+        }
+    }
     QDir base(QCoreApplication::applicationDirPath());
     for (int i = 0; i < 4; ++i, base.cdUp()) {
-        if (options["runtimeRoot"].toString().isEmpty() && QDir(base.filePath("runtime/dev_hdd0")).exists())
-            options["runtimeRoot"] = base.filePath("runtime");
+        // Developer checkout (runtime/), prepared copy (dist/runtime) and the
+        // release package (build-files/dist/runtime).
+        for (const auto &relative : {QStringLiteral("runtime"), QStringLiteral("dist/runtime"),
+                                     QStringLiteral("build-files/dist/runtime")}) {
+            const QDir runtime(base.filePath(relative));
+            if (relative == "runtime" ? !QDir(runtime.filePath("dev_hdd0")).exists() : !preparedRuntime(runtime))
+                continue;
+            if (options["runtimeRoot"].toString().isEmpty())
+                options["runtimeRoot"] = runtime.absolutePath();
+            offerTemplates(runtime.filePath("disc/PS3_GAME/USRDIR/PACK0100"), false);
+        }
         QFile config(base.filePath("buzz-paths.json"));
         if (!config.open(QIODevice::ReadOnly))
             continue;
         const auto root = QJsonDocument::fromJson(config.readAll()).object()["game_root"].toString();
-        const auto folder = QDir(root).filePath("PS3_GAME/USRDIR/PACK0100");
-        for (const auto &file : QDir(folder).entryInfoList({"*PACK0100.PAK"}, QDir::Files)) {
-            const auto code = languageCode(file.fileName().left(3));
-            if (code.section('-', 0, 0) == language.section('-', 0, 0) &&
-                (options["templatePath"].toString().isEmpty() ||
-                 languageCode(QFileInfo(options["templatePath"].toString()).fileName().left(3))
-                         .section('-', 0, 0) != language.section('-', 0, 0)))
-                options["templatePath"] = file.absoluteFilePath();
-        }
+        if (!root.isEmpty())
+            offerTemplates(QDir(root).filePath("PS3_GAME/USRDIR/PACK0100"), false);
     }
     return options;
 }

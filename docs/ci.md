@@ -9,8 +9,8 @@ Use your own supported game/firmware locally for a complete game build.
 
 | Workflow | Coverage |
 |---|---|
-| Native preparation | Windows x64 and Ubuntu 22.04/24.04: compiled importer, synthetic import/lifter tests; stages only the preparation application |
-| Question Studio | Windows x64 and Ubuntu 22.04/24.04: editor, synthetic pack/document tests and offscreen QML smoke tests |
+| Native preparation | Windows x64 and Ubuntu 22.04/24.04: compiled importer, synthetic import/lifter tests; stages the preparation application with Question Studio and smoke-tests both from the extracted packages |
+| Question Studio | Windows x64 and Ubuntu 22.04/24.04: editor, synthetic pack/document tests and offscreen widget smoke tests |
 | Native launcher and PC settings | Windows x64, Ubuntu 24.04 x64 and macOS 15 arm64: SDL3/ImGui launcher, input routing, settings, phone sessions, host controls and hidden UI tests |
 | Optimization catalog | Checks the source-derived optimization documentation |
 | Workflow validation | actionlint and ShellCheck over workflow YAML/embedded shell |
