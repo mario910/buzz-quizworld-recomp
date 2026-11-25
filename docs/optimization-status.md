@@ -315,12 +315,12 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_SPU_DIRECT_HOPS` | `${BUZZ_ZEN2_TUNE}` | Direct tail calls between lifted SPU job fragments ([source](../cmake/BuzzSpuDirectHops.cmake)) |
 | `BUZZ_SPU_WRCH_INLINE` | `OFF` | Inline MFC parameter channel writes in lifted SPU sources ([source](../cmake/BuzzSpuDirectHops.cmake)) |
 | `BUZZ_SPU_JOB_RETURN` | `OFF` | Complete admitted SPURS job-manager returns on the native driver stack ([source](../cmake/BuzzSpuJobReturn.cmake)) |
+| `BUZZ_SPU_WRCH_WRAP` | `OFF` | Link-time fast front for MFC parameter channel writes ([source](../cmake/BuzzSpuWrchWrap.cmake)) |
 | `BUZZ_SPURS_EXECUTION_TRACE` | `OFF` | Diagnostic SPURS execution CPU counters and native-thread channel waits ([source](../cmake/BuzzSpursExecutionTrace.cmake)) |
 | `BUZZ_SPURS_INPUT_CLEAR` | `OFF` | Skip clearing SPURS input bytes immediately overwritten by staging ([source](../cmake/BuzzSpursInputClear.cmake)) |
 | `BUZZ_SPURS_POOL_LAYOUT` | `OFF` | Separate SPURS polling and bookkeeping cache lines ([source](../cmake/BuzzSpursPoolLayout.cmake)) |
 | `BUZZ_SPURS_POOL_AUTO_SPIN_US` | `-1` | Automatic SPURS worker poll on 12+ logical CPUs (-1: SDK policy, 0..1000 us) ([source](../cmake/BuzzSpursPoolSpin.cmake)) |
 | `BUZZ_SPURS_IDLE_SPIN_US` | `-1` | Experimental SPURS idle polling in microseconds (-1: SDK policy, 0..1000: override) ([source](../cmake/BuzzSpursWaits.cmake)) |
-| `BUZZ_SPU_WRCH_WRAP` | `OFF` | Link-time fast front for MFC parameter channel writes ([source](../cmake/BuzzSpuWrchWrap.cmake)) |
 | `BUZZ_VK_BATCH_UPLOAD` | `OFF` | Queue immutable texture uploads with draw batches ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_VK_DESCRIPTOR_BATCH` | `OFF` | Reuse retired immutable draw descriptor sets ([source](../cmake/BuzzVulkanUpload.cmake)) |
 | `BUZZ_VK_DESCRIPTOR_WRITES` | `OFF` | Skip unchanged bindings of retired draw descriptor sets ([source](../cmake/BuzzVulkanUpload.cmake)) |

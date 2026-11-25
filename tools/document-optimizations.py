@@ -15,7 +15,9 @@ def tables():
              'A cached `ON` survives reconfiguration unless explicitly reset.', '',
              '| Switch | Source default | Meaning / defining source |',
              '|---|---|---|']
-    for path in [ROOT/'port/CMakeLists.txt', *sorted((ROOT/'cmake').glob('*.cmake'))]:
+    # Sort by the file name string: Path ordering ignores case on Windows only,
+    # which would make the table differ between platforms.
+    for path in [ROOT/'port/CMakeLists.txt', *sorted((ROOT/'cmake').glob('*.cmake'), key=lambda p: p.name)]:
         text = path.read_text(encoding='utf-8')
         for name, description, default in re.findall(
                 r'option\(\s*((?:BUZZ|PORT)_\w+)\s+"([^"]*)"\s+([^\n)]*)\)', text):
