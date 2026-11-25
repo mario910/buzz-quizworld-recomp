@@ -127,6 +127,20 @@ class SetupTests(unittest.TestCase):
         self.assertLessEqual((workspace / "CMakeLists.txt").stat().st_mtime, time.time())
         self.assertAlmostEqual((workspace / "cmake/old.cmake").stat().st_mtime, past, delta=2)
 
+    def test_windows_build_path_length_is_checked_before_building(self):
+        # A RecompLauncher library folder that failed with "Build step for
+        # ps3_vk_headers failed": it fits once sessions use short names.
+        sessions = Path(r"R:\Recompilator Games\buzz-quizworld-recomp\build-files\runtime\setup\sessions")
+        session = pipeline.new_session(self.root)
+        self.assertEqual(len(session.name), 8)
+        pipeline.check_build_path_length(sessions / session.name / "workspace", print, long_paths=False)
+        too_long = sessions / ("x" * 32) / "workspace"
+        with self.assertRaisesRegex(ValueError, "too long .* by 18 characters"):
+            pipeline.check_build_path_length(too_long, print, long_paths=False)
+        notes = []
+        pipeline.check_build_path_length(too_long, notes.append, long_paths=True)
+        self.assertIn("long paths are enabled", notes[0])
+
     def test_publish_distribution_is_local_and_keeps_existing_copy(self):
         workspace = self.root / "workspace"
         exe = workspace / "build/BuzzQuizWorldRecomp.exe"

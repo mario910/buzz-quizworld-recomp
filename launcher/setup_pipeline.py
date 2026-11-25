@@ -22,6 +22,48 @@ from .game_profiles import identify, KNOWN_TITLE_IDS
 
 MAX_GAME_BYTES = 64 * 1024**3
 MAX_FILES = 200000
+# Deepest path the Windows Vulkan build creates below the session workspace
+# (SPIRV-Tools export files under build-vulkan-windows/_deps, 153 characters),
+# plus a small margin. Without long-path support Windows rejects paths of 260+.
+WINDOWS_WORKSPACE_DEPTH = 156
+WINDOWS_MAX_PATH = 259
+
+
+def windows_long_paths_enabled():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\FileSystem") as key:
+            return winreg.QueryValueEx(key, "LongPathsEnabled")[0] == 1
+    except OSError:
+        return False
+
+
+def check_build_path_length(workspace, log, long_paths=None):
+    """Refuse a Windows build folder whose nested CMake paths exceed MAX_PATH.
+
+    Otherwise CMake fails minutes later with an unhelpful "Build step for
+    ps3_vk_headers failed" while it downloads its dependencies."""
+    length = len(str(workspace))
+    if length + WINDOWS_WORKSPACE_DEPTH <= WINDOWS_MAX_PATH:
+        return
+    if long_paths is None:
+        long_paths = windows_long_paths_enabled()
+    if long_paths:
+        log(f"Long build path ({length + WINDOWS_WORKSPACE_DEPTH} characters); continuing because Windows long paths are enabled.")
+        return
+    excess = length + WINDOWS_WORKSPACE_DEPTH - WINDOWS_MAX_PATH
+    raise ValueError(
+        f"The installation folder path is too long for the Windows build by {excess} characters. "
+        f"Move the whole folder to a shorter path, for example C:\\Games\\Buzz, and prepare again; "
+        f"or enable Windows long paths (LongPathsEnabled). Build folder: {workspace}")
+
+
+def new_session(sessions):
+    """A short, unused session folder name (keeps nested build paths short)."""
+    while True:
+        session = sessions / uuid.uuid4().hex[:8]
+        if not os.path.lexists(session):
+            return session
 
 
 class Cancelled(RuntimeError):
@@ -534,11 +576,13 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         raise ValueError("Move the existing dist folder before preparing another copy.")
     sessions = project / "runtime/setup/sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    session = Path(resume).resolve() if resume else sessions / uuid.uuid4().hex
+    session = Path(resume).resolve() if resume else new_session(sessions)
     if session.parent != sessions.resolve() or session.is_symlink():
         raise ValueError("Resume path must be one of this project's own setup sessions.")
     if build and linux and not standalone:
         raise ValueError("Use --dist to build on Linux.")
+    if build and not linux:
+        check_build_path_length(session / "workspace", log)
     session.mkdir(exist_ok=True)
     reject_links_below(sessions, session)
     lock = session / "running.lock"

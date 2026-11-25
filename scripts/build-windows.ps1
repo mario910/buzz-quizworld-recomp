@@ -218,7 +218,11 @@ $configureOptions=@(
     "-DBUZZ_SPU_JOB_RETURN=$($SpuJobReturn.IsPresent)",
     "-DPORT_MSTREAM_DIR=$mstreamDir", "-DPORT_IMAGE36_SOURCE=$image36Override",
     "-DPORT_VIDEO_SOURCE=$videoOverride", "-DPORT_PRODUCER_PROBE_DIR=$producerOverride",
-    '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG'
+    '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_FLAGS_RELEASE=/O1 /DNDEBUG', '-DCMAKE_CXX_FLAGS_RELEASE=/O1 /DNDEBUG',
+    # Populate FetchContent dependencies in-process: the old sub-build nests
+    # stamp files 168 characters below the workspace, past MAX_PATH for
+    # installations in ordinary folders ("Build step for ps3_vk_headers failed").
+    '-DCMAKE_POLICY_DEFAULT_CMP0168=NEW'
 )
 # Generate the same portable scene, renderer, geometry and media paths as Linux.
 # The renderer is independent of the version-specific job bindings.

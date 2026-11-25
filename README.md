@@ -567,6 +567,10 @@ See the [documentation index](docs/README.md) for runtime architecture and file-
   do not bypass the guard. The audio check hashes the ELF `.text`, not the
   whole `flashATRAC.pic` file.
 - Missing compiler/SDK: use the dependency buttons in BuzzPrepare and recheck.
+- "Installation folder path is too long" or, in older versions, `Build step for
+  ps3_vk_headers failed`: the Windows build nests about 160 characters below
+  the session folder. Move the whole folder to a shorter path such as
+  `C:\Games\Buzz` and start a new preparation, or enable Windows long paths.
 - Build already running/game EXE locked: close your game, then retry. Build
   scripts do not kill it. Avoid parallel builds against one output directory.
 - No keyboard response: focus the game window, check the buzzer mapping and
