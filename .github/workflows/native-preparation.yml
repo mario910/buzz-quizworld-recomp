@@ -174,6 +174,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only the hand-written changelog (docs/releases/<tag>.md); the build
+      # artifacts below are the release itself.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          sparse-checkout: docs/releases
+          persist-credentials: false
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: BuzzPrepare-windows-x64
@@ -189,8 +196,16 @@ jobs:
         working-directory: assets
         run: |
           sha256sum --check SHA256SUMS.txt SHA256SUMS-linux.txt
+          # docs/releases/<tag>.md (changelog with screenshots) goes first when
+          # present, then the install instructions, then GitHub's commit list.
+          notes="$RUNNER_TEMP/release-notes.md"
+          changelog="$GITHUB_WORKSPACE/source/docs/releases/$TAG.md"
+          {
+            if [ -f "$changelog" ]; then cat "$changelog"; printf '\n\n---\n\n## Install\n\n'; fi
+            printf '%s\n' 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. For supported encrypted ISOs, BuzzSetup fetches the disc key and decrypts the image during extraction. Use the firmware and key file buttons or select your own files for the separate PS3 system keys. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzSetup-x86_64.AppImage**, make it executable and run it (or use **BuzzPrepare-linux-x86_64.tar.gz** and its **BuzzSetup**). The game is prepared in ~/BuzzQuizWorld; on SteamOS and other image-based systems BuzzSetup builds inside a distrobox container without changing the system. Start the prepared game with **BuzzSetup-x86_64.AppImage --play** (also the Steam launch option).'
+          } > "$notes"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes \
             --title "BuzzSetup $TAG" \
-            --notes 'Download **BuzzPrepare-windows-x64.zip**, extract the entire ZIP to a writable folder, and open **BuzzSetup.exe**. Choose your Buzz! Quiz World disc or ISO and PS3 firmware. For supported encrypted ISOs, BuzzSetup fetches the disc key and decrypts the image during extraction. Use the firmware and key file buttons or select your own files for the separate PS3 system keys. If Windows build tools are missing, the app will show installation options. Select **Prepare game**, then **Play Buzz!**. The Qt source archive accompanies the bundled Qt libraries. **Linux / Steam Deck:** download **BuzzSetup-x86_64.AppImage**, make it executable and run it (or use **BuzzPrepare-linux-x86_64.tar.gz** and its **BuzzSetup**). The game is prepared in ~/BuzzQuizWorld; on SteamOS and other image-based systems BuzzSetup builds inside a distrobox container without changing the system. Start the prepared game with **BuzzSetup-x86_64.AppImage --play** (also the Steam launch option).' \
+            --notes-file "$notes" \
             BuzzPrepare-windows-x64.zip SHA256SUMS.txt qtbase-everywhere-src-6.8.3.tar.xz \
             BuzzSetup-x86_64.AppImage BuzzPrepare-linux-x86_64.tar.gz SHA256SUMS-linux.txt
