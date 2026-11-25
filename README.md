@@ -1,7 +1,7 @@
 # Buzz! Quiz World — experimental native port
 
 An unofficial **PS3Recomp-based static recompilation** of Buzz! Quiz World for
-Windows and Linux x86-64, with an experimental EU 1.00 Android ARM64 target.
+Windows and Linux x86-64.
 Vulkan is the standalone renderer, with Direct3D 12
 available for Windows developer builds. Startup films, menus, audio and
 single-player rounds have run in the Windows tests.
@@ -18,7 +18,7 @@ Windows and Linux preparation enable Vulkan renderer optimizations by default
 for every supported edition, including EU 1.02. Preparation matches the PPU kernels to the local game code. EU 1.02 maps all
 22 default scene, job, transform and record kernels and includes native radix,
 record and video transform kernels. EU 1.02 uses its own native geometry,
-animation, and completion adapters. Android has a separate ARM64 profile.
+animation, and completion adapters.
 Standard two-player gameplay has been tested on Polish assets in both EU releases
 and on US 1.00, including podium names, avatars and scoring. Full game validation
 is still in progress. This is a research
@@ -33,13 +33,6 @@ in its entirety by this repository's MIT license. See
 [licensing and third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Highlights
-
-- **Android ARM64:** full host geometry through NEON, on-screen buzzer and
-  optional imported Turnip driver. Build on Linux/WSL and stage prepared data
-  over ADB; ISO/PUP preparation inside the Android app is not implemented yet.
-  Current phone tests remain below stable 30 FPS. See the
-  [build/install guide](android/README.md) and
-  [enabled and disabled optimization catalog](docs/optimization-status.md).
 
 - **Local preparation without RPCS3:** import your disc/ISO, firmware and optional
   update, validate exact executable hashes, then generate and build locally.
@@ -557,6 +550,14 @@ monitor/white-square state, and limited multiplayer/long-session validation.
 The standalone Vulkan build targets Windows and Linux x86-64. D3D12 remains
 a Windows developer build. Steam Deck hardware and other game languages/content
 sets need separate validation.
+
+## Android (work in progress, not playable yet)
+
+An EU 1.00 Android ARM64 build exists for development only. There is no
+Android release, the app cannot prepare a game from an ISO/PUP yet, and phone
+tests remain below a stable 30 FPS. It is built on Linux/WSL and the prepared
+data is staged over ADB. See the [Android build guide](android/README.md) and
+the [optimization catalog](docs/optimization-status.md).
 
 ## Troubleshooting and development
 
