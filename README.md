@@ -102,6 +102,10 @@ Press **Esc** or **Start / Options** to pause the game and open PC settings. Use
 
 Create your own question packs for **Pack Game** with Buzz! Question Studio, a separate Windows and Linux editor. Write questions, preview answers, add pictures and audio, or import questions from supported Buzz! and Knowledge Is Power sources. You can build and install the pack into your prepared game from the editor.
 
+![Question Studio showing an illustrated multiple-choice question imported from the PS2 release of Buzz! The Mega Quiz](docs/screenshots/question-studio-preview.png)
+
+*An imported Mega Quiz question in the player preview, with its picture and all four answers.*
+
 Question Studio is available in current source builds. If your BuzzSetup package includes it, open it with the **Question Studio** button. [Question Studio guide and build instructions](docs/question-studio.md).
 
 ## Updates, saves and help
