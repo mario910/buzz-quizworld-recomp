@@ -12,6 +12,7 @@
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QProcess>
 #include <QStandardPaths>
 #include <QVersionNumber>
 #include <QWidget>
@@ -82,7 +83,7 @@ void ReleaseUpdate::check(std::function<void(const QString&, bool)> finished) {
                 target = QFileDialog::getSaveFileName(window, "Download Buzz Prepare " + tag,
                     QDir(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).filePath(asset));
             } else if (QMessageBox::question(window, "Update Buzz Prepare",
-                        "Install " + tag + " in place of this AppImage?") != QMessageBox::Yes) {
+                        "Install " + tag + " and restart BuzzSetup? An older installed game will then be rebuilt.") != QMessageBox::Yes) {
                 target.clear();
             }
             if (target.isEmpty()) { finished("Update cancelled.", true); return; }
@@ -122,9 +123,12 @@ void ReleaseUpdate::download(const QString& tag, const QString& asset, const QSt
             finished("The update could not be downloaded and verified. Please retry.", false);
         } else if (!file->commit()) {
             finished("Could not save the verified update: " + file->errorString(), false);
+        } else if (appImage && QProcess::startDetached(target, {})) {
+            finished("Restarting BuzzSetup…", true);
+            QCoreApplication::quit();
         } else {
-            finished(appImage ? "Buzz Prepare " + tag + " installed. Reopen this AppImage to use it."
-                : "Downloaded and verified " + tag + ". Close Buzz Prepare and extract the package over the existing BuzzPrepare folder.\n" + target, true);
+            finished(appImage ? "Buzz Prepare " + tag + " installed. Reopen this AppImage to update your installed game."
+                : "Downloaded and verified " + tag + ". Close Buzz Prepare and extract the package over the existing BuzzPrepare folder. Reopen BuzzSetup to update the installed game.\n" + target, true);
         }
     });
 }

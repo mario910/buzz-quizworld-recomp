@@ -10,7 +10,7 @@ import tempfile
 import zipfile
 
 
-from preparation_version import base_release
+from preparation_version import base_release, release_revisions
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = "BuzzPrepare-windows-x64.zip"
@@ -104,7 +104,8 @@ def package(qt_sources, output, studio):
             if len({name.casefold() for name in files}) != len(files):
                 raise ValueError("The source trees contain paths that collide on Windows.")
             archive.writestr("BuzzPrepare/build-files/release-sources.json", json.dumps(
-                {"revision": revision, "base_release": base_release(ROOT), "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
+                {"revision": revision, "base_release": base_release(ROOT), "releases": release_revisions(ROOT),
+                 "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
             for name in WIZARD_FILES:
                 archive.write(ROOT / "dist-preparation/bin" / name, f"BuzzPrepare/{name}")
             for source, name in studio_files(studio):

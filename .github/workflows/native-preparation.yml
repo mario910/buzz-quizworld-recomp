@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/disc_image.py', 'launcher/disc_keys.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'requirements.txt', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', 'studio/**', 'scripts/build-question-studio.ps1', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'tests/test_game_update.py', 'launcher/game_update.py', 'launcher/update_sources.py', 'tools/update-game.py', 'tools/preparation_version.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/disc_image.py', 'launcher/disc_keys.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'requirements.txt', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', 'studio/**', 'scripts/build-question-studio.ps1', '.github/workflows/native-preparation.yml']
   pull_request:
-    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/disc_image.py', 'launcher/disc_keys.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'requirements.txt', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', 'studio/**', 'scripts/build-question-studio.ps1', '.github/workflows/native-preparation.yml']
+    paths: ['preparation/**', 'third_party/zlib', 'ps3recomp', '.gitmodules', 'cmake/**', 'port/**', 'scripts/Build-Buzz.ps1', 'scripts/build-windows.ps1', 'tools/desktop_adapters.py', 'tools/studio_adapter.py', 'tools/regional_ppu*', 'tools/codegen/generate-ppu-kernels.py', 'tools/codegen/generate-spu-records.py', 'tools/codegen/generate-video-idct.py', 'tools/build-linux.py', 'tests/windows-game-build.py', 'tests/test_studio_adapter.py', 'tests/test_ps3_import.py', 'tests/test_setup_pipeline.py', 'tests/test_game_update.py', 'launcher/game_update.py', 'launcher/update_sources.py', 'tools/update-game.py', 'tools/preparation_version.py', 'Prepare-Buzz.cmd', 'scripts/build-preparation.ps1', 'scripts/build-preparation-linux.sh', 'launcher/setup_pipeline.py', 'launcher/disc_image.py', 'launcher/disc_keys.py', 'launcher/ps3_crypto.py', 'launcher/ps3_import.py', 'requirements.txt', 'tools/package-preparation.py', 'tools/package-preparation-linux.py', 'scripts/linux-build-container.sh', 'Prepare-Buzz.sh', 'Launch-Buzz.sh', 'studio/**', 'scripts/build-question-studio.ps1', '.github/workflows/native-preparation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          fetch-depth: 0
           submodules: true
           persist-credentials: false
       - name: Install native Linux dependencies
@@ -43,6 +44,7 @@ jobs:
           "$tools/python" -m pip install -r "$RUNNER_TEMP/buzz-import-requirements.txt"
           "$tools/python" -m unittest discover -s tests -p test_ps3_import.py
           "$tools/python" -m unittest discover -s tests -p test_setup_pipeline.py
+          "$tools/python" -m unittest discover -s tests -p test_game_update.py
       - name: Install developer Qt on Windows
         if: runner.os == 'Windows'
         shell: pwsh

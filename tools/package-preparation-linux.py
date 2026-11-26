@@ -19,7 +19,7 @@ import subprocess
 import tarfile
 import tempfile
 
-from preparation_version import base_release
+from preparation_version import base_release, release_revisions
 
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "BuzzPrepare"
@@ -326,7 +326,8 @@ def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
                 raise ValueError(f"Initialize {module} at the pinned revision before packaging.")
             files.extend(add_sources(staging, module_root, pin, prefix=module + "/"))
         (staging / "build-files/release-sources.json").write_text(json.dumps(
-            {"revision": revision, "base_release": base_release(ROOT), "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
+            {"revision": revision, "base_release": base_release(ROOT), "releases": release_revisions(ROOT),
+             "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
         archive = Path(scratch) / PACKAGE
         with tarfile.open(archive, "w:gz") as tar:
             tar.add(staging, arcname=NAME)

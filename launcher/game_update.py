@@ -97,7 +97,7 @@ def install_build(dist, exe, elf_hash):
             raise
 
 
-def update_game(project, dist, jobs, log, cancel):
+def update_game(project, dist, jobs, log, cancel, *, bundled_only=False):
     project = Path(project).resolve(strict=True)
     dist = Path(dist).resolve(strict=True)
     runtime = dist / "runtime"
@@ -120,9 +120,12 @@ def update_game(project, dist, jobs, log, cancel):
         host.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="update-", dir=host) as temp:
             workspace = Path(temp)
-            revision = update_sources.select(project, workspace, installed.get("source_revision"), log)
-            if revision and revision == installed.get("source_revision"):
-                log("The installed game already uses these sources.")
+            if bundled_only:
+                revision, tag = update_sources.bundled_upgrade(project, workspace, installed)
+            else:
+                revision, tag = update_sources.select(project, workspace, installed.get("source_revision"), log)
+            if (revision or bundled_only) and revision == installed.get("source_revision"):
+                log("No game update is needed.")
                 return
             extra = []
             pgo_hash = installed.get("pgo_profile_sha256")
@@ -138,6 +141,8 @@ def update_game(project, dist, jobs, log, cancel):
             manifest = manifest_for(built, elf_hash)
             if revision:
                 manifest["source_revision"] = revision
+                if tag:
+                    manifest["source_release"] = tag
                 model.atomic_text(built.parent / "game-build.json", json.dumps(manifest))
             install_build(dist, built, elf_hash)
     log("Game updated. Your existing profiles, saves and settings are ready to use.")

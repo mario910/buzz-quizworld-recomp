@@ -24,6 +24,8 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QNetworkAccessManager>
@@ -44,6 +46,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QVersionNumber>
 #include <functional>
 #include <utility>
 #include <QWidget>
@@ -111,7 +114,9 @@ QVBoxLayout* card(QVBoxLayout& parent, const QString& role) {
 
 class Wizard final : public QWidget {
     QLabel status;
-    QLabel *guidance{}, *prepareTitle{}, *heroDescription{};
+    QLabel *guidance{}, *prepareTitle{}, *heroDescription{}, *gameVersion{};
+    QString startupRoot;
+    bool attemptedUpgrade = false;
     QWidget* inputs{};
     QProgressBar progress;
     QPlainTextEdit log;
@@ -276,6 +281,48 @@ class Wizard final : public QWidget {
                !firmware->text().isEmpty() && QFileInfo::exists(firmware->text());
     }
 
+    void startGameUpdate(bool bundledOnly) {
+        QStringList args{root() + "/tools/update-game.py", "--jobs", QString::number(jobs.value())};
+        if (bundledOnly) args << "--bundled-only";
+        details.setChecked(true);
+        startBuild(toolPython(), args, "Updating the installed game. Keep this window open while it builds…");
+    }
+
+    void refreshGameVersion(bool ready) {
+        if (!ready) {
+            gameVersion->setText("Installed game: not found");
+            return;
+        }
+        const QDir dir(root());
+        const auto manifest = [&dir](const QString& name) {
+            QFile file(dir.filePath(name));
+            return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject{};
+        };
+        const auto gameBuild = manifest("dist/game-build.json");
+        const auto bundle = manifest("release-sources.json");
+        const auto releases = bundle.value("releases").toObject();
+        const auto revision = gameBuild.value("source_revision").toString();
+        const auto tag = releases.value(revision).toString(gameBuild.value("source_release").toString());
+        QString description = tag;
+        if (description.isEmpty())
+            description = revision.isEmpty() ? QString("unknown version") : "revision " + revision.left(12);
+        gameVersion->setText("Installed game: " + description);
+        const auto target = releases.value(bundle.value("revision").toString()).toString();
+        if (attemptedUpgrade || startupRoot != root() || dir.exists(".git") || tag.isEmpty() ||
+            target != QStringLiteral("v" BUZZ_PREPARE_VERSION) ||
+            QVersionNumber::fromString(tag.mid(1)) >= QVersionNumber::fromString(target.mid(1))) return;
+        if (!updateGame->isEnabled()) {
+            guidance->setText("Game update to " + target + " pending. Set up the build tools in Advanced options.");
+            return;
+        }
+        QTimer::singleShot(0, this, [this] {
+            if (!busy && !attemptedUpgrade && root() == startupRoot && updateGame->isEnabled()) {
+                attemptedUpgrade = true;
+                startGameUpdate(true);
+            }
+        });
+    }
+
     void showState(bool ready, const QString& problem) {
         inputs->setVisible(!ready);
         heroDescription->setText(ready ? "Your copy is ready to play on this PC."
@@ -299,6 +346,7 @@ class Wizard final : public QWidget {
             : !hasInputs() ? "Choose your game disc and firmware above to continue."
             : !localToolsReady ? "Prepare game will install the local build dependencies first."
                                : "Ready to prepare your game. Keep this window open while it builds.");
+        refreshGameVersion(ready);
     }
 
     void refreshLinux(QProcessEnvironment environment) {
@@ -734,10 +782,12 @@ public:
         header->setSpacing(15);
         auto* copy = new QVBoxLayout;
         copy->setSpacing(2);
-        copy->addWidget(label("BUZZSETUP  /  PC EDITION", "brand"));
+        copy->addWidget(label("BuzzSetup " BUZZ_PREPARE_VERSION, "brand"));
         copy->addWidget(label("Buzz! Quiz World", "title"));
         heroDescription = label({}, "muted");
         copy->addWidget(heroDescription);
+        gameVersion = label({}, "muted");
+        copy->addWidget(gameVersion);
         header->addLayout(copy, 1);
         connect(&releases, &ReleaseUpdate::downloadProgress, this, [this](qint64 received, qint64 total) {
             guidance->setText("Downloading and verifying the Buzz Prepare update…");
@@ -799,6 +849,7 @@ public:
         advancedForm->addLayout(options);
         project = pathRow(*options, "Build sources", {}, true);
         project->setText(findCheckout());
+        startupRoot = root();
         if (!root().isEmpty()) {
             const QDir source(root());
             const auto manual = source.filePath("runtime/keys/ps3.keys");
@@ -923,9 +974,7 @@ public:
                     QDir(root()).exists(".git")
                         ? "Check the tracked branch and update your game? Local edits or a diverged branch take priority."
                         : "Check the latest stable release and rebuild your game if needed? Your profiles and settings will be kept.") != QMessageBox::Yes) return;
-            details.setChecked(true);
-            startBuild(toolPython(), {root() + "/tools/update-game.py", "--jobs", QString::number(jobs.value())},
-                       "Updating the installed game. Keep this window open while it builds…");
+            startGameUpdate(false);
         });
         questionStudio = button(*actions, "Question Studio", [this] { openQuestionStudio(); });
         questionStudio->setToolTip("Write your own questions and install them as a quiz pack for this game.");

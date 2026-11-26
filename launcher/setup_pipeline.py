@@ -502,7 +502,7 @@ def build_workspace(project, workspace, profile, jobs, log, cancel, stage, stand
     return exe
 
 
-def publish_distribution(project, workspace, paths, exe, log, cancel, source_revision=None):
+def publish_distribution(project, workspace, paths, exe, log, cancel, source_revision=None, source_release=None):
     """Publish a self-contained local copy only after all files have been staged."""
     dist = project / "dist"
     if os.path.lexists(dist):
@@ -543,6 +543,8 @@ def publish_distribution(project, workspace, paths, exe, log, cancel, source_rev
             if source_revision:
                 record = json.loads(target.read_text(encoding="utf-8-sig"))
                 record["source_revision"] = source_revision
+                if source_release:
+                    record["source_release"] = source_release
                 model.atomic_text(target, json.dumps(record))
         for dll in exe.parent.glob("*.dll"):
             copy_file(dll, staging / dll.name)
@@ -680,7 +682,9 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
             copy_sources(project, workspace)
             inventory = project / "release-sources.json"
             if inventory.is_file() and not (project / ".git").exists():
-                state["source_revision"] = json.loads(inventory.read_text()).get("revision")
+                bundle = json.loads(inventory.read_text())
+                state["source_revision"] = bundle.get("revision")
+                state["source_release"] = bundle.get("releases", {}).get(state["source_revision"])
         stage("snapshot sources", snapshot)
         if profile.adapter_family == "quizworld-102-verified":
             stage("stage update content", lambda: stage_update_content(executable.parent / "Patched", workspace, cancel, log))
@@ -707,7 +711,8 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
             if (manifest.get("renderer") != "vulkan" or manifest.get("elf_sha256") != profile.elf_sha256 or
                     manifest.get("exe_sha256") != result["sha256"] or not manifest.get("standalone")):
                 raise ValueError("The executable does not match the standalone Vulkan build manifest.")
-            publish_distribution(project, workspace, state["paths"], exe, log, cancel, state.get("source_revision"))
+            publish_distribution(project, workspace, state["paths"], exe, log, cancel,
+                                 state.get("source_revision"), state.get("source_release"))
             return session, state
         model.atomic_text(project / "runtime/setup/last-ready.json", json.dumps({"session": str(session), "workspace": str(workspace)}, indent=2))
         log("Ready. Use Play to open this build's controller/game launcher.")

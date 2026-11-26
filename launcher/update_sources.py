@@ -21,6 +21,12 @@ def release_url(url):
     return urlopen(Request(url, headers={"User-Agent": "BuzzPrepare-updater"}), timeout=30)
 
 
+def stable_version(tag):
+    if isinstance(tag, str) and re.fullmatch(r"v[0-9]+[.][0-9]+[.][0-9]+", tag):
+        return tuple(map(int, tag[1:].split(".")))
+    return ()
+
+
 def latest_sources(destination, installed_revision, log, bundled_project=None):
     with release_url(f"https://api.github.com/repos/{REPO}/releases/latest") as response:
         data = response.read(1024 * 1024 + 1)
@@ -28,18 +34,15 @@ def latest_sources(destination, installed_revision, log, bundled_project=None):
         raise ValueError("Release information exceeds the expected size.")
     release = json.loads(data)
     tag = release.get("tag_name", "")
-    if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) or release.get("draft") or release.get("prerelease"):
+    if not stable_version(tag) or release.get("draft") or release.get("prerelease"):
         raise ValueError("No stable Buzz Prepare release was found.")
     if bundled_project is not None:
         inventory = json.loads((bundled_project / "release-sources.json").read_text())
-        base = inventory.get("base_release") or ""
-        if re.fullmatch(r"v[0-9]+[.][0-9]+[.][0-9]+", base):
-            version = lambda value: tuple(int(part) for part in value[1:].split("."))
-            if version(base) >= version(tag):
-                revision = inventory["revision"]
-                if revision != installed_revision:
-                    copy_sources(bundled_project, destination)
-                return revision
+        if stable_version(inventory.get("base_release")) >= stable_version(tag):
+            revision = inventory["revision"]
+            if revision != installed_revision:
+                copy_sources(bundled_project, destination)
+            return revision, inventory.get("releases", {}).get(revision)
     asset = next((a for a in release.get("assets", []) if a.get("name") == ASSET), {})
     size, digest = asset.get("size", 0), asset.get("digest") or ""
     if not 0 < size <= 512 * 1024**2 or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
@@ -71,7 +74,7 @@ def latest_sources(destination, installed_revision, log, bundled_project=None):
                         shutil.copyfileobj(source, target)
                     if info.external_attr >> 16 & 0o111 or output.suffix == ".sh":
                         output.chmod(0o755)
-    return revision
+    return revision, tag
 
 
 def git(repo, *args, check=True, timeout=120):
@@ -86,7 +89,7 @@ def select(project, workspace, installed_revision, log):
     if git(project, "status", "--porcelain").stdout:
         log("Building from this checkout, including local changes.")
         copy_sources(project, workspace)
-        return None
+        return None, None
     branch = git(project, "symbolic-ref", "--quiet", "--short", "HEAD", check=False).stdout.strip()
     remote = git(project, "config", "--get", f"branch.{branch}.remote", check=False).stdout.strip()
     ref = git(project, "config", "--get", f"branch.{branch}.merge", check=False).stdout.strip()
@@ -108,8 +111,23 @@ def select(project, workspace, installed_revision, log):
                     if tip != installed_revision:
                         git(checkout, "submodule", "update", "--init", "--recursive", timeout=600)
                         copy_sources(checkout, workspace)
-                    return tip
+                    return tip, None
                 log("The local checkout is ahead of or has diverged from its upstream. Using local sources.")
     if installed_revision != revision:
         copy_sources(project, workspace)
-    return revision
+    return revision, None
+
+
+def bundled_upgrade(project, workspace, installed):
+    """Under the game lock, rebuild only an older stable release from this package."""
+    inventory = json.loads((project / "release-sources.json").read_text())
+    revision = inventory["revision"]
+    releases = inventory.get("releases", {})
+    current = installed.get("source_revision")
+    old_tag = releases.get(current) or installed.get("source_release")
+    tag = releases.get(revision)
+    if ((project / ".git").exists() or current == revision
+            or not stable_version(old_tag) or stable_version(old_tag) >= stable_version(tag)):
+        return current, old_tag
+    copy_sources(project, workspace)
+    return revision, tag

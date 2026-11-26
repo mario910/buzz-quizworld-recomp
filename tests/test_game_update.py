@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -72,13 +73,59 @@ class UpdateTests(unittest.TestCase):
         def get(url):
             return io.BytesIO(json.dumps(release).encode() if "api.github.com" in url else data)
         with patch.object(update_sources, "release_url", get):
-            self.assertEqual(update_sources.latest_sources(self.build, None, print), revision)
+            self.assertEqual(update_sources.latest_sources(self.build, None, print), (revision, "v1.2.3"))
             self.assertEqual((self.build / "tools/build-linux.py").read_bytes(), b"source")
-            self.assertEqual(update_sources.latest_sources(self.dist, revision, print), revision)
+            self.assertEqual(update_sources.latest_sources(self.dist, revision, print), (revision, "v1.2.3"))
             self.assertFalse((self.dist / "tools").exists())
             release["assets"][0]["digest"] = "sha256:" + "0" * 64
             with self.assertRaises(ValueError):
                 update_sources.latest_sources(self.dist, revision, print)
+
+    def test_automatic_update_of_legacy_install_is_offline_and_runs_once(self):
+        old, new = "1" * 40, "2" * 40
+        runtime = self.dist / "runtime"
+        (runtime / "EBOOT.elf").write_bytes(b"elf")
+        elf_hash = hashlib.sha256(b"elf").hexdigest()
+        (runtime / "dev_flash").mkdir()
+        disc = runtime / "disc/PS3_GAME"
+        disc.mkdir(parents=True)
+        (disc / "PARAM.SFO").touch()
+        inventory = {"revision": new, "releases": {old: "v0.3.9", new: "v0.3.10"},
+                               "files": ["source.txt"]}
+        (self.root / "release-sources.json").write_text(json.dumps(inventory))
+        (self.root / "source.txt").write_text("new bundled sources")
+        for path in (self.dist, self.build):
+            manifest = path / "game-build.json"
+            data = json.loads(manifest.read_text())
+            data["elf_sha256"] = elf_hash
+            if path == self.dist:
+                data["source_revision"] = old
+            manifest.write_text(json.dumps(data))
+
+        def build(project, workspace, *args):
+            self.assertEqual((workspace / "source.txt").read_text(), "new bundled sources")
+            return self.exe
+
+        with patch.object(game_update.model, "title_id"), patch.object(game_update, "identify"), \
+                patch.object(game_update, "build_workspace", side_effect=build) as compiler, \
+                patch.object(update_sources, "release_url", side_effect=AssertionError):
+            for _ in range(2):
+                game_update.update_game(self.root, self.dist, 4, lambda line: None,
+                                        threading.Event(), bundled_only=True)
+            compiler.assert_called_once()
+        manifest = game_update.manifest_for(self.dist / self.name, elf_hash)
+        self.assertEqual((manifest["source_revision"], manifest["source_release"]), (new, "v0.3.10"))
+        self.assertEqual(self.profile.read_bytes(), b"custom")
+
+    def test_bundled_update_skips_unknown_builds_and_downgrades(self):
+        revision = "a" * 40
+        (self.root / "release-sources.json").write_text(json.dumps(
+            {"revision": revision, "releases": {revision: "v0.3.9"}}))
+        with patch.object(update_sources, "copy_sources") as copy:
+            for release in (None, "v0.3.10", "v0.3.9"):
+                installed = {"source_revision": "b" * 40, "source_release": release}
+                update_sources.bundled_upgrade(self.root, self.build, installed)
+            copy.assert_not_called()
 
     def test_clean_checkout_builds_tracked_update_without_moving_branch(self):
         import subprocess
@@ -98,10 +145,11 @@ class UpdateTests(unittest.TestCase):
         def snapshot(src, dst):
             (dst / "selected").write_bytes((src / "version").read_bytes())
         with patch.object(update_sources, "copy_sources", snapshot):
-            tip = update_sources.select(local, self.build, None, lambda line: None)
+            tip, release = update_sources.select(local, self.build, None, lambda line: None)
+            self.assertIsNone(release)
             self.assertEqual(tip, git(upstream, "rev-parse", "HEAD"))
             self.assertEqual((self.build / "selected").read_text(), "after")
             self.assertEqual((local / "version").read_text(), "before")
             (local / "version").write_text("my changes")
-            self.assertIsNone(update_sources.select(local, self.build, tip, lambda line: None))
+            self.assertEqual(update_sources.select(local, self.build, tip, lambda line: None), (None, None))
             self.assertEqual((self.build / "selected").read_text(), "my changes")
