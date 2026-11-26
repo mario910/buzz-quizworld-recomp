@@ -4,6 +4,9 @@ project(BuzzQuizWorldRecomp
     LANGUAGES C CXX
     DESCRIPTION "Buzz! Quiz World BCES00647 1.02 experimental port"
 )
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
 
 # ---------------------------------------------------------------------------
 # Standards
@@ -771,7 +774,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 if(APPLE)
     # The port's buzzer input uses SDL2 directly on macOS.
-    enable_language(OBJCXX)
     find_package(SDL2 REQUIRED)
     target_sources(${PROJECT_NAME} PRIVATE macos_input.mm)
     target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
