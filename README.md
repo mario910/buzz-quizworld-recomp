@@ -4,7 +4,7 @@
 
 [Download BuzzSetup](https://github.com/mario910/buzz-quizworld-recomp/releases/latest) · [How to play](#how-to-play) · [Buzzers and controls](#buzzers-and-controls) · [Question Studio](#question-studio)
 
-![A two-player Buzz! Quiz World round with PlayStation and Xbox button hints beside the answers](docs/releases/v0.3.7/button-hints.jpg)
+![Three contestants at their podiums in Point Builder, with a timer, four answers with Xbox button hints, and the player scores on the right](docs/screenshots/us-point-builder.jpg)
 
 > [!IMPORTANT]
 > You need your own PS3 copy of **Buzz! Quiz World** and PS3 system software. BuzzSetup prepares a playable copy on your computer using those files. The download contains the setup app and build files. You can set up and play without RPCS3.
@@ -50,11 +50,25 @@
 
 1. Use **Space** on the keyboard or **LB/RB** on a gamepad as the red buzzer to move through the opening menus. Choose a local game mode.
 2. On the player screen, each person presses their red buzzer to join. The game assigns places in the order players press.
-3. Open the PC settings with **Esc** or **Start / Options** on a controller. Choose **Save settings** to keep your changes.
+3. Load a profile or create one and pick a character, costume and buzzer sound.
+
+![Character selection for a three-player game: two contestants are at their podiums while the third picks a superhero](docs/screenshots/us-character-select.jpg)
+
+*Local multiplayer in the English US 1.00 build on Windows.*
 
 Preparation is a one-time step. Next time, reopen BuzzSetup and click **Play Buzz!**. **Open game folder** takes you to the prepared copy, where you can also start **BuzzQuizWorldRecomp.exe** on Windows.
 
 On Steam Deck, use **Add to Steam** in BuzzSetup, then find the game under **Non-Steam** in Game Mode. If you add the AppImage to Steam yourself, put `--play` in its launch options. The tar package includes `Play-Buzz.sh` for direct launch.
+
+### Pick a subject and score points
+
+In **Standard game**, contestants pick the subjects and Buzz picks the rounds. Use the colored buttons to choose from the subjects on screen.
+
+![Three contestants choosing the next subject from four options, with a gamepad button displayed beside each option](docs/screenshots/us-category-select.jpg)
+
+In **Point Builder**, answer before the timer runs out. The game reveals the correct answer and updates each player's score beside their portrait.
+
+![Point Builder reveals the correct answer and awards points on the three-player scoreboard](docs/screenshots/us-point-builder-scores.jpg)
 
 ## Buzzers and controls
 
@@ -67,6 +81,12 @@ On Steam Deck, use **Add to Steam** in BuzzSetup, then find the game under **Non
 | Yellow | A | Cross | 4 |
 
 More keyboard sets are available. Their red buzzers are **Q**, **A** and **Z**, with the next four keys on each row answering blue, orange, green and yellow. Change the bindings under **Controls → Keyboard and pad bindings**. Windows supports Xbox-compatible controllers, DualShock 4 and DualSense. Original USB Buzz! receivers have experimental Windows support. [Input guide](docs/input-and-offline.md) · [Original Buzz! receivers](docs/physical-buzzers.md).
+
+### Change settings mid-game
+
+Press **Esc** or **Start / Options** to pause the game and open PC settings. Use the D-pad to switch tabs or change options. **General** has volume, the frame limit and the performance overlay; **Display** has window size, internal resolution and upscaling. Choose **Save settings** to keep your changes.
+
+![The in-game PC settings menu paused on the Display tab, showing display mode, window size, internal resolution and upscaling options](docs/screenshots/us-pc-display-settings.jpg)
 
 ### Use your phone as a buzzer
 
