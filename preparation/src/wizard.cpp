@@ -41,6 +41,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QSysInfo>
+#include <QSet>
 #include <QSettings>
 #include <QTextCursor>
 #include <QTimer>
@@ -470,7 +471,38 @@ class Wizard final : public QWidget {
         const QString installedPython = environment.value("LOCALAPPDATA") + "/Programs/Python/Python312/python.exe";
         if (QFileInfo(installedPython).isFile()) python = installedPython;
         if (python.contains("/WindowsApps/", Qt::CaseInsensitive)) python.clear();
-        environment.insert("PATH", search.join(QDir::listSeparator()));
+        // The process PATH already holds the registry entries; without de-duplication the
+        // doubled PATH overflows cmd.exe's 8191-character line in VsDevCmd.bat (issue #9).
+        QStringList uniqueSearch;
+        QSet<QString> seen;
+        // Registry Path values are REG_EXPAND_SZ, so expand %VAR% before comparing.
+        auto expand = [&environment](QString value) {
+            for (qsizetype start = value.indexOf('%'); start >= 0; start = value.indexOf('%', start)) {
+                const auto end = value.indexOf('%', start + 1);
+                if (end < 0) break;
+                const auto name = value.mid(start + 1, end - start - 1);
+                if (name.isEmpty() || !environment.contains(name)) { start = end; continue; }
+                const auto replacement = environment.value(name);
+                value.replace(start, end - start + 1, replacement);
+                start += replacement.size();
+            }
+            return value.trimmed();
+        };
+        for (const auto& raw : search) {
+            const auto entry = expand(raw);
+            auto key = QDir::cleanPath(QDir::fromNativeSeparators(entry)).toLower();
+            while (key.size() > 3 && key.endsWith('/')) key.chop(1);
+            if (key.isEmpty() || seen.contains(key)) continue;
+            seen.insert(key);
+            uniqueSearch.append(entry);
+        }
+        environment.insert("PATH", uniqueSearch.join(QDir::listSeparator()));
+        // A stale certificate override breaks Python's TLS and with it the compiler download.
+        for (const auto& name : {QStringLiteral("SSL_CERT_FILE"), QStringLiteral("SSL_CERT_DIR"),
+                                 QStringLiteral("REQUESTS_CA_BUNDLE"), QStringLiteral("CURL_CA_BUNDLE")}) {
+            const auto value = environment.value(name);
+            if (!value.isEmpty() && !QFileInfo::exists(value)) environment.remove(name);
+        }
         environment.remove("BUZZ_TOOL_ENV");
         environment.insert("PYTHONIOENCODING", "utf-8");
         process.setProcessEnvironment(environment);

@@ -60,6 +60,20 @@ $toolEnvironment = if($env:BUZZ_TOOL_ENV){$env:BUZZ_TOOL_ENV}else{Join-Path $exp
 $toolScripts = Join-Path $toolEnvironment 'Scripts'
 if (-not (Test-Path -LiteralPath (Join-Path $toolScripts 'python.exe'))) { throw 'Run .\scripts\Setup-Buzz.ps1 first.' }
 $env:PATH = "$toolScripts;$env:PATH"
+# VsDevCmd.bat runs under cmd.exe, whose 8191-character line limit a duplicated PATH overflows (issue #9).
+$pathSeen = @{}
+$env:PATH = (($env:PATH -split ';') | ForEach-Object { $_.Trim() } | Where-Object {
+    $key = $_.TrimEnd('\','/').ToLowerInvariant()
+    $key -and -not $pathSeen.ContainsKey($key) -and ($pathSeen[$key] = $true)
+}) -join ';'
+# A certificate override pointing at a missing file breaks Python TLS and the compiler download.
+foreach ($name in 'SSL_CERT_FILE','SSL_CERT_DIR','REQUESTS_CA_BUNDLE','CURL_CA_BUNDLE') {
+    $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+    if ($value -and -not (Test-Path -LiteralPath $value)) {
+        Write-Warning "Ignoring $name; it points to a missing path: $value"
+        Remove-Item -LiteralPath "Env:$name"
+    }
+}
 $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK.' }
 $vsRoot = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -67,6 +81,10 @@ if (-not $vsRoot) { throw 'No Visual Studio C++ toolchain found. Install the Des
 & (Join-Path $vsRoot 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 if (-not $CompilerDirectory) {
     $CompilerDirectory = & (Join-Path $toolScripts 'python.exe') -c 'from clang_tool_chain.wrapper import get_platform_binary_dir; print(get_platform_binary_dir())'
+    if ($LASTEXITCODE -or -not $CompilerDirectory) {
+        throw 'The Clang/LLVM toolchain could not be downloaded or installed; see the Python error above. Check the internet connection, proxy and antivirus, then retry.'
+    }
+    $CompilerDirectory = ($CompilerDirectory | Select-Object -Last 1).Trim()
 }
 $env:PATH = "$CompilerDirectory;$env:PATH"
 $compiler = Join-Path $CompilerDirectory 'clang-cl.exe'
