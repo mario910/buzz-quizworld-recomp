@@ -31,7 +31,8 @@ add_library(studio_build STATIC src/pack_format.h src/pack_codec.h src/pack_code
     src/ps2_media.h src/ps2_media.cpp)
 target_link_libraries(studio_build PUBLIC studio_core Qt6::Gui)
 add_library(studio_app STATIC src/controller.cpp src/controller.h src/tts.cpp src/tts.h src/localization.cpp src/localization.h)
-qt_add_translation(studio_translations i18n/studio_en.ts)
+file(GLOB studio_catalogs CONFIGURE_DEPENDS i18n/studio_*.ts)
+qt_add_translation(studio_translations ${studio_catalogs})
 qt_add_resources(studio_app studio_translations PREFIX "/i18n"
     BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${studio_translations})
 target_link_libraries(studio_app PUBLIC studio_build Qt6::Gui Qt6::Concurrent)

@@ -3,6 +3,7 @@
 #include "languages.h"
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRegularExpression>
@@ -308,13 +309,12 @@ class DocumentTest final : public QObject {
         QVERIFY(studio::languageCode("x").isEmpty());
         QVERIFY(studio::languageCode("../../en").isEmpty());
     }
-    void englishCatalogIsCompleteAndKeepsPlaceholdersAndFileFilters() {
-        QFile catalog(QFINDTESTDATA("../i18n/studio_en.ts"));
-        QVERIFY(catalog.open(QIODevice::ReadOnly));
-        QXmlStreamReader xml(&catalog);
-        QString source, translated;
-        bool unfinished = false;
-        int messages = 0;
+    // Every interface catalog (English plus the other Buzz! game languages)
+    // translates every message and keeps placeholders and file filters.
+    void interfaceCatalogsAreCompleteAndKeepPlaceholdersAndFileFilters() {
+        const QDir folder(QFileInfo(QFINDTESTDATA("../i18n/studio_en.ts")).absolutePath());
+        const auto catalogs = folder.entryList({"studio_*.ts"}, QDir::Files);
+        QCOMPARE(catalogs.size(), 15);
         const QRegularExpression tokens("%[1-9][0-9]*|%n|\\*\\.[a-zA-Z0-9.]+");
         auto placeholders = [&](const QString &text) {
             QStringList values;
@@ -324,25 +324,42 @@ class DocumentTest final : public QObject {
             values.sort();
             return values;
         };
-        while (!xml.atEnd()) {
-            xml.readNext();
-            if (xml.isStartElement() && xml.name() == QStringLiteral("message")) {
-                source.clear();
-                translated.clear();
-                unfinished = false;
-            } else if (xml.isStartElement() && xml.name() == QStringLiteral("source")) {
-                source = xml.readElementText();
-            } else if (xml.isStartElement() && xml.name() == QStringLiteral("translation")) {
-                unfinished = xml.attributes().value("type") == QStringLiteral("unfinished");
-                translated = xml.readElementText();
-            } else if (xml.isEndElement() && xml.name() == QStringLiteral("message")) {
-                QVERIFY2(!unfinished && !translated.isEmpty(), qPrintable(source));
-                QCOMPARE(placeholders(source), placeholders(translated));
-                ++messages;
+        int english = -1;
+        for (const auto &name : catalogs) {
+            QFile catalog(folder.filePath(name));
+            QVERIFY(catalog.open(QIODevice::ReadOnly));
+            QXmlStreamReader xml(&catalog);
+            QString source, translated;
+            bool unfinished = false;
+            int messages = 0;
+            while (!xml.atEnd()) {
+                xml.readNext();
+                if (xml.isStartElement() && xml.name() == QStringLiteral("message")) {
+                    source.clear();
+                    translated.clear();
+                    unfinished = false;
+                } else if (xml.isStartElement() && xml.name() == QStringLiteral("source")) {
+                    source = xml.readElementText();
+                } else if (xml.isStartElement() && xml.name() == QStringLiteral("translation")) {
+                    unfinished = xml.attributes().value("type") == QStringLiteral("unfinished");
+                    translated = xml.readElementText();
+                } else if (xml.isEndElement() && xml.name() == QStringLiteral("message")) {
+                    QVERIFY2(!unfinished && !translated.isEmpty(), qPrintable(name + ": " + source));
+                    QVERIFY2(placeholders(source) == placeholders(translated), qPrintable(name + ": " + translated));
+                    ++messages;
+                }
             }
+            QVERIFY2(!xml.hasError(), qPrintable(name));
+            QVERIFY(messages > 200);
+            if (name == "studio_en.ts")
+                english = messages;
         }
-        QVERIFY(!xml.hasError());
-        QVERIFY(messages > 200);
+        // The other catalogs are made from the English one's message list.
+        for (const auto &name : catalogs) {
+            QFile catalog(folder.filePath(name));
+            QVERIFY(catalog.open(QIODevice::ReadOnly));
+            QCOMPARE(catalog.readAll().count("<message>"), qsizetype(english));
+        }
     }
 };
 QTEST_GUILESS_MAIN(DocumentTest)

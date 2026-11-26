@@ -22,6 +22,7 @@
 #endif
 
 namespace {
+QString T(const char* text) { return QCoreApplication::translate("BuzzSetup", text); }
 const QString repository = QStringLiteral("mario910/buzz-quizworld-recomp");
 
 QNetworkRequest request(const QUrl& url) {
@@ -111,7 +112,7 @@ QString ReleaseUpdate::takeInstallResult() {
     if (result.startsWith(QChar(0xFEFF))) result.remove(0, 1);
     file.close();
     file.remove();
-    return result == "ok" ? QStringLiteral("BuzzSetup " BUZZ_PREPARE_VERSION " installed.") : result;
+    return result == "ok" ? T("BuzzSetup %1 installed.").arg(BUZZ_PREPARE_VERSION) : result;
 #else
     return {};
 #endif
@@ -129,18 +130,18 @@ void ReleaseUpdate::check(std::function<void(const QString&, bool)> finished) {
     connect(reply, &QNetworkReply::finished, this, [this, reply, finished] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            finished("Could not check for updates: " + reply->errorString(), false);
+            finished(T("Could not check for updates: %1").arg(reply->errorString()), false);
             return;
         }
         const auto release = QJsonDocument::fromJson(reply->readAll()).object();
         const auto tag = release.value("tag_name").toString();
         static const QRegularExpression version("^v[0-9]+[.][0-9]+[.][0-9]+$");
         if (!version.match(tag).hasMatch() || release.value("prerelease").toBool() || release.value("draft").toBool()) {
-            finished("The release service did not return a stable Buzz Prepare version.", false);
+            finished(T("The release service did not return a stable Buzz Prepare version."), false);
             return;
         }
         if (QVersionNumber::fromString(tag.mid(1)) <= QVersionNumber::fromString(BUZZ_PREPARE_VERSION)) {
-            finished("Buzz Prepare is up to date (latest stable release: " + tag + ").", true);
+            finished(T("Buzz Prepare is up to date (latest stable release: %1).").arg(tag), true);
             return;
         }
         const QString image = runningAppImage();
@@ -165,21 +166,21 @@ void ReleaseUpdate::check(std::function<void(const QString&, bool)> finished) {
             QString target = image;
 #endif
             if (!inPlace) {
-                target = QFileDialog::getSaveFileName(window, "Download Buzz Prepare " + tag,
+                target = QFileDialog::getSaveFileName(window, T("Download Buzz Prepare %1").arg(tag),
                     QDir(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).filePath(asset));
-            } else if (QMessageBox::question(window, "Update Buzz Prepare",
-                        "Install " + tag + " and restart BuzzSetup? An older installed game will then be rebuilt."
+            } else if (QMessageBox::question(window, T("Update Buzz Prepare"),
+                        T("Install %1 and restart BuzzSetup? An older installed game will then be rebuilt.").arg(tag)
 #ifdef Q_OS_WIN
-                        "\n\nClose the game and Question Studio first."
+                        + "\n\n" + T("Close the game and Question Studio first.")
 #endif
                         ) != QMessageBox::Yes) {
                 target.clear();
             }
-            if (target.isEmpty()) { finished("Update cancelled.", true); return; }
+            if (target.isEmpty()) { finished(T("Update cancelled."), true); return; }
             download(tag, asset, target, size, QByteArray::fromHex(hash.mid(7).toLatin1()), inPlace, finished);
             return;
         }
-        finished("The release has no verified package for this platform.", false);
+        finished(T("The release has no verified package for this platform."), false);
     });
 }
 
@@ -193,7 +194,7 @@ void ReleaseUpdate::download(const QString& tag, const QString& asset, const QSt
 #endif
     auto file = std::make_shared<QSaveFile>(target);
     if (!file->open(QIODevice::WriteOnly) || (appImage && !file->setPermissions(QFileInfo(target).permissions()))) {
-        finished("Could not stage the update: " + file->errorString(), false);
+        finished(T("Could not stage the update: %1").arg(file->errorString()), false);
         return;
     }
     auto hash = std::make_shared<QCryptographicHash>(QCryptographicHash::Sha256);
@@ -214,22 +215,22 @@ void ReleaseUpdate::download(const QString& tag, const QString& asset, const QSt
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError || !write() || file->pos() != size || hash->result() != digest) {
             file->cancelWriting();
-            finished("The update could not be downloaded and verified. Please retry.", false);
+            finished(T("The update could not be downloaded and verified. Please retry."), false);
         } else if (!file->commit()) {
-            finished("Could not save the verified update: " + file->errorString(), false);
+            finished(T("Could not save the verified update: %1").arg(file->errorString()), false);
         } else if (appImage && QProcess::startDetached(target, {})) {
-            finished("Restarting BuzzSetup…", true);
+            finished(T("Restarting BuzzSetup…"), true);
             QCoreApplication::quit();
 #ifdef Q_OS_WIN
         } else if (inPlace && startInstaller(packageFolder(), target)) {
-            finished("Installing Buzz Prepare " + tag + " and restarting BuzzSetup…", true);
+            finished(T("Installing Buzz Prepare %1 and restarting BuzzSetup…").arg(tag), true);
             QCoreApplication::quit();
         } else if (inPlace) {
-            finished("Could not start the update installer. Extract this package over the BuzzPrepare folder:\n" + target, false);
+            finished(T("Could not start the update installer. Extract this package over the BuzzPrepare folder:\n%1").arg(target), false);
 #endif
         } else {
-            finished(appImage ? "Buzz Prepare " + tag + " installed. Reopen this AppImage to update your installed game."
-                : "Downloaded and verified " + tag + ". Close Buzz Prepare and extract the package over the existing BuzzPrepare folder. Reopen BuzzSetup to update the installed game.\n" + target, true);
+            finished(appImage ? T("Buzz Prepare %1 installed. Reopen this AppImage to update your installed game.").arg(tag)
+                : T("Downloaded and verified %1. Close Buzz Prepare and extract the package over the existing BuzzPrepare folder. Reopen BuzzSetup to update the installed game.\n%2").arg(tag, target), true);
         }
     });
 }
