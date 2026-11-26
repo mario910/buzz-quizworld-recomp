@@ -4,7 +4,7 @@ Vulkan is the normal Windows renderer; Direct3D 12 is the fallback. They use
 separate build directories and the pinned SDK fork. The manifest's `renderer`
 field identifies a build; renaming a directory must not change its runtime
 profile. Preparation, host settings, resolution, fullscreen and texture packs
-are described in [the native launcher](pc-launcher.md).
+are described in [PC settings](pc-settings.md).
 
 ## Draw and resource lifetime
 
@@ -258,8 +258,7 @@ the queued-kick path only. `tests/rsx-present-completion-test.c` exercises
 The current title owns and pumps its Win32 window on the RSX worker. Moving
 presentation/window handling to another thread requires an explicit lifetime
 and message-pumping contract. Linux/Steam Deck game execution and complete
-render parity remain unqualified; launcher portability alone does not prove
-game portability.
+render parity remain unqualified.
 
 ## Developer fixtures
 
@@ -447,7 +446,6 @@ padded rows, arena rollover, fallback and texture replacement during draws.
 
 `tests/vulkan` provides asset-free device, draw and swapchain fixtures. The
 window fixture must actually create and present its window; headless fallback
-is not acceptance. `tests/native-launcher-integration.ps1` exercises a bounded
-prepared-game launch with private fixture storage. Neither fixture publishes
+is not acceptance. Neither fixture publishes
 or supplies game assets. Follow [profiling and validation](performance.md)
 for title-level comparisons.

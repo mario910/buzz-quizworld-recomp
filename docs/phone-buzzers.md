@@ -9,8 +9,7 @@ server, browser installation, Python or PWA is involved.
 1. Connect the PC and phones to the same trusted Wi-Fi/LAN. A PC on Ethernet
    also works if phones can reach it through the same router.
 2. Open **Escape / START → Phone buzzers** and enable **Host phone buzzers**.
-   The native launcher's shared preferences can also enable hosting before
-   launch. Hosting is off by default; the default port is **8073**. The switch
+   `phone_buzzers=1` in `pc-settings.ini` enables hosting at startup. Hosting is off by default; the default port is **8073**. The switch
    is remembered at once: hosting that was on starts again with the next launch.
 3. Select the PC's LAN address above the QR code. VPNs and virtual adapters may
    have additional addresses. `127.0.0.1` works only on the PC itself.
@@ -121,14 +120,15 @@ phone_buzzers=0
 phone_port=8073
 ```
 
-The launcher CMake suite includes `phone-sessions` and `phone-server` without
-game files. With the SDK present it also tests live runtime settings and the
-real Win32 adapter using synthetic OS reads. Use the usual launcher build, then:
+The host test suite (`tests/CMakeLists.txt`) includes `phone-sessions` and
+`phone-server` without game files. With the SDK present it also tests live
+runtime settings and the real Win32 adapter using synthetic OS reads:
 
 ```powershell
-ctest --test-dir build-launcher --output-on-failure
+cmake -S tests -B build-tests -G Ninja; cmake --build build-tests
+ctest --test-dir build-tests --output-on-failure
 # Optional interactive test host: eight slots, port 18730; Enter stops it.
-.\build-launcher\phone_server_test.exe --serve
+.\build-tests\phone_server_test.exe --serve
 ```
 
 The test host prints fresh pairing links and input edges. It does not launch a

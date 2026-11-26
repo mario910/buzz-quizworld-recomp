@@ -1,5 +1,9 @@
 #include "languages.h"
 #include "buzz_import.h"
+#include "kip_import.h"
+#include "legacy_import.h"
+#include "ps3_source.h"
+#include "project_media.h"
 #include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
@@ -18,7 +22,11 @@ QString languageCode(const QString &value) {
         {"spa", "es"}, {"ita", "it"}, {"dut", "nl"}, {"nld", "nl"}, {"por", "pt"}, {"bra", "pt-BR"},
         {"rus", "ru"}, {"swe", "sv"}, {"dan", "da"}, {"nor", "no"}, {"fin", "fi"}, {"gre", "el"},
         {"grc", "el"}, {"cro", "hr"}, {"ell", "el"}, {"cze", "cs"}, {"ces", "cs"}, {"hun", "hu"},
-        {"tur", "tr"}, {"jpn", "ja"}, {"chi", "zh"}, {"zho", "zh"}, {"kor", "ko"}, {"usa", "en-US"}};
+        {"tur", "tr"}, {"jpn", "ja"}, {"chi", "zh"}, {"zho", "zh"}, {"kor", "ko"}, {"usa", "en-US"},
+        // Buzz! international English/French folders (PS2 INEROUND, PS3 INEPACK).
+        {"ine", "en"}, {"inf", "fr"},
+        // PS3 DLC/disc pack prefixes (GBRPACK0022, ESPPACK…).
+        {"gbr", "en"}, {"esp", "es"}};
     auto code = value.trimmed().replace('_', '-').toLower();
     if (aliases.contains(code))
         return aliases[code];
@@ -56,6 +64,18 @@ QVariantList languageChoices(const QStringList &codes) {
     return result;
 }
 SourceLanguages inspectLanguages(const QString &path) {
+    if (isProjectArchive(path)) {
+        SourceLanguages project;
+        project.project = true; // A whole project: every language is kept.
+        project.codes << "pl";
+        return project;
+    }
+    if (ps3::isPs3Source(path))
+        return ps3::ps3Languages(path);
+    if (isKipSource(path))
+        return kipLanguages(path);
+    if (isLegacySource(path))
+        return legacyLanguages(path);
     if (path.endsWith(".pak", Qt::CaseInsensitive) || path.endsWith(".edat", Qt::CaseInsensitive))
         return buzzLanguages(path);
     SourceLanguages result;

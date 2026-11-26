@@ -5,7 +5,7 @@
 
 namespace studio {
 struct Question {
-    QString id, text, category, topic, image, speech, ttsText, source, language = QStringLiteral("pl");
+    QString id, text, category, topic, image, speech, video, ttsText, source, language = QStringLiteral("pl");
     QStringList answers;
     int correct = 0, difficulty = 2, subjectId = 0, categoryId = 0;
     QJsonObject extra;
@@ -29,6 +29,10 @@ struct LoadResult {
     Document document;
     QString error;
     QStringList warnings;
+    // Content ID of a PS3 package that needs the user's .rap license file.
+    QString license;
+    // Where the project lives when it differs from the opened file (.buzzproject).
+    QString projectPath;
     int duplicates = 0;
     bool ok() const { return error.isEmpty(); }
 };

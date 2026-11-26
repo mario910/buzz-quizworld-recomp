@@ -12,8 +12,7 @@ migration tokens retain their original text.
 
 ```text
 preparation/     Qt wizard and native import/generation primitives
-launcher/native/ Legacy C++ SDL3/ImGui launcher for developer builds
-launcher/        Legacy Python UI/models and developer preparation pipeline
+launcher/        Python preparation pipeline (import, build, update) used by tools and tests
 scripts/         Windows setup, generation, build and direct-start commands
 config/          Public example configurations (personal configs stay ignored)
 tools/codegen/   Version-bound generators and native-adapter generation
@@ -32,9 +31,8 @@ ps3recomp/       Pinned SDK submodule (normal fork master, validated v0.17.0 cod
 | Supported generation + native build | `scripts/Build-Buzz.ps1 [-Jobs 6] [-SkipGeneration]` |
 | Build and package the preparation wizard | Windows `scripts/build-preparation.ps1 -QtPrefix <Qt MSVC prefix>`, Linux `bash scripts/build-preparation-linux.sh` |
 | Build and publish a standalone game without the wizard | `toolenv/Scripts/python.exe tools/prepare-game.py --dist ...` |
-| Legacy developer launcher | `scripts/Launch-Buzz.ps1` |
-| Native launcher only (no game/SDK needed) | CMake from `launcher/native/`, or `scripts/build-launcher.ps1` |
-| Native launcher tests | `ctest --test-dir build-launcher --output-on-failure` |
+| Start a developer build | `scripts/Launch-Buzz.ps1` |
+| PC port host tests (no game needed) | `cmake -S tests -B build-tests -G Ninja && cmake --build build-tests && ctest --test-dir build-tests` |
 | Runtime host settings prototype | `config/pc-settings.example.ini`, `port/pc_runtime.*`, SDK `ps3emu/host_controls.h` |
 | Direct native start | `scripts/run-windows.ps1 -Seconds 0 -MenuBootstrap` |
 | Generation only | `scripts/generate.ps1 [-Jobs 6]` (ELF hash checked before writing) |
@@ -69,7 +67,6 @@ From the repository root, after Setup:
 
 ```powershell
 .\toolenv\Scripts\python.exe -m unittest discover -s tests -p test_publication.py
-.\toolenv\Scripts\python.exe -m unittest discover -s tests -p test_pc_launcher.py
 ```
 
 After generation (these C++ harnesses also need the locally generated ABI
@@ -78,15 +75,11 @@ headers, but use synthetic states rather than captured game assets):
 ```powershell
 .\tests\scripts\test-buzzer.ps1
 .\tests\scripts\test-frontend.ps1
-.\tests\scripts\test-pc-launcher.ps1
 ```
 
 These are synthetic config/protocol/adapter checks. Additional tests may need
 generated headers or local captured jobs: inspect their inputs before running.
-Do not upload those derived fixtures. `tests/scripts/test-launcher.ps1` exercises process
-creation through a fixture and expects a local paths config; it is not the
-same as a full game integration run. `scripts/Launch-Buzz.ps1 -Smoke` opens a short
-withdrawn GUI smoke test; it neither shows the window nor starts the game.
+Do not upload those derived fixtures.
 
 ## What a build needs
 

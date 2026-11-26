@@ -30,4 +30,4 @@ if (-not (Test-Path -LiteralPath $pathsFile)) {
     Copy-Item -LiteralPath (Join-Path $root 'config/buzz-paths.example.json') -Destination $pathsFile
 }
 Write-Output 'Tools ready. Edit buzz-paths.json to point at your own game/firmware files.'
-Write-Output 'Next: .\scripts\Build-Buzz.ps1, then .\scripts\Launch-Buzz.ps1 (or Launch-Buzz.cmd).'
+Write-Output 'Next: .\scripts\Build-Buzz.ps1, then .\scripts\Launch-Buzz.ps1.'

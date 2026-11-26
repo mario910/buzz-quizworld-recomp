@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QMap>
+#include <QSet>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QVariant>
@@ -124,6 +125,11 @@ QStringList decodeHuffman(const QByteArray &header, const QByteArray &stream) {
     }
     if (work.isEmpty() || u16(header, header.size() - 2) != 0xfe00)
         fail(QCoreApplication::translate("BuzzImport", "Niepoprawna tablica Huffmana."));
+    // The game orders symbols by weight (stable for equal weights) before
+    // building the tree. Most tables are stored sorted; some Quiz TV DLC
+    // tables (e.g. Comedy, PACK0022) are not.
+    std::stable_sort(work.begin(), work.end(),
+                     [&nodes](int a, int b) { return nodes[a].weight < nodes[b].weight; });
     while (work.size() > 1) {
         const int left = work.takeFirst(), right = work.takeFirst();
         nodes << Node{nodes[left].weight + nodes[right].weight, -1, left, right};
@@ -163,19 +169,206 @@ QStringList decodeHuffman(const QByteArray &header, const QByteArray &stream) {
         fail(QCoreApplication::translate("BuzzImport", "Niezgodna długość strumienia Huffmana."));
     return out;
 }
+namespace {
+// Language folders ("POL/ROUNDS/…") of the question databases in one archive.
+QMap<QString, QString> archiveLanguages(Archive &archive) {
+    QMap<QString, QString> languages;
+    for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it)
+        if (it.key().endsWith(".qak")) {
+            const auto folder = it.key().section('/', 0, 0);
+            const auto code = languageCode(folder);
+            if (!code.isEmpty())
+                languages[code] = folder;
+        }
+    return languages;
+}
+struct Tally {
+    QSet<QString> ids;
+    int media = 0, unsupported = 0, duplicates = 0;
+};
+void importArchive(Archive &archive, const BuzzPack &source, const QString &selected, bool extractSpeech,
+                   Tally &tally, Document &document) {
+    const auto languages = archiveLanguages(archive);
+    if (!languages.contains(selected))
+        return;
+    const auto language = languages[selected];
+    QMap<QString, QString> named;
+    const QString nt = language + "/NAMEDTEXT/default";
+    if (archive.entries.contains(nt + ".hdr") && archive.entries.contains(nt + ".ndx")) {
+        const auto strings = decodeHuffman(archive.read(nt + ".hdr"), archive.read(nt + ".hst"));
+        const auto lines = QString::fromUtf8(archive.read(nt + ".ndx")).remove(QChar(0xfeff)).split('\n');
+        for (const auto &line : lines) {
+            const auto parts = line.simplified().split(' ');
+            if (parts.size() == 2) {
+                const int i = parts[1].toInt();
+                if (i > 0 && i <= strings.size())
+                    named[parts[0]] = strings[i - 1];
+            }
+        }
+    }
+    QMap<int, QString> categories, sourceKeys;
+    for (const auto &name : {language + "/SCRIPTS/GENERATED/questioncategories.clu",
+                             language + "/SCRIPTS/questioncategories.clu"}) {
+        if (!archive.entries.contains(name))
+            continue;
+        const auto keys = categoryKeys(parseLua(archive.read(name)));
+        sourceKeys = keys;
+        for (auto it = keys.cbegin(); it != keys.cend(); ++it) {
+            const auto hash = qint32(crc32(it.value().toUtf8()) ^ 0xffffffffu ^ 0xfabcdef7u);
+            categories[it.key()] = named.value(
+                QString::number(hash), it.value().startsWith("CAT_") ? it.value().mid(4).replace('_', ' ') : it.value());
+        }
+    }
+    const auto cache =
+        QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+            .filePath("imports/" + QString::fromLatin1(
+                                       QCryptographicHash::hash(source.identity.toUtf8(), QCryptographicHash::Sha256)
+                                           .toHex()));
+    if (extractSpeech && !QDir().mkpath(cache))
+        fail(QCoreApplication::translate("BuzzImport", "Nie można utworzyć katalogu mediów."));
+    for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it) {
+        const auto name = it.key();
+        if (!name.startsWith(language + "/") || !name.endsWith(".qak"))
+            continue;
+        const auto base = name.left(name.size() - 4);
+        const auto b = archive.read(name);
+        const auto text = decodeHuffman(archive.read(base + ".hdr"), archive.read(base + ".hst"));
+        if (u16(b, 0) != 0xfffe || (u16(b, 4) != 1002 && u16(b, 4) != 1003))
+            fail(QCoreApplication::translate("BuzzImport", "Nieobsługiwana wersja QAK."));
+        const int version = u16(b, 4), pack = u16(b, 0x12);
+        const auto table = u32(b, 0x0c);
+        check(b, table, 88);
+        const int strides[] = {16, 36, 4, 8, 4, 2, 2};
+        QVector<QPair<quint32, int>> sections;
+        for (int s = 0; s < 7; ++s) {
+            const auto offset = u32(b, table + s * 8);
+            const int count = u16(b, table + s * 8 + 4);
+            check(b, offset, qint64(count) * strides[s]);
+            sections << qMakePair(offset, count);
+        }
+        auto row = [&](int section, int index) {
+            if (index < 0 || index >= sections[section].second)
+                fail(QCoreApplication::translate("BuzzImport", "Niepoprawne odwołanie do wiersza QAK."));
+            return int(sections[section].first) + index * strides[section];
+        };
+        auto string = [&](int n) {
+            if (n < 1 || n > text.size())
+                fail(QCoreApplication::translate("BuzzImport", "Niepoprawny numer tekstu QAK."));
+            return text[n - 1];
+        };
+        for (int i = 0; i < sections[1].second; ++i) {
+            const int p = row(1, i);
+            if (quint8(b[p + 35]) != 4) {
+                ++tally.unsupported;
+                continue;
+            }
+            const auto original = u32(b, p);
+            const auto sourceId = QString("%1:%2").arg(pack).arg(original);
+            if (tally.ids.contains(sourceId)) {
+                ++tally.duplicates;
+                continue;
+            }
+            // In Quiz TV, answer flag 2 refers to a media-table row, not a
+            // string number. Multi-answer rounds also cannot be represented
+            // by the editor's single correct_index. Never reinterpret either.
+            int correctCount = 0;
+            bool pictureAnswers = false;
+            for (int a = 0; a < 4; ++a) {
+                const int ar = row(4, u16(b, p + 24) + a);
+                const auto flags = quint8(b[ar + 2]);
+                correctCount += bool(flags & 4);
+                pictureAnswers |= bool(flags & 2);
+            }
+            if (pictureAnswers || correctCount != 1) {
+                ++tally.unsupported;
+                continue;
+            }
+            tally.ids.insert(sourceId);
+            auto q = newQuestion();
+            q.language = selected;
+            q.id = QString("buzz:%1:%2").arg(version).arg(sourceId);
+            // Pack numbers: Quiz TV discs/DLC 1..49, Brain of... 50..59, Quiz World 100+.
+            q.source = pack >= 50 && pack < 60 ? "Buzz! Brain of..."
+                       : version == 1002       ? "Buzz! Quiz TV"
+                                               : "Buzz! Quiz World";
+            q.extra["source_archive"] = source.label;
+            q.extra["source_question_id"] = double(original);
+            q.extra["source_round"] = base;
+            q.difficulty = std::clamp(int(quint8(b[p + 30])), 1, 3);
+            q.answers.clear();
+            q.correct = -1;
+            for (int a = 0; a < 4; ++a) {
+                const int ar = row(4, u16(b, p + 24) + a);
+                q.answers << string(u16(b, ar));
+                if (quint8(b[ar + 2]) & 4)
+                    q.correct = a;
+            }
+            for (int t = 0; t < quint8(b[p + 33]); ++t) {
+                const int tr = row(3, u16(b, p + 16) + t);
+                const int kind = quint8(b[tr + 6]);
+                if (kind == 1) {
+                    q.text = string(u16(b, tr + 4));
+                    if (extractSpeech)
+                        q.speech = cachedAsset(archive,
+                                               language + "/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/" +
+                                                   QString::number(6000000000ll + u32(b, tr)) + ".rsf",
+                                               cache);
+                } else if (kind == 2)
+                    q.topic = string(u16(b, tr + 4));
+            }
+            QJsonArray cats;
+            for (int c = 0; c < quint8(b[p + 34]); ++c)
+                cats << int(u16(b, row(5, u16(b, p + 18) + c)));
+            q.subjectId = cats.size() > 0 ? cats[0].toInt() : 0;
+            q.categoryId = cats.size() > 1 ? cats[1].toInt() : q.subjectId;
+            q.extra["source_subject_key"] = sourceKeys.value(q.subjectId);
+            q.extra["source_category_key"] = sourceKeys.value(q.categoryId);
+            q.category = categories.value(q.subjectId, q.topic.isEmpty() ? categoryName(q.subjectId) : q.topic);
+            q.extra["source_category_ids"] = cats;
+            if (quint8(b[p + 32])) {
+                ++tally.media;
+                QJsonArray media;
+                for (int m = 0; m < quint8(b[p + 32]); ++m) {
+                    const int link = row(2, u16(b, p + 14) + m), mr = row(0, u16(b, link));
+                    media << QJsonObject{{"type", int(quint8(b[mr + 12]))},
+                                         {"asset", double(u32(b, mr + 4))},
+                                         {"slot", int(u16(b, mr + 10))},
+                                         {"aspect", int(quint8(b[mr + 14]))}};
+                }
+                q.extra["source_media"] = media;
+            }
+            auto localized = q.localized();
+            localized["source_media"] = q.extra["source_media"].toArray();
+            localized["source_archive"] = source.label;
+            localized["source_round"] = base;
+            q.translations[selected] = localized;
+            document.questions << q;
+        }
+    }
+}
+} // namespace
+
+QStringList buzzArchiveLanguages(Archive &archive) {
+    auto codes = archiveLanguages(archive).keys();
+    codes.sort();
+    return codes;
+}
+
+BuzzPack buzzFilePack(const QString &path) {
+    const QFileInfo input(path);
+    BuzzPack pack;
+    pack.label = input.absoluteFilePath();
+    pack.identity = input.absoluteFilePath() + QString::number(input.size()) +
+                    input.lastModified().toString(Qt::ISODateWithMs);
+    pack.open = [path] { return std::make_unique<Archive>(path); };
+    return pack;
+}
+
 SourceLanguages buzzLanguages(const QString &path) {
     SourceLanguages result;
     try {
         Archive archive(path);
-        QSet<QString> codes;
-        for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it)
-            if (it.key().endsWith(".qak")) {
-                const auto code = languageCode(it.key().section('/', 0, 0));
-                if (!code.isEmpty())
-                    codes.insert(code);
-            }
-        result.codes = codes.values();
-        result.codes.sort();
+        result.codes = buzzArchiveLanguages(archive);
         result.preferred = preferredLanguage(result.codes);
         if (result.codes.isEmpty())
             fail(QCoreApplication::translate("BuzzImport", "Brak baz pytań QAK w paczce."));
@@ -184,209 +377,69 @@ SourceLanguages buzzLanguages(const QString &path) {
     }
     return result;
 }
-LoadResult importBuzz(const QString &path, const QString &requestedLanguage, bool extractSpeech) {
+
+LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &requestedLanguage, bool extractSpeech,
+                           const QString &title) {
     LoadResult out;
     try {
-        Archive archive(path);
-        QMap<QString, QString> languages;
-        for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it)
-            if (it.key().endsWith(".qak")) {
-                const auto folder = it.key().section('/', 0, 0);
-                const auto code = languageCode(folder);
-                if (!code.isEmpty())
-                    languages[code] = folder;
-            }
-        if (languages.isEmpty())
+        Tally tally;
+        QString selected = requestedLanguage.isEmpty() ? QString() : languageCode(requestedLanguage);
+        if (selected.isEmpty()) {
+            // Prefer Polish/English when the file names already say which packs are which.
+            QStringList named;
+            for (const auto &source : packs)
+                if (!source.language.isEmpty())
+                    named << source.language;
+            if (named.size() == packs.size())
+                selected = preferredLanguage(named);
+        }
+        bool found = false;
+        for (const auto &source : packs) {
+            // A pack whose file name already names another language is not opened.
+            if (!source.language.isEmpty() && !selected.isEmpty() && source.language != selected)
+                continue;
+            const auto archive = source.open();
+            if (selected.isEmpty())
+                selected = preferredLanguage(buzzArchiveLanguages(*archive));
+            if (!archiveLanguages(*archive).contains(selected))
+                continue;
+            found = true;
+            importArchive(*archive, source, selected, extractSpeech, tally, out.document);
+        }
+        if (packs.isEmpty())
             fail(QCoreApplication::translate("BuzzImport", "Brak baz pytań QAK w paczce."));
-        const auto selected = requestedLanguage.isEmpty() ? preferredLanguage(languages.keys())
-                                                          : languageCode(requestedLanguage);
-        if (!languages.contains(selected))
+        if (!found)
             fail(QCoreApplication::translate("BuzzImport", "Źródło nie zawiera wybranego języka."));
-        const auto language = languages[selected];
-        out.document.title = QFileInfo(path).completeBaseName();
+        out.document.title = title;
         out.document.language = selected;
-        QMap<QString, QString> named;
-        const QString nt = language + "/NAMEDTEXT/default";
-        if (archive.entries.contains(nt + ".hdr") && archive.entries.contains(nt + ".ndx")) {
-            const auto strings = decodeHuffman(archive.read(nt + ".hdr"), archive.read(nt + ".hst"));
-            const auto lines = QString::fromUtf8(archive.read(nt + ".ndx")).remove(QChar(0xfeff)).split('\n');
-            for (const auto &line : lines) {
-                const auto parts = line.simplified().split(' ');
-                if (parts.size() == 2) {
-                    const int i = parts[1].toInt();
-                    if (i > 0 && i <= strings.size())
-                        named[parts[0]] = strings[i - 1];
-                }
-            }
-        }
-        QMap<int, QString> categories, sourceKeys;
-        for (const auto &name : {language + "/SCRIPTS/GENERATED/questioncategories.clu",
-                                 language + "/SCRIPTS/questioncategories.clu"}) {
-            if (!archive.entries.contains(name))
-                continue;
-            const auto keys = categoryKeys(parseLua(archive.read(name)));
-            sourceKeys = keys;
-            for (auto it = keys.cbegin(); it != keys.cend(); ++it) {
-                const auto hash = qint32(crc32(it.value().toUtf8()) ^ 0xffffffffu ^ 0xfabcdef7u);
-                categories[it.key()] = named.value(
-                    QString::number(hash),
-                    it.value().startsWith("CAT_") ? it.value().mid(4).replace('_', ' ') : it.value());
-            }
-        }
-        const QFileInfo input(path);
-        const auto identity = (input.absoluteFilePath() + QString::number(input.size()) +
-                               input.lastModified().toString(Qt::ISODateWithMs))
-                                  .toUtf8();
-        const auto cache =
-            QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
-                .filePath("imports/" +
-                          QString::fromLatin1(
-                              QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex()));
-        if (!QDir().mkpath(cache))
-            fail(QCoreApplication::translate("BuzzImport", "Nie można utworzyć katalogu mediów."));
-        QSet<QString> ids;
-        int mediaCount = 0, unsupportedCount = 0;
-        for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it) {
-            const auto name = it.key();
-            if (!name.startsWith(language + "/") || !name.endsWith(".qak"))
-                continue;
-            const auto base = name.left(name.size() - 4);
-            const auto b = archive.read(name);
-            const auto text = decodeHuffman(archive.read(base + ".hdr"), archive.read(base + ".hst"));
-            if (u16(b, 0) != 0xfffe || (u16(b, 4) != 1002 && u16(b, 4) != 1003))
-                fail(QCoreApplication::translate("BuzzImport", "Nieobsługiwana wersja QAK."));
-            const int version = u16(b, 4), pack = u16(b, 0x12);
-            const auto table = u32(b, 0x0c);
-            check(b, table, 88);
-            const int strides[] = {16, 36, 4, 8, 4, 2, 2};
-            QVector<QPair<quint32, int>> sections;
-            for (int s = 0; s < 7; ++s) {
-                const auto offset = u32(b, table + s * 8);
-                const int count = u16(b, table + s * 8 + 4);
-                check(b, offset, qint64(count) * strides[s]);
-                sections << qMakePair(offset, count);
-            }
-            auto row = [&](int section, int index) {
-                if (index < 0 || index >= sections[section].second)
-                    fail(QCoreApplication::translate("BuzzImport", "Niepoprawne odwołanie do wiersza QAK."));
-                return int(sections[section].first) + index * strides[section];
-            };
-            auto string = [&](int n) {
-                if (n < 1 || n > text.size())
-                    fail(QCoreApplication::translate("BuzzImport", "Niepoprawny numer tekstu QAK."));
-                return text[n - 1];
-            };
-            for (int i = 0; i < sections[1].second; ++i) {
-                const int p = row(1, i);
-                if (quint8(b[p + 35]) != 4) {
-                    ++unsupportedCount;
-                    continue;
-                }
-                const auto original = u32(b, p);
-                const auto sourceId = QString("%1:%2").arg(pack).arg(original);
-                if (ids.contains(sourceId)) {
-                    ++out.duplicates;
-                    continue;
-                }
-                // In Quiz TV, answer flag 2 refers to a media-table row, not a
-                // string number. Multi-answer rounds also cannot be represented
-                // by the editor's single correct_index. Never reinterpret either.
-                int correctCount = 0;
-                bool pictureAnswers = false;
-                for (int a = 0; a < 4; ++a) {
-                    const int ar = row(4, u16(b, p + 24) + a);
-                    const auto flags = quint8(b[ar + 2]);
-                    correctCount += bool(flags & 4);
-                    pictureAnswers |= bool(flags & 2);
-                }
-                if (pictureAnswers || correctCount != 1) {
-                    ++unsupportedCount;
-                    continue;
-                }
-                ids.insert(sourceId);
-                auto q = newQuestion();
-                q.language = selected;
-                q.id = QString("buzz:%1:%2").arg(version).arg(sourceId);
-                q.source = version == 1002 ? "Buzz! Quiz TV" : "Buzz! Quiz World";
-                q.extra["source_archive"] = input.absoluteFilePath();
-                q.extra["source_question_id"] = double(original);
-                q.extra["source_round"] = base;
-                q.difficulty = std::clamp(int(quint8(b[p + 30])), 1, 3);
-                q.answers.clear();
-                q.correct = -1;
-                for (int a = 0; a < 4; ++a) {
-                    const int ar = row(4, u16(b, p + 24) + a);
-                    q.answers << string(u16(b, ar));
-                    if (quint8(b[ar + 2]) & 4)
-                        q.correct = a;
-                }
-                for (int t = 0; t < quint8(b[p + 33]); ++t) {
-                    const int tr = row(3, u16(b, p + 16) + t);
-                    const int kind = quint8(b[tr + 6]);
-                    if (kind == 1) {
-                        q.text = string(u16(b, tr + 4));
-                        if (extractSpeech)
-                            q.speech = cachedAsset(archive,
-                                                   language + "/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/" +
-                                                       QString::number(6000000000ll + u32(b, tr)) + ".rsf",
-                                                   cache);
-                    } else if (kind == 2)
-                        q.topic = string(u16(b, tr + 4));
-                }
-                QJsonArray cats;
-                for (int c = 0; c < quint8(b[p + 34]); ++c)
-                    cats << int(u16(b, row(5, u16(b, p + 18) + c)));
-                q.subjectId = cats.size() > 0 ? cats[0].toInt() : 0;
-                q.categoryId = cats.size() > 1 ? cats[1].toInt() : q.subjectId;
-                q.extra["source_subject_key"] = sourceKeys.value(q.subjectId);
-                q.extra["source_category_key"] = sourceKeys.value(q.categoryId);
-                q.category =
-                    categories.value(q.subjectId, q.topic.isEmpty() ? categoryName(q.subjectId) : q.topic);
-                q.extra["source_category_ids"] = cats;
-                if (quint8(b[p + 32])) {
-                    ++mediaCount;
-                    QJsonArray media;
-                    for (int m = 0; m < quint8(b[p + 32]); ++m) {
-                        const int link = row(2, u16(b, p + 14) + m), mr = row(0, u16(b, link));
-                        media << QJsonObject{{"type", int(quint8(b[mr + 12]))},
-                                             {"asset", double(u32(b, mr + 4))},
-                                             {"slot", int(u16(b, mr + 10))},
-                                             {"aspect", int(quint8(b[mr + 14]))}};
-                    }
-                    q.extra["source_media"] = media;
-                }
-                auto localized = q.localized();
-                localized["source_media"] = q.extra["source_media"].toArray();
-                localized["source_archive"] = input.absoluteFilePath();
-                localized["source_round"] = base;
-                q.translations[selected] = localized;
-                out.document.questions << q;
-            }
-        }
+        out.duplicates = tally.duplicates;
         if (out.document.questions.isEmpty())
             fail(QCoreApplication::translate("BuzzImport", "Paczka nie zawiera obsługiwanych pytań."));
-        if (unsupportedCount)
+        if (tally.unsupported)
             out.warnings << QCoreApplication::translate(
                                 "BuzzImport",
                                 "Pominięto %1 pytań z odpowiedziami obrazkowymi, wielokrotnego "
                                 "wyboru lub bez czterech odpowiedzi. Ten edytor obsługuje jedną "
                                 "poprawną odpowiedź tekstową z czterech.")
-                                .arg(unsupportedCount);
-        if (mediaCount)
+                                .arg(tally.unsupported);
+        if (tally.media)
             out.warnings << QCoreApplication::translate(
                                 "BuzzImport",
                                 "%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych "
                                 "mediów wymaga osobnej konwersji.")
-                                .arg(mediaCount);
+                                .arg(tally.media);
         if (out.duplicates)
             out.warnings << QCoreApplication::translate(
                                 "BuzzImport", "Pominięto %1 powtórzeń identyfikatorów między rundami.")
                                 .arg(out.duplicates);
-        out.warnings.removeDuplicates();
     } catch (const std::exception &e) {
         out.error = QString::fromUtf8(e.what());
         out.document.questions.clear();
     }
     return out;
+}
+
+LoadResult importBuzz(const QString &path, const QString &requestedLanguage, bool extractSpeech) {
+    return importBuzzPacks({buzzFilePack(path)}, requestedLanguage, extractSpeech, QFileInfo(path).completeBaseName());
 }
 } // namespace studio

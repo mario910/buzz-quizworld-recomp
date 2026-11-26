@@ -15,7 +15,7 @@ class SourceLayoutTests(unittest.TestCase):
                          ['Launch-Buzz.cmd', 'Launch-Question-Studio.cmd', 'Prepare-Buzz.cmd'])
         for pattern in ('*.py', '*.pyw', '*.ps1'):
             self.assertEqual(list(ROOT.glob(pattern)), [], pattern)
-        for relative in ('launcher/start.pyw', 'scripts/Prepare-Buzz.ps1',
+        for relative in ('scripts/Launch-Buzz.ps1', 'scripts/Prepare-Buzz.ps1',
                          'scripts/Build-Buzz.ps1', 'scripts/run-windows.ps1',
                          'config/buzz-input.example.ini', 'config/buzz-paths.example.json'):
             self.assertTrue((ROOT / relative).is_file(), relative)

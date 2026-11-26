@@ -97,6 +97,8 @@ class StudioController final : public QObject {
     Q_INVOKABLE void finishImport(const QString &language);
     Q_INVOKABLE void cancelImport();
     Q_INVOKABLE bool saveFile(const QUrl &url = QUrl(), bool legacy = false);
+    // The project and all its media as one .buzzproject archive.
+    Q_INVOKABLE bool exportProject(const QUrl &url);
     Q_INVOKABLE void select(const QString &id);
     Q_INVOKABLE void setFilter(const QString &text, const QString &category, const QString &kind);
     Q_INVOKABLE void updateCurrent(const QVariantMap &patch);
@@ -115,9 +117,12 @@ class StudioController final : public QObject {
             history_.redo();
     }
     Q_INVOKABLE void openAudio();
+    Q_INVOKABLE void openVideo();
     Q_INVOKABLE void generateAudio(const QUrl &destination, const QString &text, const QString &voice,
                                    int rate);
     Q_INVOKABLE void recover();
+    // Remembers the user's PS3 .rap license; returns an error message or empty.
+    Q_INVOKABLE QString addLicense(const QString &contentId, const QUrl &rap);
   signals:
     void contentChanged();
     void selectionChanged();
@@ -127,6 +132,8 @@ class StudioController final : public QObject {
     void busyChanged();
     void errorOccurred(const QString &message);
     void importLanguageRequested(const QVariantList &choices, const QString &preferred);
+    // A PS3 DLC needs its .rap license; import again with append after adding it.
+    void licenseRequested(const QUrl &source, bool append, const QString &contentId, const QString &message);
     void buildProgressChanged();
     void packFinished(const QVariantMap &result);
 

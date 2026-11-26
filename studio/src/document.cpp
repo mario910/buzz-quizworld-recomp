@@ -1,6 +1,10 @@
 #include "document.h"
 #include "buzz_import.h"
 #include "languages.h"
+#include "kip_import.h"
+#include "legacy_import.h"
+#include "ps3_source.h"
+#include "project_media.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -94,6 +98,15 @@ QStringList Question::problems() const {
         out << QCoreApplication::translate("Document", "Nie znaleziono obrazka.");
     if (!speech.isEmpty() && !QFileInfo::exists(speech))
         out << QCoreApplication::translate("Document", "Nie znaleziono nagrania.");
+    if (!video.isEmpty() && !QFileInfo::exists(video))
+        out << QCoreApplication::translate("Document", "Nie znaleziono filmu.");
+    // The pack builder refuses Buzz media references without a picture (same rule).
+    const auto media = translations.isEmpty() ? extra["source_media"]
+                                              : translations[language].toObject()["source_media"];
+    if (image.isEmpty() && !media.toArray().isEmpty())
+        out << QCoreApplication::translate("Document",
+                                           "Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny "
+                                           "obrazek.");
     return out;
 }
 QJsonObject Question::localized(const QString &baseDir) const {
@@ -105,6 +118,10 @@ QJsonObject Question::localized(const QString &baseDir) const {
     o["topic"] = topic;
     o["image"] = persistedPath(image, baseDir);
     o["speech"] = persistedPath(speech, baseDir);
+    if (video.isEmpty())
+        o.remove("video"); // Older projects stay byte-identical.
+    else
+        o["video"] = persistedPath(video, baseDir);
     o["tts_text"] = ttsText;
     return o;
 }
@@ -133,6 +150,7 @@ void Question::loadLocalized(const QJsonObject &next) {
     topic = next["topic"].toString();
     image = next["image"].toString();
     speech = next["speech"].toString();
+    video = next["video"].toString();
     ttsText = next["tts_text"].toString();
 }
 QJsonObject Question::json(const QString &baseDir) const {
@@ -147,6 +165,8 @@ QJsonObject Question::json(const QString &baseDir) const {
         auto v = it.value().toObject();
         v["image"] = persistedPath(v["image"].toString(), baseDir);
         v["speech"] = persistedPath(v["speech"].toString(), baseDir);
+        if (v.contains("video"))
+            v["video"] = persistedPath(v["video"].toString(), baseDir);
         it.value() = v;
     }
     variants[language] = active;
@@ -202,6 +222,8 @@ static QJsonObject readLocalized(QJsonObject o, const QString &baseDir) {
     o.remove("correct");
     o["image"] = localPath(o["image"].toString(), baseDir);
     o["speech"] = localPath(o["speech"].toString(), baseDir);
+    if (o.contains("video"))
+        o["video"] = localPath(o["video"].toString(), baseDir);
     return o;
 }
 static QString idString(const QJsonValue &v) {
@@ -398,6 +420,7 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
             q.ttsText = t["tts_text"].toString();
             q.image = t["image"].toString();
             q.speech = t["speech"].toString();
+            q.video = t["video"].toString();
             if (root["version"].toInt(1) <= 1 && q.extra["source_media"].isArray() &&
                 !q.translations[q.language].toObject().contains("source_media")) {
                 auto localized = q.translations[q.language].toObject();
@@ -437,6 +460,14 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
     return out;
 }
 LoadResult loadDocument(const QString &path, const QString &language) {
+    if (isProjectArchive(path))
+        return openProjectArchive(path);
+    if (ps3::isPs3Source(path))
+        return ps3::importPs3(path, language);
+    if (isKipSource(path))
+        return importKip(path, language);
+    if (isLegacySource(path))
+        return importLegacy(path, language);
     if (path.endsWith(".pak", Qt::CaseInsensitive) || path.endsWith(".edat", Qt::CaseInsensitive))
         return importBuzz(path, language);
     QFile f(path);

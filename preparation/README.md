@@ -106,17 +106,15 @@ The AppImage is read-only, so its `AppRun` copies the bundled sources to
 when a newer AppImage brings another source revision; the prepared game,
 saves, keys and Python environment there are kept. BuzzSetup then works in
 that folder. `--play` starts the prepared game (the Steam launch option) and
-`--launcher` opens the native launcher. It is built with the pinned
+`--studio` opens Question Studio. It is built with the pinned
 appimagetool 1.9.1 and type2 runtime 20251108 (SHA-256 checked in CI).
 
 Extract the tar package into your home folder and run `BuzzSetup`. It contains:
 
-- `BuzzSetup`, `Play-Buzz.sh` and `Buzz-Launcher.sh` start scripts;
+- `BuzzSetup`, `Play-Buzz.sh` and `Question-Studio.sh` start scripts;
 - `bin/BuzzPrepare` (the wizard) with its Qt and support libraries in `lib/`
   and `plugins/`, located through relative RPATHs, so nothing leaks into the
   build tools or the game it starts;
-- `bin/BuzzLauncher`, the native SDL3/ImGui launcher (controls, button test,
-  shared preferences);
 - `build-files/` with the pinned port and submodule sources and
   `release-sources.json`, as in the Windows ZIP;
 - `licenses/` with the copyright file of every bundled Ubuntu package.
@@ -139,8 +137,7 @@ To reproduce the package on Ubuntu 24.04 (or in that container) with
 
 ```sh
 bash scripts/build-preparation-linux.sh
-bash scripts/build-launcher-linux.sh
-python3 tools/package-preparation-linux.py --launcher build-launcher/BuzzLauncher --output dist-preparation/release-linux \
+python3 tools/package-preparation-linux.py --output dist-preparation/release-linux \
   --appimage-tool <appimagetool-1.9.1> --appimage-runtime <type2-runtime-20251108>
 ```
 

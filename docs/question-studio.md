@@ -1,8 +1,25 @@
 # Buzz! Question Studio
 
-Native C++17 / Qt Quick desktop editor for Windows and Linux. Version 0.3 adds
+Native C++17 / Qt Widgets desktop editor for Windows and Linux. Version 0.3 adds
 native Quiz World EDAT building and installation, using the selected content language.
-It builds independently of the game, PS3 SDK and generated game code.
+It builds independently of the game, PS3 SDK and generated game code, and uses
+the same Qt libraries (Core, Gui, Widgets) as BuzzSetup. It does not need Python.
+
+## Start
+
+Release packages (BuzzSetup) include Question Studio:
+
+- **Windows:** in BuzzSetup select **Question Studio**, or start
+  `BuzzPrepare\BuzzQuestionStudio.exe` (next to BuzzSetup, sharing its Qt DLLs).
+- **Linux:** select **Question Studio** in BuzzSetup, run `./Question-Studio.sh`
+  from the extracted package, or `BuzzSetup-x86_64.AppImage --studio`.
+
+When BuzzSetup opens Studio for a prepared game, it passes that folder as
+`--game-dir <dist>`. The build dialog proposes that copy's `runtime`, reads the
+title ID from its disc's `PARAM.SFO`, and looks for the PACK0100 template in the
+selected language.
+Installation works before the game's first start. The interface uses the same
+colours and controls as BuzzSetup.
 
 ## Implemented
 
@@ -25,7 +42,13 @@ It builds independently of the game, PS3 SDK and generated game code.
   The import dialog detects languages and lets the user choose; it preserves
   all KiP translations, including their correct-answer indices and media metadata.
   Questions without the selected source language are skipped, not imported as drafts.
-  It is not a raw PKG importer.
+- Native import of Knowledge Is Power / Wiedza to Potęga (PS4, CUSA09557) straight
+  from the fake-signed `.pkg` (outer PFS decrypted with XTS-AES, compressed inner
+  PFS read in place) or from an extracted folder (`Media/resources.assets`).
+  Reads the `KIP_*` question tables, every `*_text.loc` language, the
+  `QuestionImages.bytes` pictures and the selected language's `.wem` voice.
+  AES comes from the system (CNG on Windows, OpenSSL libcrypto on Linux).
+  Sorting/linking rounds are skipped and categories still need mapping.
 - Native read-only import of stored ZIP PAK / plaintext EDAT question archives
   from Quiz World and Quiz TV. Parses Huffman text, QAK records and category
   metadata; never executes imported Lua bytecode. Imported speech is cached
@@ -33,6 +56,42 @@ It builds independently of the game, PS3 SDK and generated game code.
   Picture-answer and multiple-correct-answer questions are skipped with a count;
   their indices are not misinterpreted as text. Only one correct answer out of
   four text answers is currently supported.
+- PS3 sources are read in place, nothing is extracted to disk:
+  - Decrypted disc images (`.iso`) of Quiz TV, Quiz World and Brain of...: every
+    `PS3_GAME/USRDIR/PACKnnnn/<LANG>PACKnnnn.PAK` in the chosen language is
+    imported at once. An image whose files are still encrypted is reported.
+  - PSN packages (`.pkg`, e.g. the Quiz TV Comedy/Horror/Sci-Fi/Video Games
+    packs): the package is decrypted with the published package key and its
+    NPDRM `.EDAT` packs block by block, each block hash checked. Paid DLC uses
+    your own `.rap` license. Studio checks the last `.rap` you chose, then looks
+    for `<content ID>.rap` next to the package, next to an installed pack or in
+    `dev_hdd0/home/*/exdata`. If none matches, Studio asks you to choose one and
+    remembers its location. Game updates (no `PACKnnnn` folder) are recognised
+    and refused.
+  - Installed DLC (`dev_hdd0/game/<title>/USRDIR/PACKnnnn/*.EDAT`) and extracted
+    games: open the `.EDAT` itself, or the folder's `PARAM.SFO` to import all of
+    its packs. The title comes from `PARAM.SFO`.
+  The RAP conversion and NPD constants are the published ones also used by the
+  runtime (`ps3recomp/libs/filesystem/edat.c`); no console- or buyer-specific key
+  is included. EDATs locked with a game's own key (data in game updates) are
+  not question packs and are refused.
+- Native read-only import from the PS2 and PSP games, straight from a disc image
+  (`.iso`, PSP `.cso`) or from the extracted files:
+  - PS2 Buzz! The Mega Quiz / Mega Quiz (PL, EN/FR/NL) and Hollywood Quiz:
+    `<LANG>/<LANG>ROUND.PAK` (round `.rnd` tables with Huffman text, or `.adt`
+    tables). For the Polish Mega Quiz (SCES-54690) the picture references get the
+    same correction as the PCSX2 patch v0.4 (675 media ids pointed two or three
+    frames early, from a review of every `rri.dat` entry);
+    a copy whose `rri.dat` is already fixed is left as is.
+  - PSP Master Quiz and Polskie Łamigłówki (`MERGED.QDB` + `MERGED.TXT`) and Quiz
+    World PSP (per-language bundles in its numbered `.FLZ` archive).
+  The correct answer is stored first in these games. Categories map onto Quiz
+  World subjects where the source category is clear; general ones are left for
+  you to choose. Comparison, put-in-order, true/false and party-challenge rounds
+  are skipped, as are tables a localized disc left in another language.
+  Picture/video/music questions keep their references and need your own picture
+  before building; the editor lists them as problems. PSP Brain Bender has
+  puzzles only.
 - Import into the current project with identity-based duplicate handling.
   Importing another language of the same Buzz question merges its translation;
   existing text/media is preserved and entirely empty drafts can be filled.
@@ -55,8 +114,9 @@ It builds independently of the game, PS3 SDK and generated game code.
    for another language cannot supply translated category names. Project language,
    not interface language, controls the resulting pack.
 3. Choose **Build .edat** or select the game's runtime folder (the folder containing
-   `dev_hdd0`) and click **Build and install**. Set the correct title ID if it differs
-   from `BCES00647`. The completion dialog shows generated/installed/backup paths.
+   `dev_hdd0`) and click **Build and install**. Verify the title ID when you choose
+   a runtime folder manually. The completion dialog shows generated, installed,
+   and backup paths.
    Existing packs can also be installed using **… → Install an .edat pack…**.
 4. Restart the game and choose the pack in the quiz-pack game mode.
 
@@ -110,11 +170,37 @@ media references remain language-specific, even where previews are unavailable.
 The existing buzzpack JSON export emits **only the active language** and requires
 its questions to be complete; saving a Studio project preserves all languages.
 
-Media are **linked files**, saved relative to the project's location where
-possible. Save As rebases those links. Copy media with the project when moving
-between Windows/Linux; arbitrary Windows absolute paths are not portable.
-The editor reports missing images/audio. A bundled portable project archive is
-a later stage, not implemented by renaming the JSON file.
+A project is a **folder**: the `.buzz.json` file and the media it uses,
+
+```
+Moja paczka/
+  Moja paczka.buzz.json
+  media/images/<name>-<hash>.png       pictures
+  media/audio/<language>/<name>-<hash>.wav|rsf|wem   speech per language
+  media/video/<name>-<hash>.mp4        videos
+```
+
+Saving the project (**Zapisz projekt** / **Zapisz jako…**) copies every picture,
+recording and video that still lives elsewhere into `media/` and relinks it:
+files you attached from other folders, generated speech, and speech imported
+from games (which starts in the application cache). Files already inside the
+project folder stay where they are. The name keeps the original file name plus
+the first 8 hex digits of its SHA-256, so the same file is stored once and a
+second save copies nothing. The JSON holds only relative `/` paths, so the
+folder opens the same on Windows and Linux. Links to files that no longer
+exist are kept and reported (status bar and per-question problems).
+
+Each question (and each language variant) has `image`, `speech` and an optional
+`video`. Video is kept with the project and opened in the system player; the
+pack builder still uses only the picture and speech, so a video question needs a
+picture before building.
+
+**… → Eksportuj projekt z mediami (.buzzproject)…** writes the project and all
+its media into one file (a ZIP: the `.buzz.json` at the root plus `media/`).
+Opening a `.buzzproject` unpacks it into a new folder next to it (an existing
+folder is never overwritten; a second copy gets a ` (2)` suffix) and continues
+from there; later saves go to that folder. Archives may contain only the project
+file and `media/` paths.
 
 Recovery/cache/settings use Qt's platform-specific standard paths. No user or
 machine-specific paths are compiled into the application. Imported source files
@@ -123,7 +209,8 @@ are not modified. Opening a non-Studio source requires Save As to create a proje
 ## Build on Windows
 
 Install Visual Studio 2022 C++ tools, CMake 3.21+, Ninja, and Qt 6.2+ for MSVC x64
-with Qt Declarative/Quick Controls, Qt Tools/Linguist, and Qt SVG. Qt 6.8.3 was tested.
+(qtbase plus Qt Tools/Linguist). Qt 6.8.3 was tested. zlib comes from the
+`third_party/zlib` submodule.
 From PowerShell:
 
 ```powershell
@@ -133,7 +220,11 @@ From PowerShell:
 
 If using the repo's private CMake/Ninja toolenv, set `BUZZ_TOOL_ENV` to its root.
 The script builds, runs tests, installs into `dist-studio/`, and uses windeployqt
-to collect Qt's runtime dependencies. Running the resulting application needs
+to collect Qt's runtime dependencies (no software OpenGL, DXC or VC++
+redistributable installer) plus the Visual C++ runtime DLLs. The release workflow
+places `BuzzQuestionStudio.exe` and the JPEG/GIF image plugins next to BuzzSetup
+in `BuzzPrepare/`; the Qt DLLs are shared and checked to be identical, so only the
+qtbase source archive is published. Running the resulting application needs
 neither Python, PowerShell nor a development Qt installation.
 For images or audio conversion, install FFmpeg, select its executable in the build
 dialog, or include an actual standalone executable using the build helper's
@@ -145,11 +236,9 @@ preparing a portable directory. FFmpeg is a separate licensed dependency.
 Ubuntu 22.04/24.04:
 
 ```sh
-sudo apt-get install build-essential cmake ninja-build qt6-base-dev \
-  qt6-declarative-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libqt6svg6-dev \
-  qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-controls \
-  qml6-module-qtquick-layouts qml6-module-qtquick-dialogs qml6-module-qt-labs-platform \
-  qml6-module-qtquick-templates qml6-module-qtqml-workerscript ffmpeg
+git submodule update --init third_party/zlib
+sudo apt-get install build-essential cmake ninja-build libssl-dev qt6-base-dev \
+  qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools ffmpeg
 cmake -S studio -B build-studio/linux -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-studio/linux --parallel
 ctest --test-dir build-studio/linux --output-on-failure
@@ -157,11 +246,11 @@ ctest --test-dir build-studio/linux --output-on-failure
 cmake --install build-studio/linux --prefix "$HOME/.local"
 ```
 
-The installed Linux build uses system Qt libraries/QML modules. It is not a
-self-contained AppImage. X11 and Wayland use Qt's platform plugins. Automated
-Linux verification uses Ubuntu 22.04 under WSL with Qt 6.2.4 and the offscreen
-software renderer, plus a screenshot run through X11/Xvfb; this does not
-establish hardware/Wayland compositor coverage.
+This installed Linux build uses the system Qt libraries. The BuzzSetup release
+package and AppImage instead bundle Question Studio with BuzzSetup's Qt and the
+image plugins it needs (`tools/package-preparation-linux.py`). X11 and Wayland use Qt's platform plugins. Automated
+Linux verification runs in CI (Ubuntu 22.04/24.04) with the offscreen platform;
+this does not establish Wayland compositor coverage.
 
 Local TTS on Linux additionally needs `sudo apt-get install espeak-ng`.
 On Windows, the voice list contains installed desktop SAPI voices (not all
@@ -173,12 +262,14 @@ use **Generate speech** again. Undo detaches a generated WAV but keeps the saved
 `--demo` opens authored sample questions. `--open <file>` opens a library.
 `--inspect <file>` runs a headless importer and reports counts/languages/errors;
 add `--language en` to select a source language.
-`--smoke` loads the QML interface and rejects QML warnings.
+`--smoke` builds the interface and fails on any Qt warning.
 `--demo --screenshot <png>` captures the editor; add `--preview` for the preview.
 `--demo --tts --screenshot <png>` captures the local voice-generation dialog.
 `--ui-language en` sets a session-only interface override without changing the
 saved preference. `--show-languages` opens the content-language dialog for capture.
 `--show-build` opens the build dialog for capture.
+`--game-dir <folder>` names a prepared game folder (the one containing `runtime/`);
+BuzzSetup passes it so build/install suggestions use that copy.
 
 Native command-line building uses the same implementation as the GUI:
 
@@ -197,13 +288,14 @@ completion, or use `Start-Process -Wait` with redirected output.
 
 ## Remaining implementation stages
 
-1. Decoded native media previews and portable projects containing their media.
-2. Direct KiP extracted-folder/PKG import and additional Buzz game adapters.
+1. Decoded native media previews (SDI/RSF/WEM, video thumbnails).
+2. Split PS3 images (`.iso.0`/`.iso.1`) and encrypted ones (`.dkey`); decoding PS2/PSP pictures (PS2 IPU frames
+   in `VIDEOS.PAK`) and the Hollywood Quiz picture-frame mapping.
 3. Additional TTS adapters (Piper and HTTP services), internal audio playback,
    batch generation and a generated-audio cache. `src/tts.h` is the provider
    boundary; the first local Windows/Linux adapters already produce WAV.
-4. Larger-library tooling, category authoring, additional interface translations,
-   release packaging and broader Linux desktop coverage.
+4. Larger-library tooling, category authoring, additional interface translations
+   and broader Linux desktop coverage.
 
 Preserve the v7 pack rules: global category ids 1..999, disjoint installed-pack
 ids, pack-specific internal category names, native nine-argument AddGame calls,
@@ -214,17 +306,17 @@ writers. The compiled builder shares the v7 registration/progression rules.
 ## Verification
 
 The same five CTest suites run on both platforms: project format/native fixtures,
-controller/import/undo/local TTS, native pack builder, actual QML editing/dialogs
-and QML smoke. Builder tests compare every byte of a complete authored pack and
+controller/import/undo/local TTS, native pack builder (including synthetic ISO/CSO,
+PS2/PSP, PFS/XTS and KiP imports), actual widget editing/dialogs and UI smoke. Builder tests compare every byte of a complete authored pack and
 non-silent ATRAC3 output against frozen Python reference fixtures. FFmpeg tests
 decode encoded audio (SNR >15 dB) and picture sheets (portrait proportions).
 Installation tests cover backups, category collisions, invalid archives, cancellation
-and symlinks escaping the selected runtime. QML tests click the build action and
+and symlinks escaping the selected runtime. UI tests click the build action and
 verify the resulting selected-language EDAT. Controller tests exercise asynchronous
 build/install/backup and cancellation.
 Language tests cover KiP variant retention, native language discovery/selection,
 missing-language source filtering and authored drafts, per-language answers/audio/media rebasing, v1 migration,
-active-language export, identity merging and undo. QML tests switch PL/EN live,
+active-language export, identity merging and undo. UI tests switch PL/EN live,
 verify unchanged saved content and exercise both import/project language dialogs.
 The English TS catalog is checked for missing translations and altered format
 placeholders/file filters.
@@ -254,7 +346,8 @@ pack; earlier v7 gameplay verification is not a new Studio gameplay test.
 Application sources use the repository's MIT license. Qt is a separate dependency
 with its own module licenses; include the appropriate Qt notices and distribution
 materials when distributing a runtime package. No game assets or questions from
-retail games are included. Example questions and the SVG icon are authored here.
+retail games are included. Example questions and the icons are authored here.
+zlib (bundled, zlib license) and the system AES library (CNG / OpenSSL) are also used.
 Optional FFmpeg is executed as a separate program and retains its own license;
 the applicable license depends on the selected build/configuration. The local
 Windows development package uses a GPL-enabled FFmpeg build. Preserve its notices

@@ -1,86 +1,72 @@
 #include "controller.h"
 #include "localization.h"
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QQuickItem>
-#include <QQuickStyle>
-#include <QQuickWindow>
+#include "main_window.h"
+#include <QApplication>
+#include <QComboBox>
+#include <QDialog>
+#include <QLineEdit>
+#include <QListView>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSignalSpy>
+#include <QSpinBox>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
-#include <functional>
 
 class UiTest final : public QObject {
     Q_OBJECT
+    template <typename T> static T *find(QWidget &window, const char *name) {
+        return window.findChild<T *>(QString::fromLatin1(name));
+    }
   private slots:
     void initTestCase() {
         QCoreApplication::setOrganizationName("BuzzStudioTests");
         QCoreApplication::setApplicationName("UiTests");
         QStandardPaths::setTestModeEnabled(true);
-        QQuickStyle::setStyle("Basic");
     }
-    void switchingQuestionsCommitsTextAndSavePreservesIt() {
+    void editingImportingAndBuildingThroughTheWindow() {
         StudioController controller;
         Localization localization;
         localization.setLanguage("pl");
+        connect(&localization, &Localization::languageChanged, &controller, &StudioController::refreshTranslations);
         controller.newProject(true);
         const auto firstId = controller.current()["id"].toString();
-        QQmlApplicationEngine engine;
-        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
-        engine.rootContext()->setContextProperty("studio", &controller);
-        engine.rootContext()->setContextProperty("i18n", &localization);
-        connect(&localization, &Localization::languageChanged, &engine, &QQmlEngine::retranslate);
-        connect(&localization, &Localization::languageChanged, &controller,
-                &StudioController::refreshTranslations);
-        engine.load(QUrl("qrc:/Buzz/TestStudio/Main.qml"));
-        QCOMPARE(engine.rootObjects().size(), 1);
-        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-        QVERIFY(window);
-        QVERIFY(QTest::qWaitForWindowExposed(window));
-        auto *initialLanguage = window->findChild<QObject *>("projectLanguageCombo");
-        QVERIFY(initialLanguage);
-        QCOMPARE(initialLanguage->property("currentValue").toString(), QString("pl"));
-        auto *text = window->findChild<QQuickItem *>("questionText");
-        QVERIFY(text);
-        // ListView delegates belong to the visual tree, not necessarily the
-        // window's QObject ownership tree.
-        std::function<QQuickItem *(QQuickItem *, const QString &)> findVisual =
-            [&](QQuickItem *item, const QString &name) -> QQuickItem * {
-            if (item->objectName() == name)
-                return item;
-            for (auto *child : item->childItems())
-                if (auto *found = findVisual(child, name))
-                    return found;
-            return nullptr;
-        };
-        QQuickItem *secondRow = nullptr;
-        QTRY_VERIFY((secondRow = findVisual(window->contentItem(), "questionRow_1")));
-        const auto secondId = secondRow->property("uid").toString();
+        MainWindow window(controller, localization);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+        window.openProjectLanguages();
+        QDialog *dialog = nullptr;
+        QTRY_VERIFY((dialog = find<QDialog>(window, "projectLanguageDialog")) && dialog->isVisible());
+        QCOMPARE(find<QComboBox>(window, "projectLanguageCombo")->currentData().toString(), QString("pl"));
+        dialog->close();
+
+        // Typing, then picking another question, commits the edit first.
+        auto *text = find<QPlainTextEdit>(window, "questionText");
+        auto *list = find<QListView>(window, "questionList");
+        QVERIFY(text && list);
+        const auto secondIndex = list->model()->index(1, 0);
+        const auto secondId = secondIndex.data(QuestionModel::Uid).toString();
         controller.select(secondId);
         const auto secondOriginal = controller.current()["question"].toString();
         controller.select(firstId);
-
-        text->forceActiveFocus();
-        QTRY_VERIFY(text->hasActiveFocus());
-        QTest::keyClick(window, Qt::Key_A, Qt::ControlModifier);
-        QTest::keyClick(window, Qt::Key_X);
-        QCOMPARE(text->property("text").toString(), QString("x"));
-        const auto click = secondRow->mapToScene(QPointF(secondRow->width() / 2, secondRow->height() / 2));
-        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, click.toPoint());
+        text->setFocus();
+        text->selectAll();
+        QTest::keyClick(text, Qt::Key_X);
+        QCOMPARE(text->toPlainText(), QString("x"));
+        QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, list->visualRect(secondIndex).center());
         QTRY_COMPARE(controller.current()["id"].toString(), secondId);
         QCOMPARE(controller.current()["question"].toString(), secondOriginal);
-        QCOMPARE(text->property("text").toString(), secondOriginal);
+        QCOMPARE(text->toPlainText(), secondOriginal);
         controller.select(firstId);
         QCOMPARE(controller.current()["question"].toString(), QString("x"));
-        QCOMPARE(text->property("text").toString(), QString("x"));
-        // The same commit path is used by the Save command while still typing.
-        text->forceActiveFocus();
-        QTest::keyClick(window, Qt::Key_A, Qt::ControlModifier);
-        QTest::keyClick(window, Qt::Key_Y);
-        QVERIFY(QMetaObject::invokeMethod(window, "commitEdits"));
-        QVERIFY(!text->hasActiveFocus());
+        QCOMPARE(text->toPlainText(), QString("x"));
+        // Saving while still typing uses the same commit path.
+        text->setFocus();
+        text->selectAll();
+        QTest::keyClick(text, Qt::Key_Y);
+        window.commitEdits();
         QCOMPARE(controller.current()["question"].toString(), QString("y"));
         QTemporaryDir temp;
         const auto path = temp.filePath("edited.buzz.json");
@@ -89,87 +75,62 @@ class UiTest final : public QObject {
         QVERIFY(result.ok());
         QCOMPARE(result.document.questions[0].text, QString("y"));
         QCOMPARE(result.document.questions[1].text, secondOriginal);
-        auto *openButton = window->findChild<QObject *>("openLibraryButton");
-        QVERIFY(openButton);
+
+        // Interface language switches live and leaves the content untouched.
         const auto beforeTranslation = studio::serialize(studio::loadDocument(path).document);
         localization.setLanguage("en");
-        QTRY_COMPARE(openButton->property("text").toString(), QString("Open"));
+        QTRY_COMPARE(find<QPushButton>(window, "openLibraryButton")->text(), QString("Open"));
         QCOMPARE(controller.packLanguage(), QString("pl"));
         QCOMPARE(controller.current()["question"].toString(), QString("y"));
         QVERIFY(!controller.dirty());
         QVERIFY(controller.saveFile(QUrl::fromLocalFile(path)));
         QCOMPARE(studio::serialize(studio::loadDocument(path).document), beforeTranslation);
         localization.setLanguage("pl");
-        QTRY_COMPARE(openButton->property("text").toString(), QString::fromUtf8("Otwórz"));
-        auto *tts = window->findChild<QObject *>("ttsDialog");
-        QVERIFY(tts);
-        QVERIFY(QMetaObject::invokeMethod(tts, "open"));
-        QTRY_VERIFY(tts->property("visible").toBool());
-        auto *ttsText = window->findChild<QObject *>("ttsText");
-        QVERIFY(ttsText);
-        QTRY_COMPARE(ttsText->property("text").toString(), QString("y"));
-        QVERIFY(QMetaObject::invokeMethod(tts, "close"));
-        const auto importPath = QFINDTESTDATA("fixtures/native-multilingual.pak");
-        controller.prepareImport(QUrl::fromLocalFile(importPath));
-        auto *languageDialog = window->findChild<QObject *>("importLanguageDialog");
-        auto *languageCombo = window->findChild<QObject *>("importLanguageCombo");
-        QVERIFY(languageDialog);
-        QVERIFY(languageCombo);
-        QTRY_VERIFY(languageDialog->property("visible").toBool());
-        QCOMPARE(languageCombo->property("currentValue").toString(), QString("pl"));
-        languageCombo->setProperty("currentIndex", 0); // Sorted detected choices: en, pl.
-        QCOMPARE(languageCombo->property("currentValue").toString(), QString("en"));
-        QVERIFY(QMetaObject::invokeMethod(languageDialog, "accept"));
+        QTRY_COMPARE(find<QPushButton>(window, "openLibraryButton")->text(), QString::fromUtf8("Otwórz"));
+        QTRY_COMPARE(find<QPlainTextEdit>(window, "questionText")->toPlainText(), QString("y"));
+
+        window.openTts();
+        QTRY_VERIFY((dialog = find<QDialog>(window, "ttsDialog")) && dialog->isVisible());
+        QCOMPARE(find<QPlainTextEdit>(window, "ttsText")->toPlainText(), QString("y"));
+        dialog->close();
+
+        // A multilingual source asks for the language to import.
+        controller.prepareImport(QUrl::fromLocalFile(QFINDTESTDATA("fixtures/native-multilingual.pak")));
+        QTRY_VERIFY((dialog = find<QDialog>(window, "importLanguageDialog")) && dialog->isVisible());
+        auto *languages = find<QComboBox>(window, "importLanguageCombo");
+        QCOMPARE(languages->currentData().toString(), QString("pl"));
+        languages->setCurrentIndex(0); // Sorted detected choices: en, pl.
+        QCOMPARE(languages->currentData().toString(), QString("en"));
+        dialog->accept();
         QTRY_VERIFY_WITH_TIMEOUT(!controller.busy(), 5000);
         QCOMPARE(controller.packLanguage(), QString("en"));
         QCOMPARE(controller.current()["question"].toString(), QString("Which letter comes first?"));
-        auto *projectDialog = window->findChild<QObject *>("projectLanguageDialog");
-        QVERIFY(projectDialog);
-        QVERIFY(QMetaObject::invokeMethod(projectDialog, "open"));
-        QTRY_VERIFY(projectDialog->property("visible").toBool());
-        auto *projectCombo = window->findChild<QObject *>("projectLanguageCombo");
-        QVERIFY(projectCombo);
-        QCOMPARE(projectCombo->property("currentValue").toString(), QString("en"));
-        QVERIFY(QMetaObject::invokeMethod(projectDialog, "close"));
-        auto *panels = window->findChild<QObject *>("packDialogs");
-        QVERIFY(panels);
-        QVERIFY(QMetaObject::invokeMethod(panels, "openBuild"));
-        auto *buildDialog = window->findChild<QObject *>("buildPackDialog");
-        QVERIFY(buildDialog);
-        QTRY_VERIFY(buildDialog->property("visible").toBool());
-        auto *templatePath = window->findChild<QObject *>("buildTemplatePath");
-        auto *outputPath = window->findChild<QObject *>("buildOutputPath");
-        auto *categoryBase = window->findChild<QObject *>("buildCategoryBase");
-        auto *number = window->findChild<QObject *>("buildPackNumber");
-        QVERIFY(templatePath && outputPath && categoryBase && number);
-        QVERIFY(templatePath->setProperty("value", QFINDTESTDATA("fixtures/build-template.pak")));
-        QVERIFY(outputPath->setProperty("value", temp.filePath("packs")));
-        categoryBase->setProperty("value", 700);
-        number->setProperty("value", 103);
-        auto *buildButton = window->findChild<QQuickItem *>("startPackBuild");
-        QVERIFY(buildButton);
+
+        // Build through the dialog.
+        window.openBuild();
+        QTRY_VERIFY((dialog = find<QDialog>(window, "buildPackDialog")) && dialog->isVisible());
+        find<QLineEdit>(window, "buildTemplatePath")->setText(QFINDTESTDATA("fixtures/build-template.pak"));
+        find<QLineEdit>(window, "buildOutputPath")->setText(temp.filePath("packs"));
+        find<QSpinBox>(window, "buildPackNumber")->setValue(103);
+        find<QSpinBox>(window, "buildCategoryBase")->setValue(700);
         QSignalSpy built(&controller, &StudioController::packFinished);
-        QTRY_VERIFY(buildButton->width() > 0);
-        const auto buildClick =
-            buildButton->mapToScene(QPointF(buildButton->width() / 2, buildButton->height() / 2));
-        QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, buildClick.toPoint());
+        auto *start = find<QPushButton>(window, "startPackBuild");
+        QVERIFY(start && start->isEnabled());
+        QTest::mouseClick(start, Qt::LeftButton);
         QTRY_COMPARE_WITH_TIMEOUT(built.count(), 1, 10000);
         const auto builtPath = controller.lastBuild()["path"].toString();
         QVERIFY(QFileInfo::exists(builtPath));
         QVERIFY(builtPath.endsWith("ENGPACK0103.edat"));
         QCOMPARE(controller.current()["question"].toString(), QString("Which letter comes first?"));
-        auto *resultDialog = window->findChild<QObject *>("packResultDialog");
-        QVERIFY(resultDialog);
-        QTRY_VERIFY(resultDialog->property("visible").toBool());
-        QVERIFY(QMetaObject::invokeMethod(resultDialog, "close"));
-        window->resize(1120, 760);
-        QVERIFY(QMetaObject::invokeMethod(panels, "openBuild"));
-        auto *advanced = window->findChild<QObject *>("buildAdvanced");
-        QVERIFY(advanced);
-        advanced->setProperty("checked", true);
-        QTRY_VERIFY(buildDialog->property("height").toReal() <= window->height() - 48);
-        QVERIFY(QMetaObject::invokeMethod(buildDialog, "close"));
-        QCOMPARE(warnings.count(), 0);
+        QTRY_VERIFY((dialog = find<QDialog>(window, "packResultDialog")) && dialog->isVisible());
+        dialog->close();
+        // The dialog fits the smallest supported window.
+        window.resize(1120, 760);
+        window.openBuild();
+        QTRY_VERIFY((dialog = find<QDialog>(window, "buildPackDialog")) && dialog->isVisible());
+        find<QWidget>(window, "buildAdvanced")->setProperty("checked", true);
+        QTRY_VERIFY(dialog->height() <= window.height() - 48);
+        dialog->close();
     }
 };
 QTEST_MAIN(UiTest)

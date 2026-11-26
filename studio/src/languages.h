@@ -11,6 +11,8 @@ QVariantList languageChoices(const QStringList &codes = {});
 struct SourceLanguages {
     QStringList codes;
     QString preferred, error;
+    // Content ID of a PS3 package that needs the user's .rap license file.
+    QString license;
     bool project = false;
     bool ok() const { return error.isEmpty(); }
 };

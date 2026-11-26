@@ -127,6 +127,7 @@ class Wizard final : public QWidget {
     QLineEdit *project{}, *game{}, *firmware{}, *keys{}, *update{}, *resume{};
     QPushButton *check{}, *setup{}, *submodules{}, *prepare{}, *play{}, *openGame{}, *addToSteam{}, *pythonInstall{}, *gitInstall{}, *vsInstall{}, *linuxInstall{}, *cancel{};
     QPushButton *vsDownload{}, *recheckSystem{}, *containerSetup{};
+    QPushButton* questionStudio{};
     QPushButton* downloadKeysButton{};
     QString powershell, python, git, winget, vsInstaller;
     QString packageManager;
@@ -216,6 +217,44 @@ class Wizard final : public QWidget {
     }
     QString gameExe() const { return root() + (linuxHost ? "/dist/BuzzQuizWorldRecomp" : "/dist/BuzzQuizWorldRecomp.exe"); }
     QString containerMarker() const { return root() + "/runtime/setup/build-container-ready"; }
+    // Buzz! Question Studio: bundled next to BuzzSetup in release packages
+    // (same folder on Windows, bin/ on Linux) or built in a checkout.
+    QString questionStudioExe() const {
+        const QDir app(QCoreApplication::applicationDirPath());
+        const QStringList candidates = windowsHost
+            ? QStringList{app.filePath("BuzzQuestionStudio.exe"),
+                          root() + "/dist-studio/bin/BuzzQuestionStudio.exe"}
+            : QStringList{app.filePath("BuzzQuestionStudio"), root() + "/dist-studio/bin/BuzzQuestionStudio",
+                          root() + "/build-studio/linux/BuzzQuestionStudio"};
+        for (const auto& candidate : candidates)
+            if (!root().isEmpty() || candidate.startsWith(app.absolutePath()))
+                if (QFileInfo(candidate).isFile() && QFileInfo(candidate).isExecutable())
+                    return QFileInfo(candidate).absoluteFilePath();
+        return {};
+    }
+    void openQuestionStudio() {
+        const auto program = questionStudioExe();
+        if (program.isEmpty()) return;
+        QProcess studio;
+        // Inside the AppImage, start the image again (AppRun --studio): it stays
+        // mounted for Question Studio even after BuzzSetup closes.
+        const auto appImage = qEnvironmentVariable("APPIMAGE");
+        const bool viaAppImage = linuxHost && !appImage.isEmpty() && QFileInfo(appImage).isExecutable() &&
+                                 program.startsWith(QCoreApplication::applicationDirPath());
+        studio.setProgram(viaAppImage ? appImage : program);
+        QStringList args;
+        if (viaAppImage)
+            args << "--studio";
+        else if (QFileInfo(gameExe()).isFile())
+            args << "--game-dir" << QDir::toNativeSeparators(root() + "/dist");
+        studio.setArguments(args);
+        studio.setWorkingDirectory(QFileInfo(program).absolutePath());
+        if (!studio.startDetached()) {
+            guidance->setText("Could not start Question Studio.");
+            log.appendPlainText("Could not start " + QDir::toNativeSeparators(program) + ".");
+            details.setChecked(true);
+        }
+    }
     // Run a build step on the host, or inside the build container.
     void startBuild(const QString& program, const QStringList& args, const QString& activity) {
         if (containerMode)
@@ -250,6 +289,7 @@ class Wizard final : public QWidget {
         updateGame->setToolTip(updateGame->isEnabled() ? QString() :
             "Set up the build tools and local build dependencies in Advanced options.");
         addToSteam->setVisible(ready && linuxHost && !steam::accountConfigDirs().isEmpty());
+        questionStudio->setVisible(!questionStudioExe().isEmpty());
         prepare->setVisible(!ready);
         cancel->hide();
         progress.hide();
@@ -868,11 +908,14 @@ public:
             hideConsole(gameProcess);
             gameProcess.setProgram(gameExe());
             gameProcess.setWorkingDirectory(root() + "/dist");
-            if (!gameProcess.startDetached()) {
-                guidance->setText("Could not start the game. Open the game folder to check your copy.");
-                log.appendPlainText("Could not start the prepared game.");
-                details.setChecked(true);
+            if (gameProcess.startDetached()) {
+                play->setEnabled(false);
+                close();
+                return;
             }
+            guidance->setText("Could not start the game. Open the game folder to check your copy.");
+            log.appendPlainText("Could not start the prepared game.");
+            details.setChecked(true);
         });
         play->setObjectName("primary");
         updateGame = button(*prepareCard, "Update installed game", [this] {
@@ -884,6 +927,9 @@ public:
             startBuild(toolPython(), {root() + "/tools/update-game.py", "--jobs", QString::number(jobs.value())},
                        "Updating the installed game. Keep this window open while it builds…");
         });
+        questionStudio = button(*actions, "Question Studio", [this] { openQuestionStudio(); });
+        questionStudio->setToolTip("Write your own questions and install them as a quiz pack for this game.");
+        questionStudio->hide();
         addToSteam = button(*actions, "Add to Steam", [this] { addSteamShortcut(); });
         addToSteam->hide();
         openGame = button(*actions, "Open game folder", [this] {

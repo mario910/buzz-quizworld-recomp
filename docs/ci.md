@@ -9,23 +9,20 @@ Use your own supported game/firmware locally for a complete game build.
 
 | Workflow | Coverage |
 |---|---|
-| Native preparation | Windows x64 and Ubuntu 22.04/24.04: compiled importer, synthetic import/lifter tests; stages only the preparation application |
-| Question Studio | Windows x64 and Ubuntu 22.04/24.04: editor, synthetic pack/document tests and offscreen QML smoke tests |
-| Native launcher and PC settings | Windows x64, Ubuntu 24.04 x64 and macOS 15 arm64: SDL3/ImGui launcher, input routing, settings, phone sessions, host controls and hidden UI tests |
+| Native preparation | Windows x64 and Ubuntu 22.04/24.04: compiled importer, synthetic import/lifter tests; stages the preparation application with Question Studio and smoke-tests both from the extracted packages |
+| Question Studio | Windows x64 and Ubuntu 22.04/24.04: editor, synthetic pack/document tests and offscreen widget smoke tests |
+| PC port host tests | Windows x64, Ubuntu 24.04 x64 and macOS 15 arm64: input routing, settings, phone sessions/server, host controls/overlay, game paths and PC runtime (`tests/CMakeLists.txt`) |
 | Optimization catalog | Checks the source-derived optimization documentation |
 | Workflow validation | actionlint and ShellCheck over workflow YAML/embedded shell |
 
-The launcher requires CMake 3.31 or newer. Its CI pins the build tools, fetches
-hash-pinned SDL3/ImGui dependencies and checks out the exact SDK submodule commit.
-SDK or shared input/settings changes trigger launcher tests too. Apple Silicon
-artifacts are labelled **bootstrap**: a compiled launcher and passing synthetic
-tests do **not** establish a working macOS game, graphics, audio or performance.
+The host tests require CMake 3.31 or newer. Their CI pins the build tools and
+checks out the exact SDK submodule commit; SDK or shared input/settings changes
+trigger them too. Passing macOS tests do **not** establish a working macOS game,
+graphics, audio or performance.
 
 Artifacts contain installed tool binaries and their licenses, not the checkout
 or build tree. Linux preparation archives currently require the matching host's
-Qt/OpenSSL libraries; they are not self-contained game releases. The standalone
-launcher artifact uses statically linked SDL3, but still needs normal system
-graphics/windowing libraries. Artifacts are unsigned development builds.
+Qt/OpenSSL libraries; they are not self-contained game releases. Artifacts are unsigned development builds.
 
 ## SDK fork
 

@@ -4,6 +4,11 @@ Source: `EP9000-CUSA09557_00-1710231057KPE3M0`, a fake-signed PKG (`drm_type 0xF
 Status: unpacked and decoded. Questions export to JSON, pictures are plain
 JPEGs and the voice decodes with FFmpeg. Conversion into Buzz packs is not written yet.
 
+Question Studio now imports this package natively (C++, no Python): open the
+`.pkg` or the extracted `Media/resources.assets` (`studio/src/ps4_pkg.cpp`,
+`studio/src/kip_import.cpp`). The Python tools below remain the reference
+implementation and the analysis record.
+
 ## Unpacking (`tools/questions/ps4pkg.py`)
 
 Python port of LibOrbisPkg's documented fake-PKG algorithms. No third-party

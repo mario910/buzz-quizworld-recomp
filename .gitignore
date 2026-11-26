@@ -88,3 +88,4 @@ __pycache__/
 /docs/job41-edge-geometry.md
 /docs/claude-*.md
 /build-launcher-linux/
+/build-tests/

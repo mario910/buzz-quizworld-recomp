@@ -1,9 +1,7 @@
-"""Package the Linux BuzzSetup wizard, the native launcher and the pinned build sources.
+"""Package the Linux BuzzSetup wizard, Question Studio and the pinned build sources.
 
 Run on Ubuntu 24.04 x86-64 (CI or the BuzzSetup build container) after
-scripts/build-preparation-linux.sh and the native launcher build, with
-qt6-base-dev and patchelf installed. The archive is self-contained apart from
-libraries every desktop Linux provides (glibc, libstdc++, X11/XCB core, GL,
+scripts/build-preparation-linux.sh and the Question Studio build, with qt6-base-dev and patchelf installed. The archive is self-contained apart from libraries every desktop Linux provides (glibc, libstdc++, X11/XCB core, GL,
 fontconfig/freetype, OpenSSL 3, SDL2 and the Vulkan loader for the game).
 
 Like the Windows ZIP it contains no game code: BuzzSetup builds the game on
@@ -59,9 +57,10 @@ case "$1" in
         shift
         if [ -x "$dst/dist/BuzzQuizWorldRecomp" ]; then exec "$dst/Launch-Buzz.sh" "$@"; fi
         if [ "${1:-}" = "--steam-deck" ]; then shift; fi ;;
-    --launcher)
+    --studio)
         shift
-        exec "$here/usr/bin/BuzzLauncher" --project "$dst" "$@" ;;
+        export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+        exec "$here/usr/bin/BuzzQuestionStudio" --game-dir "$dst/dist" "$@" ;;
 esac
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 cd "$dst" && exec "$here/usr/bin/BuzzPrepare" "$@"
@@ -83,7 +82,7 @@ folder on a regular drive; about 25 GB). Start the prepared game with
   BuzzSetup-x86_64.AppImage --play
 which is also the launch option to use when adding it to Steam as a non-Steam
 game. Balanced studio settings are automatic on supported game builds.
---launcher opens the native launcher (controls and button test).
+--studio opens Buzz! Question Studio for your own question packs.
 """
 PORT_PATHS = (
     "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
@@ -92,7 +91,10 @@ PORT_PATHS = (
     "third_party/cpp-httplib", "third_party/qrcodegen",
 )
 SUBMODULES = ("ps3recomp", "third_party/zlib")
-QT_PLUGINS = ("platforms/libqxcb.so", "imageformats/libqico.so", "tls/libqopensslbackend.so")
+QT_PLUGINS = ("platforms/libqxcb.so", "imageformats/libqico.so", "tls/libqopensslbackend.so",
+              # Question Studio: pictures and compose/dead keys for accented text.
+              "imageformats/libqjpeg.so", "imageformats/libqgif.so",
+              "platforminputcontexts/libcomposeplatforminputcontextplugin.so")
 # Provided by every desktop distribution (and must match the host's drivers,
 # fonts and X server); never bundled.
 SYSTEM_LIBRARIES = re.compile(
@@ -121,10 +123,11 @@ if [ -x "$here/build-files/dist/BuzzQuizWorldRecomp" ]; then
 fi
 exec "$here/BuzzSetup"
 """
-LAUNCH_LAUNCHER = """#!/bin/sh
-# Optional native launcher: controls, button test and shared preferences.
+LAUNCH_STUDIO = """#!/bin/sh
+# Buzz! Question Studio: write questions and install them as a quiz pack.
 here=$(dirname "$(readlink -f "$0")")
-exec "$here/bin/BuzzLauncher" --project "$here/build-files" "$@"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+exec "$here/bin/BuzzQuestionStudio" --game-dir "$here/build-files/dist" "$@"
 """
 README = """Buzz! Quiz World - BuzzSetup for Linux x86-64
 ================================================
@@ -140,6 +143,8 @@ README = """Buzz! Quiz World - BuzzSetup for Linux x86-64
 5. When it finishes, select Play Buzz!. Later, start the game with
    ./Play-Buzz.sh.
    You can add Play-Buzz.sh to Steam as a non-Steam game.
+6. Optional: Question Studio (in BuzzSetup or ./Question-Studio.sh) writes
+   your own questions and installs them as a quiz pack for this copy.
 
 Requirements: an x86-64 CPU with AVX2 and FMA, a Vulkan driver, SDL2, and
 glibc 2.39 or newer for BuzzSetup itself (SteamOS 3.6+, Ubuntu 24.04+,
@@ -250,7 +255,7 @@ def build_appimage(staging, scratch, tool, runtime, output):
     return checksum
 
 
-def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None):
+def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
     revision = git(ROOT, "rev-parse", "HEAD").decode().strip()
     if git(ROOT, "status", "--porcelain", "--untracked-files=no", "--", *PORT_PATHS):
         raise ValueError("Commit the source changes before packaging: the package holds HEAD.")
@@ -262,9 +267,9 @@ def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None)
         (staging / "bin").mkdir(parents=True)
         (staging / "lib").mkdir()
         shutil.copy2(wizard, staging / "bin/BuzzPrepare")
-        shutil.copy2(launcher, staging / "bin/BuzzLauncher")
+        shutil.copy2(studio, staging / "bin/BuzzQuestionStudio")
         (staging / "bin/qt.conf").write_text("[Paths]\nPrefix = ..\nPlugins = plugins\n")
-        elves = [staging / "bin/BuzzPrepare"]
+        elves = [staging / "bin/BuzzPrepare", staging / "bin/BuzzQuestionStudio"]
         for plugin in QT_PLUGINS:
             target = staging / "plugins" / plugin
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -279,7 +284,8 @@ def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None)
                     shutil.copy2(path, staging / "lib" / name)
                     pending.append(staging / "lib" / name)
         # Relative search paths: nothing leaks to programs BuzzSetup starts.
-        subprocess.run(["patchelf", "--set-rpath", "$ORIGIN/../lib", staging / "bin/BuzzPrepare"], check=True)
+        for program in ("BuzzPrepare", "BuzzQuestionStudio"):
+            subprocess.run(["patchelf", "--set-rpath", "$ORIGIN/../lib", staging / "bin" / program], check=True)
         for name in libraries:
             subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", staging / "lib" / name], check=True)
         for plugin in QT_PLUGINS:
@@ -288,8 +294,6 @@ def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None)
             env = dict(os.environ, LD_LIBRARY_PATH="")
             if "not found" in subprocess.run(["ldd", elf], capture_output=True, text=True, env=env).stdout:
                 raise RuntimeError(f"Unresolved bundled dependency in {elf}")
-        # BuzzLauncher links SDL3 statically; it must not need anything bundled.
-        dependencies(staging / "bin/BuzzLauncher")
         packages = {}
         for name, path in sorted(libraries.items()):
             packages.setdefault(owner_package(path), []).append(name)
@@ -311,7 +315,7 @@ def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None)
             "Shared libraries bundled from Ubuntu 24.04 (apt-get source <package> for their sources):\n"
             + "\n".join(inventory) + "\n")
         for name, text in (("BuzzSetup", LAUNCH_SETUP), ("Play-Buzz.sh", LAUNCH_GAME),
-                           ("Buzz-Launcher.sh", LAUNCH_LAUNCHER)):
+                           ("Question-Studio.sh", LAUNCH_STUDIO)):
             (staging / name).write_text(text)
             (staging / name).chmod(0o755)
         (staging / "README.txt").write_text(README)
@@ -340,11 +344,11 @@ def package(wizard, launcher, output, appimage_tool=None, appimage_runtime=None)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wizard", type=Path, default=ROOT / "dist-preparation/linux/bin/BuzzPrepare")
-    parser.add_argument("--launcher", type=Path, default=ROOT / "build-launcher/BuzzLauncher")
+    parser.add_argument("--studio", type=Path, default=ROOT / "build-studio/linux/BuzzQuestionStudio")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--appimage-tool", type=Path, help="appimagetool; also builds BuzzSetup-x86_64.AppImage")
     parser.add_argument("--appimage-runtime", type=Path, help="Pinned AppImage type2 runtime for --appimage-tool")
     args = parser.parse_args()
     if bool(args.appimage_tool) != bool(args.appimage_runtime):
         parser.error("--appimage-tool and --appimage-runtime go together")
-    package(args.wizard, args.launcher, args.output, args.appimage_tool, args.appimage_runtime)
+    package(args.wizard, args.studio, args.output, args.appimage_tool, args.appimage_runtime)

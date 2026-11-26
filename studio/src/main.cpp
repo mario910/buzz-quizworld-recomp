@@ -1,5 +1,7 @@
 #include "controller.h"
 #include "localization.h"
+#include "main_window.h"
+#include <QFile>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QFont>
@@ -10,10 +12,6 @@
 #include <QJsonDocument>
 #include <QLibraryInfo>
 #include <QLocale>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QQuickStyle>
-#include <QQuickWindow>
 #include <QTimer>
 #include <QTranslator>
 #include <cstdio>
@@ -99,6 +97,11 @@ int main(int argc, char **argv) {
     app.setApplicationDisplayName("Buzz! Question Studio");
     app.setApplicationVersion(QStringLiteral(STUDIO_VERSION));
     const auto args = app.arguments();
+    // BuzzSetup passes its prepared game folder; the build dialog then offers
+    // that copy's runtime and PACK0100 template.
+    const int gameDirectory = args.indexOf("--game-dir");
+    if (gameDirectory >= 0 && gameDirectory + 1 < args.size())
+        studio::setGameDirectory(args[gameDirectory + 1]);
     const int uiLanguage = args.indexOf("--ui-language");
     Localization localization(nullptr, uiLanguage >= 0 && uiLanguage + 1 < args.size() ? args[uiLanguage + 1]
                                                                                        : QString());
@@ -109,48 +112,44 @@ int main(int argc, char **argv) {
 #endif
     interfaceFont.setPixelSize(13);
     app.setFont(interfaceFont);
-    app.setWindowIcon(QIcon(":/studio.svg"));
-    QQuickStyle::setStyle("Basic");
+    app.setWindowIcon(QIcon(":/studio.png"));
+    app.setStyle("Fusion");
+    QFile style(":/studio.qss");
+    if (style.open(QIODevice::ReadOnly))
+        app.setStyleSheet(QString::fromUtf8(style.readAll()));
+    // --smoke fails on any Qt warning while the interface is built and shown.
+    static bool warnings = false;
+    static QtMessageHandler previous = nullptr;
+    previous = qInstallMessageHandler([](QtMsgType type, const QMessageLogContext &context, const QString &message) {
+        if (type != QtDebugMsg && type != QtInfoMsg)
+            warnings = true;
+        if (previous)
+            previous(type, context, message);
+    });
     StudioController studio;
     if (args.contains("--demo") || args.contains("--smoke"))
         studio.newProject(true);
     const int open = args.indexOf("--open");
     if (open >= 0 && open + 1 < args.size())
         studio.openFile(QUrl::fromLocalFile(args[open + 1]));
-    QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("i18n", &localization);
-    engine.rootContext()->setContextProperty("studio", &studio);
-    QObject::connect(&localization, &Localization::languageChanged, &engine, &QQmlEngine::retranslate);
     QObject::connect(&localization, &Localization::languageChanged, &studio,
                      &StudioController::refreshTranslations);
-    bool warnings = false;
-    QObject::connect(&engine, &QQmlEngine::warnings, &app, [&](const QList<QQmlError> &errors) {
-        for (const auto &e : errors)
-            qWarning().noquote() << e.toString();
-        warnings = true;
-    });
-    engine.load(QUrl("qrc:/Buzz/Studio/Main.qml"));
-    if (engine.rootObjects().isEmpty())
-        return 1;
+    MainWindow window(studio, localization);
+    window.show();
     if (args.contains("--preview"))
-        engine.rootObjects().first()->setProperty("editorTab", 1);
+        window.setEditorTab(1);
     if (args.contains("--tts"))
-        if (auto *dialog = engine.rootObjects().first()->findChild<QObject *>("ttsDialog"))
-            QMetaObject::invokeMethod(dialog, "open");
+        window.openTts();
     if (args.contains("--show-languages"))
-        if (auto *dialog = engine.rootObjects().first()->findChild<QObject *>("projectLanguageDialog"))
-            QMetaObject::invokeMethod(dialog, "open");
+        window.openProjectLanguages();
     if (args.contains("--show-build"))
-        if (auto *dialog = engine.rootObjects().first()->findChild<QObject *>("packDialogs"))
-            QMetaObject::invokeMethod(dialog, "openBuild");
+        window.openBuild();
     const int shot = args.indexOf("--screenshot");
     if (args.contains("--smoke") || (shot >= 0 && shot + 1 < args.size()))
         QTimer::singleShot(1200, &app, [&] {
             bool saved = true;
-            if (shot >= 0) {
-                auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
-                saved = window && !window->grabWindow().isNull() && window->grabWindow().save(args[shot + 1]);
-            }
+            if (shot >= 0)
+                saved = window.capture().save(args[shot + 1]);
             app.exit(warnings || !saved ? 1 : 0);
         });
     return app.exec();
