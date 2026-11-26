@@ -82,7 +82,7 @@ bool supportedLanguage(const QString& code) {
 QString systemLanguage() {
     const auto language = QLocale::system().language();
     if (language == QLocale::NorwegianBokmal || language == QLocale::NorwegianNynorsk) return "no";
-    const auto code = QLocale::languageToCode(language, QLocale::ISO639Part1);
+    const auto code = QLocale::languageToCode(language);
     return supportedLanguage(code) ? code : QStringLiteral("en");
 }
 

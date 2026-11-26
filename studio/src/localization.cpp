@@ -24,7 +24,7 @@ static bool supported(const QString &language) {
 QString Localization::defaultLanguage(const QLocale &system) {
     if (system.language() == QLocale::NorwegianBokmal || system.language() == QLocale::NorwegianNynorsk)
         return QStringLiteral("no");
-    const auto code = QLocale::languageToCode(system.language(), QLocale::ISO639Part1);
+    const auto code = QLocale::languageToCode(system.language());
     return supported(code) ? code : QStringLiteral("en");
 }
 Localization::Localization(QObject *parent, const QString &initialLanguage) : QObject(parent) {
