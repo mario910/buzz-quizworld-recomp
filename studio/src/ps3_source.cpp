@@ -101,13 +101,16 @@ QMap<QString, QString> paramSfo(const QByteArray &sfo) {
     const auto count = qFromLittleEndian<quint32>(sfo.constData() + 16);
     for (quint32 i = 0; i < count && 20 + qint64(i + 1) * 16 <= sfo.size(); ++i) {
         const char *e = sfo.constData() + 20 + i * 16;
-        const auto keyAt = keys + qFromLittleEndian<quint16>(e);
+        const auto keyAt = qint64(keys) + qFromLittleEndian<quint16>(e);
         const auto format = qFromLittleEndian<quint16>(e + 2);
         const auto length = qFromLittleEndian<quint32>(e + 4);
-        const auto dataAt = data + qFromLittleEndian<quint32>(e + 12);
-        if (keyAt >= quint32(sfo.size()) || dataAt + qint64(length) > sfo.size() || format != 0x0204)
+        const auto dataAt = qint64(data) + qFromLittleEndian<quint32>(e + 12);
+        if (keyAt >= sfo.size() || dataAt + length > sfo.size() || format != 0x0204)
             continue;
-        const auto key = QString::fromLatin1(sfo.constData() + keyAt);
+        const auto keyEnd = sfo.indexOf('\0', keyAt);
+        if (keyEnd < 0)
+            continue;
+        const auto key = QString::fromLatin1(sfo.constData() + keyAt, keyEnd - keyAt);
         out[key] = QString::fromUtf8(sfo.mid(dataAt, length)).remove(QChar(0)).simplified();
     }
     return out;
@@ -283,9 +286,13 @@ QString rememberedLicense(const QString &contentId) {
     return QSettings().value("ps3Licenses/" + contentId.toUpper()).toString();
 }
 
-// The user's .rap for this content: next to the source, remembered from an
-// earlier import, or in an emulator/console layout (home/<user>/exdata).
-QString findLicense(const QString &contentId, const QStringList &folders) {
+// Try the license the user chose first, then the files found beside the source
+// or in an emulator/console layout (home/<user>/exdata).
+QStringList findLicenses(const QString &contentId, const QStringList &folders) {
+    QStringList paths;
+    const QFileInfo remembered(rememberedLicense(contentId));
+    if (remembered.isFile() && remembered.size() == 16)
+        paths << remembered.absoluteFilePath();
     const auto wanted = contentId.toUpper();
     const auto matches = [&](const QFileInfo &info) {
         return info.isFile() && info.size() == 16 && info.completeBaseName().toUpper() == wanted;
@@ -296,54 +303,49 @@ QString findLicense(const QString &contentId, const QStringList &folders) {
         for (int level = 0; level <= 5; ++level) {
             for (const auto &info : dir.entryInfoList({"*.rap", "*.RAP"}, QDir::Files))
                 if (matches(info))
-                    return info.absoluteFilePath();
+                    paths << info.absoluteFilePath();
             QDirIterator users(dir.filePath("home"), QDir::Dirs | QDir::NoDotAndDotDot);
             while (users.hasNext()) {
                 const QFileInfo info(QDir(users.next()).filePath("exdata/" + contentId + ".rap"));
                 if (matches(info))
-                    return info.absoluteFilePath();
+                    paths << info.absoluteFilePath();
             }
             if (!dir.cdUp())
                 break;
         }
     }
-    const auto remembered = rememberedLicense(contentId);
-    if (!remembered.isEmpty() && QFileInfo(remembered).isFile() && QFileInfo(remembered).size() == 16)
-        return remembered;
-    return {};
+    paths.removeDuplicates();
+    return paths;
 }
 
-QByteArray fileKey(const Npd &npd, const QStringList &licenseFolders) {
+QByteArray embeddedKey(const Npd &npd) {
     if (npd.flags & sdatFlag)
         return xorBytes(npd.devHash(), sdatKey);
     // dev_hash = CMAC(klicensee ^ NP_OMAC_KEY_2) over the first 0x60 header bytes:
     // the file names the free key it is under.
-    if ((npd.license & 3) == 3) {
-        for (const auto &klic : freeLicenses)
-            if (cmac(xorBytes(klic, omacKey2), npd.header.left(0x60)) == npd.devHash())
-                return klic;
-        fail(tr("Ten plik EDAT jest zabezpieczony kluczem gry, nie licencją. Takie pliki zawierają dane gry, "
-                "a nie paczki pytań."));
-    }
-    const auto rap = findLicense(npd.contentId, licenseFolders);
-    if (rap.isEmpty())
-        throw LicenseRequired(tr("Ta paczka DLC wymaga pliku licencji %1.rap (z Twojej konsoli lub emulatora).")
-                                  .arg(npd.contentId),
-                              npd.contentId);
-    QFile file(rap);
-    if (!file.open(QIODevice::ReadOnly))
-        fail(file.errorString());
-    return rapToKey(file.read(16));
+    for (const auto &klic : freeLicenses)
+        if (cmac(xorBytes(klic, omacKey2), npd.header.left(0x60)) == npd.devHash())
+            return klic;
+    fail(tr("Ten plik EDAT jest zabezpieczony kluczem gry, nie licencją. Takie pliki zawierają dane gry, "
+            "a nie paczki pytań."));
 }
 
 class NpdDevice final : public RangeDevice {
   public:
-    NpdDevice(std::unique_ptr<QIODevice> source, Npd npd, QByteArray key)
-        : RangeDevice(qint64(npd.fileSize)), source_(std::move(source)), npd_(std::move(npd)), key_(std::move(key)) {
+    NpdDevice(std::unique_ptr<QIODevice> source, Npd npd)
+        : RangeDevice(qint64(npd.fileSize)), source_(std::move(source)), npd_(std::move(npd)) {
         blocks_ = (npd_.fileSize + npd_.blockSize - 1) / npd_.blockSize;
         metaSize_ = (npd_.flags & (compressedFlag | flag20)) ? 0x20 : 0x10;
         open(QIODevice::ReadOnly | QIODevice::Unbuffered);
     }
+
+    bool tryKey(QByteArray key) {
+        key_ = std::move(key);
+        cachedIndex_ = ~quint64(0);
+        return size() == 0 || !block(0).isEmpty();
+    }
+
+  private:
     // Decrypts one block, or returns empty when its hash does not match the key.
     QByteArray block(quint64 index) {
         if (index == cachedIndex_)
@@ -389,7 +391,6 @@ class NpdDevice final : public RangeDevice {
         return cached_;
     }
 
-  protected:
     QByteArray readRange(qint64 offset, qint64 length) override {
         QByteArray out;
         out.reserve(length);
@@ -407,7 +408,6 @@ class NpdDevice final : public RangeDevice {
         return out;
     }
 
-  private:
     std::unique_ptr<QIODevice> source_;
     Npd npd_;
     QByteArray key_;
@@ -581,20 +581,34 @@ qint64 RangeDevice::readData(char *data, qint64 maxSize) {
 }
 
 std::unique_ptr<QIODevice> openNpd(std::unique_ptr<QIODevice> encrypted, const QStringList &licenseFolders) {
-    auto npd = readNpd(*encrypted);
-    auto key = fileKey(npd, licenseFolders);
-    const auto contentId = npd.contentId;
+    const auto npd = readNpd(*encrypted);
     const bool paid = !(npd.flags & sdatFlag) && (npd.license & 3) != 3;
-    auto device = std::make_unique<NpdDevice>(std::move(encrypted), std::move(npd), std::move(key));
-    // A wrong key fails the first block's hash; never hand out noise.
-    if (device->size() > 0 && device->block(0).isEmpty()) {
-        if (paid)
-            throw LicenseRequired(tr("Plik licencji nie pasuje do paczki %1. Wskaż właściwy plik %1.rap.")
-                                      .arg(contentId),
-                                  contentId);
-        fail(tr("Nie udało się odszyfrować pliku EDAT."));
+    auto device = std::make_unique<NpdDevice>(std::move(encrypted), npd);
+    if (!paid) {
+        if (!device->tryKey(embeddedKey(npd)))
+            fail(tr("Nie udało się odszyfrować pliku EDAT."));
+        return device;
     }
-    return device;
+
+    bool checkedLicense = false;
+    for (const auto &path : findLicenses(npd.contentId, licenseFolders)) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        const auto rap = file.read(16);
+        if (rap.size() != 16)
+            continue;
+        checkedLicense = true;
+        if (device->tryKey(rapToKey(rap)))
+            return device;
+    }
+    if (checkedLicense)
+        throw LicenseRequired(tr("Plik licencji nie pasuje do paczki %1. Wskaż właściwy plik %1.rap.")
+                                  .arg(npd.contentId),
+                              npd.contentId);
+    throw LicenseRequired(tr("Ta paczka DLC wymaga pliku licencji %1.rap (z Twojej konsoli lub emulatora).")
+                              .arg(npd.contentId),
+                          npd.contentId);
 }
 
 QByteArray rapToKey(const QByteArray &rap) {
@@ -637,6 +651,14 @@ bool rememberLicense(const QString &contentId, const QString &rapPath, QString *
     }
     QSettings().setValue("ps3Licenses/" + contentId.toUpper(), info.absoluteFilePath());
     return true;
+}
+
+QString readTitleId(const QString &sfoPath) {
+    constexpr qint64 limit = 64 * 1024;
+    QFile file(sfoPath);
+    if (!file.open(QIODevice::ReadOnly) || file.size() > limit)
+        return {};
+    return paramSfo(file.read(limit)).value("TITLE_ID");
 }
 
 bool isPs3Source(const QString &path) {

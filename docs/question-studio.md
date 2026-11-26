@@ -14,10 +14,12 @@ Release packages (BuzzSetup) include Question Studio:
 - **Linux:** select **Question Studio** in BuzzSetup, run `./Question-Studio.sh`
   from the extracted package, or `BuzzSetup-x86_64.AppImage --studio`.
 
-Started this way it receives the prepared game folder (`--game-dir <dist>`): the
-build dialog proposes that copy's `runtime` for installation and the PACK0100
-template of the selected language from its disc, and installing works before the
-game's first start. The interface uses the same colours and controls as BuzzSetup.
+When BuzzSetup opens Studio for a prepared game, it passes that folder as
+`--game-dir <dist>`. The build dialog proposes that copy's `runtime`, reads the
+title ID from its disc's `PARAM.SFO`, and looks for the PACK0100 template in the
+selected language.
+Installation works before the game's first start. The interface uses the same
+colours and controls as BuzzSetup.
 
 ## Implemented
 
@@ -61,10 +63,11 @@ game's first start. The interface uses the same colours and controls as BuzzSetu
   - PSN packages (`.pkg`, e.g. the Quiz TV Comedy/Horror/Sci-Fi/Video Games
     packs): the package is decrypted with the published package key and its
     NPDRM `.EDAT` packs block by block, each block hash checked. Paid DLC uses
-    your own `.rap` license: Studio finds `<content ID>.rap` next to the package,
-    next to an installed pack or in `dev_hdd0/home/*/exdata`, and otherwise asks
-    for it and remembers its location. A wrong license is detected, never decoded
-    to noise. Game updates (no `PACKnnnn` folder) are recognised and refused.
+    your own `.rap` license. Studio checks the last `.rap` you chose, then looks
+    for `<content ID>.rap` next to the package, next to an installed pack or in
+    `dev_hdd0/home/*/exdata`. If none matches, Studio asks you to choose one and
+    remembers its location. Game updates (no `PACKnnnn` folder) are recognised
+    and refused.
   - Installed DLC (`dev_hdd0/game/<title>/USRDIR/PACKnnnn/*.EDAT`) and extracted
     games: open the `.EDAT` itself, or the folder's `PARAM.SFO` to import all of
     its packs. The title comes from `PARAM.SFO`.
@@ -88,9 +91,7 @@ game's first start. The interface uses the same colours and controls as BuzzSetu
   are skipped, as are tables a localized disc left in another language.
   Picture/video/music questions keep their references and need your own picture
   before building; the editor lists them as problems. PSP Brain Bender has
-  puzzles only. PS3 disc images are not read directly: open
-  `PS3_GAME/USRDIR/PACKnnnn/*.PAK` of the extracted game; encrypted DLC `.edat`
-  files must be decrypted first, and a PS3 `.pkg` gets a hint to install it.
+  puzzles only.
 - Import into the current project with identity-based duplicate handling.
   Importing another language of the same Buzz question merges its translation;
   existing text/media is preserved and entirely empty drafts can be filled.
@@ -113,8 +114,9 @@ game's first start. The interface uses the same colours and controls as BuzzSetu
    for another language cannot supply translated category names. Project language,
    not interface language, controls the resulting pack.
 3. Choose **Build .edat** or select the game's runtime folder (the folder containing
-   `dev_hdd0`) and click **Build and install**. Set the correct title ID if it differs
-   from `BCES00647`. The completion dialog shows generated/installed/backup paths.
+   `dev_hdd0`) and click **Build and install**. Verify the title ID when you choose
+   a runtime folder manually. The completion dialog shows generated, installed,
+   and backup paths.
    Existing packs can also be installed using **… → Install an .edat pack…**.
 4. Restart the game and choose the pack in the quiz-pack game mode.
 

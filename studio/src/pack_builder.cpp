@@ -2,6 +2,7 @@
 #include "buzz_import.h"
 #include "languages.h"
 #include "pack_codec.h"
+#include "ps3_source.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -269,6 +270,10 @@ bool preparedRuntime(const QDir &runtime) {
 }
 bool usableRuntime(const QDir &runtime) {
     return QDir(runtime.filePath("dev_hdd0")).exists() || preparedRuntime(runtime);
+}
+bool isSupportedTitleId(const QString &titleId) {
+    static const QSet<QString> titleIds{"BCES00647", "BCES00644", "BCES00645", "BCUS98209"};
+    return titleIds.contains(titleId);
 }
 } // namespace
 QVariantMap BuildResult::map() const {
@@ -637,7 +642,7 @@ BuildResult installPack(const QString &source, const QString &runtimeRoot, const
     result.path = source;
     try {
         checkCancelled(cancel);
-        if (!QRegularExpression("^(BCES00647|BCES00644|BCES00645|BCUS98209)$").match(titleId).hasMatch())
+        if (!isSupportedTitleId(titleId))
             fail(QCoreApplication::translate("PackBuilder",
                                              "Wybierz obsługiwany identyfikator gry Quiz World."));
         const auto root = QDir::fromNativeSeparators(QFileInfo(runtimeRoot).canonicalFilePath());
@@ -825,6 +830,12 @@ QVariantMap suggestBuildSettings(const QString &language) {
         const auto root = QJsonDocument::fromJson(config.readAll()).object()["game_root"].toString();
         if (!root.isEmpty())
             offerTemplates(QDir(root).filePath("PS3_GAME/USRDIR/PACK0100"), false);
+    }
+    const auto runtimeRoot = options["runtimeRoot"].toString();
+    if (!runtimeRoot.isEmpty()) {
+        const auto titleId = ps3::readTitleId(QDir(runtimeRoot).filePath("disc/PS3_GAME/PARAM.SFO"));
+        if (isSupportedTitleId(titleId))
+            options["titleId"] = titleId;
     }
     return options;
 }

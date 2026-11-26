@@ -574,9 +574,9 @@ class BuilderTest final : public QObject {
         qToBigEndian<quint64>(v, b.data());
         return b;
     }
-    static QByteArray paramSfo(const QString &title) {
-        const auto key = QByteArray("TITLE\0", 6).leftJustified(8, '\0');
-        const auto value = title.toUtf8() + '\0';
+    static QByteArray paramSfo(const QString &text, const QByteArray &field = "TITLE") {
+        const auto key = (field + '\0').leftJustified(12, '\0');
+        const auto value = text.toUtf8() + '\0';
         const quint32 keys = 20 + 16, data = keys + quint32(key.size());
         QByteArray sfo("\0PSF", 4);
         for (quint32 v : {0x101u, keys, data, 1u})
@@ -802,14 +802,15 @@ class BuilderTest final : public QObject {
         const auto mismatch = studio::loadDocument(wrong, "en");
         QVERIFY(!mismatch.ok());
         QCOMPARE(mismatch.license, QString::fromLatin1(cid));
-        // …and a license chosen by the user is remembered for this content ID.
+        // Choosing the correct license works even while the bad RAP is still next to the EDAT.
         QVERIFY(write(temp.filePath("chosen.rap"), rap));
         QString error;
         QVERIFY(studio::ps3::rememberLicense(cid, temp.filePath("chosen.rap"), &error));
-        QVERIFY(QFile::remove(temp.filePath("wrong/" + cid + ".rap")));
+        const auto retried = studio::inspectLanguages(wrong);
+        QVERIFY2(retried.ok(), qPrintable(retried.error));
         sameQuestions(studio::loadDocument(wrong, "en"));
 
-        // PSN package with the encrypted pack, license next to the package.
+        // A bad remembered RAP must not hide a good RAP next to a PSN package.
         const auto pkg = temp.filePath("dlc/random-name.pkg");
         QVERIFY(QDir().mkpath(QFileInfo(pkg).absolutePath()));
         QVERIFY(write(pkg, ps3Package(cid, {{"PARAM.SFO", paramSfo("Buzz! DLC")},
@@ -817,8 +818,10 @@ class BuilderTest final : public QObject {
                                             {"USRDIR/PACK0103", QByteArray()},
                                             {"USRDIR/PACK0103/ENGPACK0103.EDAT", npd(plainPack, key, 2, cid, 0x0c)}})));
         QVERIFY(studio::ps3::isPs3Source(pkg));
+        QVERIFY(write(temp.filePath("dlc/" + cid + ".rap"), rap));
+        QVERIFY(studio::ps3::rememberLicense(cid, temp.filePath("wrong/" + cid + ".rap"), &error));
         const auto languages = studio::inspectLanguages(pkg);
-        QVERIFY2(languages.ok(), qPrintable(languages.error)); // remembered license
+        QVERIFY2(languages.ok(), qPrintable(languages.error));
         QCOMPARE(languages.codes, QStringList{"en"});
         const auto fromPkg = studio::loadDocument(pkg, "en");
         sameQuestions(fromPkg);
@@ -959,8 +962,15 @@ class BuilderTest final : public QObject {
         QVERIFY(QFile::copy(fixture("build-template.pak"), packs + "/POLPACK0100.PAK"));
         QSettings().setValue("build/runtimeRoot", temp.filePath("moved-away"));
         QSettings().setValue("build/templatePath", temp.filePath("moved-away/POLPACK0100.PAK"));
+        QSettings().setValue("build/titleId", "BCES00647");
         studio::setGameDirectory(game);
+        QCOMPARE(studio::suggestBuildSettings("en")["titleId"].toString(), QString("BCES00647"));
+        const auto sfo = runtime + "/disc/PS3_GAME/PARAM.SFO";
+        QVERIFY(write(sfo, paramSfo("BLUS00000", "TITLE_ID")));
+        QCOMPARE(studio::suggestBuildSettings("en")["titleId"].toString(), QString("BCES00647"));
+        QVERIFY(write(sfo, paramSfo("BCUS98209", "TITLE_ID")));
         const auto english = studio::suggestBuildSettings("en");
+        QCOMPARE(english["titleId"].toString(), QString("BCUS98209"));
         QCOMPARE(QFileInfo(english["runtimeRoot"].toString()).canonicalFilePath(),
                  QFileInfo(runtime).canonicalFilePath());
         QCOMPARE(QFileInfo(english["templatePath"].toString()).fileName(), QString("ENGPACK0100.PAK"));
@@ -970,9 +980,11 @@ class BuilderTest final : public QObject {
         QSettings().remove("build");
         const auto built = studio::buildPack(request(temp.filePath("out")));
         QVERIFY2(built.ok(), qPrintable(built.error));
-        const auto installed = studio::installPack(built.path, runtime, "BCES00647");
+        const auto installed = studio::installPack(built.path, english["runtimeRoot"].toString(),
+                                                   english["titleId"].toString());
         QVERIFY2(installed.ok(), qPrintable(installed.error));
-        QVERIFY(installed.installedPath.contains("/dev_hdd0/game/BCES00647/USRDIR/PACK0103/"));
+        QVERIFY(installed.installedPath.contains("/dev_hdd0/game/BCUS98209/USRDIR/PACK0103/"));
+        QVERIFY(!QDir(runtime + "/dev_hdd0/game/BCES00647").exists());
         // A folder that is neither a runtime nor a prepared copy is still refused.
         QVERIFY(QDir().mkpath(temp.filePath("empty")));
         QVERIFY(!studio::installPack(built.path, temp.filePath("empty"), "BCES00647").ok());
