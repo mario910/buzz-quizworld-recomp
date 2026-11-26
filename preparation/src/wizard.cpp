@@ -1018,6 +1018,10 @@ public:
         connect(&process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
             if (error == QProcess::FailedToStart) done(process.errorString());
         });
+        if (const auto installed = ReleaseUpdate::takeInstallResult(); !installed.isEmpty()) {
+            log.appendPlainText(installed);
+            details.setChecked(true);
+        }
         refresh();
     }
 };

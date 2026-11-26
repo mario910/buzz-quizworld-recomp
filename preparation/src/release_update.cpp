@@ -17,6 +17,9 @@
 #include <QVersionNumber>
 #include <QWidget>
 #include <memory>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 namespace {
 const QString repository = QStringLiteral("mario910/buzz-quizworld-recomp");
@@ -37,6 +40,81 @@ QString runningAppImage() {
         return QFileInfo(image).canonicalFilePath();
     return {};
 }
+
+#ifdef Q_OS_WIN
+// The Windows package folder (BuzzSetup.exe next to build-files/release-sources.json)
+// is replaced in place by a helper that runs after BuzzSetup exits, because Windows
+// keeps the running executable and its Qt libraries locked.
+QString packageFolder() {
+    const QDir app(QCoreApplication::applicationDirPath());
+    return app.exists("build-files/release-sources.json") && app.exists("BuzzSetup.exe") ? app.absolutePath() : QString();
+}
+
+QString stagingFolder(const QString& package) { return package + "/.buzz-setup-update"; }
+
+constexpr auto installScript = R"ps1(param([string]$Zip, [string]$Install, [int]$ProcessId)
+$ErrorActionPreference = 'Stop'
+$work = Split-Path -Parent $Zip
+$result = Join-Path $work 'result.txt'
+try {
+    try { Wait-Process -Id $ProcessId -Timeout 120 } catch {}
+    $staged = Join-Path $work 'staged'
+    if (Test-Path -LiteralPath $staged) { Remove-Item -LiteralPath $staged -Recurse -Force }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($Zip, $staged)
+    $source = Join-Path $staged 'BuzzPrepare'
+    if (-not (Test-Path -LiteralPath (Join-Path $source 'BuzzSetup.exe')) -or
+        -not (Test-Path -LiteralPath (Join-Path $source 'build-files\release-sources.json'))) {
+        throw 'The downloaded package does not contain BuzzSetup.'
+    }
+    & robocopy.exe $source $Install /E /R:30 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        throw "Some files could not be replaced (robocopy $LASTEXITCODE). Close Question Studio and the game, then update again."
+    }
+    Remove-Item -LiteralPath $staged -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $Zip -Force -ErrorAction SilentlyContinue
+    Set-Content -LiteralPath $result -Encoding UTF8 -Value 'ok'
+} catch {
+    Set-Content -LiteralPath $result -Encoding UTF8 -Value ("BuzzSetup could not install the update: " + $_.Exception.Message)
+}
+Start-Process -FilePath (Join-Path $Install 'BuzzSetup.exe') -WorkingDirectory $Install
+)ps1";
+
+bool startInstaller(const QString& package, const QString& zip) {
+    const QString script = stagingFolder(package) + "/install-update.ps1";
+    QSaveFile file(script);
+    if (!file.open(QIODevice::WriteOnly) || file.write(QByteArray("\xEF\xBB\xBF") + installScript) < 0 || !file.commit())
+        return false;
+    QFile::remove(stagingFolder(package) + "/result.txt");
+    QProcess helper;
+    helper.setProgram(qEnvironmentVariable("SystemRoot", "C:\\Windows") + "\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+    helper.setArguments({"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
+                         "-File", QDir::toNativeSeparators(script), "-Zip", QDir::toNativeSeparators(zip),
+                         "-Install", QDir::toNativeSeparators(package),
+                         "-ProcessId", QString::number(QCoreApplication::applicationPid())});
+    helper.setWorkingDirectory(QDir::tempPath());
+    helper.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
+        args->flags = (args->flags & ~static_cast<DWORD>(CREATE_NEW_CONSOLE)) | CREATE_NO_WINDOW;
+    });
+    return helper.startDetached();
+}
+#endif
+}
+
+QString ReleaseUpdate::takeInstallResult() {
+#ifdef Q_OS_WIN
+    const QString package = packageFolder();
+    if (package.isEmpty()) return {};
+    QFile file(stagingFolder(package) + "/result.txt");
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    QString result = QString::fromUtf8(file.readAll()).trimmed();
+    if (result.startsWith(QChar(0xFEFF))) result.remove(0, 1);
+    file.close();
+    file.remove();
+    return result == "ok" ? QStringLiteral("BuzzSetup " BUZZ_PREPARE_VERSION " installed.") : result;
+#else
+    return {};
+#endif
 }
 
 ReleaseUpdate::ReleaseUpdate(QWidget* parent) : QObject(parent), window(parent) {}
@@ -68,7 +146,10 @@ void ReleaseUpdate::check(std::function<void(const QString&, bool)> finished) {
         const QString image = runningAppImage();
 #ifdef Q_OS_WIN
         const QString asset = "BuzzPrepare-windows-x64.zip";
+        const QString package = packageFolder();
+        const bool inPlace = !package.isEmpty() && QDir().mkpath(stagingFolder(package));
 #else
+        const bool inPlace = !image.isEmpty();
         const QString asset = image.isEmpty() ? "BuzzPrepare-linux-x86_64.tar.gz" : "BuzzSetup-x86_64.AppImage";
 #endif
         for (const auto& value : release.value("assets").toArray()) {
@@ -78,16 +159,24 @@ void ReleaseUpdate::check(std::function<void(const QString&, bool)> finished) {
             const qint64 size = entry.value("size").toInteger();
             static const QRegularExpression sha("^sha256:[0-9a-f]{64}$");
             if (!sha.match(hash).hasMatch() || size <= 0 || size > 512 * 1024 * 1024) break;
+#ifdef Q_OS_WIN
+            QString target = inPlace ? stagingFolder(package) + "/" + asset : QString();
+#else
             QString target = image;
-            if (target.isEmpty()) {
+#endif
+            if (!inPlace) {
                 target = QFileDialog::getSaveFileName(window, "Download Buzz Prepare " + tag,
                     QDir(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).filePath(asset));
             } else if (QMessageBox::question(window, "Update Buzz Prepare",
-                        "Install " + tag + " and restart BuzzSetup? An older installed game will then be rebuilt.") != QMessageBox::Yes) {
+                        "Install " + tag + " and restart BuzzSetup? An older installed game will then be rebuilt."
+#ifdef Q_OS_WIN
+                        "\n\nClose the game and Question Studio first."
+#endif
+                        ) != QMessageBox::Yes) {
                 target.clear();
             }
             if (target.isEmpty()) { finished("Update cancelled.", true); return; }
-            download(tag, asset, target, size, QByteArray::fromHex(hash.mid(7).toLatin1()), !image.isEmpty(), finished);
+            download(tag, asset, target, size, QByteArray::fromHex(hash.mid(7).toLatin1()), inPlace, finished);
             return;
         }
         finished("The release has no verified package for this platform.", false);
@@ -95,8 +184,13 @@ void ReleaseUpdate::check(std::function<void(const QString&, bool)> finished) {
 }
 
 void ReleaseUpdate::download(const QString& tag, const QString& asset, const QString& target,
-                             qint64 size, const QByteArray& digest, bool appImage,
+                             qint64 size, const QByteArray& digest, bool inPlace,
                              std::function<void(const QString&, bool)> finished) {
+#ifdef Q_OS_WIN
+    const bool appImage = false;
+#else
+    const bool appImage = inPlace;
+#endif
     auto file = std::make_shared<QSaveFile>(target);
     if (!file->open(QIODevice::WriteOnly) || (appImage && !file->setPermissions(QFileInfo(target).permissions()))) {
         finished("Could not stage the update: " + file->errorString(), false);
@@ -126,6 +220,13 @@ void ReleaseUpdate::download(const QString& tag, const QString& asset, const QSt
         } else if (appImage && QProcess::startDetached(target, {})) {
             finished("Restarting BuzzSetup…", true);
             QCoreApplication::quit();
+#ifdef Q_OS_WIN
+        } else if (inPlace && startInstaller(packageFolder(), target)) {
+            finished("Installing Buzz Prepare " + tag + " and restarting BuzzSetup…", true);
+            QCoreApplication::quit();
+        } else if (inPlace) {
+            finished("Could not start the update installer. Extract this package over the BuzzPrepare folder:\n" + target, false);
+#endif
         } else {
             finished(appImage ? "Buzz Prepare " + tag + " installed. Reopen this AppImage to update your installed game."
                 : "Downloaded and verified " + tag + ". Close Buzz Prepare and extract the package over the existing BuzzPrepare folder. Reopen BuzzSetup to update the installed game.\n" + target, true);
