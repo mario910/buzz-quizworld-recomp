@@ -142,6 +142,8 @@ int main(int argc, char **argv) {
         window.openTts();
     if (args.contains("--show-languages"))
         window.openProjectLanguages();
+    if (args.contains("--show-categories")) // After --open has loaded the project.
+        QTimer::singleShot(600, &window, [&window] { window.openPackCategories(); });
     if (args.contains("--show-build"))
         window.openBuild();
     const int shot = args.indexOf("--screenshot");

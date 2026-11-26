@@ -205,7 +205,7 @@ Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg) {
         const auto stream = makePs2Ipu(readRsv(ref), ref.video ? std::nullopt : std::optional<int>(ref.frame),
                                        ref.video ? &pcm : nullptr);
         auto digest = QCryptographicHash(QCryptographicHash::Sha256);
-        digest.addData(ref.video ? QByteArrayView("ps2-rsv1-video-audio-v3") : QByteArrayView("ps2-rsv1-picture-v1"));
+        digest.addData(QByteArray(ref.video ? "ps2-rsv1-video-audio-v3" : "ps2-rsv1-picture-v1"));
         digest.addData(stream);
         digest.addData(pcm);
         const auto key = QString::fromLatin1(digest.result().toHex());

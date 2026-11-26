@@ -197,7 +197,95 @@ void Document::switchLanguage(const QString &code) {
         languageCodes << code;
     for (auto &q : questions)
         q.switchLanguage(code);
+    titles[language] = title;
+    if (description.isEmpty())
+        descriptions.remove(language);
+    else
+        descriptions[language] = description;
+    // A language without its own title keeps the current one until renamed.
+    title = titles.value(code).toString(title);
+    description = descriptions.value(code).toString();
     language = code;
+    refreshCategoryNames();
+}
+const CustomCategory *Document::customCategory(int id) const {
+    for (const auto &c : categories)
+        if (c.id == id)
+            return &c;
+    return nullptr;
+}
+QString Document::categoryLabel(int id) const {
+    if (const auto *c = customCategory(id)) {
+        const auto name = c->name(language);
+        return name.isEmpty() ? QCoreApplication::translate("Document", "Kategoria bez nazwy") : name;
+    }
+    return categoryName(id);
+}
+void Document::refreshCategoryNames() {
+    for (auto &q : questions)
+        if (isCustomCategory(q.subjectId))
+            q.category = categoryLabel(q.subjectId);
+}
+int nextCustomCategoryId(const Document &document) {
+    int next = firstCustomCategory + 1;
+    for (const auto &c : document.categories)
+        next = std::max(next, c.id + 1);
+    return next;
+}
+QMap<int, int> mergeCustomCategories(Document &into, const QVector<CustomCategory> &incoming) {
+    QMap<int, int> remap;
+    // Subjects first, so subcategories can find their merged parent.
+    for (const bool subjects : {true, false})
+        for (auto c : incoming) {
+            if ((c.parent == 0) != subjects)
+                continue;
+            c.parent = c.parent ? remap.value(c.parent) : 0;
+            const auto same = std::find_if(into.categories.begin(), into.categories.end(), [&](const auto &e) {
+                return e.parent == c.parent && e.names == c.names;
+            });
+            if (same != into.categories.end()) {
+                remap[c.id] = same->id;
+                continue;
+            }
+            if (into.categories.size() >= 99)
+                throw std::runtime_error(
+                    QCoreApplication::translate("Document", "Projekt może mieć najwyżej 99 kategorii własnych.")
+                        .toStdString());
+            const int id = nextCustomCategoryId(into);
+            remap[c.id] = id;
+            c.id = id;
+            into.categories << c;
+        }
+    return remap;
+}
+static QVector<CustomCategory> readCustomCategories(const QJsonValue &value) {
+    auto invalid = [] {
+        throw std::runtime_error(
+            QCoreApplication::translate("Document", "Niepoprawna lista kategorii własnych.").toStdString());
+    };
+    if (value.isUndefined() || value.isNull())
+        return {};
+    if (!value.isArray() || value.toArray().size() > 99)
+        invalid();
+    QVector<CustomCategory> out;
+    QSet<int> subjects, ids;
+    for (const auto &v : value.toArray()) {
+        const auto o = v.toObject();
+        CustomCategory c{o["id"].toInt(), o["parent"].toInt(), o["names"].toObject()};
+        if (!isCustomCategory(c.id) || c.id > 99999 || ids.contains(c.id))
+            invalid();
+        for (auto it = c.names.constBegin(); it != c.names.constEnd(); ++it)
+            if (!it.value().isString() || it.value().toString().size() > customCategoryNameLimit)
+                invalid();
+        ids.insert(c.id);
+        if (!c.parent)
+            subjects.insert(c.id);
+        out << c;
+    }
+    for (const auto &c : out)
+        if (c.parent && !subjects.contains(c.parent))
+            invalid();
+    return out;
 }
 static QJsonObject readLocalized(QJsonObject o, const QString &baseDir) {
     if (!o["question"].isString() || !o["answers"].isArray() || o["answers"].toArray().size() != 4)
@@ -273,6 +361,11 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
         out.document.packExtra = pack;
         out.document.title = pack["title"].toString(QStringLiteral("Zaimportowana paczka"));
         out.document.description = pack["description"].toString();
+        out.document.titles = pack["titles"].toObject();
+        out.document.descriptions = pack["descriptions"].toObject();
+        out.document.categories = readCustomCategories(pack["categories"]);
+        for (const char *key : {"titles", "descriptions", "categories"})
+            out.document.packExtra.remove(key);
         out.document.language = languageCode(pack["language"].toString("pl"));
         if (out.document.language.isEmpty())
             throw std::runtime_error(
@@ -442,6 +535,10 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
                 QCoreApplication::translate("Document", "Źródło nie zawiera wybranego języka.")
                     .toStdString());
         out.document.language = targetLanguage;
+        out.document.title = out.document.titles.value(targetLanguage).toString(out.document.title);
+        out.document.description =
+            out.document.descriptions.value(targetLanguage).toString(out.document.description);
+        out.document.refreshCategoryNames();
         if (skipped)
             out.warnings << QCoreApplication::translate("Document", "Pominięto %1 pytań bez wersji %2.")
                                 .arg(skipped)
@@ -487,6 +584,25 @@ QByteArray serialize(const Document &doc, const QString &baseDir, bool legacy) {
     auto pack = doc.packExtra;
     pack["title"] = doc.title;
     pack["description"] = doc.description;
+    if (!legacy) {
+        auto titles = doc.titles, descriptions = doc.descriptions;
+        titles[doc.language] = doc.title;
+        if (doc.description.isEmpty())
+            descriptions.remove(doc.language);
+        else
+            descriptions[doc.language] = doc.description;
+        // Written only when they say more than the title/description above.
+        if (titles.size() > 1)
+            pack["titles"] = titles;
+        if (descriptions.size() > (descriptions.contains(doc.language) ? 1 : 0))
+            pack["descriptions"] = descriptions;
+        if (!doc.categories.isEmpty()) {
+            QJsonArray categories;
+            for (const auto &c : doc.categories)
+                categories << QJsonObject{{"id", c.id}, {"parent", c.parent}, {"names", c.names}};
+            pack["categories"] = categories;
+        }
+    }
     pack["language"] = doc.language;
     pack["languages"] = QJsonArray::fromStringList(legacy ? QStringList{doc.language} : doc.languages());
     root["pack"] = pack;
@@ -502,6 +618,12 @@ QByteArray serialize(const Document &doc, const QString &baseDir, bool legacy) {
                         "Document",
                         "Paczka zawiera media SDI, które nie zostały jeszcze przekonwertowane. "
                         "Eksport JSON dla buzzpack pominąłby te media; zapisz projekt lub przypisz obrazki.")
+                        .toStdString());
+            if (isCustomCategory(q.subjectId) || isCustomCategory(q.categoryId))
+                throw std::runtime_error(
+                    QCoreApplication::translate("Document",
+                                                "Eksport do buzzpack nie obsługuje kategorii własnych. "
+                                                "Zbuduj paczkę .edat w Studiu.")
                         .toStdString());
             if (q.subjectId == 0 || q.categoryId == 0 || !q.problems().isEmpty())
                 throw std::runtime_error(

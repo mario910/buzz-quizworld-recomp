@@ -106,6 +106,12 @@ class StudioController final : public QObject {
     Q_INVOKABLE void duplicateCurrent();
     Q_INVOKABLE void deleteCurrent();
     Q_INVOKABLE void setPackTitle(const QString &title);
+    // Custom subjects/subcategories: [{id, parent, names: {code: name}}], subjects first.
+    Q_INVOKABLE QVariantList packCategories() const;
+    // Replaces them (undoable); questions in removed categories lose their mapping.
+    Q_INVOKABLE void setPackCategories(const QVariantList &categories);
+    // Adds a subject (with one subcategory of the same name); returns the subject id.
+    Q_INVOKABLE int addPackSubject(const QVariantMap &names);
     Q_INVOKABLE void setPackLanguage(const QString &language);
     Q_INVOKABLE void refreshTranslations();
     Q_INVOKABLE void undo() {
