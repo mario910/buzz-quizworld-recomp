@@ -18,4 +18,7 @@ void validateSdi(const QByteArray &bytes);
 void validateRsfSpeech(const QByteArray &bytes);
 QByteArray pictureSheet(const QByteArray &templateBytes, const QStringList &images, const QString &ffmpeg,
                         const std::atomic_bool *cancel);
+bool isMovieTemplate(const QByteArray &bytes);
+QByteArray encodeMovie(const QByteArray &templateBytes, const QString &source, const QString &ffmpeg,
+                       const std::atomic_bool *cancel);
 } // namespace studio::pack

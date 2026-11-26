@@ -94,19 +94,18 @@ QStringList Question::problems() const {
         }
         seen.insert(key);
     }
-    if (!image.isEmpty() && !QFileInfo::exists(image))
+    if (video.isEmpty() && !image.isEmpty() && !QFileInfo::exists(image))
         out << QCoreApplication::translate("Document", "Nie znaleziono obrazka.");
     if (!speech.isEmpty() && !QFileInfo::exists(speech))
         out << QCoreApplication::translate("Document", "Nie znaleziono nagrania.");
     if (!video.isEmpty() && !QFileInfo::exists(video))
         out << QCoreApplication::translate("Document", "Nie znaleziono filmu.");
-    // The pack builder refuses Buzz media references without a picture (same rule).
+    // Imported references need a resolved picture or video attachment.
     const auto media = translations.isEmpty() ? extra["source_media"]
                                               : translations[language].toObject()["source_media"];
-    if (image.isEmpty() && !media.toArray().isEmpty())
+    if (image.isEmpty() && video.isEmpty() && !media.toArray().isEmpty())
         out << QCoreApplication::translate("Document",
-                                           "Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny "
-                                           "obrazek.");
+                                           "Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.");
     return out;
 }
 QJsonObject Question::localized(const QString &baseDir) const {

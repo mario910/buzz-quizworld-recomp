@@ -205,7 +205,7 @@ Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg) {
         const auto stream = makePs2Ipu(readRsv(ref), ref.video ? std::nullopt : std::optional<int>(ref.frame),
                                        ref.video ? &pcm : nullptr);
         auto digest = QCryptographicHash(QCryptographicHash::Sha256);
-        digest.addData(ref.video ? QByteArrayView("ps2-rsv1-video-audio-v2") : QByteArrayView("ps2-rsv1-picture-v1"));
+        digest.addData(ref.video ? QByteArrayView("ps2-rsv1-video-audio-v3") : QByteArrayView("ps2-rsv1-picture-v1"));
         digest.addData(stream);
         digest.addData(pcm);
         const auto key = QString::fromLatin1(digest.result().toHex());
@@ -236,8 +236,20 @@ Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg) {
                     fail(file.errorString());
             }
             const auto output = temp.filePath("clip.mp4");
+            // These Mega Quiz movies store the 20x15 macroblocks top-to-bottom
+            // within each column. FFmpeg's IPU decoder places them row-major.
+            // Move complete blocks, without rotating their pixels. The two
+            // chroma planes use 8x8 blocks for the same 16x16 luma footprint.
+            const auto remap = [](const QString &plane, int size) {
+                const auto index = QStringLiteral("floor(X/%1)*15+floor(Y/%1)").arg(size);
+                return QStringLiteral("%1(mod(X,%2)+%2*mod(%3,20),mod(Y,%2)+%2*floor((%3)/20))")
+                    .arg(plane, QString::number(size), index);
+            };
+            const auto raster = QStringLiteral("geq=lum='%1':cb='%2':cr='%3':interpolation=nearest")
+                                    .arg(remap("lum", 16), remap("cb", 8), remap("cr", 8));
             runMedia(ffmpeg, base + format + QStringList{"-i", ipu, "-f", "s16le", "-ar", "24000", "-ac", "2",
-                     "-i", audioPath, "-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac", "-b:a", "96k", output}, nullptr);
+                     "-i", audioPath, "-vf", raster, "-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac", "-b:a",
+                     "96k", output}, nullptr);
             input = output;
             format.clear();
         }

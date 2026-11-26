@@ -12,7 +12,7 @@ struct BuildRequest {
 };
 struct BuildResult {
     QString error, path, installedPath, backupPath, language, sha256;
-    int number = 0, questions = 0, skipped = 0, rounds = 0, categories = 0, pictures = 0;
+    int number = 0, questions = 0, skipped = 0, rounds = 0, categories = 0, pictures = 0, movies = 0;
     bool cancelled = false;
     bool ok() const { return error.isEmpty(); }
     QVariantMap map() const;

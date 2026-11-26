@@ -1023,6 +1023,76 @@ class BuilderTest final : public QObject {
         QCOMPARE(unwrapWem(bytes(fixture("wem-input.riff"))), bytes(fixture("wem-at9-reference.riff")));
         QVERIFY_EXCEPTION_THROWN(unwrapWem("not a wave file"), std::runtime_error);
     }
+    void buildsAQuestionMovieWithAudio() {
+        const auto ffmpeg = studio::defaultFfmpeg();
+        if (ffmpeg.isEmpty())
+            QSKIP("FFmpeg not installed.");
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto req = request(temp.filePath("out"));
+        // Synthetic SDI metadata and a generated clip: no game media in this test.
+        QByteArray movieTemplate(5 * 2048, '\0');
+        const QVector<int> header = {0, 48000, 2, 0xa00, 640, 368, 640 * 368, 29970, 6000000,
+                                     0x50, 2048, 2048, int(movieTemplate.size()), 0, 1601, 12808};
+        for (int i = 0; i < header.size(); ++i)
+            patch(movieTemplate, i * 4, header[i], 4, true);
+        movieTemplate.replace(64, 8, "SDIVIDEO");
+        auto checksumInput = movieTemplate.left(0x4c);
+        checksumInput.replace(56, 4, movieTemplate.mid(60, 4));
+        checksumInput.replace(60, 4, movieTemplate.mid(56, 4));
+        patch(movieTemplate, 76, crc32(checksumInput) ^ 0xffffffffu ^ 0xfabcdef7u, 4, true);
+        for (int i = 0; i < 4; ++i)
+            movieTemplate.replace((i + 1) * 2048, 12, QByteArray::fromHex("000001ba2100010001882705"));
+        movieTemplate.replace(2048 + 12, 15, QByteArray::fromHex("000001bb00098827050620ffc0c004"));
+        movieTemplate.replace(4096 + 12, 15, QByteArray::fromHex("000001bb00098827050221ffe0e02e"));
+        movieTemplate.replace(6144 + 12, 6, QByteArray::fromHex("000001bf07ee"));
+        movieTemplate.replace(6144 + 32, 12, "SofdecStream");
+        movieTemplate.replace(8192 + 12, 6, QByteArray::fromHex("000001bf07ee"));
+        movieTemplate.replace(8192 + 18, 7, "CRITAGS");
+        QVERIFY(isMovieTemplate(movieTemplate));
+        Archive stock(req.templatePath);
+        Entries files;
+        for (const auto &path : stock.entries.keys())
+            files << qMakePair(path, stock.read(path));
+        files << qMakePair(QString("ENG/QUESTIONASSETS/VIDEO/1000001.sdi"), movieTemplate);
+        req.templatePath = temp.filePath("template.pak");
+        writeArchive(req.templatePath, files);
+        const auto clip = temp.filePath("clip.mp4");
+        runMedia(ffmpeg, {"-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x120:rate=25",
+                          "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-t", "1",
+                          "-c:v", "mpeg4", "-c:a", "aac", clip}, nullptr);
+        auto &q = req.document.questions[0];
+        q.video = clip;
+        q.image = temp.filePath("unused-poster.png"); // A movie supersedes the still.
+        q.extra["source_media"] = QJsonArray{QJsonObject{{"type", "ps2-video"}}};
+        const auto built = studio::buildPack(req);
+        QVERIFY2(built.ok(), qPrintable(built.error));
+        QCOMPARE(built.movies, 1);
+        QCOMPARE(built.pictures, 0);
+        Archive output(built.path);
+        const auto movie = output.read("ENG/QUESTIONASSETS/VIDEO/1021024.sdi");
+        QVERIFY(isMovieTemplate(movie));
+        QCOMPARE(u32(movie, 52, true), 30u);
+        const auto sdi = temp.filePath("movie.sdi"), audio = temp.filePath("decoded.pcm");
+        QVERIFY(write(sdi, movie));
+        runMedia(ffmpeg, {"-v", "error", "-xerror", "-y", "-i", sdi, "-map", "0:a:0", "-f", "s16le",
+                          audio, "-map", "0:v:0", "-f", "null", "-"}, nullptr);
+        const auto samples = bytes(audio);
+        QVERIFY(samples.size() > 180000);
+        QVERIFY(std::any_of(samples.cbegin(), samples.cend(), [](char v) { return v != 0; }));
+        const auto imported = studio::importBuzz(built.path, "en", false);
+        QVERIFY(imported.ok());
+        const auto &questions = imported.document.questions;
+        const auto importedMovie = std::find_if(questions.cbegin(), questions.cend(), [&](const auto &item) {
+            return item.text == q.text;
+        });
+        QVERIFY(importedMovie != questions.cend());
+        const auto reference = importedMovie->extra["source_media"].toArray();
+        QVERIFY(!reference.isEmpty());
+        QCOMPARE(reference[0].toObject()["type"].toInt(), 2);
+        QCOMPARE(reference[0].toObject()["slot"].toInt(), 0);
+        QCOMPARE(reference[0].toObject()["asset"].toInt(), FirstMovieAsset + 2 * MovieAssetsPerPack);
+    }
     void buildsAndDecodesPicturesAndSpeech() {
         const auto ffmpeg = studio::defaultFfmpeg();
         if (ffmpeg.isEmpty())
