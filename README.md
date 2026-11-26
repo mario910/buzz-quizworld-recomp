@@ -94,6 +94,8 @@ Press **Esc** or **Start / Options** to pause the game and open PC settings. Use
 2. In the game, open **Esc / Start → Phones**, turn on **Host phone buzzers** and scan the QR code with each phone.
 3. On each phone, enter a name and tap **Get ready**. Resume the game, then tap the red buzzer once the game's player screen appears.
 
+<img src="docs/screenshots/phone-buzzer.png" width="360" alt="Connected Phone Buzzer on a mobile browser, with a large red Buzz button and blue, orange, green, and yellow answer buttons.">
+
 [Phone buzzer guide and connection help](docs/phone-buzzers.md).
 
 ## Question Studio
