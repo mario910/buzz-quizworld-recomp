@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <string_view>
 
 extern "C" {
 uint8_t* vm_base=nullptr;
@@ -22,12 +23,21 @@ static void write32(uint32_t a,uint32_t n){for(int i=3;i>=0;--i){vm_base[a+i]=ui
 static std::map<uint64_t,void(*)(ppu_context*)> hooks;
 extern "C" void ppu_register_function(uint64_t pc,void(*fn)(ppu_context*)){hooks[pc]=fn;}
 static int top=7,load_status=0,call_status=0,pushed=-1,calls=0;
+static const char* chunk_name=nullptr;
 void func_0046B8F8(ppu_context* c){pushed=int(c->gpr[4]);}
 void func_0046B388(ppu_context* c){c->gpr[3]=top;}
 void func_0046B3A0(ppu_context* c){top=int(c->gpr[4]);}
 void func_0047CD10(ppu_context* c){
-    assert(g_active_ctx==c);assert(strstr(reinterpret_cast<char*>(vm_base+c->gpr[4]),"ShouldAllowAccessToDLC"));
-    assert(!strcmp(reinterpret_cast<char*>(vm_base+c->gpr[6]),"@buzz-port/hide-psn-store"));
+    assert(g_active_ctx==c);
+    assert(c->gpr[4]+c->gpr[5]==c->gpr[6]);
+    assert(!strcmp(reinterpret_cast<char*>(vm_base+c->gpr[6]),chunk_name));
+    const std::string_view source(reinterpret_cast<char*>(vm_base+c->gpr[4]), c->gpr[5]);
+    if(!strcmp(chunk_name,"@buzz-port/hide-psn-store")){
+        assert(source.find("ShouldAllowAccessToDLC")!=std::string_view::npos);
+    }else{
+        assert(source.find("MainMenu_BuzzerTest_TooManyBuzzers")!=std::string_view::npos);
+        assert(source.find("MainMenu_BuzzerTest_Instructions")!=std::string_view::npos);
+    }
     ++top;c->gpr[3]=load_status;
 }
 void func_0046C3F0(ppu_context* c){assert(top==8&&c->gpr[4]==0&&c->gpr[5]==0&&c->gpr[6]==0);++calls;if(!call_status)--top;c->gpr[3]=call_status;}
@@ -35,23 +45,33 @@ int main(){
     vm_base=static_cast<uint8_t*>(VirtualAlloc(nullptr,0x1000000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));assert(vm_base);
     g_vm_stack_alloc.next_addr=0xa00000;g_vm_stack_alloc.region_end=0xc00000;
     write32(0x833098,0x6e5980);write32(0x83f008,0x12b760);
+    write32(0x10000+12,0x20000);write32(0x10000+8,0x20008);write32(0x20000,0x30000);write32(0x20004,4);
+    const auto select_include=[](const char* name){
+        memcpy(vm_base+0x30010,name,strlen(name)+1);
+        return buzz_frontend_target_include(0x10000);
+    };
+    using Target=BuzzFrontendInclude;
     _putenv_s("BUZZ_OFFLINE","0");_putenv_s("BUZZ_HIDE_PSN_STORE","0");
-    buzz_register_frontend_policy();assert(hooks.empty()&&!buzz_frontend_needs_include());
+    buzz_register_frontend_policy();assert(hooks.empty()&&buzz_frontend_needs_include());
+    assert(select_include("NaviSliderMenu/Menu_Callbacks")==Target::none);
+    assert(select_include("BuzzerTest")==Target::buzzer_test);
     _putenv_s("BUZZ_OFFLINE","1");_putenv_s("BUZZ_HIDE_PSN_STORE","1");
     buzz_register_frontend_policy();assert(hooks.count(0x12b760)&&buzz_frontend_needs_include());
     ppu_context c{};c.gpr[3]=0x10000;hooks.at(0x12b760)(&c);assert(c.gpr[3]==1&&pushed==0);
-    write32(0x10000+12,0x20000);write32(0x10000+8,0x20008);write32(0x20000,0x30000);write32(0x20004,4);
-    memcpy(vm_base+0x30010,"NaviSliderMenu/Menu_Callbacks",sizeof("NaviSliderMenu/Menu_Callbacks"));
-    assert(buzz_frontend_target_include(0x10000));
-    memcpy(vm_base+0x30010,"InitNetworkConnection",sizeof("InitNetworkConnection"));assert(!buzz_frontend_target_include(0x10000));
-    for(int mode=0;mode<3;++mode){
-        c={};for(unsigned r=0;r<32;++r)c.gpr[r]=r+1;c.lr=0x1234;const auto before=c;
-        load_status=mode==1?3:0;call_status=mode==2?2:0;top=7;calls=0;
-        ppu_context previous{};g_active_ctx=&previous;
-        buzz_frontend_after_include(&c,0x10000);
-        assert(top==7&&!memcmp(&before,&c,sizeof c)&&g_active_ctx==&previous&&calls==(mode==1?0:1));
+    assert(select_include("NaviSliderMenu/Menu_Callbacks")==Target::store);
+    assert(select_include("Global/SCRIPTS/BuzzerTest.clu")==Target::buzzer_test);
+    assert(select_include("InitNetworkConnection")==Target::none);
+    for(auto target : {Target::store, Target::buzzer_test}){
+        chunk_name=target==Target::store ? "@buzz-port/hide-psn-store" : "@buzz-port/buzzer-test-exit";
+        for(int mode=0;mode<3;++mode){
+            c={};for(unsigned r=0;r<32;++r)c.gpr[r]=r+1;c.lr=0x1234;const auto before=c;
+            load_status=mode==1?3:0;call_status=mode==2?2:0;top=7;calls=0;
+            ppu_context previous{};g_active_ctx=&previous;
+            buzz_frontend_after_include(&c,0x10000,target);
+            assert(top==7&&!memcmp(&before,&c,sizeof c)&&g_active_ctx==&previous&&calls==(mode==1?0:1));
+        }
     }
     hooks.clear();write32(0x83f008,0);buzz_register_frontend_policy();assert(hooks.empty()&&!buzz_frontend_needs_include());
     VirtualFree(vm_base,0,MEM_RELEASE);vm_base=nullptr;
-    puts("PASS: frontend options/version guard, offline boolean ABI, store predicate, context/stack/error preservation");
+    puts("PASS: frontend options/version guard, offline boolean ABI, script selection, context/stack/error preservation");
 }

@@ -53,7 +53,7 @@ template<unsigned I> void traced(ppu_context* c)
     unsigned n=trace_enabled ? ++p.calls : 0;
     bool show=trace_enabled && (n<=8 || n%1000==0 || (I==11 && n<=512));
     const uint32_t L=(uint32_t)c->gpr[3];
-    const bool apply_frontend=I==11 && buzz_frontend_target_include(L);
+    const auto frontend=I==11 ? buzz_frontend_target_include(L) : BuzzFrontendInclude::none;
     const bool valid=L>=0x10000 && L<0xD0000000u;
     if(I==17 && !menu_seen.exchange(true,std::memory_order_relaxed) && skip_fmv)
         fprintf(stderr,"[buzz-video] First menu reached: real video/media calls restored.\n");
@@ -82,7 +82,7 @@ template<unsigned I> void traced(ppu_context* c)
         c->gpr[3]=1;
     }else p.original(c);
     while(g_trampoline_fn){auto fn=g_trampoline_fn;g_trampoline_fn=nullptr;fn(c);}
-    if(apply_frontend)buzz_frontend_after_include(c,L);
+    if(frontend!=BuzzFrontendInclude::none)buzz_frontend_after_include(c,L,frontend);
     if(show && valid){
         fprintf(stderr,"[boot-lua] %s returned %d",p.name,(int32_t)c->gpr[3]);
         if(c->gpr[3]>0 && c->gpr[3]<=4){

@@ -1,5 +1,6 @@
 // Standalone hook contract test; no game assets or lifted function bodies.
 #include "../port/recompiled/ppu_recomp.h"
+#include "../port/frontend_policy.h"
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -27,11 +28,14 @@ extern "C" const uint64_t function_table_count=7;
 extern "C" void ppu_register_function(uint64_t pc,void(*fn)(ppu_context*)){hooks[pc]=fn;}
 void func_0046B8F8(ppu_context* c){pushed=(int)c->gpr[4];}
 void buzz_register_boot_trace();
-static bool frontend_enabled=false;
+static BuzzFrontendInclude frontend_target=BuzzFrontendInclude::none;
 static int frontend_applied=0;
-bool buzz_frontend_needs_include(){return frontend_enabled;}
-bool buzz_frontend_target_include(uint32_t){return frontend_enabled;}
-void buzz_frontend_after_include(ppu_context* c,uint32_t L){assert(c->gpr[3]==77&&L==1);++frontend_applied;}
+bool buzz_frontend_needs_include(){return frontend_target!=BuzzFrontendInclude::none;}
+BuzzFrontendInclude buzz_frontend_target_include(uint32_t){return frontend_target;}
+void buzz_frontend_after_include(ppu_context* c,uint32_t L,BuzzFrontendInclude target){
+    assert(c->gpr[3]==77&&L==1&&target==frontend_target);
+    ++frontend_applied;
+}
 static void environment(const char* name,const char* value) {
 #ifdef _WIN32
     _putenv_s(name,value?value:"");
@@ -63,7 +67,7 @@ int main(){
     c.gpr[3]=1;hooks.at(0x1381A8)(&c);assert(c.gpr[3]==77 && original_calls==4);
     puts("PASS: no-FMV omits open/play, error/playing results, unrelated and trace-only passthrough");
     environment("BUZZ_NO_FMV",nullptr);environment("BUZZ_BOOT_TRACE",nullptr);
-    hooks.clear();frontend_enabled=true;buzz_register_boot_trace();
+    hooks.clear();frontend_target=BuzzFrontendInclude::buzzer_test;buzz_register_boot_trace();
     assert(hooks.size()==1&&hooks.count(0x23D8A0));
     c.gpr[3]=1;hooks.at(0x23D8A0)(&c);assert(c.gpr[3]==77&&frontend_applied==1);
     puts("PASS: frontend IncludeScript hook works independently of no-FMV/boot tracing and runs after original");
