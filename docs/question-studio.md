@@ -56,11 +56,18 @@ colours and controls as BuzzSetup.
 - Native read-only import of stored ZIP PAK / plaintext EDAT question archives
   from Quiz World and Quiz TV. Parses Huffman text, QAK records and category
   metadata; never executes imported Lua bytecode. Imported speech is cached
-  locally. Original SDI/music/video references are retained, not decoded yet.
+  locally. Still-picture questions use the frame index in the QAK record to
+  import the matching frame from the pack's SDI picture sheet as a cached PNG.
+  This uses the format of the pack, not a list of game IDs or languages. Use
+  FFmpeg next to Studio, on PATH or configured in the pack builder. If FFmpeg
+  is missing or a sheet cannot be decoded, the questions and their original
+  references are still imported with a warning. Use **Decode source media**
+  on an imported movie question to read its original SDI, or use **Decode all
+  clips** for the whole project. Music-only tracks are not movie clips.
   Picture-answer and multiple-correct-answer questions are skipped with a count;
   their indices are not misinterpreted as text. Only one correct answer out of
   four text answers is currently supported.
-- PS3 sources are read in place, nothing is extracted to disk:
+- PS3 sources are read in place without unpacking the whole disc or package:
   - Decrypted disc images (`.iso`) of Quiz TV, Quiz World and Brain of...: every
     `PS3_GAME/USRDIR/PACKnnnn/<LANG>PACKnnnn.PAK` in the chosen language is
     imported at once. An image whose files are still encrypted is reported.
@@ -86,22 +93,31 @@ colours and controls as BuzzSetup.
     tables). For the Polish Mega Quiz (SCES-54690) the picture references get the
     same correction as the PCSX2 patch v0.4 (675 media ids pointed two or three
     frames early, from a review of every `rri.dat` entry);
-    a copy whose `rri.dat` is already fixed is left as is.
+    a copy whose `rri.dat` is already fixed is left as is. Hollywood Quiz
+    automatically attaches still pictures using each question's QAK v1000
+    media link and the disc's `pics001.rsv`. It also resolves the RSV movie
+    references; their row-major layout differs from Mega Quiz.
   - PSP Master Quiz and Polskie Łamigłówki (`MERGED.QDB` + `MERGED.TXT`) and Quiz
-    World PSP (per-language bundles in its numbered `.FLZ` archive).
+    World PSP (per-language bundles in its numbered `.FLZ` archive). Movie
+    questions point to PMF clips; Studio combines the original AVC video
+    and ATRAC3+ soundtrack into an MP4 with AAC audio.
   The correct answer is stored first in these games. Categories map onto Quiz
   World subjects where the source category is clear; general ones are left for
   you to choose. Comparison, put-in-order, true/false and party-challenge rounds
   are skipped, as are tables a localized disc left in another language.
-  For the tested PAL Mega Quiz releases (SCES-54505 and SCES-54690), select an
-  imported question and choose **Decode PS2 media** in the editor. With FFmpeg
-  installed (use its configured path or put it on PATH), Studio reads the matching
-  RSV entry from the disc image or extracted disc and attaches a PNG. For a
-  supported clip, it also attaches an MP4 with stereo audio and uses a representative video
-  frame as the question image. **Open** plays the MP4 in the system player.
+  Select an imported question and choose **Decode source media** in the editor.
+  With FFmpeg installed (use its configured path or put it on PATH), Studio
+  attaches the decoded media. A clip becomes an MP4 with its original audio
+  and a representative still. **Open** plays the MP4 in the system player.
+  **Decode all clips** processes the whole project, deduplicates source clips
+  and skips questions that already have a video. The job can be cancelled;
+  completed attachments remain and can be undone together.
   The Quiz World pack builder plays the attached clip with its own audio.
+  If FFmpeg is missing, Studio explains how to configure it without blocking
+  the question import. Get it from the [FFmpeg download page](https://ffmpeg.org/download.html),
+  then reimport to attach the pictures.
   If an existing MP4 looks scrambled into blocks, remove the old video and
-  its generated still in the editor, then run **Decode PS2 media** again and
+  its generated still in the editor, then run **Decode source media** again and
   rebuild the pack to use the corrected macroblock order. Unsupported
   media keep their original references for manual replacement. Older imports
   need to be reimported if they lack video references.
@@ -337,8 +353,8 @@ completion, or use `Start-Process -Wait` with redirected output.
 ## Remaining implementation stages
 
 1. Decoded native media previews (SDI/RSF/WEM, video thumbnails).
-2. Split PS3 images (`.iso.0`/`.iso.1`) and encrypted ones (`.dkey`); decoding PS2/PSP pictures (PS2 IPU frames
-   in `VIDEOS.PAK`) and the Hollywood Quiz picture-frame mapping.
+2. Split PS3 images (`.iso.0`/`.iso.1`) and encrypted ones (`.dkey`); decoding
+   additional PS2/PSP media formats.
 3. Additional TTS adapters (Piper and HTTP services), internal audio playback,
    batch generation and a generated-audio cache. `src/tts.h` is the provider
    boundary; the first local Windows/Linux adapters already produce WAV.

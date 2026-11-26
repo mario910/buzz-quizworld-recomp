@@ -140,8 +140,39 @@
             <translation>Ohitettiin %1 kysymystä, joissa on kuvavastauksia, useita oikeita vastauksia tai eri määrä vastauksia. Tämä editori tukee yhtä oikeaa vastausta neljästä tekstivastauksesta.</translation>
         </message>
         <message>
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>%1 kysymystä sisältää SDI/RSF-mediaa. Niiden viittaukset säilytettiin; esikatselu vaatii erillisen muunnoksen.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Virheellinen SDI-kuva-arkki.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Virheellinen SDI-kuvahakemisto.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>SDI-kuvien purkaminen aikakatkaistiin.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>Purettujen SDI-kuvaruutujen määrä ei vastaa hakemistoa.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Kysymysten kuva-arkkia ei löytynyt.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Kuvat tuotiin %1 kysymykseen.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>%1 kysymystä viittaa yhä tuomattomaan mediaan (esimerkiksi leikkeisiin, musiikkiin tai puuttuviin kuviin).</translation>
         </message>
         <message>
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
@@ -304,6 +335,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>RSV-kuvat tuotiin %1 kysymykseen.</translation>
+        </message>
         <message>
             <source>Muzyka</source>
             <translation>Musiikki</translation>
@@ -613,8 +649,14 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Pura PS2-media</translation>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Pura lähdemedia</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Pura kaikki leikkeet</translation>
         </message>
         <message>
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
@@ -1718,10 +1760,6 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
             <translation>Rakentaminen peruttu.</translation>
         </message>
         <message>
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>FFmpegiä ei löytynyt. Valitse mediamoottori rakennusasetuksista.</translation>
-        </message>
-        <message>
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>Mediamoottori ylitti aikarajansa tai 10 minuutin äänirajan.</translation>
         </message>
@@ -1975,20 +2013,54 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>Puretaan PS2-mediaa…</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>Puretaan lähdemediaa…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>PS2-mediaa ei voitu purkaa.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Lähdemediaa ei voitu purkaa.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>PS2-kuva purettu.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Obraz zdekodowany.</source>
+            <translation>Kuva purettu.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>PS2-video purettu.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Film zdekodowany.</source>
+            <translation>Video purettu.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Pura kaikki leikkeet</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>Yksikään leike ei odota purkamista.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>Puretaan leikkeitä…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Peruutettu. Video liitettiin %1 kysymykseen.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Video liitettiin %1 kysymykseen. Epäonnistuneita leikkeitä: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>%1 leikkeen purkaminen epäonnistui.&#10;&#10;%2</translation>
         </message>
         <message>
             <source>Projekt zapisany · brakuje %1 plików mediów</source>
@@ -2295,6 +2367,14 @@ Rakennettu tiedosto: </translation>
         <message>
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>Projekti purettiin kansioon %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>Median purkaminen vaatii FFmpegin. Asenna se ja lisää se PATH-muuttujaan tai valitse sen suoritustiedosto koontiasetuksissa: Mediamoottori (FFmpeg).</translation>
         </message>
     </context>
 </TS>

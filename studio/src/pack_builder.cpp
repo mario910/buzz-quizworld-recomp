@@ -1,4 +1,5 @@
 #include "pack_builder.h"
+#include "media_tools.h"
 #include "buzz_import.h"
 #include "languages.h"
 #include "pack_codec.h"
@@ -835,14 +836,7 @@ BuildResult installPack(const QString &source, const QString &runtimeRoot, const
     }
     return result;
 }
-QString defaultFfmpeg() {
-#ifdef Q_OS_WIN
-    const auto bundled = QDir(QCoreApplication::applicationDirPath()).filePath("ffmpeg.exe");
-#else
-    const auto bundled = QDir(QCoreApplication::applicationDirPath()).filePath("ffmpeg");
-#endif
-    return QFileInfo::exists(bundled) ? bundled : QStandardPaths::findExecutable("ffmpeg");
-}
+QString defaultFfmpeg() { return findMediaFfmpeg(); }
 void setGameDirectory(const QString &directory) {
     configuredGameDirectory() = directory.isEmpty() ? QString() : QDir(directory).absolutePath();
 }

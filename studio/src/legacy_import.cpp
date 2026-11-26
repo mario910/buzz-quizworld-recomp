@@ -1,13 +1,16 @@
 #include "legacy_import.h"
 #include "buzz_import.h"
 #include "disc_image.h"
+#include "media_tools.h"
 #include "pack_format.h"
+#include "ps2_media.h"
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
+#include <QLocale>
 #include <QRegularExpression>
 #include <QStringDecoder>
 #include <algorithm>
@@ -246,6 +249,47 @@ class Source {
             fail(tr("Plik pytań jest za duży."));
         return f.readAll();
     }
+    QString numberedMovie(const QString &qdb, int asset) const {
+        const auto name = QStringLiteral("%1.PMF").arg(asset, 8, 10, QLatin1Char('0'));
+        const auto parts = qdb.split('/');
+        if (disc) {
+            const int local = parts.indexOf("QUESTION_DATA");
+            const int merged = parts.indexOf("QUIZDATA_MERGED");
+            const int prefix = local >= 0 ? local : merged;
+            if (prefix < 0)
+                return {};
+            const auto root = parts.mid(0, prefix).join('/');
+            const auto entry = root + (local >= 0 ? "/QUESTION_ASSETS/" : "/QUIZASSETS/") + name;
+            return disc->contains(entry) ? entry : QString();
+        }
+        const QDir dir = QFileInfo(qdb).dir();
+        const bool local = dir.dirName().compare("QUESTION_DATA", Qt::CaseInsensitive) == 0;
+        const auto entry = QDir::cleanPath(dir.absoluteFilePath((local ? "../QUESTION_ASSETS/" : "../../QUIZASSETS/") + name));
+        if (QFileInfo(entry).isFile())
+            return entry;
+        auto lower = entry;
+        lower.chop(3);
+        lower += "pmf";
+        return QFileInfo(lower).isFile() ? lower : QString();
+    }
+    QString hashedMovie(quint32 asset, const QString &code, bool localized) const {
+        if (!disc)
+            return {};
+        const auto locale = localized ? QLocale::languageToString(QLocale(code).language()) : QStringLiteral("Global");
+        const auto virtualPath = QStringLiteral("QuestionAssets/%1/%2.pmf")
+                                     .arg(locale).arg(asset, 8, 16, QLatin1Char('0')).toUpper().toLatin1();
+        // Quiz World PSP normalizes punctuation to underscores and hashes the
+        // virtual file name with non-reflected CRC-32, starting from zero.
+        quint32 hash = 0;
+        for (const unsigned char c : virtualPath) {
+            const auto normalized = (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ? c : '_';
+            hash ^= quint32(normalized) << 24;
+            for (int bit = 0; bit < 8; ++bit)
+                hash = (hash << 1) ^ (hash & 0x80000000u ? 0x04c11db7u : 0);
+        }
+        const auto entry = QStringLiteral("PSP_GAME/USRDIR/%1.PMF").arg(hash, 8, 16, QLatin1Char('0')).toUpper();
+        return disc->contains(entry) ? entry : QString();
+    }
 
   private:
     std::unique_ptr<DiscImage> disc;
@@ -350,9 +394,10 @@ struct Collector {
         if (const auto it = byText.constFind(key); it != byText.constEnd()) {
             ++out.duplicates;
             auto &existing = out.document.questions[*it];
-            if (hasMedia && !existing.extra.contains("source_media")) {
+            if (hasMedia && (!existing.extra.contains("source_media") ||
+                             (hasPs2Media(q) && !hasPs2Media(existing)))) {
+                media += !existing.extra.contains("source_media");
                 existing = q;
-                ++media;
             }
             return;
         }
@@ -400,8 +445,53 @@ bool otherLanguage(const QStringList &texts, const QString &code) {
     return detectable.contains(code) && letters >= 200 && detectLanguage(text) != code;
 }
 
+// QAK v1000: resolve the question ID through the per-question media link,
+// not through the ADT resource number (which is not a sheet ordinal).
+QHash<quint32, QJsonObject> hollywoodMedia(const QByteArray &data, const QString &folder) {
+    QHash<quint32, QJsonObject> out;
+    if (data.size() < 16 || u16(data, 0) != 0xfffe || u32(data, 4) != 1000 || u32(data, 8) < 3)
+        return out;
+    const qint64 table = u32(data, 12);
+    check(data, table, 24);
+    const qint64 media = u32(data, table), questions = u32(data, table + 8), links = u32(data, table + 16);
+    const int mediaCount = u16(data, table + 4), questionCount = u16(data, table + 12),
+              linkCount = u16(data, table + 20);
+    if (u16(data, table + 6) != 0 || u16(data, table + 14) != 1 || u16(data, table + 22) != 2 ||
+        !mediaCount || !questionCount || !linkCount || media < table + 24 ||
+        questions - media != qint64(mediaCount) * 20 || links <= questions)
+        return out;
+    const auto stride = (links - questions) / questionCount;
+    if ((stride != 32 && stride != 36) || links - questions != stride * questionCount)
+        return out;
+    check(data, links, qint64(linkCount) * 4);
+    for (int i = 0; i < questionCount; ++i) {
+        const auto record = questions + i * stride;
+        const auto link = u16(data, record + 12);
+        if (link >= linkCount)
+            continue;
+        const auto index = u16(data, links + link * 4);
+        if (index >= mediaCount)
+            continue;
+        const auto m = media + index * 20;
+        const int type = quint8(data[m + 16]);
+        QJsonObject ref{{"asset", double(u32(data, m + 4))}};
+        if (type == 3 && u16(data, m + 14) > 0) {
+            ref["type"] = "ps2-picture";
+            ref["frame"] = u16(data, m + 14);
+            ref["container"] = folder + "/VIDEOS.PAK:Videos/pics001.rsv";
+        } else if (type == 2) {
+            ref["type"] = "ps2-video";
+            ref["container"] = folder + "/VIDEOS.PAK:Videos/" + QString::number(1000000ull + u32(data, m + 4)) + ".rsv";
+        } else {
+            continue;
+        }
+        out[u32(data, record)] = ref;
+    }
+    return out;
+}
+
 void importTable(Source &source, const Set &set, Collector &c, const QString &table, const QByteArray &bytes,
-                 const Category &category) {
+                 const Category &category, const QHash<quint32, QJsonObject> &resources) {
     const auto rows = tableRows(bytes);
     if (rows.isEmpty() || rows[0].value(0).trimmed() != "Id" || rows[0].size() < 7)
         return; // Not a question table (e.g. namedCharMap).
@@ -433,8 +523,14 @@ void importTable(Source &source, const Set &set, Collector &c, const QString &ta
                               set.code, source.game, row[2], row.mid(3, 4), difficulty, category);
         QJsonArray media;
         const auto resource = row[1].trimmed();
-        if (!resource.isEmpty() && resource != "non-asset")
-            media << QJsonObject{{"type", "ps2-picture"}, {"asset", resource.toInt()}};
+        if (!resource.isEmpty() && resource != "non-asset") {
+            auto ref = resources.value(id.toUInt());
+            if (ref.isEmpty() || ref["asset"].toDouble(-1) != resource.toDouble())
+                ref = QJsonObject{{"type", "ps2-picture"}, {"asset", resource.toInt()}};
+            if (ref.contains("container"))
+                ref["archive"] = source.path;
+            media << ref;
+        }
         finish(q, {{"source_archive", source.path}, {"source_round", table}, {"source_question_id", id}}, media);
         c.add(q, !media.isEmpty());
     }
@@ -492,14 +588,23 @@ void importPs2(Source &source, const Set &set, Collector &c) {
         return frame;
     };
     const auto videos = rriName.section('/', 0, 1) + "/VIDEOS.PAK:Videos/";
-    const bool megaQuiz = source.serial == "SCES-54505" || source.serial == "SCES-54690";
     for (auto it = rounds.entries.cbegin(); it != rounds.entries.cend(); ++it) {
         if (it.key().endsWith(".adt", Qt::CaseInsensitive)) {
             const auto table = QFileInfo(it.key()).completeBaseName();
             if (!tables.contains(table)) {
                 tables.insert(table);
+                QHash<quint32, QJsonObject> resources;
+                const auto qak = it.key().left(it.key().size() - 3) + "qak";
+                if (it.key().startsWith("BHW/") && rounds.entries.contains(qak)) {
+                    try {
+                        resources = hollywoodMedia(rounds.read(qak), it.key().section('/', 0, 1));
+                    } catch (const std::exception &e) {
+                        c.out.warnings << qak + ": " + QString::fromUtf8(e.what());
+                    }
+                }
                 importTable(source, set, c, table, rounds.read(it.key()),
-                            hollywood ? Category{tr("Film"), 199, 208} : Category{tr("Wiedza ogólna"), 0, 0});
+                            hollywood ? Category{tr("Film"), 199, 208} : Category{tr("Wiedza ogólna"), 0, 0},
+                            resources);
             }
             continue;
         }
@@ -535,7 +640,7 @@ void importPs2(Source &source, const Set &set, Collector &c) {
                 c.otherLanguage += records.size() / 28;
                 continue;
             }
-            const auto kind = table.endsWith("_vid") ? "ps2-video"
+            const auto kind = table.endsWith("_vid", Qt::CaseInsensitive) ? "ps2-video"
                               : table.contains("music", Qt::CaseInsensitive) ? "ps2-audio"
                                                                              : "ps2-picture";
             const bool mediaRound = table.endsWith("_pic", Qt::CaseInsensitive) ||
@@ -569,7 +674,7 @@ void importPs2(Source &source, const Set &set, Collector &c) {
                             if (corrected)
                                 reference["frame_corrected"] = true;
                         }
-                    if (megaQuiz && QString(kind) == "ps2-video") {
+                    if (QString(kind) == "ps2-video") {
                         const auto offset = mediaRecord(mediaId);
                         if (offset >= 0 && u16(rri, offset + 6) == 0) {
                             const auto clipId = u16(rri, offset);
@@ -629,9 +734,19 @@ void importPspBundle(Source &source, const Set &set, Collector &c) {
                               set.code, source.game, text[0], text.mid(1), (quint8(data[p + 30]) >> 4) + 1,
                               bundleCategory(category));
         QJsonArray media;
-        if (flags || picture != 0xffffffffu)
-            media << QJsonObject{{"type", flags == 0x2000 ? "psp-audio" : "psp-picture"},
-                                 {"asset", QString::number(picture, 16)}};
+        if (flags || picture != 0xffffffffu) {
+            const auto kind = flags & 0xf000;
+            QJsonObject ref{{"type", kind == 0x2000 ? "psp-video" : kind == 0x1000 ? "psp-audio" : "psp-picture"},
+                            {"asset", QString::number(picture, 16)}};
+            if (kind == 0x2000) {
+                const auto entry = source.hashedMovie(picture, set.code, flags & 0x40);
+                if (!entry.isEmpty()) {
+                    ref["entry"] = entry;
+                    ref["archive"] = source.path;
+                }
+            }
+            media << ref;
+        }
         finish(q, {{"source_archive", source.path}, {"source_question_id", double(id)}}, media);
         c.add(q, !media.isEmpty());
     }
@@ -668,9 +783,20 @@ void importPsp(Source &source, const Set &set, Collector &c) {
                 .arg(id),
             set.code, source.game, text[0], text.mid(1), level >> 4, pspCategory(category));
         QJsonArray media;
-        if (flags) // 0x3000 picture, 0x2000 sound; the asset id is stored before the category.
-            media << QJsonObject{{"type", flags & 0x1000 ? "psp-picture" : "psp-audio"},
-                                 {"asset", int(u16(qdb, p + 4))}};
+        if (flags) {
+            const auto asset = u16(qdb, p + 4);
+            const int kind = flags & 0xf000;
+            QJsonObject ref{{"type", kind == 0x2000 ? "psp-video" : kind == 0x3000 ? "psp-picture" : "psp-audio"},
+                            {"asset", int(asset)}};
+            if (kind == 0x2000) {
+                const auto entry = source.numberedMovie(set.primary, asset);
+                if (!entry.isEmpty()) {
+                    ref["entry"] = entry;
+                    ref["archive"] = source.path;
+                }
+            }
+            media << ref;
+        }
         finish(q, {{"source_archive", source.path}, {"source_question_id", double(id)}}, media);
         c.add(q, !media.isEmpty());
     }
@@ -719,6 +845,12 @@ LoadResult importLegacy(const QString &path, const QString &language) {
             set->kind == Kind::PspBundle ? importPspBundle(source, *set, c) : importPsp(source, *set, c);
         if (c.out.document.questions.isEmpty())
             fail(tr("Źródło nie zawiera obsługiwanych pytań."));
+        if (set->kind == Kind::Ps2Rounds) {
+            const int images = importPs2Pictures(c.out.document.questions, configuredMediaFfmpeg(), c.out.warnings);
+            c.media -= images;
+            if (images)
+                c.out.warnings << tr("Zaimportowano obrazki RSV do %1 pytań.").arg(images);
+        }
         if (c.unsupported)
             c.out.warnings << tr("Pominięto %1 pytań innych typów (porównania, kolejność, prawda/fałsz, "
                                  "zadania bez odpowiedzi). Edytor obsługuje cztery odpowiedzi z jedną poprawną.")

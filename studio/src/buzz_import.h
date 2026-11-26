@@ -15,6 +15,7 @@ struct BuzzPack {
     QString label;    // Shown as the question's source_archive.
     QString identity; // Keys the media cache; changes when the source changes.
     QString language; // Editor code from the file name, or empty when unknown.
+    QString sourcePath; // ISO, package or PARAM.SFO used to reopen the pack.
 };
 // Read-only parsing: retail Lua bytecode is never executed.
 LoadResult importBuzz(const QString &path, const QString &language = {}, bool extractSpeech = true);

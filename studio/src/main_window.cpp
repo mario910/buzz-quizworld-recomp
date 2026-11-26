@@ -329,6 +329,7 @@ MainWindow::MainWindow(StudioController &studioController, Localization &localiz
     connect(&studio, &StudioController::historyChanged, this, &MainWindow::refreshHistory);
     connect(&studio, &StudioController::busyChanged, this, &MainWindow::refreshBusy);
     connect(&studio, &StudioController::buildProgressChanged, this, &MainWindow::refreshBusy);
+    connect(&studio, &StudioController::clipProgress, this, &MainWindow::refreshBusy);
     connect(&studio, &StudioController::errorOccurred, this, &MainWindow::showError);
     connect(&studio, &StudioController::importLanguageRequested, this, &MainWindow::showImportLanguages);
     connect(&studio, &StudioController::licenseRequested, this, &MainWindow::askLicense);
@@ -462,6 +463,7 @@ QWidget *MainWindow::buildHeader() {
     }
     menu->addAction(T("Języki paczki…"), this, &MainWindow::openProjectLanguages);
     menu->addAction(T("Kategorie paczki…"), this, &MainWindow::openPackCategories);
+    menu->addAction(T("Zdekoduj wszystkie klipy"), this, &MainWindow::decodeAllClips);
     menu->addSeparator();
     menu->addAction(T("Nowa paczka"), this, [this] { guard([this] { studio.newProject(); }); });
     menu->addAction(T("Zapisz jako…"), this, [this] { saveAs(); });
@@ -890,13 +892,18 @@ QWidget *MainWindow::buildEditor() {
     for (auto *b : {video, videoOpen, videoRemove})
         videoRow->addWidget(b);
     form->addLayout(videoRow);
-    decodeMediaButton = button(T("Zdekoduj media PS2"));
+    decodeMediaButton = button(T("Zdekoduj media źródłowe"));
     connect(decodeMediaButton, &QPushButton::clicked, this, [this] {
         commitEdits();
         studio.decodeSourceMedia();
     });
     busyDisabled << decodeMediaButton;
     form->addWidget(decodeMediaButton);
+    auto *decodeAll = button(T("Zdekoduj wszystkie klipy"));
+    decodeAll->setObjectName("decodeAllClips");
+    connect(decodeAll, &QPushButton::clicked, this, &MainWindow::decodeAllClips);
+    busyDisabled << decodeAll;
+    form->addWidget(decodeAll);
     mediaNote = label(T("Źródło zawiera media Buzza. Zachowano ich oryginalne odwołania."), "faint");
     mediaNote->setWordWrap(true);
     form->addWidget(mediaNote);
@@ -987,7 +994,12 @@ void MainWindow::buildOverlay(QWidget *root) {
     overlayProgress->setTextVisible(false);
     inner->addWidget(overlayProgress);
     overlayCancel = button(T("Anuluj"));
-    connect(overlayCancel, &QPushButton::clicked, &studio, &StudioController::cancelBuild);
+    connect(overlayCancel, &QPushButton::clicked, this, [this] {
+        if (studio.clipActive())
+            studio.cancelSourceClips();
+        else
+            studio.cancelBuild();
+    });
     inner->addWidget(overlayCancel, 0, Qt::AlignHCenter);
     col->addWidget(box, 0, Qt::AlignHCenter);
     col->addStretch();
@@ -1135,7 +1147,7 @@ void MainWindow::refreshSelection() {
     videoOpen->setVisible(!video.isEmpty());
     videoRemove->setVisible(!video.isEmpty());
     mediaNote->setVisible(!q["source_media"].toList().isEmpty());
-    decodeMediaButton->setVisible(q["canDecodePs2Media"].toBool());
+    decodeMediaButton->setVisible(q["canDecodeSourceMedia"].toBool());
     issues->setText(problems.join('\n'));
     issues->setVisible(!problems.isEmpty());
     idText->setText("ID  " + q["id"].toString());
@@ -1151,9 +1163,9 @@ void MainWindow::refreshBusy() {
     overlay->setVisible(busy);
     overlay->raise();
     overlayText->setText(studio.status());
-    overlayProgress->setVisible(studio.buildActive());
-    overlayProgress->setValue(studio.buildProgress());
-    overlayCancel->setVisible(studio.buildActive());
+    overlayProgress->setVisible(studio.buildActive() || studio.clipActive());
+    overlayProgress->setValue(studio.clipActive() ? studio.clipPercent() : studio.buildProgress());
+    overlayCancel->setVisible(studio.buildActive() || studio.clipActive());
     for (auto *b : busyDisabled)
         b->setEnabled(!busy);
     buildButton->setEnabled(!busy && studio.totalCount() > 0);
@@ -1272,6 +1284,11 @@ void MainWindow::showWarnings() {
                                 QMessageBox::NoButton, this);
     box->addButton(T("OK"), QMessageBox::AcceptRole);
     showDialog(box);
+}
+
+void MainWindow::decodeAllClips() {
+    commitEdits();
+    studio.decodeAllSourceClips();
 }
 
 void MainWindow::showAbout() {

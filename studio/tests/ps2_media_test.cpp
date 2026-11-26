@@ -59,6 +59,10 @@ class Ps2MediaTest final : public QObject {
         QCOMPARE(studio::pack::u16(pcm, 4), 56u);
         QCOMPARE(studio::pack::u16(pcm, 6), 65534u);
         QCOMPARE(studio::pack::u32(pcm, 960 * 4), 0u);
+        // Hollywood uses the row-major layout identifier, with the same audio.
+        qToLittleEndian<quint32>(0, clip.data() + 28);
+        QCOMPARE(studio::makePs2Ipu(clip, std::nullopt, &pcm), result);
+        QCOMPARE(studio::pack::u16(pcm, 0), 60u);
         clip[50] = 0x5c;
         QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(clip, std::nullopt, &pcm), std::runtime_error);
         QVERIFY(pcm.isEmpty());

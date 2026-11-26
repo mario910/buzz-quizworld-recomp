@@ -101,6 +101,7 @@ class MainWindow final : public QMainWindow {
     QString languageLabel(const QString &code) const;
     void confirmDelete();
     void showAbout();
+    void decodeAllClips();
     void showDialog(QDialog *dialog);
     QVariantMap current() const;
 };

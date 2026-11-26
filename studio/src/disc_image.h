@@ -21,6 +21,7 @@ class DiscImage {
     const QMap<QString, File> &files() const { return files_; }
     bool contains(const QString &path) const { return files_.contains(path.toUpper()); }
     QByteArray read(const QString &path, qint64 limit = 256 * 1024 * 1024);
+    QByteArray readAt(qint64 offset, qint64 size); // Logical bytes, including for CSO.
     static bool isDiscImage(const QString &path);
 
   private:
@@ -33,7 +34,6 @@ class DiscImage {
     qint64 cachedBlock_ = -1;
     QByteArray cache_;
     QMap<QString, File> files_;
-    QByteArray readAt(qint64 offset, qint64 size);
     QByteArray block(qint64 number);
     void walk(qint64 extent, qint64 size, const QString &prefix, int depth);
 };

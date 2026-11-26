@@ -16,7 +16,8 @@ add_subdirectory(../third_party/zlib zlib EXCLUDE_FROM_ALL)
 add_library(studio_core STATIC src/document.cpp src/document.h src/buzz_import.cpp src/buzz_import.h src/languages.cpp src/languages.h
     src/disc_image.cpp src/disc_image.h src/legacy_import.cpp src/legacy_import.h
     src/ps4_pkg.cpp src/ps4_pkg.h src/kip_import.cpp src/kip_import.h src/ps3_source.cpp src/ps3_source.h
-    src/project_media.cpp src/project_media.h)
+    src/project_media.cpp src/project_media.h src/media_tools.cpp src/media_tools.h
+    src/ps2_media.h src/ps2_media.cpp src/source_movie.h src/source_movie.cpp)
 target_link_libraries(studio_core PUBLIC Qt6::Core PRIVATE ZLIB::ZLIBSTATIC)
 # AES for PS4 packages: the system's CNG on Windows, libcrypto elsewhere.
 if(WIN32)
@@ -27,8 +28,7 @@ else()
 endif()
 target_include_directories(studio_core PUBLIC src)
 add_library(studio_build STATIC src/pack_format.h src/pack_codec.h src/pack_codec.cpp
-    src/pack_media.h src/pack_media.cpp src/pack_atrac.cpp src/pack_builder.h src/pack_builder.cpp
-    src/ps2_media.h src/ps2_media.cpp)
+    src/pack_media.h src/pack_media.cpp src/pack_atrac.cpp src/pack_builder.h src/pack_builder.cpp)
 target_link_libraries(studio_build PUBLIC studio_core Qt6::Gui)
 add_library(studio_app STATIC src/controller.cpp src/controller.h src/tts.cpp src/tts.h src/localization.cpp src/localization.h)
 file(GLOB studio_catalogs CONFIGURE_DEPENDS i18n/studio_*.ts)

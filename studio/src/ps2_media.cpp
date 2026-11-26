@@ -1,11 +1,12 @@
 #include "ps2_media.h"
 #include "disc_image.h"
 #include "pack_format.h"
-#include "pack_media.h"
+#include "media_tools.h"
 #include "ps3_source.h"
 #include <QCryptographicHash>
 #include <QDir>
 #include <QJsonArray>
+#include <QMap>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -22,7 +23,7 @@ struct Reference {
 
 Reference reference(const Question &q) {
     static const QRegularExpression container(
-        R"(^((?:BG2/[A-Z0-9_]+/)VIDEOS\.PAK):(Videos/(?:pics001|10[0-9]{5})\.rsv)$)",
+        R"(^((?:BG2|BHW)/[A-Z0-9_]+/VIDEOS\.PAK):(Videos/(?:pics001|10[0-9]{5})\.rsv)$)",
         QRegularExpression::CaseInsensitiveOption);
     const auto media = q.translations.isEmpty() ? q.extra["source_media"].toArray()
                                                  : q.localized()["source_media"].toArray();
@@ -47,33 +48,27 @@ Reference reference(const Question &q) {
 // selected entry, using a bounded view of the ISO extent.
 class IsoExtent final : public ps3::RangeDevice {
   public:
-    IsoExtent(const QString &path, DiscImage::File extent)
-        : RangeDevice(extent.size), file_(path), base_(extent.offset) {
-        if (!file_.open(QIODevice::ReadOnly))
-            fail(file_.errorString());
-        if (base_ < 0 || base_ > file_.size() || extent.size < 0 || extent.size > file_.size() - base_)
-            fail(QStringLiteral("The video archive extent is outside the disc image."));
-    }
+    IsoExtent(std::unique_ptr<DiscImage> image, DiscImage::File extent)
+        : RangeDevice(extent.size), image_(std::move(image)), base_(extent.offset) {}
   protected:
     QByteArray readRange(qint64 offset, qint64 length) override {
-        if (!file_.seek(base_ + offset))
-            return {};
-        return file_.read(length);
+        return image_->readAt(base_ + offset, length);
     }
   private:
-    QFile file_;
+    std::unique_ptr<DiscImage> image_;
     qint64 base_;
 };
 
 QByteArray readRsv(const Reference &ref) {
     const QFileInfo source(ref.archive);
     std::unique_ptr<Archive> archive;
-    if (source.suffix().compare("iso", Qt::CaseInsensitive) == 0) {
-        DiscImage disc(ref.archive);
-        const auto it = disc.files().constFind(ref.path.toUpper());
-        if (it == disc.files().constEnd())
+    if (DiscImage::isDiscImage(ref.archive)) {
+        auto disc = std::make_unique<DiscImage>(ref.archive);
+        const auto it = disc->files().constFind(ref.path.toUpper());
+        if (it == disc->files().constEnd())
             fail(QStringLiteral("The source disc does not contain the referenced video archive."));
-        archive = std::make_unique<Archive>(std::make_unique<IsoExtent>(ref.archive, it.value()));
+        const auto extent = it.value();
+        archive = std::make_unique<Archive>(std::make_unique<IsoExtent>(std::move(disc), extent));
     } else {
         // A loose language PAK is one directory below the extracted disc root.
         QDir root = source.dir();
@@ -128,29 +123,29 @@ QByteArray decodeAudio(const QByteArray &rsv, qint64 start) {
 
 } // namespace
 
-QByteArray makePs2Ipu(const QByteArray &rsv, std::optional<int> pictureFrame, QByteArray *pcm) {
+namespace {
+QByteArray makeIpu(const QByteArray &rsv, const QList<int> &pictureFrames, bool video, QByteArray *pcm) {
     if (pcm)
         pcm->clear();
     QByteArray audio;
-    const bool video = !pictureFrame.has_value();
     check(rsv, 0, 32);
     const auto width = u16(rsv, 8), height = u16(rsv, 10);
     const auto frames = u32(rsv, 12);
     const auto fps = u32(rsv, 16), sampleRate = u32(rsv, 20), flags = u32(rsv, 24);
-    // Retail Mega Quiz RSV v1 (PAL). Do not guess layouts for other variants.
-    const bool known = video ? fps == 25 && sampleRate == 24000 && flags == 0x10000b && u32(rsv, 28) == 1
+    // PAL Mega Quiz and Hollywood Quiz use the same per-frame audio layout.
+    const bool known = video ? fps == 25 && sampleRate == 24000 && flags == 0x10000b && u32(rsv, 28) <= 1
                              : sampleRate == 0 && flags == 0x100000 && u32(rsv, 28) == 0;
     if (!rsv.startsWith("rsv1") || u32(rsv, 4) != rsv.size() - 32 || !known ||
         width != 320 || height != 240 || frames == 0 || frames > 5000)
         fail(QStringLiteral("Unsupported PS2 RSV layout."));
     const qint64 dataStart = 32 + qint64(frames) * 4;
     check(rsv, 0, dataStart);
-    const quint32 first = quint32(pictureFrame.value_or(0));
-    if (first >= frames)
-        fail(QStringLiteral("The referenced PS2 picture frame is outside the sheet."));
-    const quint32 count = video ? frames : 1u;
+    const quint32 count = video ? frames : quint32(pictureFrames.size());
     QByteArray payload;
-    for (quint32 i = first; i < first + count; ++i) {
+    for (quint32 ordinal = 0; ordinal < count; ++ordinal) {
+        const auto i = video ? ordinal : quint32(pictureFrames[ordinal]);
+        if (i >= frames)
+            fail(QStringLiteral("The referenced PS2 picture frame is outside the sheet."));
         auto start = qint64(u32(rsv, 32 + i * 4));
         const qint64 end = i + 1 < frames ? u32(rsv, 32 + (i + 1) * 4) : rsv.size();
         if (start < dataStart || end <= start || end > rsv.size())
@@ -185,7 +180,6 @@ QByteArray makePs2Ipu(const QByteArray &rsv, std::optional<int> pictureFrame, QB
     return out;
 }
 
-namespace {
 void publish(const QString &source, const QString &target) {
     if (QFileInfo(source).size() <= 0)
         fail(QStringLiteral("FFmpeg did not create the decoded PS2 media."));
@@ -194,18 +188,102 @@ void publish(const QString &source, const QString &target) {
 }
 } // namespace
 
-bool hasPs2Media(const Question &question) { return !reference(question).entry.isEmpty(); }
+QByteArray makePs2Ipu(const QByteArray &rsv, std::optional<int> pictureFrame, QByteArray *pcm) {
+    return makeIpu(rsv, pictureFrame ? QList<int>{*pictureFrame} : QList<int>{}, !pictureFrame, pcm);
+}
 
-Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg) {
+bool hasPs2Media(const Question &question) { return !reference(question).entry.isEmpty(); }
+QString ps2ClipKey(const Question &question) {
+    const auto ref = reference(question);
+    return ref.video ? ref.archive + '\n' + ref.path + '\n' + ref.entry : QString();
+}
+
+int importPs2Pictures(QVector<Question> &questions, const QString &ffmpeg, QStringList &warnings) {
+    QMap<QString, QMap<int, QList<qsizetype>>> sheets;
+    QMap<QString, Reference> refs;
+    for (qsizetype i = 0; i < questions.size(); ++i) {
+        const auto ref = reference(questions[i]);
+        if (ref.entry.isEmpty() || ref.video || !ref.path.startsWith("BHW/", Qt::CaseInsensitive))
+            continue;
+        const auto key = ref.archive + '\n' + ref.path + ':' + ref.entry;
+        refs[key] = ref;
+        sheets[key][ref.frame] << i;
+    }
+    if (sheets.isEmpty())
+        return 0;
+    if (ffmpeg.isEmpty()) {
+        warnings << missingMediaFfmpeg();
+        return 0;
+    }
+    int imported = 0;
+    for (auto sheet = sheets.cbegin(); sheet != sheets.cend(); ++sheet) {
+        const auto ref = refs.value(sheet.key());
+        try {
+            const auto rsv = readRsv(ref);
+            const auto sequence = sheet->keys();
+            const auto key = QString::fromLatin1(QCryptographicHash::hash(rsv, QCryptographicHash::Sha256).toHex());
+            QDir cache(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+                           .filePath("ps2-media/hollywood-rsv-v1-" + key));
+            if (!QDir().mkpath(cache.absolutePath()))
+                fail(QStringLiteral("Could not create the PS2 media cache."));
+            const auto image = [&](int frame) { return cache.filePath(QString::number(frame) + ".png"); };
+            QList<int> pending;
+            for (int frame : sequence)
+                if (QFileInfo(image(frame)).size() <= 0)
+                    pending << frame;
+            if (!pending.isEmpty()) {
+                QTemporaryDir temp(cache.filePath("decode-XXXXXX"));
+                if (!temp.isValid())
+                    fail(temp.errorString());
+                const auto stream = makeIpu(rsv, pending, false, nullptr);
+                QFile file(temp.filePath("sheet.ipu"));
+                if (!file.open(QIODevice::WriteOnly) || file.write(stream) != stream.size() || !file.flush())
+                    fail(file.errorString());
+                file.close();
+                const QStringList base{"-nostdin", "-v", "error", "-xerror", "-f", "ipu", "-i", file.fileName(),
+                                       "-threads", "1", "-start_number", "0"};
+                const QStringList output{temp.filePath("frame-%05d.png")};
+                try {
+                    runMedia(ffmpeg, base + QStringList{"-fps_mode", "passthrough"} + output, nullptr);
+                } catch (const std::exception &e) {
+                    if (!QByteArray(e.what()).contains("Unrecognized option 'fps_mode'"))
+                        throw;
+                    runMedia(ffmpeg, base + QStringList{"-vsync", "0"} + output, nullptr);
+                }
+                const auto files = QDir(temp.path()).entryList({"frame-*.png"}, QDir::Files, QDir::Name);
+                if (files.size() != pending.size())
+                    fail(QStringLiteral("The decoded PS2 image count does not match the sheet index."));
+                for (qsizetype i = 0; i < pending.size(); ++i)
+                    publish(temp.filePath(files[i]), image(pending[i]));
+            }
+            for (auto i = sheet->cbegin(); i != sheet->cend(); ++i)
+                for (const auto row : i.value()) {
+                    auto &q = questions[row];
+                    q.image = image(i.key());
+                    q.translations[q.language] = q.localized();
+                    ++imported;
+                }
+        } catch (const std::exception &e) {
+            warnings << ref.path + ": " + QString::fromUtf8(e.what());
+        }
+    }
+    return imported;
+}
+
+Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg, const std::atomic_bool *cancel) {
     try {
+        checkCancelled(cancel);
         const auto ref = reference(question);
         if (ref.entry.isEmpty())
             fail(QStringLiteral("This question has no supported PS2 media reference. Reimport older video entries."));
         QByteArray pcm;
-        const auto stream = makePs2Ipu(readRsv(ref), ref.video ? std::nullopt : std::optional<int>(ref.frame),
+        const auto rsv = readRsv(ref);
+        const auto stream = makePs2Ipu(rsv, ref.video ? std::nullopt : std::optional<int>(ref.frame),
                                        ref.video ? &pcm : nullptr);
+        const bool columnMajor = ref.video && u32(rsv, 28) == 1;
         auto digest = QCryptographicHash(QCryptographicHash::Sha256);
-        digest.addData(QByteArray(ref.video ? "ps2-rsv1-video-audio-v3" : "ps2-rsv1-picture-v1"));
+        digest.addData(QByteArray(ref.video ? (columnMajor ? "ps2-rsv1-video-audio-v3" : "ps2-rsv1-video-row-v1")
+                                           : "ps2-rsv1-picture-v1"));
         digest.addData(stream);
         digest.addData(pcm);
         const auto key = QString::fromLatin1(digest.result().toHex());
@@ -225,7 +303,7 @@ Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg) {
             if (!file.open(QIODevice::WriteOnly) || file.write(stream) != stream.size() || !file.flush())
                 fail(file.errorString());
         }
-        const QStringList base{"-nostdin", "-v", "error", "-xerror"};
+        const QStringList base{"-nostdin", "-v", "error", "-xerror", "-y"};
         QString input = ipu;
         QStringList format{"-f", "ipu"};
         if (ref.video) {
@@ -247,16 +325,37 @@ Ps2Media decodePs2Media(const Question &question, const QString &ffmpeg) {
             };
             const auto raster = QStringLiteral("geq=lum='%1':cb='%2':cr='%3':interpolation=nearest")
                                     .arg(remap("lum", 16), remap("cb", 8), remap("cr", 8));
-            runMedia(ffmpeg, base + format + QStringList{"-i", ipu, "-f", "s16le", "-ar", "24000", "-ac", "2",
-                     "-i", audioPath, "-vf", raster, "-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac", "-b:a",
-                     "96k", output}, nullptr);
+            auto args = base + format + QStringList{"-i", ipu, "-f", "s16le", "-ar", "24000", "-ac", "2",
+                                                     "-i", audioPath};
+            const QStringList encode{"-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac", "-b:a", "96k", output};
+            try {
+                runMedia(ffmpeg, args + (columnMajor ? QStringList{"-vf", raster} : QStringList{}) + encode, cancel);
+            } catch (const std::exception &e) {
+                // Field-DCT RSV can store a whole pair of 16-line macroblocks
+                // past the visible 240-line raster. Keep nominal geometry for
+                // ordinary clips, and retry this alignment only on a decode error.
+                checkCancelled(cancel);
+                const auto height = u16(stream, 10);
+                if (columnMajor || height % 32 == 0 || !(quint8(stream[16]) & 4) ||
+                    !QByteArray(e.what()).contains("Invalid data found when processing input"))
+                    throw;
+                auto coded = stream;
+                qToLittleEndian<quint16>((height + 31) & ~31, coded.data() + 10);
+                QFile file(ipu);
+                if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate) ||
+                    file.write(coded) != coded.size() || !file.flush())
+                    fail(file.errorString());
+                file.close();
+                runMedia(ffmpeg, args + QStringList{"-vf", QStringLiteral("crop=iw:%1:0:0").arg(height)} + encode,
+                         cancel);
+            }
             input = output;
             format.clear();
         }
         const auto png = temp.filePath("picture.png");
         const QStringList thumbnail = ref.video ? QStringList{"-vf", "thumbnail=50"} : QStringList{};
         runMedia(ffmpeg, base + format + QStringList{"-i", input} + thumbnail + QStringList{"-frames:v", "1", png},
-                 nullptr);
+                 cancel);
         if (ref.video)
             publish(input, video);
         publish(png, image);

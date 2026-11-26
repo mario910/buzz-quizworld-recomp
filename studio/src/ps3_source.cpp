@@ -716,7 +716,8 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
         // The Buzz importer reports errors as text; keep the content ID of a
         // missing license so the editor can ask for the .rap.
         auto license = std::make_shared<QString>();
-        for (auto &pack : source.packs)
+        for (auto &pack : source.packs) {
+            pack.sourcePath = QFileInfo(path).absoluteFilePath();
             pack.open = [open = pack.open, license] {
                 try {
                     return open();
@@ -725,6 +726,7 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
                     throw;
                 }
             };
+        }
         auto result = importBuzzPacks(source.packs, language, extractSpeech,
                                       source.title.isEmpty() ? QFileInfo(path).completeBaseName() : source.title);
         result.license = *license;
@@ -745,5 +747,25 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
         out.error = QString::fromUtf8(e.what());
         return out;
     }
+}
+
+QByteArray readMovie(const QString &sourcePath, const QString &packLabel, const QString &entry) {
+    std::unique_ptr<pack::Archive> archive;
+    if (sourcePath.isEmpty()) {
+        archive = buzzFilePack(packLabel).open();
+    } else {
+        const auto source = openSource(sourcePath);
+        for (const auto &pack : source.packs)
+            if (pack.label == packLabel) {
+                archive = pack.open();
+                break;
+            }
+    }
+    if (!archive)
+        fail(QStringLiteral("The original PS3 question archive was not found."));
+    const auto item = archive->entries.constFind(entry);
+    if (item == archive->entries.constEnd() || item->size > 128 * 1024 * 1024)
+        fail(QStringLiteral("The referenced SDI clip is missing or too large."));
+    return archive->read(entry);
 }
 } // namespace studio::ps3

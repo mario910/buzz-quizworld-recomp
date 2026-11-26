@@ -140,8 +140,39 @@
             <translation>Παραλείφθηκαν %1 ερωτήσεις με απαντήσεις-εικόνες, πολλές σωστές απαντήσεις ή διαφορετικό αριθμό απαντήσεων. Αυτός ο επεξεργαστής υποστηρίζει μία σωστή απάντηση από τέσσερις απαντήσεις κειμένου.</translation>
         </message>
         <message>
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>%1 ερωτήσεις περιέχουν πολυμέσα SDI/RSF. Οι αναφορές τους διατηρήθηκαν· η προεπισκόπησή τους απαιτεί ξεχωριστή μετατροπή.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Μη έγκυρο φύλλο εικόνων SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Μη έγκυρο ευρετήριο εικόνων SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>Έληξε ο χρόνος αποκωδικοποίησης των εικόνων SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>Ο αριθμός των αποκωδικοποιημένων καρέ SDI δεν συμφωνεί με το ευρετήριο.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Δεν βρέθηκε το φύλλο εικόνων των ερωτήσεων.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Εισήχθησαν εικόνες για %1 ερωτήσεις.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>%1 ερωτήσεις παραπέμπουν ακόμη σε πολυμέσα που δεν εισήχθησαν (π.χ. βίντεο, μουσική ή εικόνες που λείπουν).</translation>
         </message>
         <message>
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
@@ -304,6 +335,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>Εισήχθησαν εικόνες RSV για %1 ερωτήσεις.</translation>
+        </message>
         <message>
             <source>Muzyka</source>
             <translation>Μουσική</translation>
@@ -613,8 +649,14 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Αποκωδικοποίηση πολυμέσων PS2</translation>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Αποκωδικοποίηση πολυμέσων πηγής</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Αποκωδικοποίηση όλων των βίντεο</translation>
         </message>
         <message>
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
@@ -1718,10 +1760,6 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Η δημιουργία ακυρώθηκε.</translation>
         </message>
         <message>
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>Το FFmpeg δεν βρέθηκε. Επιλέξτε τη μηχανή πολυμέσων στις ρυθμίσεις δημιουργίας.</translation>
-        </message>
-        <message>
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>Η μηχανή πολυμέσων υπερέβη το χρονικό της όριο ή το όριο ήχου των 10 λεπτών.</translation>
         </message>
@@ -1975,20 +2013,54 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>Αποκωδικοποίηση πολυμέσων PS2…</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>Αποκωδικοποίηση πολυμέσων πηγής…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>Δεν ήταν δυνατή η αποκωδικοποίηση των πολυμέσων PS2.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Δεν ήταν δυνατή η αποκωδικοποίηση των πολυμέσων πηγής.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>Η εικόνα PS2 αποκωδικοποιήθηκε.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Obraz zdekodowany.</source>
+            <translation>Η εικόνα αποκωδικοποιήθηκε.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>Το βίντεο PS2 αποκωδικοποιήθηκε.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Film zdekodowany.</source>
+            <translation>Το βίντεο αποκωδικοποιήθηκε.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Αποκωδικοποίηση όλων των βίντεο</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>Δεν υπάρχουν βίντεο σε αναμονή για αποκωδικοποίηση.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>Αποκωδικοποίηση βίντεο…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Η διαδικασία ακυρώθηκε. Προστέθηκε βίντεο σε %1 ερωτήσεις.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Προστέθηκε βίντεο σε %1 ερωτήσεις. Βίντεο με σφάλμα: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>Δεν ήταν δυνατή η αποκωδικοποίηση %1 βίντεο.&#10;&#10;%2</translation>
         </message>
         <message>
             <source>Projekt zapisany · brakuje %1 plików mediów</source>
@@ -2295,6 +2367,14 @@ Zbudowany plik: </source>
         <message>
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>Το έργο αποσυμπιέστηκε στον φάκελο %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>Η αποκωδικοποίηση πολυμέσων απαιτεί το FFmpeg. Εγκαταστήστε το και προσθέστε το στο PATH ή επιλέξτε το εκτελέσιμο αρχείο στις ρυθμίσεις δημιουργίας: Μηχανή πολυμέσων (FFmpeg).</translation>
         </message>
     </context>
 </TS>

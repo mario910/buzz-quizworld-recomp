@@ -28,6 +28,7 @@ bool isPs3Source(const QString &path);
 SourceLanguages ps3Languages(const QString &path);
 LoadResult importPs3(const QString &path, const QString &language = {}, bool extractSpeech = true);
 QString readTitleId(const QString &sfoPath);
+QByteArray readMovie(const QString &sourcePath, const QString &packLabel, const QString &entry);
 
 // Remembers the user's .rap for a content ID (checked when it is used).
 bool rememberLicense(const QString &contentId, const QString &rapPath, QString *error);

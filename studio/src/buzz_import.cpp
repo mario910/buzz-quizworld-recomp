@@ -1,4 +1,5 @@
 #include "buzz_import.h"
+#include "media_tools.h"
 #include "pack_format.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -8,9 +9,11 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QMap>
+#include <QProcess>
 #include <QSet>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QVariant>
 #include <QtEndian>
 #include <algorithm>
@@ -184,8 +187,95 @@ QMap<QString, QString> archiveLanguages(Archive &archive) {
 }
 struct Tally {
     QSet<QString> ids;
-    int media = 0, unsupported = 0, duplicates = 0;
+    int media = 0, pictures = 0, unsupported = 0, duplicates = 0;
+    QStringList pictureWarnings;
 };
+// One stream decode per sheet, with passthrough timing: SDI slots are picture
+// ordinals, not timestamps. Only publish if the decoder emits exactly the
+// declared number of pictures, so dropped/duplicated frames cannot shift links.
+QMap<int, QString> importPictureSheet(Archive &archive, const QString &name, const QSet<int> &requested,
+                                      const QString &cache, const QString &ffmpeg) {
+    QMap<int, QString> pictures;
+    const auto sheetKey = QCryptographicHash::hash(name.toUtf8(), QCryptographicHash::Sha256).toHex().left(16);
+    const auto cachePath = [&](int slot) {
+        return QDir(cache).filePath(QString("sdi-picture-v1-%1-%2.png").arg(QString::fromLatin1(sheetKey)).arg(slot));
+    };
+    for (int slot : requested)
+        if (QFileInfo(cachePath(slot)).size() > 0)
+            pictures[slot] = cachePath(slot);
+    if (pictures.size() == requested.size())
+        return pictures;
+    if (ffmpeg.isEmpty())
+        fail(missingMediaFfmpeg());
+    const auto sheet = archive.read(name);
+    check(sheet, 0, 0x50);
+    const auto table = u32(sheet, 36, true), offset = u32(sheet, 40, true), count = u32(sheet, 52, true);
+    const auto width = u32(sheet, 16, true), height = u32(sheet, 20, true);
+    if (sheet.mid(64, 8) != "SDIVIDEO" || u32(sheet, 0, true) != 1 ||
+        !count || count > 4096 || !width || !height || quint64(width) * height > 1920u * 1080u ||
+        quint64(width) * height * count > 512u * 1024u * 1024u ||
+        table < 0x50 || quint64(table) + count * 4 > offset || offset >= quint64(sheet.size()) ||
+        u32(sheet, 48, true) != sheet.size())
+        fail(QCoreApplication::translate("BuzzImport", "Niepoprawny arkusz obrazków SDI."));
+    for (quint32 i = 0; i < count; ++i) {
+        const auto frame = u32(sheet, table + i * 4, true);
+        if (frame < offset || quint64(frame) + 4 > quint64(sheet.size()) ||
+            sheet.mid(frame, 4) != QByteArray::fromHex("000001ba"))
+            fail(QCoreApplication::translate("BuzzImport", "Niepoprawny indeks obrazków SDI."));
+    }
+    qsizetype remaining = 0;
+    for (int slot : requested)
+        if (quint32(slot) < count && !pictures.contains(slot))
+            ++remaining;
+    if (!remaining)
+        return pictures;
+    QTemporaryDir temp(QDir(cache).filePath("sdi-decode-XXXXXX"));
+    if (!temp.isValid())
+        fail(temp.errorString());
+    QFile input(temp.filePath("sheet.sdi"));
+    if (!input.open(QIODevice::WriteOnly) || input.write(sheet) != sheet.size() || !input.flush())
+        fail(input.errorString());
+    input.close();
+    // Export the entire sheet into a temporary directory, including frame 0.
+    // Retain only referenced frames after verifying all ordinals are present.
+    QProcess decoder;
+    const auto decode = [&](bool legacy) {
+        QStringList args{"-nostdin", "-v", "error", "-xerror", "-y", "-protocol_whitelist", "file,pipe",
+                         "-threads", "1", "-filter_threads", "1", "-max_pixels", "2073600",
+                         "-skip_initial_bytes", QString::number(offset), "-f", "mpeg", "-i", input.fileName()};
+        args << (legacy ? QStringList{"-vsync", "0"} : QStringList{"-fps_mode", "passthrough"});
+        args << "-map" << "0:v:0";
+        if (width == 640 && height == 368)
+            args << "-vf" << "scale=640:360,setsar=1";
+        args << "-threads" << "1" << "-start_number" << "0" << "-frames:v" << QString::number(count + 1)
+             << temp.filePath("frame-%05d.png");
+        decoder.start(ffmpeg, args);
+        if (!decoder.waitForStarted(5000))
+            fail(decoder.errorString());
+        if (!decoder.waitForFinished(90000)) {
+            decoder.kill();
+            decoder.waitForFinished(5000);
+            fail(QCoreApplication::translate("BuzzImport", "Przekroczono limit czasu dekodowania obrazków SDI."));
+        }
+        return decoder.readAllStandardError().trimmed();
+    };
+    auto error = decode(false);
+    if (decoder.exitCode() != 0 && error.contains("Unrecognized option 'fps_mode'"))
+        error = decode(true);
+    if (decoder.exitStatus() != QProcess::NormalExit || decoder.exitCode() != 0)
+        fail(QStringLiteral("FFmpeg: ") + QString::fromUtf8(error.left(800)));
+    const auto files = QDir(temp.path()).entryList({"frame-*.png"}, QDir::Files, QDir::Name);
+    if (files.size() != qsizetype(count))
+        fail(QCoreApplication::translate("BuzzImport", "Liczba zdekodowanych klatek SDI nie zgadza się z indeksem."));
+    for (int slot : requested) {
+        if (quint32(slot) >= count || pictures.contains(slot))
+            continue;
+        const auto dest = cachePath(slot);
+        if (QFileInfo(dest).size() > 0 || QFile::rename(temp.filePath(files[slot]), dest))
+            pictures[slot] = dest;
+    }
+    return pictures;
+}
 void importArchive(Archive &archive, const BuzzPack &source, const QString &selected, bool extractSpeech,
                    Tally &tally, Document &document) {
     const auto languages = archiveLanguages(archive);
@@ -226,6 +316,7 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
                                            .toHex()));
     if (extractSpeech && !QDir().mkpath(cache))
         fail(QCoreApplication::translate("BuzzImport", "Nie można utworzyć katalogu mediów."));
+    QMap<int, QVector<qsizetype>> pendingPictures;
     for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it) {
         const auto name = it.key();
         if (!name.startsWith(language + "/") || !name.endsWith(".qak"))
@@ -330,12 +421,32 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
                 QJsonArray media;
                 for (int m = 0; m < quint8(b[p + 32]); ++m) {
                     const int link = row(2, u16(b, p + 14) + m), mr = row(0, u16(b, link));
-                    media << QJsonObject{{"type", int(quint8(b[mr + 12]))},
-                                         {"asset", double(u32(b, mr + 4))},
-                                         {"slot", int(u16(b, mr + 10))},
-                                         {"aspect", int(quint8(b[mr + 14]))}};
+                    const auto type = quint8(b[mr + 12]);
+                    const auto asset = u32(b, mr + 4);
+                    QJsonObject ref{{"type", int(type)}, {"asset", double(asset)},
+                                    {"slot", int(u16(b, mr + 10))}, {"aspect", int(quint8(b[mr + 14]))}};
+                    if (type == 2) {
+                        const auto entry = language + "/QUESTIONASSETS/VIDEO/" + QString::number(1000000ull + asset) + ".sdi";
+                        if (archive.entries.contains(entry)) {
+                            ref["entry"] = entry;
+                            ref["archive"] = source.label;
+                            ref["source_path"] = source.sourcePath;
+                        }
+                    }
+                    media << ref;
                 }
                 q.extra["source_media"] = media;
+                // Type 3 = still image on the question sheet; slot 0 is the
+                // missing-picture placeholder. Other media retain their refs.
+                if (extractSpeech)
+                    for (const auto &m : media) {
+                        const auto ref = m.toObject();
+                        const int slot = ref["slot"].toInt();
+                        if (ref["type"].toInt() == 3 && slot > 0) {
+                            pendingPictures[slot] << document.questions.size();
+                            break;
+                        }
+                    }
             }
             auto localized = q.localized();
             localized["source_media"] = q.extra["source_media"].toArray();
@@ -343,6 +454,36 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
             localized["source_round"] = base;
             q.translations[selected] = localized;
             document.questions << q;
+        }
+    }
+    if (!pendingPictures.isEmpty()) {
+        try {
+            const QString expected = language + "/QUESTIONASSETS/VIDEO/pics001.sdi";
+            QString sheet;
+            for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it)
+                if (it.key().compare(expected, Qt::CaseInsensitive) == 0) {
+                    sheet = it.key();
+                    break;
+                }
+            if (sheet.isEmpty())
+                fail(QCoreApplication::translate("BuzzImport", "Nie znaleziono arkusza obrazków do pytań."));
+            const auto keys = pendingPictures.keys();
+            const auto pictures = importPictureSheet(archive, sheet, QSet<int>(keys.cbegin(), keys.cend()),
+                                                     cache, configuredMediaFfmpeg());
+            for (auto it = pictures.cbegin(); it != pictures.cend(); ++it)
+                for (const auto index : pendingPictures.value(it.key())) {
+                    auto &q = document.questions[index];
+                    q.image = it.value();
+                    auto localized = q.translations.value(selected).toObject();
+                    localized["image"] = q.image;
+                    q.translations[selected] = localized;
+                    ++tally.pictures;
+                    const auto references = q.extra["source_media"].toArray();
+                    if (references.size() == 1)
+                        --tally.media;
+                }
+        } catch (const std::exception &e) {
+            tally.pictureWarnings << source.label + ": " + QString::fromUtf8(e.what());
         }
     }
 }
@@ -422,12 +563,16 @@ LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &reques
                                 "wyboru lub bez czterech odpowiedzi. Ten edytor obsługuje jedną "
                                 "poprawną odpowiedź tekstową z czterech.")
                                 .arg(tally.unsupported);
+        if (tally.pictures)
+            out.warnings << QCoreApplication::translate("BuzzImport", "Zaimportowano obrazki do %1 pytań.")
+                                .arg(tally.pictures);
         if (tally.media)
             out.warnings << QCoreApplication::translate(
                                 "BuzzImport",
-                                "%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych "
-                                "mediów wymaga osobnej konwersji.")
+                                "%1 pytań nadal odwołuje się do niezaimportowanych mediów "
+                                "(np. filmów, muzyki lub brakujących obrazków).")
                                 .arg(tally.media);
+        out.warnings << tally.pictureWarnings;
         if (out.duplicates)
             out.warnings << QCoreApplication::translate(
                                 "BuzzImport", "Pominięto %1 powtórzeń identyfikatorów między rundami.")
