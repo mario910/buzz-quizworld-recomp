@@ -769,6 +769,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ps3recomp_runtime
 )
+if(APPLE)
+    # The port's buzzer input uses SDL2 directly on macOS.
+    find_package(SDL2 REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
+endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/BuzzPhone.cmake")
 target_link_libraries(${PROJECT_NAME} PRIVATE buzz_phone)
 

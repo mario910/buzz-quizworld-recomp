@@ -133,7 +133,9 @@ static LONG WINAPI buzz_crash_report(EXCEPTION_POINTERS* exception)
 #include <sys/file.h>
 #include <unistd.h>
 #include <sys/mman.h>   /* mmap: the guest arena, see alloc_guest_vm */
+#if defined(__linux__) && !defined(__ANDROID__)
 #include <sys/prctl.h>
+#endif
 #endif
 
 #ifdef _WIN32
