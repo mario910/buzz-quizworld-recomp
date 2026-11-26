@@ -239,6 +239,8 @@ extern "C" void rsx_vulkan_backend_redisplay(void);
 extern "C" int  rsx_metal_backend_init(uint32_t w, uint32_t h, const char* title);
 extern "C" void rsx_metal_backend_present(void);
 extern "C" int  rsx_metal_backend_pump_messages(void);
+void buzz_macos_input_start();
+void buzz_macos_input_frame();
 #  define rsx_backend_init    rsx_metal_backend_init
 #  define rsx_backend_present rsx_metal_backend_present
 #  define rsx_backend_pump    rsx_metal_backend_pump_messages
@@ -507,6 +509,10 @@ static DWORD WINAPI frame_clock(LPVOID)
     }
 #endif
     int rsx_ok = (rsx_backend_init(WINDOW_WIDTH, WINDOW_HEIGHT, title) == 0);
+#ifdef __APPLE__
+    if (!rsx_ok) return 1;
+    buzz_macos_input_start();
+#endif
 #ifdef _WIN32
     if (rsx_ok) {
         if (const auto icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1)))
@@ -700,6 +706,9 @@ static DWORD WINAPI frame_clock(LPVOID)
                  * experimental host window ends this process as well. */
                 exit_closed_window();
             }
+#ifdef __APPLE__
+            buzz_macos_input_frame();
+#endif
             /* Present on a guest flip. A present on a fixed clock can catch the
              * drain mid-frame and flash a partial one. Before the first flip
              * present freely, so the window is not blank during boot. */
@@ -820,6 +829,16 @@ static int report_replay_interpreter_counts()
     return 0;
 }
 extern "C" void buzz_print_runtime_defaults();
+#ifdef __APPLE__
+static DWORD WINAPI run_macos_guest(LPVOID argument)
+{
+    const auto entry = *static_cast<const uint32_t*>(argument);
+    const int rc = ppu_run(entry, STACK_TOP);
+    printf("\n[boot] ppu_run returned %d (entry function unwound)\n", rc);
+    // Closing the window or ending the guest terminates the whole runner.
+    std::exit(g_sys_process_exit_called ? static_cast<int>(g_sys_process_exit_code) : 0);
+}
+#endif
 #ifdef __ANDROID__
 extern "C" int buzz_android_apply_diagnostic_affinity();
 extern "C" void buzz_android_apply_cpu_policy();
@@ -1074,13 +1093,23 @@ int main(int argc, char** argv)
     /* Install the guest-callback hook, then start the frame clock. It no-ops
      * until the title registers its vblank and flip handlers during init. */
     g_ps3_guest_caller = harness_guest_caller;
+#ifndef __APPLE__
     CreateThread(NULL, 4u * 1024 * 1024, frame_clock, NULL, 0, NULL);
+#endif
 
     printf("\n[boot] dispatching entry OPD 0x%08X (stack top 0x%08X)\n\n",
            entry, STACK_TOP);
     fflush(stdout);
     fflush(stderr);
 
+#ifdef __APPLE__
+    // AppKit requires the window creation and event pump on the main thread.
+    if (!CreateThread(NULL, 8u * 1024 * 1024, run_macos_guest, &entry, 0, NULL)) {
+        fprintf(stderr, "Cannot start the guest thread.\n");
+        return 1;
+    }
+    return frame_clock(nullptr);
+#else
 #ifdef _WIN32
     ps3_sampler_start(); /* opt-in PS3_SAMPLE; includes lifted SPU host map */
 #endif
@@ -1093,4 +1122,5 @@ int main(int argc, char** argv)
      * one. Returning a hardcoded 0 would report success for a run that never
      * got anywhere. */
     return g_sys_process_exit_called ? (int)g_sys_process_exit_code : 0;
+#endif
 }

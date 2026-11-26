@@ -27,7 +27,7 @@ extern PPU_THREAD_LOCAL void (*g_trampoline_fn)(void*);
 #ifdef BUZZ_EXPERIMENTAL_VULKAN
 void rsx_vulkan_set_key_handler(void (*)(uint32_t,int));
 #define buzz_set_host_key_handler rsx_vulkan_set_key_handler
-#else
+#elif defined(_WIN32)
 void rsx_d3d12_set_key_handler(void (*)(uint32_t,int));
 #define buzz_set_host_key_handler rsx_d3d12_set_key_handler
 #endif
@@ -334,6 +334,8 @@ void buzz_register_virtual_buzzer()
     };
     for (const auto& h:hooks) ps3_hle_register_ctx(h.nid,h.name,h.fn);
     fprintf(stderr,"[buzzer] virtual USB 054C:1000 enabled, %u receiver(s); mapping via input router\n",receiver_count);
+#ifdef buzz_set_host_key_handler
     buzz_set_host_key_handler(buzz_input_key);
+#endif
     std::thread(worker).detach();
 }
