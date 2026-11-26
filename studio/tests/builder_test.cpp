@@ -918,7 +918,7 @@ class BuilderTest final : public QObject {
         QCOMPARE(reloaded.title, QString("Wizarding quiz"));
         reloaded.switchLanguage("pl");
         QCOMPARE(reloaded.title, QString::fromUtf8("Quiz czarodziejów"));
-        QVERIFY_THROWS_EXCEPTION(std::runtime_error, studio::serialize(doc, {}, true));
+        QVERIFY_EXCEPTION_THROWN(studio::serialize(doc, {}, true), std::runtime_error);
 
         const auto built = studio::buildPack(req);
         QVERIFY2(built.ok(), qPrintable(built.error));
