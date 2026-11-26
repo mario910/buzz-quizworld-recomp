@@ -174,9 +174,39 @@
             <translation>Skipped %1 questions with picture answers, multiple correct answers or a different answer count. This editor supports one correct answer out of four text answers.</translation>
         </message>
         <message>
-            <location filename="../src/buzz_import.cpp" line="376" />
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>%1 questions contain SDI/RSF media. Their references were preserved; previewing them requires separate conversion.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Invalid SDI picture sheet.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Invalid SDI picture index.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>SDI picture decoding timed out.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>SDI decoded frame count does not match its index.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Question picture sheet not found.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Imported pictures for %1 questions.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>%1 questions still reference media that were not imported (e.g. clips, music, or missing pictures).</translation>
         </message>
         <message>
             <location filename="../src/buzz_import.cpp" line="382" />
@@ -375,6 +405,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>Imported RSV pictures for %1 questions.</translation>
+        </message>
         <message>
             <location filename="../src/legacy_import.cpp" />
             <source>Muzyka</source>
@@ -758,8 +793,13 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Decode PS2 media</translation>
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Decode source media</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Decode all clips</translation>
         </message>
         <message>
             <location filename="../src/main_window.cpp" />
@@ -2132,11 +2172,6 @@ Projects link to media files. App-side pack building and portable archives are l
             <translation>Build cancelled.</translation>
         </message>
         <message>
-            <location filename="../src/pack_media.cpp" line="24" />
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>FFmpeg was not found. Choose the media engine in the build settings.</translation>
-        </message>
-        <message>
             <location filename="../src/pack_media.cpp" line="39" />
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>The media engine exceeded its time limit or the 10-minute audio limit.</translation>
@@ -2458,20 +2493,50 @@ Projects link to media files. App-side pack building and portable archives are l
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>Decoding PS2 media…</translation>
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>Decoding source media…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>Could not decode PS2 media.</translation>
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Could not decode the source media.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>PS2 picture decoded.</translation>
+            <source>Obraz zdekodowany.</source>
+            <translation>Picture decoded.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>PS2 video decoded.</translation>
+            <source>Film zdekodowany.</source>
+            <translation>Video decoded.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Decode all clips</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>No clips are waiting to be decoded.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>Decoding clips…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Cancelled. Attached a video to %1 questions.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Attached a video to %1 questions. Failed clips: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>Could not decode %1 clips.&#10;&#10;%2</translation>
         </message>
         <message>
             <location filename="../src/controller.cpp" />
@@ -2852,6 +2917,14 @@ Built file: </translation>
             <location filename="../src/project_media.cpp" />
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>The project was unpacked into folder %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>Media decoding requires FFmpeg. Install it and add it to PATH, or select its executable in the build settings: Media engine (FFmpeg).</translation>
         </message>
     </context>
 </TS>

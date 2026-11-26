@@ -1,7 +1,10 @@
 #include "controller.h"
+#include "pack_codec.h"
+#include "media_tools.h"
 #include "tts.h"
 #include <QAbstractItemModelTester>
 #include <QFile>
+#include <QJsonArray>
 #include <QSemaphore>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -48,6 +51,79 @@ class ControllerTest final : public QObject {
         QVERIFY(result.ok());
         QCOMPARE(result.document.questions.size(), 6);
         QCOMPARE(result.document.questions[1].correct, 2);
+    }
+    void decodesAllClipsOnceAndUndoesAttachments() {
+        const auto ffmpeg = studio::configuredMediaFfmpeg();
+        if (ffmpeg.isEmpty())
+            QSKIP("FFmpeg not installed.");
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto mpeg = temp.filePath("sample.mpg");
+        studio::pack::runMedia(ffmpeg, {"-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x120:rate=25",
+                                  "-f", "lavfi", "-i", "sine=frequency=640", "-t", "0.5",
+                                  "-c:v", "mpeg1video", "-c:a", "mp2", "-f", "mpeg", mpeg}, nullptr);
+        QFile input(mpeg);
+        QVERIFY(input.open(QIODevice::ReadOnly));
+        QByteArray movie(2048, '\0');
+        movie.replace(64, 8, "SDIVIDEO");
+        movie += input.readAll();
+        studio::pack::patch(movie, 40, 2048, 4, true);
+        studio::pack::patch(movie, 48, movie.size(), 4, true);
+        const auto pak = temp.filePath("test.pak");
+        const QString entry = "ENG/QUESTIONASSETS/VIDEO/1000123.sdi";
+        studio::pack::writeArchive(pak, {{entry, movie}});
+        const auto file = temp.filePath("test.buzz.json");
+        studio::Document doc;
+        doc.title = "Clip batch";
+        doc.language = "en";
+        for (int i = 0; i < 3; ++i) {
+            auto q = studio::newQuestion();
+            q.id = QString::number(i);
+            q.language = "en";
+            q.text = QString("Question %1?").arg(i);
+            q.answers = QStringList{"A", "B", "C", "D"};
+            auto localized = q.localized();
+            localized["source_media"] = QJsonArray{QJsonObject{{"type", 2}, {"entry", entry}, {"archive", pak}}};
+            q.translations["en"] = localized;
+            if (i == 2)
+                q.video = mpeg;
+            doc.questions << q;
+        }
+        QString error;
+        QVERIFY2(studio::saveDocument(doc, file, &error), qPrintable(error));
+        StudioController c;
+        c.openFile(QUrl::fromLocalFile(file));
+        QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
+        QSignalSpy progress(&c, &StudioController::clipProgress);
+        QSignalSpy failures(&c, &StudioController::errorOccurred);
+        QVERIFY(c.decodeAllSourceClips());
+        QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 20000);
+        QCOMPARE(failures.size(), 0);
+        QCOMPARE(progress.size(), 1);
+        c.select("0");
+        const auto decoded = c.current()["video"].toString();
+        QVERIFY(QFileInfo::exists(decoded));
+        c.select("1");
+        QCOMPARE(c.current()["video"].toString(), decoded);
+        c.select("2");
+        QCOMPARE(c.current()["video"].toString(), mpeg);
+        QVERIFY(!c.decodeAllSourceClips());
+        c.undo();
+        c.select("0");
+        QVERIFY(c.current()["video"].toString().isEmpty());
+        c.select("2");
+        QCOMPARE(c.current()["video"].toString(), mpeg);
+        // Cancel at the start signal, before the worker is scheduled.
+        connect(&c, &StudioController::busyChanged, &c, [&c] {
+            if (c.clipActive())
+                c.cancelSourceClips();
+        });
+        QVERIFY(c.decodeAllSourceClips());
+        QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
+        QCOMPARE(failures.size(), 0);
+        QCOMPARE(progress.size(), 1);
+        c.select("0");
+        QVERIFY(c.current()["video"].toString().isEmpty());
     }
     void customCategoriesAreEditedRemovedAndUndone() {
         StudioController c;

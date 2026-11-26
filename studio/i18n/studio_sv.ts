@@ -140,8 +140,39 @@
             <translation>Hoppade över %1 frågor med bildsvar, flera rätta svar eller ett annat antal svar. Den här redigeraren stöder ett rätt svar av fyra textsvar.</translation>
         </message>
         <message>
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>%1 frågor innehåller SDI/RSF-media. Referenserna har bevarats; för att förhandsgranska dem krävs separat konvertering.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Ogiltigt SDI-bildark.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Ogiltigt SDI-bildindex.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>Tidsgränsen för avkodning av SDI-bilder överskreds.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>Antalet avkodade SDI-bildrutor stämmer inte med indexet.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Bildarket för frågorna hittades inte.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Bilder importerades för %1 frågor.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>%1 frågor hänvisar fortfarande till media som inte importerats (t.ex. klipp, musik eller saknade bilder).</translation>
         </message>
         <message>
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
@@ -304,6 +335,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>RSV-bilder importerades för %1 frågor.</translation>
+        </message>
         <message>
             <source>Muzyka</source>
             <translation>Musik</translation>
@@ -613,8 +649,14 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Avkoda PS2-media</translation>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Avkoda källmedia</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Avkoda alla klipp</translation>
         </message>
         <message>
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
@@ -1718,10 +1760,6 @@ Projekt länkar till mediefiler. Paketbygge i programmet och portabla arkiv komm
             <translation>Bygget avbröts.</translation>
         </message>
         <message>
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>FFmpeg hittades inte. Välj mediemotor i bygginställningarna.</translation>
-        </message>
-        <message>
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>Mediemotorn överskred sin tidsgräns eller ljudgränsen på 10 minuter.</translation>
         </message>
@@ -1975,20 +2013,54 @@ Projekt länkar till mediefiler. Paketbygge i programmet och portabla arkiv komm
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>Avkodar PS2-media…</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>Avkodar källmedia…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>Det gick inte att avkoda PS2-media.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Det gick inte att avkoda källmedierna.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>PS2-bilden avkodades.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Obraz zdekodowany.</source>
+            <translation>Bilden har avkodats.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>PS2-videon avkodades.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Film zdekodowany.</source>
+            <translation>Videon har avkodats.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Avkoda alla klipp</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>Inga klipp väntar på avkodning.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>Avkodar klipp…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Avbrutet. Video bifogades till %1 frågor.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Video bifogades till %1 frågor. Misslyckade klipp: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>Det gick inte att avkoda %1 klipp.&#10;&#10;%2</translation>
         </message>
         <message>
             <source>Projekt zapisany · brakuje %1 plików mediów</source>
@@ -2295,6 +2367,14 @@ Byggd fil: </translation>
         <message>
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>Projektet packades upp i mappen %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>FFmpeg krävs för att avkoda media. Installera det och lägg till det i PATH, eller välj den körbara filen i bygginställningarna: Mediemotor (FFmpeg).</translation>
         </message>
     </context>
 </TS>

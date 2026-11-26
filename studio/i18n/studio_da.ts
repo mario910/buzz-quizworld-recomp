@@ -140,8 +140,39 @@
             <translation>Sprang %1 spørgsmål over med billedsvar, flere rigtige svar eller et andet antal svar. Denne editor understøtter ét rigtigt svar ud af fire tekstsvar.</translation>
         </message>
         <message>
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>%1 spørgsmål indeholder SDI/RSF-medier. Deres referencer er bevaret; forhåndsvisning kræver separat konvertering.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Ugyldigt SDI-billedark.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Ugyldigt SDI-billedindeks.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>Tidsgrænsen for afkodning af SDI-billeder blev overskredet.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>Antallet af afkodede SDI-billeder svarer ikke til indekset.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Billedarket til spørgsmålene blev ikke fundet.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Der blev importeret billeder til %1 spørgsmål.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>%1 spørgsmål henviser stadig til medier, der ikke er importeret (f.eks. klip, musik eller manglende billeder).</translation>
         </message>
         <message>
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
@@ -304,6 +335,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>Der blev importeret RSV-billeder til %1 spørgsmål.</translation>
+        </message>
         <message>
             <source>Muzyka</source>
             <translation>Musik</translation>
@@ -613,8 +649,14 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Afkod PS2-medier</translation>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Afkod kildemedier</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Afkod alle klip</translation>
         </message>
         <message>
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
@@ -1718,10 +1760,6 @@ Projekter linker til mediefiler. Bygning af pakker i programmet og bærbare arki
             <translation>Bygning annulleret.</translation>
         </message>
         <message>
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>FFmpeg blev ikke fundet. Vælg mediemotoren i byggeindstillingerne.</translation>
-        </message>
-        <message>
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>Mediemotoren overskred sin tidsgrænse eller lydgrænsen på 10 minutter.</translation>
         </message>
@@ -1975,20 +2013,54 @@ Projekter linker til mediefiler. Bygning af pakker i programmet og bærbare arki
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>Afkoder PS2-medier…</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>Afkoder kildemedier…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>Kunne ikke afkode PS2-medier.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Kildemedierne kunne ikke afkodes.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>PS2-billede afkodet.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Obraz zdekodowany.</source>
+            <translation>Billedet er afkodet.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>PS2-video afkodet.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Film zdekodowany.</source>
+            <translation>Videoen er afkodet.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Afkod alle klip</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>Ingen klip venter på at blive afkodet.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>Afkoder klip…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Annulleret. Video blev tilføjet til %1 spørgsmål.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Video blev tilføjet til %1 spørgsmål. Klip med fejl: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>%1 klip kunne ikke afkodes.&#10;&#10;%2</translation>
         </message>
         <message>
             <source>Projekt zapisany · brakuje %1 plików mediów</source>
@@ -2295,6 +2367,14 @@ Bygget fil: </translation>
         <message>
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>Projektet blev pakket ud i mappen %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>FFmpeg er påkrævet for at afkode medier. Installér det og føj det til PATH, eller vælg den eksekverbare fil i byggeindstillingerne: Mediemotor (FFmpeg).</translation>
         </message>
     </context>
 </TS>

@@ -2,50 +2,15 @@
 #include "pack_codec.h"
 #include <QCryptographicHash>
 #include <QDir>
-#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QPainter>
-#include <QProcess>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <cmath>
 
 namespace studio::pack {
-void checkCancelled(const std::atomic_bool *cancel) {
-    if (cancel && cancel->load())
-        fail(QCoreApplication::translate("PackBuilder", "Budowanie anulowane."));
-}
-void runMedia(const QString &executable, const QStringList &arguments, const std::atomic_bool *cancel,
-              const QString &limitedOutput) {
-    checkCancelled(cancel);
-    if (executable.isEmpty())
-        fail(QCoreApplication::translate(
-            "PackBuilder", "Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania."));
-    QProcess process;
-    process.start(executable, arguments);
-    if (!process.waitForStarted(5000))
-        fail(process.errorString());
-    QElapsedTimer timer;
-    timer.start();
-    QByteArray errors;
-    while (!process.waitForFinished(100)) {
-        errors = (errors + process.readAllStandardError()).right(8000);
-        if ((cancel && cancel->load()) || timer.elapsed() > 180000 ||
-            (!limitedOutput.isEmpty() && QFileInfo(limitedOutput).size() > 48000ll * 2 * 600)) {
-            process.kill();
-            process.waitForFinished(5000);
-            checkCancelled(cancel);
-            fail(QCoreApplication::translate(
-                "PackBuilder", "Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut)."));
-        }
-    }
-    errors = (errors + process.readAllStandardError()).right(8000);
-    checkCancelled(cancel);
-    if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0)
-        fail(QCoreApplication::translate("PackBuilder", "FFmpeg: ") + QString::fromUtf8(errors));
-}
 namespace {
 QByteArray readFile(const QString &path) {
     QFile file(path);
@@ -147,6 +112,8 @@ QByteArray wrapSheet(const QByteArray &source, const QVector<QByteArray> &frames
     const int oldName = packs.indexOf("pics", 4096 + 0x1b0);
     if (oldName >= 4096 + 0x1b0 && oldName < 4096 + 0x1c0)
         packs.replace(oldName, 7, name);
+    patch(header, 40, header.size(), 4, true);
+    patch(header, 44, header.size(), 4, true);
     patch(header, 48, 2048 + packs.size() + video.size(), 4, true);
     patch(header, 52, count, 4, true);
     header.replace(table, 2048 - table, QByteArray(2048 - table, '\0'));

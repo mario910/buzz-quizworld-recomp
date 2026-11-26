@@ -140,8 +140,39 @@
             <translation>Přeskočeno otázek s obrázkovými odpověďmi, více správnými odpověďmi nebo jiným počtem odpovědí: %1. Tento editor podporuje jednu správnou odpověď ze čtyř textových odpovědí.</translation>
         </message>
         <message>
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>Počet otázek s médii SDI/RSF: %1. Jejich odkazy byly zachovány; náhled vyžaduje samostatný převod.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Neplatný arch obrázků SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Neplatný index obrázků SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>Vypršel časový limit dekódování obrázků SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>Počet dekódovaných snímků SDI neodpovídá indexu.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Arch s obrázky k otázkám nebyl nalezen.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Otázky s importovanými obrázky: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>Otázky s odkazy na neimportovaná média (např. klipy, hudbu nebo chybějící obrázky): %1.</translation>
         </message>
         <message>
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
@@ -304,6 +335,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>Otázky s importovanými obrázky RSV: %1.</translation>
+        </message>
         <message>
             <source>Muzyka</source>
             <translation>Hudba</translation>
@@ -613,8 +649,14 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Dekódovat média PS2</translation>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Dekódovat zdrojová média</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Dekódovat všechny klipy</translation>
         </message>
         <message>
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
@@ -1718,10 +1760,6 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
             <translation>Sestavení zrušeno.</translation>
         </message>
         <message>
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>FFmpeg nebyl nalezen. Vyberte mediální modul v nastavení sestavení.</translation>
-        </message>
-        <message>
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>Mediální modul překročil časový limit nebo limit 10 minut zvuku.</translation>
         </message>
@@ -1975,20 +2013,54 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>Dekódování médií PS2…</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>Dekódování zdrojových médií…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>Média PS2 nelze dekódovat.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Zdrojová média se nepodařilo dekódovat.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>Obrázek PS2 dekódován.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Obraz zdekodowany.</source>
+            <translation>Obrázek byl dekódován.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>Video PS2 dekódováno.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Film zdekodowany.</source>
+            <translation>Video bylo dekódováno.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Dekódovat všechny klipy</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>Na dekódování nečekají žádné klipy.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>Dekódování klipů…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Zrušeno. Otázky s přidaným videem: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Otázky s přidaným videem: %1. Klipy s chybou: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>Počet klipů, které se nepodařilo dekódovat: %1.&#10;&#10;%2</translation>
         </message>
         <message>
             <source>Projekt zapisany · brakuje %1 plików mediów</source>
@@ -2295,6 +2367,14 @@ Sestavený soubor: </translation>
         <message>
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>Projekt byl rozbalen do složky %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>K dekódování médií je potřeba FFmpeg. Nainstalujte jej a přidejte do PATH nebo vyberte jeho spustitelný soubor v nastavení sestavení: Mediální modul (FFmpeg).</translation>
         </message>
     </context>
 </TS>

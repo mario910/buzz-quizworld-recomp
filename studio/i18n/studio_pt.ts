@@ -140,8 +140,39 @@
             <translation>Foram ignoradas %1 perguntas com respostas em imagem, várias respostas corretas ou outro número de respostas. Este editor suporta uma resposta correta entre quatro respostas de texto.</translation>
         </message>
         <message>
-            <source>%1 pytań ma media w SDI/RSF. Zachowano ich odwołania; podgląd tych mediów wymaga osobnej konwersji.</source>
-            <translation>%1 perguntas contêm multimédia SDI/RSF. As referências foram mantidas; para as pré-visualizar é necessária uma conversão separada.</translation>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny arkusz obrazków SDI.</source>
+            <translation>Folha de imagens SDI inválida.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Niepoprawny indeks obrazków SDI.</source>
+            <translation>Índice de imagens SDI inválido.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Przekroczono limit czasu dekodowania obrazków SDI.</source>
+            <translation>O tempo limite para descodificar as imagens SDI foi excedido.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Liczba zdekodowanych klatek SDI nie zgadza się z indeksem.</source>
+            <translation>O número de fotogramas SDI descodificados não corresponde ao índice.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Nie znaleziono arkusza obrazków do pytań.</source>
+            <translation>Não foi encontrada a folha de imagens das perguntas.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Zaimportowano obrazki do %1 pytań.</source>
+            <translation>Foram importadas imagens para %1 perguntas.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>%1 pytań nadal odwołuje się do niezaimportowanych mediów (np. filmów, muzyki lub brakujących obrazków).</source>
+            <translation>%1 perguntas ainda fazem referência a ficheiros multimédia não importados (como vídeos, música ou imagens em falta).</translation>
         </message>
         <message>
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
@@ -304,6 +335,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Zaimportowano obrazki RSV do %1 pytań.</source>
+            <translation>Foram importadas imagens RSV para %1 perguntas.</translation>
+        </message>
         <message>
             <source>Muzyka</source>
             <translation>Música</translation>
@@ -613,8 +649,14 @@
     <context>
         <name>Main</name>
         <message>
-            <source>Zdekoduj media PS2</source>
-            <translation>Descodificar multimédia PS2</translation>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj media źródłowe</source>
+            <translation>Descodificar ficheiros multimédia de origem</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Descodificar todos os clips</translation>
         </message>
         <message>
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
@@ -1718,10 +1760,6 @@ Os projetos fazem ligação a ficheiros multimédia. A criação de pacotes na a
             <translation>Criação cancelada.</translation>
         </message>
         <message>
-            <source>Nie znaleziono FFmpeg. Wybierz silnik mediów w ustawieniach budowania.</source>
-            <translation>O FFmpeg não foi encontrado. Escolha o motor multimédia nas definições de criação.</translation>
-        </message>
-        <message>
             <source>Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut).</source>
             <translation>O motor multimédia excedeu o tempo limite ou o limite de áudio de 10 minutos.</translation>
         </message>
@@ -1975,20 +2013,54 @@ Os projetos fazem ligação a ficheiros multimédia. A criação de pacotes na a
     <context>
         <name>StudioController</name>
         <message>
-            <source>Dekodowanie mediów PS2…</source>
-            <translation>A descodificar multimédia PS2…</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie mediów źródłowych…</source>
+            <translation>A descodificar os ficheiros multimédia de origem…</translation>
         </message>
         <message>
-            <source>Nie udało się zdekodować mediów PS2.</source>
-            <translation>Não foi possível descodificar a multimédia PS2.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować mediów źródłowych.</source>
+            <translation>Não foi possível descodificar os ficheiros multimédia de origem.</translation>
         </message>
         <message>
-            <source>Obraz PS2 zdekodowany.</source>
-            <translation>Imagem PS2 descodificada.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Obraz zdekodowany.</source>
+            <translation>Imagem descodificada.</translation>
         </message>
         <message>
-            <source>Film PS2 zdekodowany.</source>
-            <translation>Vídeo PS2 descodificado.</translation>
+            <location filename="../src/controller.cpp" />
+            <source>Film zdekodowany.</source>
+            <translation>Vídeo descodificado.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zdekoduj wszystkie klipy</source>
+            <translation>Descodificar todos os clips</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie ma klipów oczekujących na dekodowanie.</source>
+            <translation>Não há clips à espera de serem descodificados.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Dekodowanie klipów…</source>
+            <translation>A descodificar clips…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Anulowano. Przypisano film do %1 pytań.</source>
+            <translation>Operação cancelada. Foi anexado um vídeo a %1 perguntas.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Przypisano film do %1 pytań. Nieudane klipy: %2.</source>
+            <translation>Foi anexado um vídeo a %1 perguntas. Clips com falhas: %2.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie udało się zdekodować %1 klipów.&#10;&#10;%2</source>
+            <translation>Não foi possível descodificar %1 clips.&#10;&#10;%2</translation>
         </message>
         <message>
             <source>Projekt zapisany · brakuje %1 plików mediów</source>
@@ -2295,6 +2367,14 @@ Ficheiro criado: </translation>
         <message>
             <source>Projekt rozpakowano do folderu %1.</source>
             <translation>O projeto foi descompactado na pasta %1.</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaTools</name>
+        <message>
+            <location filename="../src/media_tools.h" />
+            <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
+            <translation>É necessário o FFmpeg para descodificar ficheiros multimédia. Instale-o e adicione-o ao PATH ou selecione o executável nas definições de compilação: Motor multimédia (FFmpeg).</translation>
         </message>
     </context>
 </TS>

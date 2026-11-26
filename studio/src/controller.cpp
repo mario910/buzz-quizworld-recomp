@@ -1,7 +1,8 @@
 #include "controller.h"
 #include "languages.h"
 #include "ps3_source.h"
-#include "ps2_media.h"
+#include "source_movie.h"
+#include "media_tools.h"
 #include "project_media.h"
 #include "tts.h"
 #include <QCoreApplication>
@@ -306,7 +307,7 @@ QVariantMap StudioController::current() const {
     map["problems"] = q.problems();
     map["sourceLabel"] = displaySource(q.source);
     map["imageUrl"] = q.image.isEmpty() ? QString() : QUrl::fromLocalFile(q.image).toString();
-    map["canDecodePs2Media"] = studio::hasPs2Media(q);
+    map["canDecodeSourceMedia"] = studio::hasSourceQuestionMedia(q);
     return map;
 }
 QVariantList StudioController::projectLanguages() const {
@@ -739,11 +740,15 @@ void StudioController::decodeSourceMedia() {
     if (busy_ || row < 0)
         return;
     const auto q = model_.document.questions[row];
-    if (!studio::hasPs2Media(q))
+    if (!studio::hasSourceQuestionMedia(q))
         return;
-    const auto ffmpeg = studio::localPath(buildSettings().value("ffmpeg").toString());
+    const auto ffmpeg = studio::configuredMediaFfmpeg();
+    if (ffmpeg.isEmpty()) {
+        emit errorOccurred(studio::missingMediaFfmpeg());
+        return;
+    }
     busy_ = true;
-    setStatus(tr("Dekodowanie mediów PS2…"));
+    setStatus(tr("Dekodowanie mediów źródłowych…"));
     emit busyChanged();
     auto *watcher = new QFutureWatcher<studio::Ps2Media>(this);
     connect(watcher, &QFutureWatcher<studio::Ps2Media>::finished, this, [this, watcher, q] {
@@ -752,8 +757,8 @@ void StudioController::decodeSourceMedia() {
         busy_ = false;
         emit busyChanged();
         if (!decoded.error.isEmpty()) {
-            setStatus(tr("Nie udało się zdekodować mediów PS2."));
-            emit errorOccurred(decoded.error);
+            setStatus(tr("Nie udało się zdekodować mediów źródłowych."));
+            emit errorOccurred(tr("Nie udało się zdekodować mediów źródłowych.") + "\n\n" + decoded.error);
             return;
         }
         const auto before = current();
@@ -765,12 +770,134 @@ void StudioController::decodeSourceMedia() {
                 patch["video"] = decoded.video;
             updateCurrent(patch);
         }
-        setStatus(decoded.video.isEmpty() ? tr("Obraz PS2 zdekodowany.") : tr("Film PS2 zdekodowany."));
+        setStatus(decoded.video.isEmpty() ? tr("Obraz zdekodowany.") : tr("Film zdekodowany."));
     });
     watcher->setFuture(QtConcurrent::run([q, ffmpeg] {
-        return studio::decodePs2Media(q, ffmpeg.isEmpty() ? studio::defaultFfmpeg() : ffmpeg);
+        return studio::decodeSourceQuestionMedia(q, ffmpeg);
     }));
 }
+bool StudioController::decodeAllSourceClips() {
+    if (busy_)
+        return false;
+    struct Target {
+        qsizetype row;
+        QString language;
+    };
+    struct Job {
+        studio::Question question;
+        QList<Target> targets;
+    };
+    auto before = model_.document;
+    QMap<QString, Job> jobs;
+    for (qsizetype row = 0; row < before.questions.size(); ++row) {
+        const auto &source = before.questions.at(row);
+        auto languages = source.translations.keys();
+        if (!languages.contains(source.language))
+            languages << source.language;
+        for (const auto &language : languages) {
+            auto q = source;
+            q.switchLanguage(language);
+            if (!q.video.isEmpty())
+                continue;
+            const auto key = studio::sourceQuestionClipKey(q);
+            if (key.isEmpty())
+                continue;
+            auto i = jobs.find(key);
+            if (i == jobs.end())
+                i = jobs.insert(key, Job{std::move(q), {}});
+            i->targets << Target{row, language};
+        }
+    }
+    if (jobs.isEmpty()) {
+        setStatus(tr("Nie ma klipów oczekujących na dekodowanie."));
+        return false;
+    }
+    const auto ffmpeg = studio::configuredMediaFfmpeg();
+    if (ffmpeg.isEmpty()) {
+        emit errorOccurred(studio::missingMediaFfmpeg());
+        return false;
+    }
+    struct Result {
+        studio::Document after;
+        QStringList errors;
+        int decoded = 0, failed = 0;
+    };
+    const auto cancel = clipCancel_ = std::make_shared<std::atomic_bool>(false);
+    clipPercent_ = 0;
+    const auto dispatcher = QCoreApplication::instance();
+    const QPointer<StudioController> guard(this);
+    const auto total = int(jobs.size());
+    busy_ = true;
+    setStatus(tr("Dekodowanie klipów…"));
+    emit busyChanged();
+    auto *watcher = new QFutureWatcher<Result>(this);
+    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, before, cancel] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+        clipCancel_.reset();
+        if (result.decoded) {
+            const auto after = result.after;
+            history_.push(new Command(tr("Zdekoduj wszystkie klipy"), [this, before, after](bool forward) {
+                model_.reset(forward ? after : before);
+                notifyContent();
+            }));
+        }
+        busy_ = false;
+        emit busyChanged();
+        emit clipBatchFinished();
+        setStatus((cancel->load() ? tr("Anulowano. Przypisano film do %1 pytań.")
+                                 : tr("Przypisano film do %1 pytań. Nieudane klipy: %2."))
+                      .arg(result.decoded).arg(result.failed));
+        if (result.failed)
+            emit errorOccurred(tr("Nie udało się zdekodować %1 klipów.\n\n%2")
+                                   .arg(result.failed).arg(result.errors.join("\n\n")));
+    });
+    watcher->setFuture(QtConcurrent::run([before, jobs, ffmpeg, cancel, guard, dispatcher, total] {
+        Result result;
+        result.after = before;
+        int done = 0;
+        for (const auto &job : jobs) {
+            if (cancel->load())
+                break;
+            const auto media = studio::decodeSourceQuestionMedia(job.question, ffmpeg, cancel.get());
+            if (cancel->load())
+                break;
+            if (media.video.isEmpty()) {
+                ++result.failed;
+                if (result.errors.size() < 5)
+                    result.errors << job.question.text + ": " + media.error.left(300);
+            } else {
+                for (const auto &target : job.targets) {
+                    auto &q = result.after.questions[target.row];
+                    const auto active = q.language;
+                    q.switchLanguage(target.language);
+                    q.video = media.video;
+                    if (q.image.isEmpty())
+                        q.image = media.image;
+                    q.translations[q.language] = q.localized();
+                    q.switchLanguage(active);
+                    ++result.decoded;
+                }
+            }
+            QMetaObject::invokeMethod(dispatcher, [guard, cancel, done = ++done, total] {
+                if (guard && guard->clipCancel_ == cancel) {
+                    guard->clipPercent_ = int(100ll * done / total);
+                    emit guard->clipProgress(done, total);
+                }
+            }, Qt::QueuedConnection);
+        }
+        return result;
+    }));
+    return true;
+}
+
+void StudioController::cancelSourceClips() {
+    if (clipCancel_) {
+        clipCancel_->store(true);
+        setStatus(tr("Anulowanie…"));
+    }
+}
+
 QVariantList StudioController::ttsVoices() const {
     if (!voicesLoaded_) {
         cachedVoices_ = studio::speechVoices();

@@ -125,6 +125,10 @@ class StudioController final : public QObject {
     Q_INVOKABLE void openAudio();
     Q_INVOKABLE void openVideo();
     Q_INVOKABLE void decodeSourceMedia();
+    bool decodeAllSourceClips();
+    void cancelSourceClips();
+    bool clipActive() const { return bool(clipCancel_); }
+    int clipPercent() const { return clipPercent_; }
     Q_INVOKABLE void generateAudio(const QUrl &destination, const QString &text, const QString &voice,
                                    int rate);
     Q_INVOKABLE void recover();
@@ -135,6 +139,8 @@ class StudioController final : public QObject {
     void selectionChanged();
     void filterChanged();
     void statusChanged();
+    void clipProgress(int done, int total);
+    void clipBatchFinished();
     void historyChanged();
     void busyChanged();
     void errorOccurred(const QString &message);
@@ -156,6 +162,8 @@ class StudioController final : public QObject {
     mutable QVariantList cachedVoices_;
     mutable bool voicesLoaded_ = false;
     std::shared_ptr<std::atomic_bool> buildCancel_;
+    std::shared_ptr<std::atomic_bool> clipCancel_;
+    int clipPercent_ = 0;
     int buildProgress_ = 0;
     QVariantMap lastBuild_;
     void

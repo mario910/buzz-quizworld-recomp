@@ -3,6 +3,7 @@
 #include "legacy_import.h"
 #include "pack_builder.h"
 #include "ps3_source.h"
+#include "source_movie.h"
 #include "project_media.h"
 #include "ps4_pkg.h"
 #include "languages.h"
@@ -1164,6 +1165,59 @@ class BuilderTest final : public QObject {
         QCOMPARE(reference[0].toObject()["type"].toInt(), 2);
         QCOMPARE(reference[0].toObject()["slot"].toInt(), 0);
         QCOMPARE(reference[0].toObject()["asset"].toInt(), FirstMovieAsset + 2 * MovieAssetsPerPack);
+        QVERIFY(studio::hasSourceQuestionMedia(*importedMovie));
+        QVERIFY(!studio::sourceQuestionClipKey(*importedMovie).isEmpty());
+        const auto decoded = studio::decodeSourceQuestionMedia(*importedMovie, ffmpeg);
+        QVERIFY2(decoded.error.isEmpty(), qPrintable(decoded.error));
+        const QImage poster(decoded.image);
+        QCOMPARE(poster.size(), QSize(640, 360));
+        const auto converted = temp.filePath("converted.pcm");
+        runMedia(ffmpeg, {"-v", "error", "-xerror", "-y", "-i", decoded.video, "-map", "0:a:0",
+                          "-f", "s16le", converted, "-map", "0:v:0", "-f", "null", "-"}, nullptr);
+        const auto sound = bytes(converted);
+        QVERIFY(sound.size() > 180000);
+        QVERIFY(std::any_of(sound.cbegin(), sound.cend(), [](char v) { return v != 0; }));
+    }
+    void hollywoodMapsPicturesByQuestion() {
+        QTemporaryDir temp;
+        const auto path = temp.filePath("POLROUND.PAK");
+        const QByteArray adt = "Id\tResource\tQuestion\tRight Answer\tWrong Answer\tWrong Answer\tWrong Answer\n"
+                               "71\t123\tPierwsze pytanie?\tA\tB\tC\tD\n"
+                               "72\t123\tDrugie pytanie?\tA\tB\tC\tD\n"
+                               "73\t456\tTrzecie pytanie?\tA\tB\tC\tD\n";
+        constexpr int table = 0x17c, media = table + 24, questions = media + 60, links = questions + 108;
+        QByteArray qak(links + 12, '\0');
+        patch(qak, 0, 0xfffe, 2);
+        patch(qak, 4, 1000, 4);
+        patch(qak, 8, 3, 4);
+        patch(qak, 12, table, 4);
+        for (int i = 0; i < 3; ++i) {
+            patch(qak, table + i * 8, i == 0 ? media : i == 1 ? questions : links, 4);
+            patch(qak, table + i * 8 + 4, (i << 16) | 3, 4);
+            patch(qak, media + i * 20 + 4, i == 2 ? 456 : 123, 4);
+            patch(qak, media + i * 20 + 14, i == 2 ? 0 : i + 7, 2);
+            qak[media + i * 20 + 16] = i == 2 ? 2 : 3;
+            patch(qak, questions + i * 36, 71 + i, 4);
+            patch(qak, questions + i * 36 + 12, 2 - i, 2);
+            patch(qak, links + (2 - i) * 4, i, 2);
+        }
+        writeArchive(path, {{"BHW/SK_POL/Rounds/POL/quickfire.adt", adt},
+                            {"BHW/SK_POL/Rounds/POL/quickfire.qak", qak}});
+        const auto result = studio::importLegacy(path, "pl");
+        QVERIFY2(result.ok(), qPrintable(result.error));
+        QCOMPARE(result.document.questions.size(), 3);
+        for (int i = 0; i < 3; ++i) {
+            const auto ref = result.document.questions[i].extra["source_media"].toArray()[0].toObject();
+            if (i < 2) {
+                QCOMPARE(ref["type"].toString(), QString("ps2-picture"));
+                QCOMPARE(ref["frame"].toInt(), i + 7);
+                QCOMPARE(ref["container"].toString(), QString("BHW/SK_POL/VIDEOS.PAK:Videos/pics001.rsv"));
+            } else {
+                QCOMPARE(ref["type"].toString(), QString("ps2-video"));
+                QCOMPARE(ref["container"].toString(), QString("BHW/SK_POL/VIDEOS.PAK:Videos/1000456.rsv"));
+                QVERIFY(!ref.contains("frame"));
+            }
+        }
     }
     void buildsAndDecodesPicturesAndSpeech() {
         const auto ffmpeg = studio::defaultFfmpeg();
@@ -1251,6 +1305,16 @@ class BuilderTest final : public QObject {
         QCOMPARE(
             imported.document.questions[0].extra["source_media"].toArray()[0].toObject()["aspect"].toInt(),
             4);
+        QVERIFY(imported.document.questions[0].image.isEmpty());
+        const auto withMedia = studio::importBuzz(built.path, "en");
+        const auto warnings = withMedia.warnings.join('\n');
+        QVERIFY2(withMedia.ok(), qPrintable(withMedia.error));
+        QCOMPARE(withMedia.document.questions.size(), 1);
+        const auto &question = withMedia.document.questions[0];
+        QVERIFY2(!question.image.isEmpty(), qPrintable(warnings));
+        QCOMPARE(question.translations["en"].toObject()["image"].toString(), question.image);
+        QCOMPARE(question.extra["source_media"], imported.document.questions[0].extra["source_media"]);
+        QCOMPARE(QImage(question.image), frame);
     }
 };
 QTEST_GUILESS_MAIN(BuilderTest)
