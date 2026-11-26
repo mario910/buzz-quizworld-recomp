@@ -28,7 +28,8 @@ colours and controls as BuzzSetup.
   Includes translated controls, validation, status messages and import errors.
 - Category/text/media filters and a virtualized list.
 - Create, edit, duplicate and delete questions; choose the correct answer and
-  difficulty; map questions to Quiz World subjects/subcategories.
+  difficulty; map questions to Quiz World subjects/subcategories or to the
+  project's own (see [Custom categories](#custom-categories)).
 - Question preview with four coloured answers and aspect-preserving images.
 - Attach images and audio files. Audio opens in the system's associated player;
   this is not yet an internal RSF/WEM player.
@@ -146,6 +147,25 @@ and keeps backups under `runtime/pack-backups/<title>/PACKnnnn/`. Cancelling a
 replacement leaves the prior installed file intact. Builds use a document snapshot;
 edits made while building belong to the next build. Building does not save the project.
 
+## Custom categories
+
+**… → Kategorie paczki…** (or **Własne kategorie…** next to the category picker)
+creates the project's own subjects, such as "Harry Potter" or "Christmas", each
+with one or more subcategories. Every category has a name per project language,
+up to 40 characters. Own subjects appear after the Quiz World ones in the
+question's category picker. Removing a subject leaves its questions without a
+category; the change can be undone.
+
+When building, each own subject becomes a subject of the pack with its own round
+file, next to any Quiz World subjects the pack uses. Its name goes into the
+pack's NAMEDTEXT under a pack-specific `CAT_PK<number>_OWN<n>` key, which the
+category chooser displays. Internal names are `p<number>_OwnA`, `p<number>_OwnB`, …
+A language without a name for a used category stops that language's build with a
+clear message. Own and Quiz World categories share the pack's limit of 99
+categories in the category base range. Own categories have not yet been checked
+in the game's category chooser with players; the buzzpack JSON export refuses
+them.
+
 ## Project format
 
 Save projects as `name.buzz.json`. The root has `format: "buzz-question-studio"`,
@@ -153,6 +173,12 @@ Save projects as `name.buzz.json`. The root has `format: "buzz-question-studio"`
 Each question keeps its stable id, four
 answers in editor order, explicit zero-based `correct_index`, and unknown source
 metadata. Legacy JSON without `correct_index` defaults to answer zero.
+
+`pack.categories` (optional) lists the custom categories as `{id, parent, names}`:
+ids from 10001, `parent` 0 for a subject or the id of one of the project's
+subjects, and `names` keyed by language code. Questions refer to them through
+`subject`/`category` like Quiz World ids. `pack.titles`/`pack.descriptions`
+(optional) hold per-language titles; `pack.title` is the active language's.
 
 `pack.language` selects the currently edited language; `pack.languages` lists
 the project's languages. Each question's `translations` object is keyed by
@@ -167,7 +193,9 @@ switch the edited version or add a language. Common language choices are supplie
 other language/region codes, such as `en-GB`, can be entered. Adding a new project
 language creates empty drafts for authoring; importing sources skips questions
 without the selected language. Neither operation substitutes another language. Switching
-content language is undoable. Category mappings and the project title are shared.
+content language is undoable. Category mappings are shared; the pack title (and
+description) is kept per language: renaming changes the edited language's title,
+and a language without its own title uses the current one until renamed.
 The interface language does not translate authored questions or change their data.
 
 For Buzz archives, only the selected language is read; import the archive again
@@ -274,7 +302,8 @@ add `--language en` to select a source language.
 `--demo --tts --screenshot <png>` captures the local voice-generation dialog.
 `--ui-language en` sets a session-only interface override without changing the
 saved preference. `--show-languages` opens the content-language dialog for capture.
-`--show-build` opens the build dialog for capture.
+`--show-build` opens the build dialog for capture; `--show-categories` opens the
+custom-category dialog after `--open` has loaded the project.
 `--game-dir <folder>` names a prepared game folder (the one containing `runtime/`);
 BuzzSetup passes it so build/install suggestions use that copy.
 
@@ -301,7 +330,8 @@ completion, or use `Start-Process -Wait` with redirected output.
 3. Additional TTS adapters (Piper and HTTP services), internal audio playback,
    batch generation and a generated-audio cache. `src/tts.h` is the provider
    boundary; the first local Windows/Linux adapters already produce WAV.
-4. Larger-library tooling, category authoring, additional interface translations
+4. Larger-library tooling, an in-game check of custom categories with players,
+   additional interface translations
    and broader Linux desktop coverage.
 
 Preserve the v7 pack rules: global category ids 1..999, disjoint installed-pack

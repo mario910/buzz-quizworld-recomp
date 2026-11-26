@@ -49,6 +49,32 @@ class ControllerTest final : public QObject {
         QCOMPARE(result.document.questions.size(), 6);
         QCOMPARE(result.document.questions[1].correct, 2);
     }
+    void customCategoriesAreEditedRemovedAndUndone() {
+        StudioController c;
+        c.newProject(true);
+        const int subject = c.addPackSubject({{"pl", QString::fromUtf8("Święta")}});
+        QVERIFY(subject >= 10001);
+        auto list = c.packCategories();
+        QCOMPARE(list.size(), 2);
+        const int sub = list[1].toMap()["id"].toInt();
+        QCOMPARE(list[1].toMap()["parent"].toInt(), subject);
+        c.updateCurrent({{"subject", subject}, {"category", sub}});
+        QCOMPARE(c.current()["category"].toInt(), sub);
+        // Renaming shows the new name on the question.
+        list[0] = QVariantMap{{"id", subject}, {"parent", 0}, {"names", QVariantMap{{"pl", "Boże Narodzenie"}}}};
+        c.setPackCategories(list);
+        QCOMPARE(c.current()["category_name"].toString(), QString("Boże Narodzenie"));
+        // Removing the subject unmaps its questions; undo brings both back.
+        c.setPackCategories({});
+        QCOMPARE(c.current()["subject"].toInt(), 0);
+        QVERIFY(c.packCategories().isEmpty());
+        c.undo();
+        QCOMPARE(c.current()["subject"].toInt(), subject);
+        QCOMPARE(c.packCategories().size(), 2);
+        // A subcategory without its subject is refused.
+        c.setPackCategories({QVariantMap{{"id", 10050}, {"parent", 10049}, {"names", QVariantMap{{"pl", "x"}}}}});
+        QCOMPARE(c.packCategories().size(), 2);
+    }
     void failedImportPreservesUnsavedWork() {
         StudioController c;
         c.newProject(true);

@@ -39,6 +39,7 @@
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QTimer>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <iterator>
 
@@ -104,6 +105,19 @@ void restyle(QWidget *w) {
     w->style()->polish(w);
 }
 QString fileName(const QString &path) { return QFileInfo(path).fileName(); }
+
+// Category names fit the game's chooser: at most 40 characters.
+class LimitedTextDelegate final : public QStyledItemDelegate {
+  public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
+                          const QModelIndex &index) const override {
+        auto *editor = QStyledItemDelegate::createEditor(parent, option, index);
+        if (auto *line = qobject_cast<QLineEdit *>(editor))
+            line->setMaxLength(40);
+        return editor;
+    }
+};
 
 // Question cards in the library list.
 class QuestionDelegate final : public QStyledItemDelegate {
@@ -444,6 +458,7 @@ QWidget *MainWindow::buildHeader() {
         connect(item, &QAction::triggered, this, [this, code = QString(code)] { i18n.setLanguage(code); });
     }
     menu->addAction(T("Języki paczki…"), this, &MainWindow::openProjectLanguages);
+    menu->addAction(T("Kategorie paczki…"), this, &MainWindow::openPackCategories);
     menu->addSeparator();
     menu->addAction(T("Nowa paczka"), this, [this] { guard([this] { studio.newProject(); }); });
     menu->addAction(T("Zapisz jako…"), this, [this] { saveAs(); });
@@ -716,15 +731,27 @@ QWidget *MainWindow::buildEditor() {
     form->addWidget(questionText);
     auto *categoriesRow = new QGridLayout;
     categoriesRow->setHorizontalSpacing(14);
-    categoriesRow->addWidget(label(T("KATEGORIA QUIZ WORLD"), "caption"), 0, 0);
+    auto *categoryHead = new QHBoxLayout;
+    categoryHead->addWidget(label(T("KATEGORIA"), "caption"), 1);
+    auto *ownCategories = button(T("Własne kategorie…"));
+    ownCategories->setObjectName("ownCategoriesButton");
+    connect(ownCategories, &QPushButton::clicked, this, &MainWindow::openPackCategories);
+    categoryHead->addWidget(ownCategories);
+    categoriesRow->addLayout(categoryHead, 0, 0);
     categoriesRow->addWidget(label(T("TRUDNOŚĆ"), "caption"), 0, 1);
     subjectCombo = new QComboBox;
     subjectCombo->setObjectName("subjectCombo");
-    for (const auto &s : subjects)
-        subjectCombo->addItem(T(s.name), s.id);
     connect(subjectCombo, &QComboBox::activated, this, [this](int i) {
-        const auto &s = subjects[i];
-        studio.updateCurrent({{"subject", s.id}, {"category", s.sub}, {"category_name", T(s.name)}});
+        const int id = subjectCombo->itemData(i).toInt();
+        int sub = 0;
+        for (const auto &s : subjects)
+            if (s.id == id)
+                sub = s.sub;
+        for (const auto &value : studio.packCategories())
+            if (!sub && value.toMap()["parent"].toInt() == id)
+                sub = value.toMap()["id"].toInt();
+        if (id)
+            studio.updateCurrent({{"subject", id}, {"category", sub}, {"category_name", subjectCombo->itemText(i)}});
     });
     difficultyCombo = new QComboBox;
     difficultyCombo->addItems({T("Łatwe"), T("Średnie"), T("Trudne")});
@@ -1052,10 +1079,22 @@ void MainWindow::refreshSelection() {
         answerRows[i]->setProperty("correct", correct);
         restyle(answerRows[i]);
     }
-    int subject = -1;
-    for (int i = 0; i < int(std::size(subjects)); ++i)
-        if (subjects[i].id == q["subject"].toInt())
-            subject = i;
+    // Quiz World subjects, then the project's own.
+    const auto own = studio.packCategories();
+    subjectCombo->clear();
+    for (const auto &s : subjects)
+        subjectCombo->addItem(T(s.name), s.id);
+    bool separated = false;
+    for (const auto &value : own) {
+        const auto c = value.toMap();
+        if (c["parent"].toInt())
+            continue;
+        if (!separated)
+            subjectCombo->insertSeparator(subjectCombo->count());
+        separated = true;
+        subjectCombo->addItem(c["name"].toString(), c["id"]);
+    }
+    const int subject = q["subject"].toInt() ? subjectCombo->findData(q["subject"].toInt()) : -1;
     subjectCombo->setCurrentIndex(subject);
     if (subject < 0)
         subjectCombo->setPlaceholderText(q["category_name"].toString().isEmpty() ? T("Wybierz kategorię")
@@ -1064,6 +1103,9 @@ void MainWindow::refreshSelection() {
     subCombo->clear();
     for (const auto &[id, name] : subcategories(q["subject"].toInt()))
         subCombo->addItem(T(name), id);
+    for (const auto &value : own)
+        if (q["subject"].toInt() && value.toMap()["parent"].toInt() == q["subject"].toInt())
+            subCombo->addItem(value.toMap()["name"].toString(), value.toMap()["id"]);
     subCombo->setPlaceholderText(T("Zachowaj kategorię źródłową"));
     subCombo->setCurrentIndex(subCombo->findData(q["category"].toInt()));
     const auto problems = q["problems"].toStringList();
@@ -1245,7 +1287,10 @@ void MainWindow::showAbout() {
 void MainWindow::renamePack() {
     bool ok = false;
     const auto name =
-        QInputDialog::getText(this, T("Nazwa paczki"), T("Nazwa paczki"), QLineEdit::Normal, studio.packTitle(), &ok);
+        QInputDialog::getText(this, T("Nazwa paczki"),
+                              T("Nazwa paczki w wersji %1 (każdy język ma własną):")
+                                  .arg(languageLabel(studio.packLanguage())),
+                              QLineEdit::Normal, studio.packTitle(), &ok);
     if (ok && !name.trimmed().isEmpty())
         studio.setPackTitle(name.trimmed());
 }
@@ -1374,6 +1419,156 @@ void MainWindow::openProjectLanguages() {
     buttons->addButton(T("Zamknij"), QDialogButtonBox::AcceptRole);
     connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
     col->addWidget(buttons);
+    showDialog(dialog);
+}
+
+QString MainWindow::languageLabel(const QString &code) const {
+    for (const auto &value : studio.projectLanguages())
+        if (value.toMap()["code"].toString() == code)
+            return value.toMap()["name"].toString();
+    return code;
+}
+
+void MainWindow::openPackCategories() {
+    commitEdits();
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName("packCategoriesDialog");
+    dialog->setWindowTitle(T("Kategorie paczki"));
+    dialog->setMinimumSize(680, 500);
+    auto *col = new QVBoxLayout(dialog);
+    col->setSpacing(12);
+    auto *info = label(T("Własne tematy (np. „Harry Potter”) i ich podkategorie trafią do paczki obok kategorii "
+                         "Quiz World. Gracze zobaczą je przy wyborze kategorii. Każdy temat ma co najmniej jedną "
+                         "podkategorię. Wpisz nazwy w każdym języku, w którym zbudujesz paczkę."),
+                       "muted");
+    info->setWordWrap(true);
+    col->addWidget(info);
+    QStringList codes, headers;
+    const auto active = studio.packLanguage();
+    for (const auto &value : studio.projectLanguages()) {
+        // The edited language comes first.
+        const bool first = value.toMap()["code"].toString() == active;
+        codes.insert(first ? 0 : codes.size(), value.toMap()["code"].toString());
+        headers.insert(first ? 0 : headers.size(), value.toMap()["name"].toString());
+    }
+    const int activeColumn = std::max(0, int(codes.indexOf(active)));
+    auto *tree = new QTreeWidget;
+    tree->setObjectName("packCategoriesTree");
+    tree->setColumnCount(codes.size());
+    tree->setHeaderLabels(headers);
+    tree->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked |
+                          QAbstractItemView::EditKeyPressed);
+    tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    tree->setItemDelegate(new LimitedTextDelegate(tree));
+    // New ids continue after the existing ones; the dialog owns the counter.
+    auto nextId = std::make_shared<int>(10001);
+    auto makeItem = [codes, nextId](int id, const QVariantMap &names) {
+        auto *item = new QTreeWidgetItem;
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+        item->setData(0, Qt::UserRole, id);
+        for (int i = 0; i < codes.size(); ++i)
+            item->setText(i, names.value(codes[i]).toString());
+        *nextId = std::max(*nextId, id + 1);
+        return item;
+    };
+    QMap<int, QTreeWidgetItem *> subjectItems;
+    for (const auto &value : studio.packCategories()) {
+        const auto c = value.toMap();
+        auto *item = makeItem(c["id"].toInt(), c["names"].toMap());
+        if (const int parent = c["parent"].toInt(); parent && subjectItems.contains(parent)) {
+            subjectItems[parent]->addChild(item);
+        } else {
+            tree->addTopLevelItem(item);
+            subjectItems[c["id"].toInt()] = item;
+        }
+    }
+    tree->expandAll();
+    for (int i = 0; i < codes.size(); ++i)
+        tree->setColumnWidth(i, std::max(160, 620 / std::max(1, int(codes.size()))));
+    col->addWidget(tree, 1);
+    auto *row = new QHBoxLayout;
+    auto *addSubject = button(T("Nowy temat"));
+    addSubject->setObjectName("addSubjectButton");
+    auto *addSub = button(T("Nowa podkategoria"));
+    addSub->setObjectName("addSubcategoryButton");
+    auto *remove = button(T("Usuń"), "danger");
+    const auto newSubject = T("Nowy temat"), general = T("Ogólne"), newSub = T("Nowa podkategoria");
+    connect(addSubject, &QPushButton::clicked, dialog, [=] {
+        auto *subject = makeItem(*nextId, {{active, newSubject}});
+        subject->addChild(makeItem(*nextId, {{active, general}}));
+        tree->addTopLevelItem(subject);
+        subject->setExpanded(true);
+        tree->setCurrentItem(subject, activeColumn);
+        tree->editItem(subject, activeColumn);
+    });
+    connect(addSub, &QPushButton::clicked, dialog, [=] {
+        auto *current = tree->currentItem();
+        if (!current)
+            return;
+        auto *subject = current->parent() ? current->parent() : current;
+        auto *sub = makeItem(*nextId, {{active, newSub}});
+        subject->addChild(sub);
+        subject->setExpanded(true);
+        tree->setCurrentItem(sub, activeColumn);
+        tree->editItem(sub, activeColumn);
+    });
+    connect(remove, &QPushButton::clicked, dialog, [tree] {
+        auto *current = tree->currentItem();
+        // A subject keeps at least one subcategory; removing the last one removes the subject.
+        if (current && current->parent() && current->parent()->childCount() == 1)
+            current = current->parent();
+        delete current;
+    });
+    auto refreshButtons = [tree, addSub, remove] {
+        addSub->setEnabled(tree->currentItem());
+        remove->setEnabled(tree->currentItem());
+    };
+    connect(tree, &QTreeWidget::currentItemChanged, dialog, refreshButtons);
+    refreshButtons();
+    row->addWidget(addSubject);
+    row->addWidget(addSub);
+    row->addStretch(1);
+    row->addWidget(remove);
+    col->addLayout(row);
+    auto *note = label(T("Do 40 znaków na nazwę. Pytania z usuniętego tematu wracają bez kategorii; zmianę można "
+                         "cofnąć."),
+                       "muted");
+    note->setWordWrap(true);
+    col->addWidget(note);
+    auto *buttons = new QDialogButtonBox;
+    buttons->addButton(T("Anuluj"), QDialogButtonBox::RejectRole);
+    auto *ok = buttons->addButton(T("Zapisz kategorie"), QDialogButtonBox::AcceptRole);
+    ok->setObjectName("primary");
+    col->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, dialog, [=] {
+        auto names = [&](QTreeWidgetItem *item) {
+            QVariantMap out;
+            for (int i = 0; i < codes.size(); ++i)
+                if (!item->text(i).simplified().isEmpty())
+                    out[codes[i]] = item->text(i).simplified();
+            return out;
+        };
+        const auto missing = T("Każda kategoria potrzebuje nazwy w edytowanym języku (%1).").arg(languageLabel(active));
+        QVariantList subjectsList, subsList;
+        for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+            auto *subject = tree->topLevelItem(i);
+            const int id = subject->data(0, Qt::UserRole).toInt();
+            if (subject->text(activeColumn).simplified().isEmpty())
+                return showError(missing);
+            subjectsList << QVariantMap{{"id", id}, {"parent", 0}, {"names", names(subject)}};
+            for (int j = 0; j < subject->childCount(); ++j) {
+                auto *sub = subject->child(j);
+                if (sub->text(activeColumn).simplified().isEmpty())
+                    return showError(missing);
+                subsList << QVariantMap{{"id", sub->data(0, Qt::UserRole)}, {"parent", id}, {"names", names(sub)}};
+            }
+        }
+        if (subjectsList.size() + subsList.size() > 99)
+            return showError(T("Paczka może mieć najwyżej 99 kategorii własnych."));
+        studio.setPackCategories(subjectsList + subsList);
+        dialog->accept();
+    });
     showDialog(dialog);
 }
 

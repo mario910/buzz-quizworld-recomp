@@ -221,6 +221,31 @@ QListWidget#categories::item:selected {
     background: #302451;
     color: #f5f3ff;
 }
+QTreeWidget {
+    background: #222239;
+    alternate-background-color: #26263f;
+    border: 1px solid #40405c;
+    border-radius: 6px;
+    outline: 0;
+}
+QTreeWidget::item {
+    padding: 5px 4px;
+}
+QTreeWidget::item:selected {
+    background: #3a2f5c;
+    color: #f5f3ff;
+}
+QTreeWidget QLineEdit {
+    padding: 2px 6px;
+}
+QHeaderView::section {
+    background: #1b1b31;
+    color: #c4bfd9;
+    border: 0;
+    border-bottom: 1px solid #40405c;
+    padding: 6px 8px;
+    font-weight: 600;
+}
 QCheckBox::indicator, QRadioButton::indicator {
     width: 16px;
     height: 16px;
