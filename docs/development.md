@@ -61,6 +61,62 @@ FP-leaf mode above. See the [Deck search measurements](steam-deck-image36-search
 for its contract and pending round qualification. Linux x86 checks use
 `python3 tests/scripts/test-image36-search.py --workspace /path/to/prepared/workspace`.
 
+## Build from source
+
+```sh
+git clone --recurse-submodules https://github.com/mario910/buzz-quizworld-recomp.git
+cd buzz-quizworld-recomp
+```
+
+To use BuzzSetup with a checkout, select it under **Advanced options → Build
+sources**. Use the release wizard or build it locally for
+[Windows](../preparation/README.md#developer-build) or
+[Linux](../preparation/README.md#linux-developer-build). For a standalone build
+without BuzzSetup, use the [command-line preparation workflow](game-import.md).
+It validates the inputs and produces a portable distribution in `dist/`.
+
+### Manual Windows build
+
+Install Python 3.11+, Visual Studio 2022 C++ tools and a Windows SDK. Create the
+tool environment and configuration by running `.\scripts\Setup-Buzz.ps1` in
+PowerShell. Set the paths to your own matching inputs in `buzz-paths.json`.
+
+```json
+{
+  "game_root": "D:/Games/Buzz! Quiz World",
+  "dev_flash": "D:/PS3/dev_flash",
+  "eboot_elf": "D:/PS3/EBOOT.elf"
+}
+```
+
+Set `game_root` to the folder containing `PS3_GAME`. Use a decrypted ELF from
+the same disc. For EU 1.02 supply its matching update assets as well. See
+[supported inputs and verification](game-import.md#supported-inputs-and-checks).
+
+```powershell
+.\scripts\Build-Buzz.ps1 -Renderer Vulkan -Jobs 6
+.\scripts\Launch-Buzz.ps1
+```
+
+Use `-Renderer D3D12` for the Windows fallback, or omit `-Renderer` to build
+both. Reduce `-Jobs` if compilation runs out of memory. The launch script
+prefers an existing portable `dist/`. To run the developer build explicitly,
+use `.\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap`. The zero timeout
+keeps the game running until you quit.
+
+### Updating a checkout
+
+```sh
+git pull --ff-only
+git submodule update --init --recursive
+```
+
+Keep the submodules at their pinned revisions. In BuzzSetup, start a fresh
+preparation session to use the updated sources. A resumed session uses its
+recorded source snapshot. For a manual Windows build, rerun setup and build.
+Use `Build-Buzz.ps1 -SkipGeneration` after changing only hand-written code
+when the existing generated sources still match.
+
 ## Synthetic tests
 
 From the repository root, after Setup:
