@@ -122,13 +122,14 @@ jobs:
           # Tested by the Question Studio workflow; here it is built and deployed for the package.
           ./scripts/build-question-studio.ps1 -QtPrefix "$env:GITHUB_WORKSPACE/qt/6.8.3/msvc2022_64" -Jobs 4 -SkipTests
           $output = New-Item -ItemType Directory -Path dist-preparation/release
-          $qtSources = foreach ($module in @('qtbase')) {
+          # Always an array: splatting a lone string would pass it character by character.
+          [string[]]$qtSources = foreach ($module in @('qtbase')) {
             $archive = Join-Path $output.FullName "$module-everywhere-src-6.8.3.tar.xz"
             curl.exe --fail --location --retry 3 --output $archive "https://download.qt.io/archive/qt/6.8/6.8.3/submodules/$module-everywhere-src-6.8.3.tar.xz"
             if ($LASTEXITCODE) { throw "Qt source download failed: $module" }
             $archive
           }
-          python tools/package-preparation.py --qt-source @qtSources --output $output.FullName
+          python tools/package-preparation.py --qt-source $qtSources --output $output.FullName
           if ($LASTEXITCODE) { throw 'Windows package failed' }
       - name: Test the extracted Windows package without Git or Qt on PATH
         if: runner.os == 'Windows'
