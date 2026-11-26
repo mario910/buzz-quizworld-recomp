@@ -32,7 +32,7 @@ jobs:
           openssl="$(brew --prefix openssl@3)"
           for target in preparation studio; do
             cmake -S "$target" -B "build-$target/macos" -G Ninja -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_ROOT" \
+              -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_PREFIX_PATH="$QT_ROOT" \
               -DOPENSSL_ROOT_DIR="$openssl" -DOPENSSL_USE_STATIC_LIBS=ON
             cmake --build "build-$target/macos" --parallel 3
             ctest --test-dir "build-$target/macos" --output-on-failure
@@ -74,6 +74,8 @@ jobs:
           python "$sources/tools/setup-linux.py"
           "$sources/toolenv/bin/python" -m unittest discover -s tests -p test_setup_pipeline.py
           export PATH="$sources/toolenv/bin:$PATH"
+          export CMAKE_PREFIX_PATH
+          CMAKE_PREFIX_PATH="$(brew --prefix)"
           python tests/desktop-game-build.py "$sources" "$RUNNER_TEMP/metal-host"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

@@ -1,10 +1,12 @@
-BuzzSetup for macOS on Apple Silicon (development preview)
+BuzzSetup for macOS 15 or later on Apple Silicon (development preview)
 
 Extract BuzzPrepare-macos-arm64.zip into a folder you can write to. Keep
 BuzzSetup.app, BuzzQuestionStudio.app and build-files together. Open
 BuzzSetup.app and select your own PS3 disc image or game folder and firmware.
 Select Prepare game, then Play Buzz! when preparation completes. The prepared
-game and its runtime data are stored in build-files/dist.
+game and its runtime data are stored in build-files/dist. If the source
+folder is empty in the wizard, select the extracted build-files folder
+under Advanced options.
 
 Before preparing the game, install Xcode Command Line Tools and the native
 Apple Silicon Homebrew dependencies from Terminal:

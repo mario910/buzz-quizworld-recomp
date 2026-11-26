@@ -524,8 +524,8 @@ class Wizard final : public QWidget {
         const bool basePython = verifyPython(python, "import sys, platform, venv, ensurepip; "
                                              "assert sys.version_info >= (3, 10) and platform.machine() == 'arm64'");
         const bool compiler = succeeds("/usr/bin/xcode-select", {"-p"}) && !locate("clang++").isEmpty();
-        const bool libraries = !locate("sdl2-config").isEmpty() && !locate("glslangValidator").isEmpty() &&
-                               !locate("spirv-cross").isEmpty();
+        const bool libraries = !locate("brew").isEmpty() && !locate("sdl2-config").isEmpty() &&
+                               !locate("glslangValidator").isEmpty() && !locate("spirv-cross").isEmpty();
         const QDir dir(root());
         const bool checkout = !root().isEmpty() && hasSources(dir);
         const bool gitCheckout = checkout && dir.exists(".git");

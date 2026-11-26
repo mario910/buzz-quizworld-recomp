@@ -153,6 +153,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
     directory = ROOT / ("build-metal-macos" if macos else "build-vulkan-linux")
     if macos:
         options["CMAKE_OSX_ARCHITECTURES"] = "arm64"
+        options["CMAKE_PREFIX_PATH"] = subprocess.check_output(["brew", "--prefix"], text=True).strip()
     # The vendored CMake logic reads fixed offsets from this header.
     # Normalize only the isolated workspace copy when it came from CRLF.
     zconf = ROOT / "third_party/zlib/zconf.h"
