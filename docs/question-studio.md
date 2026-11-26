@@ -23,8 +23,11 @@ colours and controls as BuzzSetup.
 
 ## Implemented
 
-- Polish/English three-pane interface, switched live under **… → Język interfejsu /
-  Interface language**. The preference is remembered independently of project data.
+- Three-pane interface in the Buzz! game languages (Polish, English, German, French,
+  Italian, Spanish, Dutch, Portuguese, Swedish, Danish, Norwegian, Finnish, Russian,
+  Czech, Greek and Croatian). Switch it live under **… → Język interfejsu / Interface
+  language**. On the first start Studio uses the system language and falls back to
+  English. The preference is remembered independently of project data.
   Includes translated controls, validation, status messages and import errors.
 - Category/text/media filters and a virtualized list.
 - Create, edit, duplicate and delete questions; choose the correct answer and

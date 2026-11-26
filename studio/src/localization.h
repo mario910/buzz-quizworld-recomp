@@ -1,5 +1,8 @@
 #pragma once
+#include <QLocale>
 #include <QObject>
+#include <QPair>
+#include <QVector>
 #include <QTranslator>
 
 class Localization final : public QObject {
@@ -8,6 +11,9 @@ class Localization final : public QObject {
   public:
     explicit Localization(QObject *parent = nullptr, const QString &initialLanguage = {});
     QString language() const { return language_; }
+    static QString defaultLanguage(const QLocale &system);
+    // (code, native name) of every interface language.
+    static const QVector<QPair<QString, QString>> &languages();
     Q_INVOKABLE void setLanguage(const QString &language);
   signals:
     void languageChanged();

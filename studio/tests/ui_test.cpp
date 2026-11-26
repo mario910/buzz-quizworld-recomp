@@ -8,6 +8,7 @@
 #include <QListView>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -24,6 +25,25 @@ class UiTest final : public QObject {
         QCoreApplication::setOrganizationName("BuzzStudioTests");
         QCoreApplication::setApplicationName("UiTests");
         QStandardPaths::setTestModeEnabled(true);
+    }
+    void interfaceLanguageFollowsTheSystemAndIsRemembered() {
+        QCOMPARE(Localization::defaultLanguage(QLocale(QLocale::Polish)), QString("pl"));
+        QCOMPARE(Localization::defaultLanguage(QLocale(QLocale::English)), QString("en"));
+        QCOMPARE(Localization::defaultLanguage(QLocale(QLocale::German)), QString("de"));
+        QCOMPARE(Localization::defaultLanguage(QLocale(QLocale::NorwegianBokmal)), QString("no"));
+        QCOMPARE(Localization::defaultLanguage(QLocale(QLocale::Japanese)), QString("en"));
+        QSettings().remove("interfaceLanguage");
+        {
+            Localization first;
+            QCOMPARE(first.language(), Localization::defaultLanguage(QLocale::system()));
+            first.setLanguage(first.language() == "pl" ? "en" : "pl");
+        }
+        const auto chosen = QSettings().value("interfaceLanguage").toString();
+        QVERIFY(chosen == "pl" || chosen == "en");
+        QCOMPARE(Localization().language(), chosen);
+        QCOMPARE(Localization(nullptr, "en").language(), QString("en")); // --ui-language is session-only.
+        QCOMPARE(QSettings().value("interfaceLanguage").toString(), chosen);
+        QSettings().remove("interfaceLanguage");
     }
     void editingImportingAndBuildingThroughTheWindow() {
         StudioController controller;

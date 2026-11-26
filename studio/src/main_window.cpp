@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "controller.h"
 #include "localization.h"
+#include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -451,11 +452,13 @@ QWidget *MainWindow::buildHeader() {
     });
     menu->addSeparator();
     auto *languages = menu->addMenu(T("Język interfejsu"));
-    for (const auto &[code, name] : {std::pair{"pl", "Polski"}, std::pair{"en", "English"}}) {
-        auto *item = languages->addAction(QString::fromUtf8(name));
+    auto *languageGroup = new QActionGroup(languages);
+    for (const auto &[code, name] : Localization::languages()) {
+        auto *item = languages->addAction(name);
         item->setCheckable(true);
         item->setChecked(i18n.language() == code);
-        connect(item, &QAction::triggered, this, [this, code = QString(code)] { i18n.setLanguage(code); });
+        languageGroup->addAction(item);
+        connect(item, &QAction::triggered, this, [this, code = code] { i18n.setLanguage(code); });
     }
     menu->addAction(T("Języki paczki…"), this, &MainWindow::openProjectLanguages);
     menu->addAction(T("Kategorie paczki…"), this, &MainWindow::openPackCategories);
