@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
 #ifdef Q_OS_WIN
     QFont interfaceFont(QStringLiteral("Segoe UI"));
 #elif defined(Q_OS_MACOS)
-    QFont interfaceFont = app.font();
+    QFont interfaceFont(QStringLiteral("Helvetica Neue"));
 #else
     QFont interfaceFont(QStringLiteral("Sans Serif"));
 #endif

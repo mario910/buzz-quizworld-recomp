@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
       - name: Install native dependencies and Qt
         run: |
-          brew install ninja openssl@3 sdl2-compat glslang spirv-cross
+          brew install ninja openssl@3
           python -m pip install aqtinstall==3.3.0
           python -m aqt install-qt -O "$RUNNER_TEMP/qt" mac desktop 6.8.3 clang_64 --archives qtbase qttools
           echo "QT_ROOT=$RUNNER_TEMP/qt/6.8.3/macos" >> "$GITHUB_ENV"
@@ -59,7 +59,7 @@ jobs:
           tar -xf "$output/$qt_source" -C "$package/licenses" --strip-components 1 "qtbase-everywhere-src-6.8.3/LICENSES"
           ditto -c -k --keepParent "$package" "$output/BuzzPrepare-macos-arm64.zip"
           (cd "$output" && shasum -a 256 BuzzPrepare-macos-arm64.zip > SHA256SUMS-macos.txt)
-      - name: Verify extracted app bundles and build the Metal game host
+      - name: Verify extracted app bundles
         run: |
           ditto -x -k dist-preparation/macos/BuzzPrepare-macos-arm64.zip "$RUNNER_TEMP/preview-smoke"
           package="$RUNNER_TEMP/preview-smoke/BuzzPrepare"
@@ -70,15 +70,31 @@ jobs:
             test -f "$bundle/Contents/PlugIns/platforms/libqcocoa.dylib"
             (cd "$RUNNER_TEMP" && env -i HOME="$HOME" PATH=/usr/bin:/bin "$binary" --smoke -platform cocoa)
           done
-          sources="$package/build-files"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: BuzzPrepare-macos-arm64
+          path: dist-preparation/macos/
+          if-no-files-found: error
+  metal-host:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install Apple Silicon game build dependencies
+        run: brew install sdl2-compat glslang spirv-cross
+      - name: Build the Metal host from the packaged sources
+        run: |
+          sources="$RUNNER_TEMP/build-files"
+          python tools/prepare_sources.py "$sources"
           python "$sources/tools/setup-linux.py"
           "$sources/toolenv/bin/python" -m unittest discover -s tests -p test_setup_pipeline.py
           export PATH="$sources/toolenv/bin:$PATH"
           export CMAKE_PREFIX_PATH
           CMAKE_PREFIX_PATH="$(brew --prefix)"
           python tests/desktop-game-build.py "$sources" "$RUNNER_TEMP/metal-host"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: BuzzPrepare-macos-arm64
-          path: dist-preparation/macos/
-          if-no-files-found: error
