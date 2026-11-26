@@ -1,4 +1,4 @@
-"""Generate and build the standalone Linux Vulkan game in a preparation workspace."""
+"""Generate and build the standalone desktop game on Linux or macOS."""
 import argparse
 import hashlib
 import json
@@ -71,6 +71,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
           spurs_input_clear=False, spu_job_return=False, zen2_tune=False, geometry_zero_padding=False, dma_diagnostics_optin=False,
           geometry_index_cache=False, geometry_scalar_gather=False, audio_x86_rtz=False, pgo_profile=None,
           renderer_bundle=False, image39_fast=False, image39_native=False, ppu_columns="none"):
+    macos = sys.platform == "darwin"
     if pgo_profile is not None:
         if not native_jobs:
             raise ValueError("Scoped PGO requires --native-jobs.")
@@ -113,8 +114,8 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
         "PS3RECOMP_DIR": ROOT / "ps3recomp", "Python3_EXECUTABLE": sys.executable,
         "BUZZ_STANDALONE": "ON", "BUZZ_DISC_COMPLETION": "ON" if disc else "OFF",
         "PORT_SPU_LS_DEBUG_HOOKS": "OFF",
-        "BUZZ_EXPERIMENTAL_VULKAN": "ON", "PORT_SPU_ISA": "avx2",
-        "PORT_NATIVE_SPU_FLOAT": "ON", "PORT_RTZ_RESULT_GUARD": "ON",
+        "BUZZ_EXPERIMENTAL_VULKAN": "OFF" if macos else "ON", "PORT_SPU_ISA": "sse2" if macos else "avx2",
+        "PORT_NATIVE_SPU_FLOAT": "OFF" if macos else "ON", "PORT_RTZ_RESULT_GUARD": "OFF" if macos else "ON",
         "PORT_NATIVE_JOB_DEFAULTS": "ON" if native_jobs and disc else "OFF",
         "PORT_NATIVE_JOB_PROFILE": "us100-vulkan-native-v1" if profile.adapter_family == "quizworld-us100" else "eu100-vulkan-native-v1",
         "PORT_SPU_OPT": "-O2", "PORT_OPTIMIZE_PPU_HOT_PATHS": "ON",
@@ -149,7 +150,9 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
                                    geometry_index_cache=geometry_index_cache))
     if native_jobs:
         options.update(native_adapters(analysis, disc, image39_fast, image39_native))
-    directory = ROOT / "build-vulkan-linux"
+    directory = ROOT / ("build-metal-macos" if macos else "build-vulkan-linux")
+    if macos:
+        options["CMAKE_OSX_ARCHITECTURES"] = "arm64"
     # The vendored CMake logic reads fixed offsets from this header.
     # Normalize only the isolated workspace copy when it came from CRLF.
     zconf = ROOT / "third_party/zlib/zconf.h"
@@ -173,7 +176,7 @@ def build(paths, profile, jobs, *, native_jobs=False, renderer_cpu=False, geomet
                               cwd=ROOT, check=True, capture_output=True, text=True).stdout
         binding.update(runtime_defaults=json.loads(plan))
     (directory / "game-build.json").write_text(json.dumps(dict(
-        **binding, renderer="vulkan", standalone=True, elf_sha256=profile.elf_sha256,
+        **binding, renderer="metal" if macos else "vulkan", standalone=True, elf_sha256=profile.elf_sha256,
         exe_sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
         native_jobs=native_jobs, renderer_cpu=renderer_cpu, geometry_cpu=geometry_cpu, media_cpu=media_cpu,
         spurs_input_clear=spurs_input_clear, spu_job_return=spu_job_return,
@@ -234,7 +237,10 @@ def main():
         generate(elf, profile, args.jobs)
     else:
         options = {k: v for k, v in vars(args).items() if k not in {"stage", "jobs", "profile"}}
-        if args.profile == "desktop" or (args.profile is None and not options):
+        if sys.platform == "darwin":
+            if options:
+                parser.error("Linux build experiments are unavailable on macOS.")
+        elif args.profile == "desktop" or (args.profile is None and not options):
             options = {**linux_build_defaults(profile), **options}
         build(paths, profile, args.jobs, **options)
 

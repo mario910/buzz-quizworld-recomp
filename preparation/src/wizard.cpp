@@ -202,6 +202,7 @@ class Wizard final : public QWidget {
     bool containerMode = false;
     std::function<void()> afterSuccess;
     const bool linuxHost = QSysInfo::kernelType() == "linux";
+    const bool macHost = QSysInfo::kernelType() == "darwin";
     const bool windowsHost = QSysInfo::kernelType() == "winnt";
     bool supported = false;
     bool busy = false;
@@ -275,16 +276,24 @@ class Wizard final : public QWidget {
     }
     QString cancelFile() const { return controlFiles.filePath("cancel"); }
     QString toolHome() const { return qEnvironmentVariable("BUZZ_TOOL_ENV", root() + "/toolenv"); }
-    QString toolPython() const { return toolHome() + (linuxHost ? "/bin/python" : "/Scripts/python.exe"); }
+    QString toolPython() const { return toolHome() + (windowsHost ? "/Scripts/python.exe" : "/bin/python"); }
     bool configuredContainer() const {
         return QFileInfo::exists(containerMarker()) || qEnvironmentVariableIsSet("BUZZ_BUILD_CONTAINER");
     }
-    QString gameExe() const { return root() + (linuxHost ? "/dist/BuzzQuizWorldRecomp" : "/dist/BuzzQuizWorldRecomp.exe"); }
+    QString gameExe() const { return root() + (windowsHost ? "/dist/BuzzQuizWorldRecomp.exe" : "/dist/BuzzQuizWorldRecomp"); }
     QString containerMarker() const { return root() + "/runtime/setup/build-container-ready"; }
     // Buzz! Question Studio: bundled next to BuzzSetup in release packages
     // (same folder on Windows, bin/ on Linux) or built in a checkout.
     QString questionStudioExe() const {
         const QDir app(QCoreApplication::applicationDirPath());
+        if (macHost) {
+            const auto binary = "BuzzQuestionStudio.app/Contents/MacOS/BuzzQuestionStudio";
+            for (const auto& folder : {app.absoluteFilePath("../../.."), root() + "/build-studio/macos"}) {
+                const QFileInfo candidate(QDir(folder).filePath(binary));
+                if (candidate.isFile() && candidate.isExecutable()) return candidate.absoluteFilePath();
+            }
+            return {};
+        }
         const QStringList candidates = windowsHost
             ? QStringList{app.filePath("BuzzQuestionStudio.exe"),
                           root() + "/dist-studio/bin/BuzzQuestionStudio.exe"}
@@ -389,8 +398,8 @@ class Wizard final : public QWidget {
         prepareTitle->setText(ready ? T("Ready to play") : T("2   Prepare to play"));
         play->setVisible(ready);
         openGame->setVisible(ready);
-        updateGame->setVisible(ready);
-        updateGame->setEnabled(ready && localToolsReady && (!containerMode || configuredContainer())
+        updateGame->setVisible(ready && !macHost);
+        updateGame->setEnabled(ready && !macHost && localToolsReady && (!containerMode || configuredContainer())
                                && QFileInfo::exists(root() + "/tools/update-game.py"));
         updateGame->setToolTip(updateGame->isEnabled() ? QString() :
             T("Set up the build tools and local build dependencies in Advanced options."));
@@ -504,11 +513,63 @@ class Wizard final : public QWidget {
         showState(ready, problem);
     }
 
+    void refreshMac(QProcessEnvironment environment) {
+        const auto search = (QStringLiteral("/opt/homebrew/bin:") + environment.value("PATH")).split(':', Qt::SkipEmptyParts);
+        const auto locate = [&search](const QString& name) { return QStandardPaths::findExecutable(name, search); };
+        environment.insert("PATH", search.join(':'));
+        environment.insert("PYTHONIOENCODING", "utf-8");
+        process.setProcessEnvironment(environment);
+        python = locate("python3");
+        git = locate("git");
+        const bool basePython = verifyPython(python, "import sys, platform, venv, ensurepip; "
+                                             "assert sys.version_info >= (3, 10) and platform.machine() == 'arm64'");
+        const bool compiler = succeeds("/usr/bin/xcode-select", {"-p"}) && !locate("clang++").isEmpty();
+        const bool libraries = !locate("sdl2-config").isEmpty() && !locate("glslangValidator").isEmpty() &&
+                               !locate("spirv-cross").isEmpty();
+        const QDir dir(root());
+        const bool checkout = !root().isEmpty() && hasSources(dir);
+        const bool gitCheckout = checkout && dir.exists(".git");
+        const bool sources = checkout && dir.exists("ps3recomp/tools/ppu_loader.py") &&
+                             dir.exists("third_party/zlib/CMakeLists.txt");
+        const bool tools = sources && QFileInfo::exists(toolHome() + "/bin/cmake") &&
+            QFileInfo::exists(toolHome() + "/bin/ninja") &&
+            verifyPython(toolPython(), "import capstone, construct, pycdlib, tabulate, tqdm; from Crypto.Cipher import AES");
+        localToolsReady = tools;
+        const bool ready = supported && checkout && QFileInfo(gameExe()).isExecutable();
+        const bool existingDist = checkout && dir.exists("dist");
+        submodules->setVisible(gitCheckout);
+        submodules->setEnabled(supported && gitCheckout && !sources && !git.isEmpty());
+        setup->setEnabled(supported && sources && basePython);
+        prepare->setEnabled(supported && sources && (tools || setup->isEnabled()) && compiler && libraries &&
+                            !existingDist && controlFiles.isValid() && hasInputs());
+        const auto mark = [](bool ok) { return ok ? T("OK") : T("missing"); };
+        status.setText(T("%1 | Xcode tools %2 | SDL2 and Metal shader tools %3 | Python/venv %4\n"
+                         "Build sources %5 | local Python environment %6")
+                           .arg(QSysInfo::prettyProductName(), mark(compiler), mark(libraries), mark(basePython),
+                                mark(sources), mark(tools)));
+        QString problem;
+        if (!supported)
+            problem = T("This preview requires a Mac with Apple Silicon.");
+        else if (!sources)
+            problem = T("Choose your checkout and initialize its submodules in Advanced options.");
+        else if (existingDist && !ready)
+            problem = T("Move the incomplete dist folder aside before preparing another copy.");
+        else if (!controlFiles.isValid())
+            problem = T("BuzzSetup needs a writable temporary folder.");
+        else if (!compiler || !libraries || !basePython)
+            problem = T("Install Xcode Command Line Tools and the Homebrew dependencies listed in README-macOS.txt.");
+        showState(ready, problem);
+    }
+
     void refresh() {
         if (busy) return;
         auto environment = QProcessEnvironment::systemEnvironment();
         if (linuxHost) {
             refreshLinux(environment);
+            return;
+        }
+        if (macHost) {
+            refreshMac(environment);
             return;
         }
         auto search = environment.value("PATH").split(QDir::listSeparator(), Qt::SkipEmptyParts);
@@ -762,7 +823,7 @@ class Wizard final : public QWidget {
     }
 
     void startSetup() {
-        if (linuxHost) {
+        if (linuxHost || macHost) {
             startBuild(containerMode ? "python3" : python, {root() + "/tools/setup-linux.py"},
                        T("Installing the local build dependencies…"));
             return;
@@ -853,7 +914,8 @@ public:
         setWindowTitle("Buzz! Quiz World");
         resize(760, 620);
         setMinimumSize(470, 460);
-        supported = (windowsHost || linuxHost) && QSysInfo::currentCpuArchitecture() == "x86_64";
+        const auto architecture = QSysInfo::currentCpuArchitecture();
+        supported = macHost ? architecture == "arm64" : (windowsHost || linuxHost) && architecture == "x86_64";
 
         auto* outer = new QVBoxLayout(this);
         outer->setContentsMargins(0, 0, 0, 0);
@@ -905,7 +967,7 @@ public:
             hide();
             deleteLater();
         });
-        button(*header, T("Check for updates"), [this] {
+        auto* checkUpdates = button(*header, T("Check for updates"), [this] {
             if (busy) return;
             begin(T("Checking for a Buzz Prepare update…"));
             releases.check([this](const QString& message, bool success) {
@@ -913,6 +975,7 @@ public:
                 guidance->setText(message);
             });
         });
+        checkUpdates->setVisible(!macHost);
         hero->addLayout(header);
 
         auto* inputCard = card(*page, "card");
@@ -1157,5 +1220,7 @@ int runPreparationWizard(int argc, char** argv) {
         wizard->show();
     };
     open({});
+    if (app.arguments().contains("--smoke"))
+        QTimer::singleShot(0, &app, &QCoreApplication::quit);
     return app.exec();
 }

@@ -1,0 +1,82 @@
+name: macOS ARM64 preview
+on:
+  push:
+    branches: [feature/macos-arm64]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install native dependencies and Qt
+        run: |
+          brew install ninja openssl@3 sdl2-compat glslang spirv-cross
+          python -m pip install aqtinstall==3.3.0
+          python -m aqt install-qt -O "$RUNNER_TEMP/qt" mac desktop 6.8.3 clang_64 --archives qtbase qttools
+          echo "QT_ROOT=$RUNNER_TEMP/qt/6.8.3/macos" >> "$GITHUB_ENV"
+      - name: Build and test BuzzSetup and Question Studio
+        run: |
+          openssl="$(brew --prefix openssl@3)"
+          for target in preparation studio; do
+            cmake -S "$target" -B "build-$target/macos" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH="$QT_ROOT" \
+              -DOPENSSL_ROOT_DIR="$openssl" -DOPENSSL_USE_STATIC_LIBS=ON
+            cmake --build "build-$target/macos" --parallel 3
+            ctest --test-dir "build-$target/macos" --output-on-failure
+          done
+      - name: Package app bundles and pinned public build sources
+        run: |
+          package="$RUNNER_TEMP/BuzzPrepare"
+          output="$PWD/dist-preparation/macos"
+          mkdir -p "$package/licenses" "$output"
+          ditto build-preparation/macos/BuzzSetup.app "$package/BuzzSetup.app"
+          ditto build-studio/macos/BuzzQuestionStudio.app "$package/BuzzQuestionStudio.app"
+          for app in BuzzSetup BuzzQuestionStudio; do
+            "$QT_ROOT/bin/macdeployqt" "$package/$app.app" -codesign=-
+            codesign --verify --deep --strict "$package/$app.app"
+          done
+          python tools/prepare_sources.py "$package/build-files"
+          cp LICENSE THIRD_PARTY_NOTICES.md "$package/licenses/"
+          cp "$(brew --prefix openssl@3)/LICENSE.txt" "$package/licenses/OpenSSL.txt"
+          cp preparation/README-macOS.txt "$package/"
+          qt_source="qtbase-everywhere-src-6.8.3.tar.xz"
+          curl --fail --location --retry 3 --output "$output/$qt_source" \
+            "https://download.qt.io/archive/qt/6.8/6.8.3/submodules/$qt_source"
+          (cd "$output" && echo "56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80  $qt_source" | shasum -a 256 -c)
+          tar -xf "$output/$qt_source" -C "$package/licenses" --strip-components 1 "qtbase-everywhere-src-6.8.3/LICENSES"
+          ditto -c -k --keepParent "$package" "$output/BuzzPrepare-macos-arm64.zip"
+          (cd "$output" && shasum -a 256 BuzzPrepare-macos-arm64.zip > SHA256SUMS-macos.txt)
+      - name: Verify extracted app bundles and build the Metal game host
+        run: |
+          ditto -x -k dist-preparation/macos/BuzzPrepare-macos-arm64.zip "$RUNNER_TEMP/preview-smoke"
+          package="$RUNNER_TEMP/preview-smoke/BuzzPrepare"
+          for app in BuzzSetup BuzzQuestionStudio; do
+            bundle="$package/$app.app"
+            binary="$bundle/Contents/MacOS/$app"
+            test "$(lipo -archs "$binary")" = arm64
+            test -f "$bundle/Contents/PlugIns/platforms/libqcocoa.dylib"
+            (cd "$RUNNER_TEMP" && env -i HOME="$HOME" PATH=/usr/bin:/bin "$binary" --smoke -platform cocoa)
+          done
+          sources="$package/build-files"
+          python "$sources/tools/setup-linux.py"
+          "$sources/toolenv/bin/python" -m unittest discover -s tests -p test_setup_pipeline.py
+          export PATH="$sources/toolenv/bin:$PATH"
+          python tests/desktop-game-build.py "$sources" "$RUNNER_TEMP/metal-host"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: BuzzPrepare-macos-arm64
+          path: dist-preparation/macos/
+          if-no-files-found: error

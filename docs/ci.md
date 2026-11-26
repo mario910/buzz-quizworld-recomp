@@ -12,6 +12,7 @@ Use your own supported game/firmware locally for a complete game build.
 | Native preparation | Windows x64 and Ubuntu 22.04/24.04: compiled importer, synthetic import/lifter tests; stages the preparation application with Question Studio and smoke-tests both from the extracted packages |
 | Question Studio | Windows x64 and Ubuntu 22.04/24.04: editor, synthetic pack/document tests and offscreen widget smoke tests |
 | PC port host tests | Windows x64, Ubuntu 24.04 x64 and macOS 15 arm64: input routing, settings, phone sessions/server, host controls/overlay, game paths and PC runtime (`tests/CMakeLists.txt`) |
+| macOS ARM64 preview | `feature/macos-arm64`: builds and smoke-tests BuzzSetup and Question Studio bundles, links the Metal game host against synthetic guest functions, and uploads the development ZIP to the workflow run |
 | Optimization catalog | Checks the source-derived optimization documentation |
 | Workflow validation | actionlint and ShellCheck over workflow YAML/embedded shell |
 

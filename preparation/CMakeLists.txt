@@ -47,6 +47,13 @@ if(WIN32)
     qt_add_executable(BuzzSetup WIN32 src/setup_main.cpp src/wizard.qrc src/wizard.rc)
     target_link_libraries(BuzzSetup PRIVATE buzz_prepare_wizard)
     install(TARGETS BuzzSetup RUNTIME DESTINATION bin)
+elseif(APPLE)
+    qt_add_executable(BuzzSetup MACOSX_BUNDLE src/setup_main.cpp src/wizard.qrc)
+    target_link_libraries(BuzzSetup PRIVATE buzz_prepare_wizard)
+    set_target_properties(BuzzSetup PROPERTIES
+        MACOSX_BUNDLE_GUI_IDENTIFIER io.github.mario910.buzzsetup
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${BUZZ_PREPARE_VERSION}")
+    install(TARGETS BuzzSetup BUNDLE DESTINATION .)
 endif()
 if(MSVC)
     target_compile_options(buzz_prepare_core PRIVATE /W4 /utf-8)

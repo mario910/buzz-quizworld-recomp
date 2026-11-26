@@ -9,8 +9,6 @@ the player's PC from the bundled sources and the player's own disc/firmware.
 """
 import argparse
 import hashlib
-import io
-import json
 import os
 from pathlib import Path
 import re
@@ -19,7 +17,7 @@ import subprocess
 import tarfile
 import tempfile
 
-from preparation_version import base_release, release_revisions
+from prepare_sources import prepare_sources
 
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "BuzzPrepare"
@@ -84,13 +82,6 @@ which is also the launch option to use when adding it to Steam as a non-Steam
 game. Balanced studio settings are automatic on supported game builds.
 --studio opens Buzz! Question Studio for your own question packs.
 """
-PORT_PATHS = (
-    "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
-    "Launch-Buzz.sh", "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",
-    "preparation/CMakeLists.txt", "preparation/README.md", "preparation/src", "tools",
-    "third_party/cpp-httplib", "third_party/qrcodegen",
-)
-SUBMODULES = ("ps3recomp", "third_party/zlib")
 QT_PLUGINS = ("platforms/libqxcb.so", "imageformats/libqico.so", "tls/libqopensslbackend.so",
               # Question Studio: pictures and compose/dead keys for accented text.
               "imageformats/libqjpeg.so", "imageformats/libqgif.so",
@@ -162,10 +153,6 @@ def run(*args, **kwargs):
     return subprocess.run(args, check=True, capture_output=True, text=True, **kwargs).stdout
 
 
-def git(repo, *args):
-    return subprocess.check_output(["git", "-C", str(repo), *args])
-
-
 def sha256(path):
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -194,25 +181,6 @@ def owner_package(path):
         return run("dpkg", "-S", str(Path(path).resolve())).split(":", 1)[0]
     except subprocess.CalledProcessError:
         return run("dpkg", "-S", str(path)).split(":", 1)[0]
-
-
-def add_sources(staging, repo, ref, prefix="", paths=()):
-    data = git(repo, "archive", "--format=tar", ref, "--", *paths)
-    names = []
-    with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as sources:
-        for member in sources:
-            if member.isdir():
-                continue
-            if not member.isfile():
-                raise ValueError(f"Unexpected source archive entry: {prefix}{member.name}")
-            name = prefix + member.name
-            target = staging / "build-files" / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with sources.extractfile(member) as stream:
-                target.write_bytes(stream.read())
-            target.chmod(0o755 if member.mode & 0o111 else 0o644)
-            names.append(name)
-    return names
 
 
 def icon_png(path):
@@ -256,10 +224,6 @@ def build_appimage(staging, scratch, tool, runtime, output):
 
 
 def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
-    revision = git(ROOT, "rev-parse", "HEAD").decode().strip()
-    if git(ROOT, "status", "--porcelain", "--untracked-files=no", "--", *PORT_PATHS):
-        raise ValueError("Commit the source changes before packaging: the package holds HEAD.")
-    pins = {module: git(ROOT, "rev-parse", f"{revision}:{module}").decode().strip() for module in SUBMODULES}
     qt_plugins = Path(run("qtpaths6", "--query", "QT_INSTALL_PLUGINS").strip())
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output) as scratch:
@@ -319,15 +283,7 @@ def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
             (staging / name).write_text(text)
             (staging / name).chmod(0o755)
         (staging / "README.txt").write_text(README)
-        files = add_sources(staging, ROOT, revision, paths=PORT_PATHS)
-        for module, pin in pins.items():
-            module_root = ROOT / module
-            if git(module_root, "rev-parse", "HEAD").decode().strip() != pin:
-                raise ValueError(f"Initialize {module} at the pinned revision before packaging.")
-            files.extend(add_sources(staging, module_root, pin, prefix=module + "/"))
-        (staging / "build-files/release-sources.json").write_text(json.dumps(
-            {"revision": revision, "base_release": base_release(ROOT), "releases": release_revisions(ROOT),
-             "submodules": pins, "files": sorted(files)}, indent=2) + "\n")
+        prepare_sources(staging / "build-files")
         archive = Path(scratch) / PACKAGE
         with tarfile.open(archive, "w:gz") as tar:
             tar.add(staging, arcname=NAME)

@@ -35,6 +35,10 @@
 #include "vblank_clock.h"
 #include <filesystem>
 #include <thread>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <vector>
+#endif
 #if defined(__linux__)
 #include <time.h>
 #endif
@@ -856,6 +860,14 @@ int main(int argc, char** argv)
             const char* files = SDL_AndroidGetInternalStoragePath();
             if (!files || !*files) throw std::runtime_error("Cannot locate the app files directory.");
             const auto base = fs::path(files);
+#elif defined(__APPLE__)
+            uint32_t capacity = 0;
+            char unused = 0;
+            _NSGetExecutablePath(&unused, &capacity);
+            std::vector<char> executable(capacity);
+            if (_NSGetExecutablePath(executable.data(), &capacity) != 0)
+                throw std::runtime_error("Cannot locate the game executable.");
+            const auto base = fs::canonical(executable.data()).parent_path();
 #else
             const auto base = fs::read_symlink("/proc/self/exe").parent_path();
 #endif

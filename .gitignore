@@ -18,6 +18,7 @@
 /build-vulkan-smoke/
 /build-vulkan-windows/
 /build-vulkan-linux/
+/build-metal-macos/
 /build-android/
 /dist-android/
 /android/.gradle/

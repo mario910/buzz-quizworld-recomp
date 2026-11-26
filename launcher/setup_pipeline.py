@@ -474,14 +474,16 @@ def copy_sources(project, destination):
 
 
 def build_workspace(project, workspace, profile, jobs, log, cancel, stage, standalone, linux, extra_linux_options=()):
-    if linux:
-        def linux_build(stage_name):
+    macos = sys.platform == "darwin"
+    if linux or macos:
+        def posix_build(stage_name):
             process([sys.executable, workspace / "tools/build-linux.py", stage_name, "--jobs", str(jobs),
                      *(["--profile", "desktop", *extra_linux_options] if stage_name == "build" else ())],
                     workspace, log, cancel, timeout=7200)
-        stage("generate Linux translations", lambda: linux_build("generate"))
-        stage("build standalone Linux Vulkan game", lambda: linux_build("build"))
-        exe = workspace / "build-vulkan-linux/BuzzQuizWorldRecomp"
+        stage("generate translations", lambda: posix_build("generate"))
+        renderer = "macOS Metal" if macos else "Linux Vulkan"
+        stage(f"build standalone {renderer} game", lambda: posix_build("build"))
+        exe = workspace / ("build-metal-macos" if macos else "build-vulkan-linux") / "BuzzQuizWorldRecomp"
     else:
         env = dict(os.environ, BUZZ_TOOL_ENV=os.environ.get("BUZZ_TOOL_ENV") or str(project / "toolenv"))
         powershell = shutil.which("powershell.exe")
@@ -572,8 +574,12 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
     inputs.validate()
     project = Path(project).resolve()
     linux = sys.platform == "linux"
-    if build and standalone and (not (linux or os.name == "nt") or platform.machine().lower() not in {"amd64", "x86_64"}):
-        raise ValueError("Standalone preparation requires Windows or Linux x64.")
+    macos = sys.platform == "darwin"
+    windows = os.name == "nt"
+    arch = platform.machine().lower()
+    supported = macos and arch == "arm64" or (linux or windows) and arch in {"amd64", "x86_64"}
+    if build and standalone and not supported:
+        raise ValueError("Standalone preparation requires Windows/Linux x64 or macOS arm64.")
     if standalone and os.path.lexists(project / "dist"):
         raise ValueError("Move the existing dist folder before preparing another copy.")
     sessions = project / "runtime/setup/sessions"
@@ -581,9 +587,9 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
     session = Path(resume).resolve() if resume else new_session(sessions)
     if session.parent != sessions.resolve() or session.is_symlink():
         raise ValueError("Resume path must be one of this project's own setup sessions.")
-    if build and linux and not standalone:
-        raise ValueError("Use --dist to build on Linux.")
-    if build and not linux:
+    if build and (linux or macos) and not standalone:
+        raise ValueError("Use --dist to build on this platform.")
+    if build and windows:
         check_build_path_length(session / "workspace", log)
     session.mkdir(exist_ok=True)
     reject_links_below(sessions, session)
@@ -675,7 +681,7 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
         workspace = session / "workspace"
         reject_links_below(session, workspace)
         vswhere = Path(os.environ.get("ProgramFiles(x86)", "C:/Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"
-        if not linux and not vswhere.is_file():
+        if windows and not vswhere.is_file():
             raise ValueError("Install Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK, then resume. "
                              "The wizard does not silently install system-wide/admin components.")
         def snapshot():
@@ -708,9 +714,9 @@ def prepare(inputs, project, log, cancel, *, resume=None, build=True, accept_reb
                 workspace / "runtime", log, cancel, cache=project / "runtime/setup/downloads"))
         if standalone:
             manifest = json.loads((exe.parent / "game-build.json").read_text(encoding="utf-8-sig"))
-            if (manifest.get("renderer") != "vulkan" or manifest.get("elf_sha256") != profile.elf_sha256 or
+            if (manifest.get("renderer") != ("metal" if macos else "vulkan") or manifest.get("elf_sha256") != profile.elf_sha256 or
                     manifest.get("exe_sha256") != result["sha256"] or not manifest.get("standalone")):
-                raise ValueError("The executable does not match the standalone Vulkan build manifest.")
+                raise ValueError("The executable does not match the standalone build manifest.")
             publish_distribution(project, workspace, state["paths"], exe, log, cancel,
                                  state.get("source_revision"), state.get("source_release"))
             return session, state
