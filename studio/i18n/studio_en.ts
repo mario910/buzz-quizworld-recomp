@@ -343,6 +343,22 @@
             <source>Eksport do buzzpack wymaga poprawnych pytań i numerycznego mapowania kategorii Quiz World.</source>
             <translation>Export for buzzpack requires valid questions and numeric Quiz World category mappings.</translation>
         </message>
+        <message>
+            <source>Kategoria bez nazwy</source>
+            <translation>Unnamed category</translation>
+        </message>
+        <message>
+            <source>Projekt może mieć najwyżej 99 kategorii własnych.</source>
+            <translation>A project can have at most 99 custom categories.</translation>
+        </message>
+        <message>
+            <source>Niepoprawna lista kategorii własnych.</source>
+            <translation>Invalid custom category list.</translation>
+        </message>
+        <message>
+            <source>Eksport do buzzpack nie obsługuje kategorii własnych. Zbuduj paczkę .edat w Studiu.</source>
+            <translation>The buzzpack export does not support custom categories. Build an .edat pack in Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -1255,11 +1271,6 @@ a library from KiP and Buzz.</translation>
             <translation>What would you like to ask?</translation>
         </message>
         <message>
-            <location filename="../src/main_window.cpp" line="1061" />
-            <source>KATEGORIA QUIZ WORLD</source>
-            <translation>QUIZ WORLD CATEGORY</translation>
-        </message>
-        <message>
             <location filename="../src/main_window.cpp" line="1093" />
             <source>TRUDNOŚĆ</source>
             <translation>DIFFICULTY</translation>
@@ -1640,6 +1651,58 @@ Projects link to media files. App-side pack building and portable archives are l
             <location filename="../src/main_window.cpp" />
             <source>OK</source>
             <translation>OK</translation>
+        </message>
+        <message>
+            <source>Kategorie paczki…</source>
+            <translation>Pack categories…</translation>
+        </message>
+        <message>
+            <source>KATEGORIA</source>
+            <translation>CATEGORY</translation>
+        </message>
+        <message>
+            <source>Własne kategorie…</source>
+            <translation>Custom categories…</translation>
+        </message>
+        <message>
+            <source>Nazwa paczki w wersji %1 (każdy język ma własną):</source>
+            <translation>Pack name in the %1 version (each language has its own):</translation>
+        </message>
+        <message>
+            <source>Kategorie paczki</source>
+            <translation>Pack categories</translation>
+        </message>
+        <message>
+            <source>Własne tematy (np. „Harry Potter”) i ich podkategorie trafią do paczki obok kategorii Quiz World. Gracze zobaczą je przy wyborze kategorii. Każdy temat ma co najmniej jedną podkategorię. Wpisz nazwy w każdym języku, w którym zbudujesz paczkę.</source>
+            <translation>Your own subjects (e.g. “Harry Potter”) and their subcategories go into the pack next to the Quiz World categories. Players see them when choosing a category. Each subject has at least one subcategory. Enter the names in every language you will build the pack in.</translation>
+        </message>
+        <message>
+            <source>Nowy temat</source>
+            <translation>New subject</translation>
+        </message>
+        <message>
+            <source>Nowa podkategoria</source>
+            <translation>New subcategory</translation>
+        </message>
+        <message>
+            <source>Ogólne</source>
+            <translation>General</translation>
+        </message>
+        <message>
+            <source>Do 40 znaków na nazwę. Pytania z usuniętego tematu wracają bez kategorii; zmianę można cofnąć.</source>
+            <translation>Up to 40 characters per name. Questions from a removed subject lose their category; you can undo the change.</translation>
+        </message>
+        <message>
+            <source>Zapisz kategorie</source>
+            <translation>Save categories</translation>
+        </message>
+        <message>
+            <source>Każda kategoria potrzebuje nazwy w edytowanym języku (%1).</source>
+            <translation>Every category needs a name in the edited language (%1).</translation>
+        </message>
+        <message>
+            <source>Paczka może mieć najwyżej 99 kategorii własnych.</source>
+            <translation>A pack can have at most 99 custom categories.</translation>
         </message>
     </context>
     <context>
@@ -2153,6 +2216,10 @@ Projects link to media files. App-side pack building and portable archives are l
             <source>Niepoprawna liczba klatek planszy obrazków.</source>
             <translation>Invalid picture sheet frame count.</translation>
         </message>
+        <message>
+            <source>Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w oknie Kategorie paczki.</source>
+            <translation>A custom category has no name in %1. Add it in the Pack categories window.</translation>
+        </message>
     </context>
     <context>
         <name>PackDialogs</name>
@@ -2620,6 +2687,10 @@ Built file: </translation>
             <location filename="../src/controller.cpp" line="629" />
             <source>Wygenerowano WAV i przypisano do pytania</source>
             <translation>WAV generated and attached to the question</translation>
+        </message>
+        <message>
+            <source>Kategorie paczki</source>
+            <translation>Pack categories</translation>
         </message>
     </context>
     <context>

@@ -27,6 +27,15 @@ using namespace pack;
 namespace {
 QString directoryName(int number) { return QString("PACK%1").arg(number, 4, 10, QLatin1Char('0')); }
 QString internalName(int number, const QString &name) { return QString("p%1_%2").arg(number).arg(name); }
+// "OwnA", "OwnB", … "OwnAA": letters only, as round file names keep only letters.
+QString customInternalName(int id) {
+    QString letters;
+    for (int n = id - firstCustomCategory; n > 0; n /= 26) {
+        --n;
+        letters.prepend(QChar('A' + n % 26));
+    }
+    return "Own" + letters;
+}
 QString languageFolder(Archive &archive, const QString &code) {
     QString exact, base;
     for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it) {
@@ -321,9 +330,25 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         const auto sourceCategories = validatedCategories(archive, language);
         QMap<int, Category> cats;
         QMap<QString, int> keys;
+        QSet<QString> templateNames;
         for (const auto &c : sourceCategories) {
             cats[c.id] = c;
             keys[c.key] = c.id;
+            templateNames.insert(c.name);
+        }
+        // The project's own categories: ASCII internal names, display names in NAMEDTEXT.
+        for (const auto &own : request.document.categories) {
+            Category c;
+            c.id = own.id;
+            c.parent = own.parent;
+            c.pack = request.number;
+            c.round = 1000 + own.id; // After the template's subjects.
+            c.name = customInternalName(own.id);
+            c.key = QString("CAT_PK%1_OWN%2").arg(request.number).arg(own.id - firstCustomCategory);
+            if (!isCustomCategory(own.id) || templateNames.contains(c.name) ||
+                (own.parent && !request.document.customCategory(own.parent)))
+                fail(QCoreApplication::translate("PackBuilder", "Niepoprawne lub powtórzone kategorie paczki."));
+            cats[c.id] = c;
         }
         auto info = readLua(archive.read(gen + "/addpackinfo.clu"));
         const auto dir = directoryName(request.number);
@@ -406,6 +431,18 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         if (nextCategory > 1000 || remap.size() > 99)
             fail(QCoreApplication::translate("PackBuilder",
                                              "Kategorie paczki nie mieszczą się w rejestrze 1–999."));
+        QVector<QPair<QString, QString>> ownTexts;
+        for (int id : categoryOrder) {
+            if (!isCustomCategory(id))
+                continue;
+            const auto name = request.document.customCategory(id)->name(code).simplified();
+            if (name.isEmpty())
+                fail(QCoreApplication::translate("PackBuilder",
+                                                 "Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w "
+                                                 "oknie Kategorie paczki.")
+                         .arg(languageName(code)));
+            ownTexts << qMakePair(cats[id].key, name);
+        }
         for (auto id : remap)
             if (cats.contains(id))
                 fail(QCoreApplication::translate("PackBuilder", "Baza kategorii koliduje z szablonem gry."));
@@ -562,13 +599,14 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                 lines << line.trimmed();
                 hashes.insert(line.simplified().section(' ', 0, 0).toInt());
             }
-        const QVector<QPair<QString, QString>> extra{
+        QVector<QPair<QString, QString>> extra{
             {QString("PackTitlePk%1Pack").arg(request.number), request.document.title},
             {QString("PackDescPk%1Pack").arg(request.number),
              request.document.description.isEmpty() ? request.document.title : request.document.description},
             {games["1p"], request.document.title},
             {games["4p"], request.document.title},
             {games["8p"], request.document.title}};
+        extra << ownTexts;
         for (const auto &item : extra) {
             const auto hash = qint32(crc32(item.first.toUtf8()) ^ 0xffffffffu ^ 0xfabcdef7u);
             if (hashes.contains(hash))

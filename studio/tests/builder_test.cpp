@@ -895,6 +895,78 @@ class BuilderTest final : public QObject {
         QVERIFY(!missing.ok());
         QVERIFY(missing.path.isEmpty());
     }
+    void customCategoriesAreNamedPerLanguageAndTravelWithTheProject() {
+        QTemporaryDir temp;
+        auto req = request(temp.path());
+        auto &doc = req.document;
+        doc.categories = {{10001, 0, QJsonObject{{"en", "Harry Potter"}, {"pl", "Harry Potter"}}},
+                          {10002, 10001, QJsonObject{{"en", "Spells"}, {"pl", QString::fromUtf8("Zaklęcia")}}}};
+        doc.questions[0].subjectId = 10001;
+        doc.questions[0].categoryId = 10002;
+        doc.title = "Wizarding quiz";
+        doc.refreshCategoryNames();
+        QCOMPARE(doc.questions[0].category, QString("Harry Potter"));
+        // The project keeps the categories and one title per language.
+        auto saved = studio::parseJson(studio::serialize(doc));
+        QVERIFY2(saved.ok(), qPrintable(saved.error));
+        QVERIFY(saved.document.categories == doc.categories);
+        saved.document.switchLanguage("pl");
+        QCOMPARE(saved.document.title, QString("Wizarding quiz"));
+        saved.document.title = QString::fromUtf8("Quiz czarodziejów");
+        QCOMPARE(saved.document.questions[0].category, QString("Harry Potter"));
+        auto reloaded = studio::parseJson(studio::serialize(saved.document), {}, "en").document;
+        QCOMPARE(reloaded.title, QString("Wizarding quiz"));
+        reloaded.switchLanguage("pl");
+        QCOMPARE(reloaded.title, QString::fromUtf8("Quiz czarodziejów"));
+        QVERIFY_EXCEPTION_THROWN(studio::serialize(doc, {}, true), std::runtime_error);
+
+        const auto built = studio::buildPack(req);
+        QVERIFY2(built.ok(), qPrintable(built.error));
+        QCOMPARE(built.rounds, 2);
+        QCOMPARE(built.categories, 4);
+        Archive archive(built.path);
+        QMap<QString, studio::pack::Category> byKey;
+        for (const auto &c : studio::pack::readCategories(
+                 archive.read("ENG/SCRIPTS/GENERATED/questioncategories.clu")))
+            byKey[c.key] = c;
+        QVERIFY(byKey.contains("CAT_PK103_OWN1"));
+        QVERIFY(byKey.contains("CAT_PK103_OWN2"));
+        QCOMPARE(byKey["CAT_PK103_OWN1"].name, QString("p103_OwnA"));
+        QCOMPARE(byKey["CAT_PK103_OWN2"].parent, byKey["CAT_PK103_OWN1"].id);
+        QVERIFY(archive.entries.contains("ENG/ROUNDS/p103_owna.qak"));
+        // The game shows the names from NAMEDTEXT; reading the pack back resolves them too.
+        const auto imported = studio::importBuzz(built.path, "en", false);
+        QVERIFY2(imported.ok(), qPrintable(imported.error));
+        bool found = false;
+        for (const auto &q : imported.document.questions)
+            if (q.text == doc.questions[0].text) {
+                found = true;
+                QCOMPARE(q.category, QString("Harry Potter"));
+            }
+        QVERIFY(found);
+
+        // A language without a category name stops that language's build.
+        req.document.categories[1].names.remove("pl");
+        req.document.switchLanguage("pl");
+        req.document.questions[0].text = QString::fromUtf8("Które zaklęcie otwiera zamki?");
+        req.document.questions[0].answers = QStringList{"Alohomora", "Lumos", "Accio", "Nox"};
+        const auto missing = studio::buildPack(req);
+        QVERIFY(!missing.ok());
+        QVERIFY2(missing.error.contains(studio::languageName("pl")), qPrintable(missing.error));
+    }
+    void mergingProjectsReusesCategoriesWithTheSameNames() {
+        studio::Document into;
+        into.categories = {{10001, 0, QJsonObject{{"pl", "Święta"}}}, {10002, 10001, QJsonObject{{"pl", "Kolędy"}}}};
+        const QVector<studio::CustomCategory> incoming{{10001, 0, QJsonObject{{"pl", "Święta"}}},
+                                                       {10005, 10001, QJsonObject{{"pl", "Potrawy"}}},
+                                                       {10002, 0, QJsonObject{{"pl", "Harry Potter"}}}};
+        const auto remap = studio::mergeCustomCategories(into, incoming);
+        QCOMPARE(remap[10001], 10001);
+        QCOMPARE(into.categories.size(), 4);
+        QCOMPARE(into.customCategory(remap[10005])->parent, 10001);
+        QVERIFY(remap[10002] != 10002);
+        QCOMPARE(into.customCategory(remap[10002])->name("pl"), QString("Harry Potter"));
+    }
     void failedOrCancelledBuildPreservesPreviousOutput() {
         QTemporaryDir temp;
         auto req = request(temp.path());

@@ -32,6 +32,8 @@ class MainWindow final : public QMainWindow {
     Q_INVOKABLE void openBuild();
     Q_INVOKABLE void openTts();
     Q_INVOKABLE void openProjectLanguages();
+    // The project's own subjects and subcategories, named per content language.
+    Q_INVOKABLE void openPackCategories();
     void setEditorTab(int tab);
     // The window with any open dialog drawn over it (for --screenshot).
     QImage capture();
@@ -96,6 +98,7 @@ class MainWindow final : public QMainWindow {
     void showPackResult(const QVariantMap &result);
     void openInstall(const QString &source);
     void renamePack();
+    QString languageLabel(const QString &code) const;
     void confirmDelete();
     void showAbout();
     void showDialog(QDialog *dialog);

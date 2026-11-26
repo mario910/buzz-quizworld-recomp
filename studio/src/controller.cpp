@@ -413,7 +413,16 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
             for (int i = 0; i < before.questions.size(); ++i)
                 ids.insert(before.questions[i].id, i);
             int skipped = 0, merged = 0;
+            QMap<int, int> categories;
+            try {
+                categories = studio::mergeCustomCategories(after, result.document.categories);
+            } catch (const std::exception &e) {
+                emit errorOccurred(QString::fromUtf8(e.what()));
+                return;
+            }
             for (auto q : result.document.questions) {
+                q.subjectId = categories.value(q.subjectId, q.subjectId);
+                q.categoryId = categories.value(q.categoryId, q.categoryId);
                 if (ids.contains(q.id)) {
                     auto &existing = after.questions[ids[q.id]];
                     auto variants = q.translations;
@@ -444,6 +453,7 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
                 ids.insert(q.id, after.questions.size());
                 after.questions << q;
             }
+            after.refreshCategoryNames();
             if (skipped)
                 warnings_ << QString(tr("Pominięto %1 istniejących identyfikatorów.")).arg(skipped);
             if (merged)
@@ -626,6 +636,78 @@ void StudioController::setPackTitle(const QString &title) {
         model_.document.title = forward ? title : old;
         notifyContent();
     }));
+}
+QVariantList StudioController::packCategories() const {
+    QVariantList out;
+    for (const bool subjects : {true, false})
+        for (const auto &c : model_.document.categories)
+            if ((c.parent == 0) == subjects)
+                out << QVariantMap{{"id", c.id},
+                                   {"parent", c.parent},
+                                   {"name", model_.document.categoryLabel(c.id)},
+                                   {"names", c.names.toVariantMap()}};
+    return out;
+}
+void StudioController::setPackCategories(const QVariantList &list) {
+    if (busy_)
+        return;
+    QVector<studio::CustomCategory> categories;
+    QSet<int> ids, subjects;
+    for (const auto &value : list) {
+        const auto map = value.toMap();
+        studio::CustomCategory c{map["id"].toInt(), map["parent"].toInt(), {}};
+        const auto names = map["names"].toMap();
+        for (auto it = names.cbegin(); it != names.cend(); ++it) {
+            const auto name = it.value().toString().simplified().left(studio::customCategoryNameLimit);
+            if (!name.isEmpty())
+                c.names[it.key()] = name;
+        }
+        if (!studio::isCustomCategory(c.id) || ids.contains(c.id) ||
+            (c.parent && !subjects.contains(c.parent)))
+            return; // Subjects come before their subcategories.
+        ids.insert(c.id);
+        if (!c.parent)
+            subjects.insert(c.id);
+        categories << c;
+    }
+    if (categories.size() > 99 || categories == model_.document.categories)
+        return;
+    const auto before = model_.document;
+    auto after = before;
+    after.categories = categories;
+    for (auto &q : after.questions) {
+        const bool lostSubject = studio::isCustomCategory(q.subjectId) && !ids.contains(q.subjectId);
+        const bool lostCategory = studio::isCustomCategory(q.categoryId) && !ids.contains(q.categoryId);
+        if (lostSubject) {
+            q.subjectId = q.categoryId = 0;
+            q.category.clear();
+        } else if (lostCategory) {
+            // The subject's first remaining subcategory, or none.
+            q.categoryId = 0;
+            for (const auto &c : categories)
+                if (c.parent == q.subjectId) {
+                    q.categoryId = c.id;
+                    break;
+                }
+        }
+    }
+    after.refreshCategoryNames();
+    const auto selected = selected_;
+    history_.push(new Command(tr("Kategorie paczki"), [this, before, after, selected](bool forward) {
+        model_.reset(forward ? after : before);
+        selected_ = selected;
+        notifyContent();
+    }));
+}
+int StudioController::addPackSubject(const QVariantMap &names) {
+    if (busy_ || model_.document.categories.size() > 97)
+        return 0;
+    auto list = packCategories();
+    const int subject = studio::nextCustomCategoryId(model_.document);
+    list.prepend(QVariantMap{{"id", subject}, {"parent", 0}, {"names", names}});
+    list << QVariantMap{{"id", subject + 1}, {"parent", subject}, {"names", names}};
+    setPackCategories(list);
+    return model_.document.customCategory(subject) ? subject : 0;
 }
 void StudioController::setPackLanguage(const QString &value) {
     const auto code = studio::languageCode(value);
