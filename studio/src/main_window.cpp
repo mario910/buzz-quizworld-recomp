@@ -860,6 +860,13 @@ QWidget *MainWindow::buildEditor() {
     for (auto *b : {video, videoOpen, videoRemove})
         videoRow->addWidget(b);
     form->addLayout(videoRow);
+    decodeMediaButton = button(T("Zdekoduj media PS2"));
+    connect(decodeMediaButton, &QPushButton::clicked, this, [this] {
+        commitEdits();
+        studio.decodeSourceMedia();
+    });
+    busyDisabled << decodeMediaButton;
+    form->addWidget(decodeMediaButton);
     mediaNote = label(T("Źródło zawiera media Buzza. Zachowano ich oryginalne odwołania."), "faint");
     mediaNote->setWordWrap(true);
     form->addWidget(mediaNote);
@@ -1083,6 +1090,7 @@ void MainWindow::refreshSelection() {
     videoOpen->setVisible(!video.isEmpty());
     videoRemove->setVisible(!video.isEmpty());
     mediaNote->setVisible(!q["source_media"].toList().isEmpty());
+    decodeMediaButton->setVisible(q["canDecodePs2Media"].toBool());
     issues->setText(problems.join('\n'));
     issues->setVisible(!problems.isEmpty());
     idText->setText("ID  " + q["id"].toString());

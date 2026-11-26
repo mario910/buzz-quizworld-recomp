@@ -89,9 +89,16 @@ colours and controls as BuzzSetup.
   World subjects where the source category is clear; general ones are left for
   you to choose. Comparison, put-in-order, true/false and party-challenge rounds
   are skipped, as are tables a localized disc left in another language.
-  Picture/video/music questions keep their references and need your own picture
-  before building; the editor lists them as problems. PSP Brain Bender has
-  puzzles only.
+  For the tested PAL Mega Quiz releases (SCES-54505 and SCES-54690), select an
+  imported question and choose **Decode PS2 media** in the editor. With FFmpeg
+  installed (use its configured path or put it on PATH), Studio reads the matching
+  RSV entry from the disc image or extracted disc and attaches a PNG. For a
+  supported clip, it also attaches an MP4 with stereo audio and uses a representative video
+  frame as the question image. **Open** plays the MP4 in the system player.
+  The Quiz World pack builder uses the still image, not the MP4. Unsupported
+  media keep their original references for manual
+  replacement. Older imports need to be reimported to resolve video references.
+  PSP Brain Bender has puzzles only.
 - Import into the current project with identity-based duplicate handling.
   Importing another language of the same Buzz question merges its translation;
   existing text/media is preserved and entirely empty drafts can be filled.

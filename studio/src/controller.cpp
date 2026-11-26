@@ -1,6 +1,7 @@
 #include "controller.h"
 #include "languages.h"
 #include "ps3_source.h"
+#include "ps2_media.h"
 #include "project_media.h"
 #include "tts.h"
 #include <QCoreApplication>
@@ -305,6 +306,7 @@ QVariantMap StudioController::current() const {
     map["problems"] = q.problems();
     map["sourceLabel"] = displaySource(q.source);
     map["imageUrl"] = q.image.isEmpty() ? QString() : QUrl::fromLocalFile(q.image).toString();
+    map["canDecodePs2Media"] = studio::hasPs2Media(q);
     return map;
 }
 QVariantList StudioController::projectLanguages() const {
@@ -649,6 +651,43 @@ void StudioController::openVideo() {
     const int row = model_.find(selected_);
     if (row >= 0 && !model_.document.questions[row].video.isEmpty())
         QDesktopServices::openUrl(QUrl::fromLocalFile(model_.document.questions[row].video));
+}
+void StudioController::decodeSourceMedia() {
+    const auto row = model_.find(selected_);
+    if (busy_ || row < 0)
+        return;
+    const auto q = model_.document.questions[row];
+    if (!studio::hasPs2Media(q))
+        return;
+    const auto ffmpeg = studio::localPath(buildSettings().value("ffmpeg").toString());
+    busy_ = true;
+    setStatus(tr("Dekodowanie mediów PS2…"));
+    emit busyChanged();
+    auto *watcher = new QFutureWatcher<studio::Ps2Media>(this);
+    connect(watcher, &QFutureWatcher<studio::Ps2Media>::finished, this, [this, watcher, q] {
+        const auto decoded = watcher->result();
+        watcher->deleteLater();
+        busy_ = false;
+        emit busyChanged();
+        if (!decoded.error.isEmpty()) {
+            setStatus(tr("Nie udało się zdekodować mediów PS2."));
+            emit errorOccurred(decoded.error);
+            return;
+        }
+        const auto before = current();
+        if (selected_ == q.id && before.value("language").toString() == q.language) {
+            QVariantMap patch;
+            if (before.value("image").toString().isEmpty())
+                patch["image"] = decoded.image;
+            if (before.value("video").toString().isEmpty() && !decoded.video.isEmpty())
+                patch["video"] = decoded.video;
+            updateCurrent(patch);
+        }
+        setStatus(decoded.video.isEmpty() ? tr("Obraz PS2 zdekodowany.") : tr("Film PS2 zdekodowany."));
+    });
+    watcher->setFuture(QtConcurrent::run([q, ffmpeg] {
+        return studio::decodePs2Media(q, ffmpeg.isEmpty() ? studio::defaultFfmpeg() : ffmpeg);
+    }));
 }
 QVariantList StudioController::ttsVoices() const {
     if (!voicesLoaded_) {

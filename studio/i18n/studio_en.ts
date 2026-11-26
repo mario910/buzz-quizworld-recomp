@@ -742,6 +742,10 @@
     <context>
         <name>Main</name>
         <message>
+            <source>Zdekoduj media PS2</source>
+            <translation>Decode PS2 media</translation>
+        </message>
+        <message>
             <location filename="../src/main_window.cpp" />
             <source>Eksportuj projekt z mediami (.buzzproject)…</source>
             <translation>Export project with media (.buzzproject)…</translation>
@@ -2386,6 +2390,22 @@ Projects link to media files. App-side pack building and portable archives are l
     </context>
     <context>
         <name>StudioController</name>
+        <message>
+            <source>Dekodowanie mediów PS2…</source>
+            <translation>Decoding PS2 media…</translation>
+        </message>
+        <message>
+            <source>Nie udało się zdekodować mediów PS2.</source>
+            <translation>Could not decode PS2 media.</translation>
+        </message>
+        <message>
+            <source>Obraz PS2 zdekodowany.</source>
+            <translation>PS2 picture decoded.</translation>
+        </message>
+        <message>
+            <source>Film PS2 zdekodowany.</source>
+            <translation>PS2 video decoded.</translation>
+        </message>
         <message>
             <location filename="../src/controller.cpp" />
             <source>Projekt zapisany · brakuje %1 plików mediów</source>

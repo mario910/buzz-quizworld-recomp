@@ -118,6 +118,7 @@ class StudioController final : public QObject {
     }
     Q_INVOKABLE void openAudio();
     Q_INVOKABLE void openVideo();
+    Q_INVOKABLE void decodeSourceMedia();
     Q_INVOKABLE void generateAudio(const QUrl &destination, const QString &text, const QString &voice,
                                    int rate);
     Q_INVOKABLE void recover();

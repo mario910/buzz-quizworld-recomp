@@ -465,11 +465,18 @@ void importPs2(Source &source, const Set &set, Collector &c) {
     // decoded questions and RSV frames, _analysis/picture_tail_audit).
     // Only the unmodified table (by CRC) is corrected.
     const bool fixPolishPictures = rri.size() >= 4 && crc32(rri) == 0xe3ab8dacu;
+    const auto mediaRecord = [&](int mediaId) -> qint64 {
+        const qint64 offset = 4 + qint64(mediaId) * 8;
+        return rri.size() >= 4 && mediaId >= 0 && quint32(mediaId) < u32(rri, 0) &&
+                       offset + 8 <= rri.size()
+                   ? offset : -1;
+    };
     const auto pictureFrame = [&](int mediaId, bool &corrected) {
         corrected = false;
-        if (rri.size() < 4 || mediaId < 0 || quint32(mediaId) >= u32(rri, 0) || 4 + qint64(mediaId) * 8 + 8 > rri.size())
+        const auto offset = mediaRecord(mediaId);
+        if (offset < 0)
             return -1;
-        int frame = u16(rri, 4 + mediaId * 8 + 2);
+        int frame = u16(rri, offset + 2);
         // {first media id, last media id, frames to add}: 653 x +2, 22 x +3.
         static const int ranges[][3] = {
             {817, 819, 2},   {851, 882, 2},   {927, 941, 2},   {947, 959, 2},   {2239, 2241, 2},
@@ -484,7 +491,8 @@ void importPs2(Source &source, const Set &set, Collector &c) {
                 }
         return frame;
     };
-    const auto videos = rriName.section('/', 0, 1) + "/VIDEOS.PAK:Videos/pics001.rsv";
+    const auto videos = rriName.section('/', 0, 1) + "/VIDEOS.PAK:Videos/";
+    const bool megaQuiz = source.serial == "SCES-54505" || source.serial == "SCES-54690";
     for (auto it = rounds.entries.cbegin(); it != rounds.entries.cend(); ++it) {
         if (it.key().endsWith(".adt", Qt::CaseInsensitive)) {
             const auto table = QFileInfo(it.key()).completeBaseName();
@@ -557,10 +565,20 @@ void importPs2(Source &source, const Set &set, Collector &c) {
                     if (QString(kind) == "ps2-picture")
                         if (const int frame = pictureFrame(mediaId, corrected); frame >= 0) {
                             reference["frame"] = frame;
-                            reference["container"] = videos;
+                            reference["container"] = videos + "pics001.rsv";
                             if (corrected)
                                 reference["frame_corrected"] = true;
                         }
+                    if (megaQuiz && QString(kind) == "ps2-video") {
+                        const auto offset = mediaRecord(mediaId);
+                        if (offset >= 0 && u16(rri, offset + 6) == 0) {
+                            const auto clipId = u16(rri, offset);
+                            if (clipId != 0 && clipId != 0xffff)
+                                reference["container"] = videos + QString::number(1000000 + clipId) + ".rsv";
+                        }
+                    }
+                    if (reference.contains("container"))
+                        reference["archive"] = source.path;
                     media << reference;
                 } else if (mediaRound) {
                     // A picture/video/music round whose record lost its media id

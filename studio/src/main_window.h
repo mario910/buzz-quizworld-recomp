@@ -56,7 +56,7 @@ class MainWindow final : public QMainWindow {
            *overlayText = nullptr, *warningText = nullptr, *emptyTitle = nullptr, *emptyText = nullptr;
     QPushButton *languageButton = nullptr, *clearButton = nullptr, *undoButton = nullptr, *redoButton = nullptr,
                 *imageRemove = nullptr, *speechOpen = nullptr, *speechRemove = nullptr, *videoOpen = nullptr, *videoRemove = nullptr, *overlayCancel = nullptr,
-                *buildButton = nullptr, *imageButton = nullptr;
+                *buildButton = nullptr, *imageButton = nullptr, *decodeMediaButton = nullptr;
     QList<QPushButton *> filterButtons, tabButtons, busyDisabled;
     QListWidget *categories = nullptr;
     QListView *questionList = nullptr;
