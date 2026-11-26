@@ -789,7 +789,8 @@ if(BUZZ_STANDALONE)
         BUZZ_DISC_COMPLETION=$<BOOL:${BUZZ_DISC_COMPLETION}>)
 endif()
 target_sources(${PROJECT_NAME} PRIVATE ${host_edge_decompress} job_corpus.cpp native_stagef.cpp native_geometry.cpp native_geometry_job.cpp native_animation_runtime.cpp runtime_defaults.cpp)
-if(NOT ANDROID OR geometry_arm_driver)
+# The Apple Silicon preview runs the lifted SPU geometry jobs.
+if(geometry_arm_driver OR (NOT ANDROID AND NOT APPLE))
     target_sources(${PROJECT_NAME} PRIVATE native_geometry_job_flow.cpp)
 endif()
 if(geometry_arm_driver)
@@ -902,7 +903,7 @@ set_property(SOURCE native_geometry_job_flow.cpp APPEND PROPERTY COMPILE_DEFINIT
     "BUZZ_GEOMETRY_HOST_COMMANDS=$<BOOL:${BUZZ_GEOMETRY_HOST_COMMANDS}>"
     "BUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$<BOOL:${BUZZ_GEOMETRY_ZERO_VERTEX_PADDING}>"
     "BUZZ_GEOMETRY_CULL_COMPACT=$<BOOL:${BUZZ_GEOMETRY_CULL_COMPACT}>")
-# The flow TU is built on every desktop target and includes the AVX2/SSSE3
+# The desktop flow TU includes the AVX2/SSSE3
 # geometry helpers whatever geometry adapter is selected (a Stage F or
 # reference image-41 build too), so it always needs the SPU ISA flags there.
 if(geometry_job_native_setup_available OR
