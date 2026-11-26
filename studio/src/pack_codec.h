@@ -37,11 +37,12 @@ struct Category {
     QString name, key;
 };
 QVector<Category> readCategories(const QByteArray &bytes);
+inline constexpr int FirstMovieAsset = 20000, MovieAssetsPerPack = 512;
 struct RoundQuestion {
     quint32 id = 0, speech = 0;
     QString text, topic;
     QStringList answers; // Correct first.
-    int difficulty = 2, root = 0, category = 0, picture = 0;
+    int difficulty = 2, root = 0, category = 0, picture = 0, movie = 0;
 };
 struct RoundBytes {
     QByteArray header, stream, little, big;

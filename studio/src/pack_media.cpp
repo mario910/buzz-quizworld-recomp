@@ -171,6 +171,180 @@ void validateSdi(const QByteArray &bytes) {
             fail(QCoreApplication::translate("PackBuilder", "Błąd długości pakietu SDI."));
     }
 }
+namespace {
+constexpr int MoviePackSize = 2048, MovieMaxFrames = 900;
+constexpr int MovieWidth = 640, MovieHeight = 368, MovieFps = 29970;
+constexpr int AdxPairBytes = 36, AdxPairSamples = 32, AudioChunk = 56 * AdxPairBytes;
+constexpr int MovieHeaderPacks = 4;
+
+void appendMoviePack(QByteArray &stream, QByteArray body, quint32 mux) {
+    // MPEG-1 system clock, in 90 kHz ticks. The encoded rate is in 50 byte/s units.
+    const auto rate = ((mux & 0x7fffff) >> 1) * 50ull;
+    const auto scr = (quint64(stream.size()) * 90000 + rate / 2) / rate;
+    stream += QByteArray::fromHex("000001ba") + timestamp(0x20, scr);
+    put(stream, mux, 3, true);
+    const int pad = MoviePackSize - 12 - body.size();
+    if (pad >= 6) {
+        body += QByteArray::fromHex("000001be");
+        put(body, pad - 6, 2, true);
+        if (pad > 6)
+            body += QByteArray(1, '\x0f') + QByteArray(pad - 7, '\xff');
+    } else if (pad > 0) {
+        body.insert(6, QByteArray(pad, '\xff'));
+        patch(body, 4, body.size() - 6, 2, true);
+    }
+    stream += body;
+}
+
+void appendMoviePes(QByteArray &stream, int id, const QByteArray &header, QByteArrayView payload,
+                    quint32 mux) {
+    QByteArray body = QByteArray::fromHex("000001") + char(id);
+    put(body, header.size() + payload.size(), 2, true);
+    body += header;
+    body.append(payload.data(), payload.size());
+    appendMoviePack(stream, std::move(body), mux);
+}
+} // namespace
+
+bool isMovieTemplate(const QByteArray &bytes) {
+    if (bytes.size() < 0x50 || bytes.mid(64, 8) != "SDIVIDEO" ||
+        u32(bytes, 0, true) != 0 || u32(bytes, 4, true) != 48000 || u32(bytes, 8, true) != 2 ||
+        u32(bytes, 16, true) != MovieWidth || u32(bytes, 20, true) != MovieHeight ||
+        u32(bytes, 28, true) != MovieFps || u32(bytes, 48, true) != bytes.size() ||
+        u32(bytes, 0x4c, true) != sdiChecksum(bytes))
+        return false;
+    const auto start = u32(bytes, 40, true);
+    if (start < MoviePackSize || start % MoviePackSize ||
+        quint64(start) + MovieHeaderPacks * MoviePackSize > quint64(bytes.size()))
+        return false;
+    const auto mux = u32(bytes, start + 8, true) & 0xffffff;
+    return ((mux & 0x7fffff) >> 1) != 0 &&
+           bytes.mid(start + 12, 4) == QByteArray::fromHex("000001bb") &&
+           bytes.mid(start + MoviePackSize + 12, 4) == QByteArray::fromHex("000001bb") &&
+           bytes.mid(start + 2 * MoviePackSize + 0x20, 12) == "SofdecStream" &&
+           bytes.mid(start + 3 * MoviePackSize + 0x12, 7) == "CRITAGS";
+}
+
+QByteArray encodeMovie(const QByteArray &templateBytes, const QString &source, const QString &ffmpeg,
+                       const std::atomic_bool *cancel) {
+    if (!isMovieTemplate(templateBytes))
+        fail(QStringLiteral("The selected Quiz World template has no compatible SDI movie header."));
+    QTemporaryDir temporary;
+    if (!temporary.isValid())
+        fail(temporary.errorString());
+    const auto esPath = temporary.filePath("video.m1v"), adxPath = temporary.filePath("audio.adx");
+    const auto input = QStringList{"-nostdin", "-v", "error", "-y", "-protocol_whitelist", "file,pipe",
+                                   "-i", QFileInfo(source).absoluteFilePath()};
+    runMedia(ffmpeg,
+             input + QStringList{"-map", "0:v:0", "-an", "-sn",
+                                 // Compute square-pixel dimensions from the display aspect ratio.
+                                 // This also works on FFmpeg versions without scale=reset_sar.
+                                 "-vf", "scale='max(2,2*trunc(min(640,368*dar)/2))':"
+                                        "'max(2,2*trunc(min(368,640/dar)/2))',setsar=1,"
+                                        "pad=640:368:(ow-iw)/2:(oh-ih)/2,"
+                                        "fps=30000/1001",
+                                 "-frames:v", QString::number(MovieMaxFrames + 1), "-threads", "1",
+                                 "-c:v", "mpeg1video", "-pix_fmt", "yuv420p", "-g", "1", "-bf", "0",
+                                 "-q:v", "4", "-f", "mpeg1video", esPath},
+             cancel, esPath);
+    auto es = readFile(esPath);
+    const auto sequence = QByteArray::fromHex("000001b3");
+    QVector<qsizetype> frames;
+    for (qsizetype p = es.indexOf(sequence); p >= 0; p = es.indexOf(sequence, p + 4)) {
+        check(es, p, 8);
+        frames << p;
+        // Same MPEG display-aspect code as the game's 640x368 stock movies.
+        es[p + 7] = char(0xc0 | (quint8(es[p + 7]) & 15));
+    }
+    const int count = frames.size();
+    if (!count || frames.front() != 0 || count > MovieMaxFrames)
+        fail(QStringLiteral("A question movie must contain video and be at most 30 seconds long."));
+    frames << es.size();
+    const auto duration = QString::number(count * 1001.0 / 30000, 'f', 6);
+    runMedia(ffmpeg, input + QStringList{"-map", "0:a:0", "-vn", "-sn", "-af", "apad", "-t", duration,
+                                         "-ar", "48000", "-ac", "2", "-c:a", "adpcm_adx",
+                                         "-f", "adx", adxPath},
+             cancel, adxPath);
+    const auto audio = readFile(adxPath);
+    check(audio, 0, 20);
+    const int adxHeader = u16(audio, 2, true) + 4;
+    if (u16(audio, 0, true) != 0x8000 || adxHeader != AdxPairBytes ||
+        audio.mid(4, 4) != QByteArray::fromHex("03120402") || u32(audio, 8, true) != 48000 ||
+        audio.mid(adxHeader - 6, 6) != "(c)CRI" || audio.size() <= adxHeader)
+        fail(QStringLiteral("FFmpeg did not produce the expected stereo 48 kHz ADX stream."));
+
+    // Reuse only the metadata packs from a movie in the user's template.
+    const int start = u32(templateBytes, 40, true);
+    auto stream = templateBytes.mid(start, MovieHeaderPacks * MoviePackSize);
+    const auto mux = u32(stream, 8, true) & 0xffffff;
+    const int info = 2 * MoviePackSize, tags = 3 * MoviePackSize;
+    for (int off : {0x40, 0x1c0, 0x200})
+        stream.replace(info + off, 8, "buzzclip");
+    // SFV tags are informational; update fixed-width counts when the template's
+    // layout has the expected field delimiters.
+    if (stream.mid(tags + 0x5f, 9) == QByteArray("0V029970\0", 9) &&
+        stream.mid(tags + 0x1a2, 7) == "SFV:SRC" && stream[tags + 0x6b] == '\0') {
+        asciiCount(stream, tags + 0x68, count);
+        asciiCount(stream, tags + 0x92, count);
+        asciiCount(stream, tags + 0x1d5, count);
+        asciiCount(stream, tags + 0xe6, count - 1);
+        if (stream.mid(tags + 0x72, 3) == "IPB")
+            stream.replace(tags + 0x72, 3, "I  ");
+        stream.replace(tags + 0x1b2, 11, "buzzclip.es");
+    }
+
+    int a = 0, maximum = 0;
+    QVector<int> offsets;
+    const auto audioPts = [](int pos) {
+        return quint64(pos / AdxPairBytes) * AdxPairSamples * 90000 / 48000;
+    };
+    auto writeAudio = [&] {
+        const int len = std::min(AudioChunk, int(audio.size() - a));
+        appendMoviePes(stream, 0xc0, QByteArray::fromHex("4004") + timestamp(0x20, audioPts(a)),
+                       QByteArrayView(audio).sliced(a, len), mux);
+        a += len;
+    };
+    for (int i = 0; i < count; ++i) {
+        checkCancelled(cancel);
+        const quint64 pts = i * 3003ull; // 30000/1001; no B-frames, so DTS == PTS.
+        while (a < audio.size() && audioPts(a) <= pts)
+            writeAudio();
+        offsets << stream.size();
+        maximum = std::max(maximum, int(frames[i + 1] - frames[i]));
+        for (auto p = frames[i]; p < frames[i + 1];) {
+            const auto pes = p == frames[i]
+                                 ? QByteArray::fromHex("602e") + timestamp(0x30, pts) + timestamp(0x10, pts)
+                                 : QByteArray(9, '\xff') + QByteArray::fromHex("602e0f");
+            const auto len = std::min<qsizetype>(2030 - pes.size(), frames[i + 1] - p);
+            appendMoviePes(stream, 0xe0, pes, QByteArrayView(es).sliced(p, len), mux);
+            p += len;
+        }
+    }
+    while (a < audio.size())
+        writeAudio();
+    stream += QByteArray::fromHex("000001b9") + QByteArray(MoviePackSize - 4, '\xff');
+    const auto durationMs = quint32(count * 1001 / 30);
+    for (auto v : {qMakePair(0xbc, durationMs), qMakePair(0xc0, durationMs),
+                   qMakePair(0xc4, quint32(count)), qMakePair(0xc8, quint32(maximum)),
+                   qMakePair(0xcc, quint32(es.size() / count))})
+        patch(stream, info + v.first, v.second, 4);
+
+    constexpr int table = 0x50;
+    const int headerSize = ((table + 4 * count + MoviePackSize - 1) / MoviePackSize) * MoviePackSize;
+    auto header = templateBytes.left(table);
+    header += QByteArray(headerSize - table, '\0');
+    patch(header, 36, table, 4, true);
+    patch(header, 40, headerSize, 4, true);
+    patch(header, 44, headerSize, 4, true);
+    patch(header, 48, headerSize + stream.size(), 4, true);
+    patch(header, 52, count, 4, true);
+    for (int i = 0; i < count; ++i)
+        patch(header, table + i * 4, headerSize + offsets[i], 4, true);
+    patch(header, 0x4c, sdiChecksum(header), 4, true);
+    auto movie = header + stream;
+    validateSdi(movie);
+    return movie;
+}
 QByteArray unwrapWem(const QByteArray &bytes) {
     if (bytes.left(4) != "RIFF" || bytes.mid(8, 4) != "WAVE")
         fail(QCoreApplication::translate("PackBuilder", "Niepoprawny kontener nagrania WEM."));

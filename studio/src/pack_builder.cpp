@@ -192,7 +192,8 @@ void validateFile(Archive &archive, const QString &name, const QByteArray &bytes
     }
 }
 bool emptyLanguage(const Question &q) {
-    if (!q.text.trimmed().isEmpty() || !q.speech.isEmpty() || !q.image.isEmpty() || !q.ttsText.isEmpty())
+    if (!q.text.trimmed().isEmpty() || !q.speech.isEmpty() || !q.image.isEmpty() || !q.video.isEmpty() ||
+        !q.ttsText.isEmpty())
         return false;
     for (const auto &a : q.answers)
         if (!a.trimmed().isEmpty())
@@ -298,6 +299,7 @@ QVariantMap BuildResult::map() const {
             {"rounds", rounds},
             {"categories", categories},
             {"pictures", pictures},
+            {"movies", movies},
             {"cancelled", cancelled}};
 }
 BuildResult buildPack(const BuildRequest &request, const Progress &progress,
@@ -367,7 +369,7 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                                              "To nie jest obsługiwany szablon Quiz World PACK0100."));
         QVector<Question> questions;
         QSet<QString> identities;
-        QStringList images;
+        QStringList images, movies;
         QSet<int> roots;
         for (auto q : request.document.questions) {
             q.switchLanguage(code);
@@ -391,17 +393,13 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                     QCoreApplication::translate(
                         "PackBuilder", "Pytanie %1 wymaga mapowania kategorii na wybrany szablon Quiz World.")
                         .arg(q.id));
-            const auto media =
-                q.translations.isEmpty() ? q.extra["source_media"] : q.localized()["source_media"];
-            if (!media.toArray().isEmpty() && q.image.isEmpty())
-                fail(QCoreApplication::translate(
-                         "PackBuilder",
-                         "Pytanie %1 zawiera nieprzekonwertowane media Buzza. Przypisz obrazek przed "
-                         "budowaniem.")
-                         .arg(q.id));
             roots.insert(q.subjectId);
-            if (!q.image.isEmpty() && !images.contains(q.image))
+            if (!q.video.isEmpty()) {
+                if (!movies.contains(q.video))
+                    movies << q.video;
+            } else if (!q.image.isEmpty() && !images.contains(q.image)) {
                 images << q.image;
+            }
             questions << q;
         }
         if (questions.isEmpty())
@@ -451,11 +449,51 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                                              "Paczka może zawierać najwyżej 427 różnych obrazków."));
         const auto ffmpeg = request.ffmpeg.isEmpty() ? defaultFfmpeg() : request.ffmpeg;
         Entries entries;
+        auto movieAsset = [&](const QString &path) {
+            return FirstMovieAsset + (request.number - 101) * MovieAssetsPerPack + movies.indexOf(path);
+        };
         if (!images.isEmpty()) {
             report(5, QCoreApplication::translate("PackBuilder", "Tworzenie planszy obrazków…"));
             const auto sheet = language + "/QUESTIONASSETS/VIDEO/pics002.sdi";
             entries << qMakePair(language + "/QUESTIONASSETS/VIDEO/pics001.sdi",
                                  pictureSheet(archive.read(sheet), images, ffmpeg, cancel));
+        }
+        if (!movies.isEmpty()) {
+            if (movies.size() > MovieAssetsPerPack)
+                fail(QStringLiteral("Too many distinct question movies in one pack."));
+            const auto prefix = language + "/QUESTIONASSETS/VIDEO/";
+            QByteArray movieTemplate;
+            for (auto it = archive.entries.lowerBound(prefix);
+                 it != archive.entries.cend() && it.key().startsWith(prefix); ++it) {
+                checkCancelled(cancel);
+                if (!it.key().endsWith(".sdi") || !it.key().at(prefix.size()).isDigit())
+                    continue;
+                auto candidate = archive.read(it.key());
+                if (isMovieTemplate(candidate)) {
+                    movieTemplate = std::move(candidate);
+                    break;
+                }
+            }
+            if (movieTemplate.isEmpty())
+                fail(QStringLiteral("The selected Quiz World template has no compatible SDI movie header."));
+            qsizetype movieBytes = 0;
+            for (qsizetype i = 0; i < movies.size(); ++i) {
+                checkCancelled(cancel);
+                const auto &path = movies[i];
+                report(8, QCoreApplication::translate("PackBuilder", "Encoding question movie %1 of %2…")
+                              .arg(i + 1).arg(movies.size()));
+                try {
+                    auto bytes = encodeMovie(movieTemplate, path, ffmpeg, cancel);
+                    movieBytes += bytes.size();
+                    if (movieBytes > 256 * 1024 * 1024)
+                        fail(QStringLiteral("Question movies exceed the 256 MiB pack limit."));
+                    entries << qMakePair(prefix + QString::number(1000000ll + movieAsset(path)) + ".sdi",
+                                         std::move(bytes));
+                } catch (const std::exception &error) {
+                    checkCancelled(cancel);
+                    fail(QFileInfo(path).fileName() + ": " + QString::fromUtf8(error.what()));
+                }
+            }
         }
         report(10, QCoreApplication::translate("PackBuilder", "Kodowanie nagrań…"));
         std::vector<QByteArray> audio(questions.size());
@@ -537,7 +575,7 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                 if (q.subjectId == root)
                     group << q;
             std::stable_sort(group.begin(), group.end(), [](const Question &a, const Question &b) {
-                return !a.image.isEmpty() && b.image.isEmpty();
+                return (!a.image.isEmpty() || !a.video.isEmpty()) && b.image.isEmpty() && b.video.isEmpty();
             });
             QVector<RoundQuestion> round;
             for (const auto &q : group) {
@@ -545,7 +583,8 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                 for (int i = 0; i < 4; ++i)
                     if (i != q.correct)
                         answers << q.answers[i];
-                const int slot = q.image.isEmpty() ? 0 : images.indexOf(q.image) + 1;
+                const int movie = q.video.isEmpty() ? 0 : movieAsset(q.video);
+                const int slot = movie || q.image.isEmpty() ? 0 : images.indexOf(q.image) + 1;
                 const auto id = quint32(++nextQuestion);
                 ids[q.id] = id;
                 round << RoundQuestion{
@@ -553,9 +592,9 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                     q.text,      q.topic.isEmpty() ? request.document.packExtra["topic"].toString() : q.topic,
                     answers,     q.difficulty,
                     remap[root], remap[q.categoryId],
-                    slot};
+                    slot, movie};
                 for (int c : {root, q.categoryId}) {
-                    if (slot)
+                    if (slot || movie)
                         ++counts[c].first;
                     else
                         ++counts[c].second;
@@ -657,6 +696,7 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         result.rounds = usedRoots.size();
         result.categories = remap.size();
         result.pictures = images.size();
+        result.movies = movies.size();
         if (request.install) {
             const auto installed = installPack(path, request.runtimeRoot, request.titleId, progress, cancel);
             result.installedPath = installed.installedPath;

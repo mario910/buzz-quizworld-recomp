@@ -96,9 +96,12 @@ colours and controls as BuzzSetup.
   RSV entry from the disc image or extracted disc and attaches a PNG. For a
   supported clip, it also attaches an MP4 with stereo audio and uses a representative video
   frame as the question image. **Open** plays the MP4 in the system player.
-  The Quiz World pack builder uses the still image, not the MP4. Unsupported
-  media keep their original references for manual
-  replacement. Older imports need to be reimported to resolve video references.
+  The Quiz World pack builder plays the attached clip with its own audio.
+  If an existing MP4 looks scrambled into blocks, remove the old video and
+  its generated still in the editor, then run **Decode PS2 media** again and
+  rebuild the pack to use the corrected macroblock order. Unsupported
+  media keep their original references for manual replacement. Older imports
+  need to be reimported if they lack video references.
   PSP Brain Bender has puzzles only.
 - Import into the current project with identity-based duplicate handling.
   Importing another language of the same Buzz question merges its translation;
@@ -132,10 +135,16 @@ Output is `PACKnnnn/LANGPACKnnnn.edat`. Only the selected language is emitted.
 Questions with an entirely empty selected translation are counted and skipped;
 partially completed translations stop the build with an error. Other translations
 stay in the project. Images retain their proportions in a 16:9 letterboxed canvas.
+An attached video takes precedence over the still image. For short clips (up to
+30 seconds, with an audio track), FFmpeg supplies the MPEG-1 video and stereo
+48 kHz ADX audio. Studio writes a native `.sdi` movie using metadata from the
+selected Quiz World `PACK0100` template. A template without a compatible movie
+header reports an error rather than silently substituting a still. The
+converted media are inside the installed pack; the game does not need FFmpeg.
 Supported audio includes WAV/generated TTS, RSF and KiP ATRAC9 WEM; FFmpeg decodes
 foreign audio and the native encoder writes ATRAC3. Successfully encoded speech
 is cached by content and gain. Imported native SDI/video/music references require
-conversion or a replacement image; they are never silently dropped.
+conversion or a replacement image or video; they are never silently dropped.
 
 In **Advanced settings**, select FFmpeg if it is absent from the application
 directory and PATH. Change the category base if the installer reports a collision:
@@ -226,9 +235,9 @@ folder opens the same on Windows and Linux. Links to files that no longer
 exist are kept and reported (status bar and per-question problems).
 
 Each question (and each language variant) has `image`, `speech` and an optional
-`video`. Video is kept with the project and opened in the system player; the
-pack builder still uses only the picture and speech, so a video question needs a
-picture before building.
+`video`. Video is kept with the project and opened in the system player.
+The pack builder uses the video and its audio if attached; a poster image
+is optional.
 
 **… → Eksportuj projekt z mediami (.buzzproject)…** writes the project and all
 its media into one file (a ZIP: the `.buzz.json` at the root plus `media/`).

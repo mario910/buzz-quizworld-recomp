@@ -152,7 +152,7 @@ Header (big-endian u32 words; `SDIVIDEO` at 0x40):
 | 7 | fps × 1000 (29970 video, 25000 sheets) |
 | 8 | bitrate |
 | 9 | index offset (0x50) |
-| 10, 11 | stream offset (0x800), twice |
+| 10, 11 | stream offset, twice (0x800 when the index fits one sector) |
 | 12 | file size |
 | 13 | entry count (frames for sheets) |
 | 14, 15 | video only; unknown |
@@ -161,7 +161,7 @@ Header (big-endian u32 words; `SDIVIDEO` at 0x40):
 Index: `count` absolute u32 offsets of the 2048-byte pack where each frame's first
 PES (the one carrying PTS/DTS) starts.
 
-Stream: a CRI Sofdec MPEG-1 system stream, 2048-byte packs (mux rate 0x040F39).
+Picture-sheet stream: a CRI Sofdec MPEG-1 system stream, 2048-byte packs (mux rate 0x040F39).
 - Pack 0: system header + padding.
 - Pack 1: `SofdecStream` header. LE fields at +0xBC: duration ms, frames, max frame size, average frame size.
 - Pack 2: `@CRITAGS` text tags with frame counts.
@@ -175,6 +175,15 @@ Stream: a CRI Sofdec MPEG-1 system stream, 2048-byte packs (mux rate 0x040F39).
 Picture questions: slot = frame index; **frame 0 is a "Missing Picture" placeholder** [C:
 slot 1 decodes to the printing-press photo used by the printing questions]. The index area
 0x50..0x800 limits a sheet to 428 frames.
+
+Movie questions use QAK media type 2, slot 0, and
+`QUESTIONASSETS/VIDEO/{1000000 + asset}.sdi`. The Studio builder emits MPEG-1
+I-frames at 30000/1001 fps and stereo ADX at 48 kHz. The indexed stream starts
+after the aligned header and index. It has two system headers, the Sofdec and
+CRI metadata packs, interleaved video (`0xe0`) and audio (`0xc0`) PES packs, and
+an end pack (`0xb9`). Video PTS/DTS advance by 3003 ticks per frame. The metadata
+layout is derived from a matching movie in the user's Quiz World template;
+none of the template movie's video or audio packets are included.
 
 ## 6. `.rsf` speech
 

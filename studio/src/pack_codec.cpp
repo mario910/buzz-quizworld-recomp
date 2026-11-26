@@ -336,32 +336,35 @@ RoundBytes writeRound(const QString &name, const QString &language, int pack, in
     if (questions.isEmpty() || questions.size() * 6 > 65535 || name.size() > 24 || language.size() != 3)
         fail(QCoreApplication::translate("PackBuilder", "Przekroczono limit pytań jednej kategorii."));
     QStringList strings;
-    QSet<int> pictureSlots;
+    QMap<int, int> mediaSlots; // Local media ID -> QAK row, after sorting by ID.
     for (const auto &q : questions) {
         strings << q.text << q.topic;
         strings << q.answers;
-        if (q.picture)
-            pictureSlots.insert(q.picture);
+        if (const int media = q.movie ? q.movie : q.picture)
+            mediaSlots.insert(media, 0);
     }
-    auto pictures = pictureSlots.values();
-    std::sort(pictures.begin(), pictures.end());
+    int mediaRow = 0;
+    for (auto &row : mediaSlots)
+        row = mediaRow++;
     auto qak = [&](bool be) {
         QVector<QByteArray> sections(11);
         QVector<int> counts(11);
         QVector<QPair<quint32, quint32>> mediaIndex, questionIndex, catIndex, roundIndex;
         QMap<int, int> categoryCounts;
         auto add = [&](int sec, quint64 value, int bytes) { put(sections[sec], value, bytes, be); };
-        for (int slot : pictures) {
+        for (int slot : mediaSlots.keys()) {
+            const bool movie = slot >= FirstMovieAsset;
             add(0, slot, 4);
             add(0, slot, 4);
             add(0, 0, 2);
-            add(0, slot, 2);
-            sections[0] += QByteArray::fromHex("03100400");
+            add(0, movie ? 0 : slot, 2);
+            sections[0] += QByteArray::fromHex(movie ? "02100000" : "03100400");
             mediaIndex << qMakePair(quint32(slot), 0u);
             ++counts[0];
         }
         for (int i = 0; i < questions.size(); ++i) {
             const auto &q = questions[i];
+            const int media = q.movie ? q.movie : q.picture;
             const int base = i * 6;
             if (q.answers.size() != 4)
                 fail(QCoreApplication::translate("PackBuilder", "Wymagane są cztery odpowiedzi."));
@@ -369,19 +372,19 @@ RoundBytes writeRound(const QString &name, const QString &language, int pack, in
             sections[1] += language.toLatin1() + '\0';
             add(1, 0, 4);
             add(1, i, 2);
-            add(1, q.picture ? counts[2] : 0xffff, 2);
+            add(1, media ? counts[2] : 0xffff, 2);
             add(1, i * 2, 2);
             add(1, i * 2, 2);
             add(1, 0, 2);
             add(1, 0x7ffe, 2);
             add(1, i * 4, 2);
-            add(1, q.picture ? 0 : 8, 2);
-            for (int v : {0, 1 + ((i + 1) % 6), q.difficulty, 1, q.picture ? 1 : 0, 2, 2, 4})
+            add(1, media ? 0 : 8, 2);
+            for (int v : {0, 1 + ((i + 1) % 6), q.difficulty, 1, media ? 1 : 0, 2, 2, 4})
                 add(1, v, 1);
             ++counts[1];
             questionIndex << qMakePair(q.id, 0u);
-            if (q.picture) {
-                add(2, pictures.indexOf(q.picture), 2);
+            if (media) {
+                add(2, mediaSlots[media], 2);
                 add(2, 1, 1);
                 add(2, 0, 1);
                 ++counts[2];
