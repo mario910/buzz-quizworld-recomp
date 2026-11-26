@@ -908,11 +908,14 @@ public:
             hideConsole(gameProcess);
             gameProcess.setProgram(gameExe());
             gameProcess.setWorkingDirectory(root() + "/dist");
-            if (!gameProcess.startDetached()) {
-                guidance->setText("Could not start the game. Open the game folder to check your copy.");
-                log.appendPlainText("Could not start the prepared game.");
-                details.setChecked(true);
+            if (gameProcess.startDetached()) {
+                play->setEnabled(false);
+                close();
+                return;
             }
+            guidance->setText("Could not start the game. Open the game folder to check your copy.");
+            log.appendPlainText("Could not start the prepared game.");
+            details.setChecked(true);
         });
         play->setObjectName("primary");
         updateGame = button(*prepareCard, "Update installed game", [this] {
