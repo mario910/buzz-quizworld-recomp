@@ -16,10 +16,7 @@ either, or the following separately licensed components.
 | pycdlib, Chris Lalancette and contributors | LGPL-2.1-only; [upstream license](https://github.com/clalancette/pycdlib/blob/master/COPYING), also installed with the pip distribution | ISO/Joliet/UDF import tool, not vendored source |
 | [SDL2](https://github.com/libsdl-org/SDL/tree/release-2.32.10), SDL contributors | zlib; see the SDL source's `LICENSE.txt` | Android activity and native input, window and audio runtime |
 | [libucontext](https://github.com/kaniini/libucontext/tree/49e671dd52ff6791295d8161ad3b6da7dc5f6f9d), Ariadne Conill and contributors | ISC; see the pinned source's `LICENSE` | Android ARM64 fiber context switching |
-| SDL3, SDL contributors | zlib; pinned source `LICENSE.txt`, installed as `licenses/SDL3.txt` | Native launcher window, input, dialogs and direct process API; statically linked |
-| Dear ImGui, Omar Cornut and contributors | MIT; pinned source `LICENSE.txt`, installed as `licenses/ImGui.txt` | Native launcher UI |
-| JSON for Modern C++, Niels Lohmann and contributors | MIT; pinned source `LICENSE.MIT`, installed as `licenses/nlohmann-json.txt` | Native launcher settings/manifest parsing |
-| PicoSHA2, okdshin and contributors | MIT; pinned source `LICENSE`, installed as `licenses/PicoSHA2.txt` | Native launcher's SHA-256 consistency checks |
+| Dear ImGui, Omar Cornut and contributors | MIT; pinned source `LICENSE.txt`, installed as `licenses/ImGui.txt` | In-game PC settings overlay |
 | cpp-httplib, Yuji Hirose and contributors, v0.18.7 | MIT; `third_party/cpp-httplib/LICENSE` | Embedded local HTTP phone-controller server |
 | QR Code generator, Project Nayuki, v1.8.0 | MIT notice in each file in `third_party/qrcodegen` | In-game phone pairing QR code |
 | AMD FidelityFX Super Resolution 1.0 algorithm, Advanced Micro Devices | MIT; notice retained in `ps3recomp/libs/video/rsx_fsr1.h` | Optional FSR 1 presentation upscaler (EASU + RCAS port) |
@@ -41,7 +38,7 @@ licenses collected in its `LICENSE.txt`), SPIRV-Headers (MIT) and SPIRV-Tools
 `cmake/VulkanDependencies.cmake`; the SPIR-V pair matches glslang's known-good
 revision list. Their shader libraries are linked into experimental binaries,
 not downloaded or launched while playing. Preserve their upstream notices
-when packaging a binary; the native launcher's own dependency set is unchanged.
+when packaging a binary.
 
 ## Source publication, not a redistributable game build
 

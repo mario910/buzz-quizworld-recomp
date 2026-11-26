@@ -43,13 +43,13 @@ listener in this change.
 
 ## Configure input
 
-A graphical editor and live input test are now available through
-`Launch-Buzz.cmd` / `scripts/Launch-Buzz.ps1`; see [pc-launcher.md](pc-launcher.md).
+Controls are edited and tested in the game's PC menu (Escape / START →
+Controls); see [PC settings](pc-settings.md).
 Manual INI configuration below remains supported independently.
 
 The D3D12 game also has an Escape/START PC menu for live controller settings,
-audio/video preferences and persistent saves. See the native launcher's guide
-for the current validation scope and shared per-build settings behavior.
+audio/video preferences and persistent saves. See [PC settings](pc-settings.md)
+for the current validation scope and per-build settings behavior.
 Original physical Buzz HID now has an experimental Windows provider, separate
 from guest USB emulation; see [hardware-unverified scope](physical-buzzers.md).
 
@@ -202,8 +202,7 @@ the real offline path, successful store policy and 8/8 boot-smoke checks.
 `analysis/frontend-input-background-02/frame_001.bmp` shows the root menu with
 Store absent; online/MyBuzz entries remain visible but correctly disabled.
 Do not equate receiver attachment or synthetic packets with a completed
-eight-person multiplayer round. Launcher fixture tests also verify config-path
-inheritance, env cleanup on failure and pulse priority without starting a game.
+eight-person multiplayer round. 
 These are functionality checks, not a new FPS benchmark.
 
 Unattended integration uses the existing `-Background` window mode and internal

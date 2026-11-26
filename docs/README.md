@@ -8,7 +8,7 @@ Git history rather than maintained alongside the reference documentation.
 
 - [Preparation and game import](game-import.md)
 - [Android ARM64 build, staging and Turnip](../android/README.md)
-- [Native PC launcher, display and textures](pc-launcher.md)
+- [PC settings menu, display and textures](pc-settings.md)
 - [Input and offline mode](input-and-offline.md)
 - [Phone buzzers](phone-buzzers.md) and [physical receivers](physical-buzzers.md)
 - [EU original-disc profiles](disc-100-status.md) and [US profile](us-100-status.md)
@@ -23,7 +23,6 @@ Git history rather than maintained alongside the reference documentation.
 - [Frame pacing](frame-pacing.md)
 - [Profiling and validation](performance.md)
 - [Source publication policy](publication.md)
-- [Legacy Python launcher](legacy-python-launcher.md)
 
 ## Job and format references
 

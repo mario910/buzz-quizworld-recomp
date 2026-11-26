@@ -37,7 +37,7 @@ in its entirety by this repository's MIT license. See
 - **Local preparation without RPCS3:** import your disc/ISO, firmware and optional
   update, validate exact executable hashes, then generate and build locally.
   Preparation sessions can be cancelled and resumed.
-- **In-game PC settings and developer launcher:** select prepared copies, map/test
+- **In-game PC settings:** map/test
   controls, adjust volume, fullscreen, window size and the frame limit.
   The desktop game starts at 30 FPS by default. Select 60 FPS or Uncapped in the menu.
   Escape / START pauses gameplay while the settings menu is open on Vulkan.
@@ -186,8 +186,8 @@ and the system tools checklist.
    Non-Steam); Steam closes for a moment and reopens. Or start the game with
    **`BuzzSetup-x86_64.AppImage --play`**: add the AppImage to Steam as a
    non-Steam game with the launch option `--play` for game mode
-   (`Play-Buzz.sh` in the tar package). `--launcher` (`Buzz-Launcher.sh`)
-   opens the optional native launcher for controls and a button test. See [the Linux package](preparation/README.md#linux-release-package).
+   (`Play-Buzz.sh` in the tar package). Controls, phones and display settings
+   are in the game's own menu (Escape / START). See [the Linux package](preparation/README.md#linux-release-package).
 
 ### Updating an existing installation
 
@@ -330,8 +330,8 @@ replace an existing portable `dist/` copy.
 
 ### Manual developer build
 
-This Windows route keeps source/build outputs and uses the native developer
-launcher to supply the matching paths. It does **not** publish a portable
+This Windows route keeps source/build outputs and starts the build with
+`scripts/Launch-Buzz.ps1` (via `scripts/run-windows.ps1`), which supplies the matching paths. It does **not** publish a portable
 `dist/` copy. Run `scripts/Setup-Buzz.ps1` to create the tool environment and
 paths template, then configure your own decrypted **disc 1.00** executable.
 
@@ -362,15 +362,12 @@ firmware or global Python installation.
 # Optional read-only preflight (also performed by Build-Buzz).
 .\toolenv\Scripts\python.exe .\tools\verify-game.py
 
-# Validate, generate translations, build the optimized Vulkan game and launcher.
+# Validate, generate translations and build the optimized Vulkan game.
 .\scripts\Build-Buzz.ps1 -Renderer Vulkan -Jobs 6
 
-# Start the native desktop launcher (no interpreter at runtime).
-.\Launch-Buzz.cmd
+# Start the developer build (Vulkan when built, else D3D12).
+.\scripts\Launch-Buzz.ps1
 ```
-
-Build-Buzz also builds the native SDL3/ImGui launcher. Its standalone CMake
-build needs no game files or Python; see [launcher build/package instructions](docs/pc-launcher.md#build-the-launcher-only).
 
 | Build selection | Command | Game output |
 |---|---|---|
@@ -378,25 +375,16 @@ build needs no game files or Python; see [launcher build/package instructions](d
 | Vulkan only | `scripts/Build-Buzz.ps1 -Renderer Vulkan -Jobs 6` | `build-vulkan-windows/BuzzQuizWorldRecomp.exe` |
 | D3D12 only | `scripts/Build-Buzz.ps1 -Renderer D3D12 -Jobs 6` | `build-windows/BuzzQuizWorldRecomp.exe` |
 
-Each command also builds `build-launcher/BuzzLauncher.exe`. Start through
-`Launch-Buzz.cmd`, which opens the launcher, then start the game there; it
-selects the matching executable, content and runtime preferences. Vulkan is
-preferred unless saved settings select D3D12; make sure the selected renderer
-was built. Reduce `-Jobs` if compilation runs out of memory.
-
-If a standalone `dist/` already exists, `Launch-Buzz.cmd` prefers that copy.
-To test a developer rebuild explicitly, run
-`build-launcher/BuzzLauncher.exe --project . --launch` from that build's
-checkout/workspace. Do not copy an EU EXE into a US build or mix manifests.
-
-The gameplay GUI lets you validate/select files, configure keyboard/controllers
-and test buttons. The interface and preparation wizard are in English. The separate preparation
-wizard builds locally; neither downloads game content. A background start is enabled by default: click the
-game window before using keyboard controls. See [launcher guide](docs/pc-launcher.md).
+`scripts/Launch-Buzz.ps1` starts a prepared `dist/` copy when one exists, otherwise
+this checkout's build through `scripts/run-windows.ps1` (with `buzz-paths.json`
+and the verified runtime defaults), otherwise BuzzSetup. Reduce `-Jobs` if
+compilation runs out of memory. Do not copy an EU EXE into a US build or mix
+manifests. BuzzSetup builds locally and never downloads game content.
 
 The game also has an **Escape / controller START** PC settings menu for
 volume, a 30 / 60 / Uncapped frame limit, fullscreen, controllers and restart-only offline mode.
-It shares per-build settings with the native launcher. On Vulkan the game is
+Settings are stored per build in `runtime/pc-settings.ini`; see
+[PC settings](docs/pc-settings.md). On Vulkan the game is
 paused while the menu is open (guest clock, vblank and audio held); on the
 D3D12 fallback the quiz keeps running. The optional 30/60 FPS cap paces the game's
 CPU thread and is off by default; see [frame pacing](docs/frame-pacing.md).
@@ -404,8 +392,7 @@ L1/LB or R1/RB is the red buzzer; Triangle/Square/Circle/Cross (Y/X/B/A) select
 blue/orange/green/yellow, as in RPCS3/PCSX2. DualShock 4 and DualSense work
 like XInput pads. Windows physical Buzz HID is experimental and
 hardware-unverified. `Build-Buzz.ps1` builds both renderers (`-Renderer Vulkan`
-or `D3D12` for one); the launcher prefers Vulkan unless PC settings select
-`renderer=d3d12`. See [renderer architecture](docs/renderer.md) for submission,
+or `D3D12` for one). See [renderer architecture](docs/renderer.md) for submission,
 resource-lifetime and diagnostic behavior.
 
 **Phone buzzers:** enable the optional local HTTP host in **Escape / START →
@@ -414,15 +401,7 @@ Players get five virtual buttons, reserved player slots and reconnecting
 sessions. The host can lock joining or remove phones. Hosting defaults to off;
 see the [phone controller guide](docs/phone-buzzers.md).
 
-For a direct native start from the built project/workspace, using saved settings
-(or `buzz-paths.json`) and the
-verified runtime defaults:
-
-```powershell
-.\build-launcher\BuzzLauncher.exe --project . --launch
-```
-
-The older script remains available for developer measurements:
+For developer measurements, start the build directly:
 
 ```powershell
 .\scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap
@@ -476,12 +455,12 @@ batches and keeps the results under `replace/auto/`. New replacements are picked
 up on the texture's next upload; handmade replacements take priority. The
 default 2048-pixel output limit bounds texture growth.
 
-Install the optional upscaler by selecting **Download the Real-ESRGAN texture
-upscaler** in Prepare-Buzz, or run `scripts/Install-Upscaler.ps1` for a developer
+Install the optional upscaler by selecting **Download the optional Real-ESRGAN
+texture upscaler** in BuzzSetup, or run `scripts/Install-Upscaler.ps1` for a developer
 checkout. The installer downloads a pinned, size/hash-checked release only
 when requested; `-Archive` accepts a local copy. See
-[display settings](docs/pc-launcher.md#display-size-and-internal-resolution) and
-[texture-pack options](docs/pc-launcher.md#texture-packs-upscaled-textures).
+[display settings](docs/pc-settings.md#display-size-and-internal-resolution) and
+[texture-pack options](docs/pc-settings.md#texture-packs-upscaled-textures).
 
 ## Custom question packs
 
@@ -530,8 +509,8 @@ limit simultaneous players. See [input/offline guide](docs/input-and-offline.md)
 
 For a prepared distribution, saves, profiles, caches and standalone startup
 logs live under `dist/runtime/`. Preferences live in `pc-settings.ini` and
-`input-settings.ini` in that directory. Developer launchers retain their own
-logs and path settings. Back up
+`input-settings.ini` in that directory. Developer builds keep their logs in
+`logs/` and their paths in `buzz-paths.json`. Back up
 saves before experimenting; this is not a verified RPCS3 save-transfer workflow.
 
 The native frontend defaults to **offline/no-PSN-account** and hides the
@@ -547,7 +526,7 @@ Performance depends on the build, scene, hardware and execution environment;
 the port does not guarantee stable 30 FPS throughout the game. Follow the
 [profiling and validation rules](docs/performance.md) for comparisons.
 The EXE owns the reviewed defaults for the qualified
-profile; launchers preserve explicit developer overrides. Other versions and
+profile; `run-windows.ps1` preserves explicit developer overrides. Other versions and
 renderers retain their own build profiles. Known limitations include
 occasional long frame-time spikes on menu transitions, an intermittent green
 monitor/white-square state, and limited multiplayer/long-session validation.
@@ -580,8 +559,8 @@ See the [documentation index](docs/README.md) for runtime architecture and file-
   scripts do not kill it. Avoid parallel builds against one output directory.
 - No keyboard response: focus the game window, check the buzzer mapping and
   make sure no old `BUZZ_SCRIPT` test variable is set in your CLI shell.
-- Launcher fails: inspect `runtime/launcher/launcher-error.log` and
-  `runtime/launcher/last-start.log`. Game errors go to `logs/*.stderr.log`.
+- Game does not start: a prepared copy logs to `dist/runtime/game.log` and
+  `game-error.log`; developer runs log to `logs/*.stderr.log`.
   Review/redact local paths and any game-derived data before sharing logs.
 
 [Developer scripts and tests](docs/development.md) ·

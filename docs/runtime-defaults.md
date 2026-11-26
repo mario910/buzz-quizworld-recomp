@@ -68,7 +68,7 @@ experimental switch at once. Unsupported job inputs retain the whole lift,
 and legacy per-stage options do not control the new host pipeline.
 
 Tests for constructor order, overrides and launcher boundaries live in
-`tests/runtime-defaults-test.cpp`, `tests/launcher-native-test.cpp` and
+`tests/runtime-defaults-test.cpp` and
 `tests/scripts/test-*-defaults.ps1`. The runtime corpus checks live in
 `tests/scripts/test-embedded-runtime.ps1` and
 `tests/scripts/test-animation-runtime.ps1`.

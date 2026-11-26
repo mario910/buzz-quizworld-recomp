@@ -1,19 +1,11 @@
 @echo off
 setlocal DisableDelayedExpansion
+rem Start the game prepared by BuzzSetup; otherwise open BuzzSetup to prepare it.
 set "BUZZ_LAUNCH_DIR=%~dp0"
 if exist "%BUZZ_LAUNCH_DIR%dist\BuzzQuizWorldRecomp.exe" (
     start "" "%BUZZ_LAUNCH_DIR%dist\BuzzQuizWorldRecomp.exe"
     exit /b
 )
-if exist "%BUZZ_LAUNCH_DIR%BuzzLauncher.exe" (
-    start "" /D "%BUZZ_LAUNCH_DIR%" "%BUZZ_LAUNCH_DIR%BuzzLauncher.exe"
-    exit /b
-)
-if exist "%BUZZ_LAUNCH_DIR%build-launcher\BuzzLauncher.exe" (
-    start "" /D "%BUZZ_LAUNCH_DIR%" "%BUZZ_LAUNCH_DIR%build-launcher\BuzzLauncher.exe"
-    exit /b
-)
-echo The native launcher has not been built yet.
-echo Developer setup: see README, then run scripts\build-launcher.ps1.
-echo Importing/building and the legacy Python UI are separate developer tools.
-pause
+echo No prepared game yet: opening BuzzSetup.
+echo Developers can start a build from scripts\Build-Buzz.ps1 with scripts\run-windows.ps1 -Seconds 0 -MenuBootstrap.
+call "%BUZZ_LAUNCH_DIR%Prepare-Buzz.cmd"

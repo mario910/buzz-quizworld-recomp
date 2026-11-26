@@ -1,4 +1,4 @@
-// The UI font for the in-game PC menu and the native launcher: the platform's
+// The UI font for the in-game PC menu: the platform's
 // regular sans-serif face, or nullptr to keep ImGui's built-in font.
 #pragma once
 #include <filesystem>

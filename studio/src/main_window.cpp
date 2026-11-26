@@ -43,7 +43,7 @@
 #include <iterator>
 
 namespace {
-// The catalog contexts of the former QML interface, so studio_en.ts still applies.
+// Translation contexts "Main" and "PackDialogs" group the interface strings in studio_en.ts.
 QString T(const char *text) { return QCoreApplication::translate("Main", text); }
 QString P(const char *text) { return QCoreApplication::translate("PackDialogs", text); }
 

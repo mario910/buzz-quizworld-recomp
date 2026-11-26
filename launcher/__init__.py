@@ -1,1 +1,1 @@
-"""Local desktop launcher. No game content or network service is included."""
+"""Preparation pipeline used by BuzzSetup and the developer tools (import, build, update)."""

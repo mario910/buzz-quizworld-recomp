@@ -4,7 +4,7 @@ The desktop game defaults to **30 FPS**. The live frame limit offers
 **30 FPS, 60 FPS or Uncapped** (`fps_limit=30`, `60` or `0`). It is
 independent of Vulkan present mode.
 Mailbox prevents a FIFO backlog but does not itself impose a frame cap.
-Select it in General > Frame limit or the native launcher, then Save settings
+Select it in General > Frame limit, then Save settings
 to retain it. The game uses your saved setting on startup.
 
 `port/frame_limit.cpp` places its pacer at the real `cellGcmResetFlipStatus`
@@ -35,7 +35,7 @@ still-pending flag would produce duplicate presentations and inflated FPS.
 Paused host-menu redisplays are counted separately from completed game frames.
 
 Shared settings and the in-game menu are documented in
-[the native launcher](pc-launcher.md). The runtime reads the host settings,
+[PC settings](pc-settings.md). The runtime reads the host settings,
 not the SDK template's reference `config.toml`.
 
 `tests/scripts/test-frame-limit.ps1` checks pacing behavior;

@@ -8,7 +8,7 @@ installed/deployed Qt runtime.
 After changing interface strings, run Qt's `lupdate` from the repository root:
 
 ```sh
-lupdate studio/src studio/ui -ts studio/i18n/studio_en.ts \
+lupdate studio/src -ts studio/i18n/studio_en.ts \
   -source-language pl -target-language en -no-obsolete
 ```
 
