@@ -280,6 +280,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_HOST_COMMANDS` | `OFF` | Build and publish geometry command packets with host integer control ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_ZERO_VERTEX_PADDING` | `OFF` | Zero unindexed vertex alignment bytes instead of evaluating a padding vertex ([source](../port/CMakeLists.txt)) |
 | `BUZZ_NEON_INDEX_OUTPUT` | `OFF` | Store eight big-endian triangles per interleaved ARM64 write ([source](../port/CMakeLists.txt)) |
+| `BUZZ_NEON_CLIP_KERNELS` | `OFF` | Use exact ARM64 clip quantization and per-job clip flags ([source](../port/CMakeLists.txt)) |
 | `BUZZ_NEON_CULL_AREA` | `OFF` | Use a proven finite range for triangle area on ARM64 ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
 | `PORT_REGIONAL_PPU_SOURCES` | `empty` | Reviewed regional PPU translation units ([source](../port/CMakeLists.txt)) |
@@ -374,7 +375,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzUniformReuse` | `false` | `true` | `true` |
 | `buzzIndexFusion` | `false` | `true` | `true` |
 | `buzzPackedIndexFusion` | `false` | `true` | `true` |
-| `buzzGeometryDeferredClip` | `false` | `false` | `false` |
+| `buzzGeometryDeferredClip` | `false` | `false` | `true` |
 | `buzzGeometryLazyAttributes` | `false` | `false` | `false` |
 | `buzzGeometryIndexCache` | `false` | `false` | `true` |
 | `buzzGeometryHostCommands` | `false` | `false` | `false` |
@@ -386,8 +387,9 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzSpursPoolLayout` | `false` | `false` | `false` |
 | `buzzSpursDirectInputs` | `false` | `false` | `true` |
 | `buzzNeonIndexOutput` | `false` | `false` | `true` |
+| `buzzNeonClipKernels` | `false` | `false` | `true` |
 | `buzzNeonCullArea` | `false` | `false` | `true` |
-| `buzzGeometryCullCompact` | `false` | `false` | `false` |
+| `buzzGeometryCullCompact` | `false` | `false` | `true` |
 | `buzzSpursIdleSpinUs` | `-1` | `-1` | `-1` |
 | `buzzSpursPoolAutoSpinUs` | `-1` | `50` | `50` |
 

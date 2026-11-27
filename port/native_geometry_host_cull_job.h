@@ -97,6 +97,15 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
         indices.maximum_index >= clips.vertices) return reject("host cull source readiness/range");
     GeometryHostCullParameters params;
     if (!read_geometry_host_cull_parameters(c,e,params,reason)) return false;
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+    if (clips.outside_common_plane) {
+        indices.triangles = indices.maximum_index = indices.final_group_kept = 0;
+        indices.ready = true;
+        if (reason) *reason = nullptr;
+        return true;
+    }
+    no_clip_flags |= clips.no_vertex_clip_flags;
+#endif
 #if BUZZ_GEOMETRY_CULL_COMPACT
     static constexpr auto compact = [] {
         std::array<std::array<uint8_t,16>,256> table{};

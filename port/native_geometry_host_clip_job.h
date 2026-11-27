@@ -16,6 +16,8 @@ struct GeometryHostClipData {
     alignas(32) uint32_t component[4][4096]; // X,Y float bits; flags; packed XY/W-sign.
     unsigned vertices = 0;
     bool bounded_area = false;
+    bool outside_common_plane = false;
+    bool no_vertex_clip_flags = false;
     bool ready = false;
 };
 inline bool read_geometry_host_clip_parameters(const spu_context& c, const GeometryJobEntry& e,
@@ -230,6 +232,9 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
 #if (defined(__AVX2__) && !defined(__aarch64__)) || BUZZ_NEON_CULL_AREA
     v8 largest_xy = _mm256_setzero_si256();
 #endif
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+    v8 common_flags = v8_set(~0u);
+#endif
     v8 combined_flags = _mm256_setzero_si256();
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const auto& position_data = data.at(input, position, first / 8);
@@ -247,11 +252,24 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
 #endif
                 true>(params,position_data) : geometry_host_clip8(params,position_data);
         }();
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+        v8 flags_for_intersection = value.component[2];
+#endif
         if (input.vertices - first < 8) {
             const v8 active = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+            // Inactive lanes contribute all ones to AND and zero to OR.
+            flags_for_intersection = _mm256_or_si256(flags_for_intersection,
+                _mm256_andnot_si256(active, v8_set(~0u)));
+#endif
             for (auto& component : value.component) component = _mm256_and_si256(component, active);
         }
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+        common_flags = _mm256_and_si256(common_flags, flags_for_intersection);
+        combined_flags = _mm256_or_si256(combined_flags, value.component[2]);
+#else
         if (no_clip_flags) combined_flags = _mm256_or_si256(combined_flags,value.component[2]);
+#endif
         for (unsigned component = 0; component < 4; ++component)
             _mm256_store_si256(reinterpret_cast<v8*>(clips.component[component] + first), value.component[component]);
 #if (defined(__AVX2__) && !defined(__aarch64__)) || BUZZ_NEON_CULL_AREA
@@ -272,7 +290,15 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     // At |XY| <= 2^60, both edge products are <= 2^122 and their difference <= 2^123.
     clips.bounded_area = !_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpgt_epi32(largest_xy, v8_set(0x5d800000))));
 #endif
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+    uint32x4_t planes = vandq_u32(common_flags.lo, common_flags.hi);
+    planes = vandq_u32(planes, vextq_u32(planes, planes, 2));
+    clips.outside_common_plane = (vgetq_lane_u32(planes, 0) & vgetq_lane_u32(planes, 1)) != 0;
+    clips.no_vertex_clip_flags = vmaxvq_u32(vorrq_u32(combined_flags.lo, combined_flags.hi)) == 0;
+    if (no_clip_flags) *no_clip_flags = clips.no_vertex_clip_flags;
+#else
     if (no_clip_flags) *no_clip_flags = !_mm256_movemask_ps(_mm256_castsi256_ps(v8_nonzero(combined_flags)));
+#endif
     clips.vertices = input.vertices; clips.ready = true; if (reason) *reason = nullptr; return true;
 }
 } // namespace buzz

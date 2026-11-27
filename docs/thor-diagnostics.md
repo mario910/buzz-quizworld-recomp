@@ -689,3 +689,7 @@ The packaged and unstripped libraries have build ID
 `9d45659a604cee782958d8201ff95f1beea36227`.
 The APK, symbols, private guest disassembly and decompilation, and replay
 evidence are under `analysis/android-mobile-cpu/eu100-geometry-spurs/`.
+
+The next offline pass compared 32 individual changes and the resulting
+profile against this build, including a separate held-out replay.
+[ARM64 geometry and SPURS experiments](android-geometry-spurs-iterations.md)

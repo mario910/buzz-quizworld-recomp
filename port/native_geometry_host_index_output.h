@@ -34,6 +34,16 @@ inline bool emit_geometry_host_indices(const GeometryHostIndexData& indices,
             vst3q_u16(reinterpret_cast<uint16_t*>(destination), corners);
             destination += 48;
         }
+        if (triangle + 4 <= indices.triangles) {
+            uint16x4x3_t corners;
+            for (unsigned k = 0; k < 3; ++k) {
+                const auto words = vld1_u16(indices.component[k] + triangle);
+                corners.val[k] = vreinterpret_u16_u8(vrev16_u8(vreinterpret_u8_u16(words)));
+            }
+            vst3_u16(reinterpret_cast<uint16_t*>(destination), corners);
+            triangle += 4;
+            destination += 24;
+        }
     }
 #elif defined(__SSSE3__) && !defined(__aarch64__)
     // Each 16-byte result contains eight BE indices in A,B,C order.

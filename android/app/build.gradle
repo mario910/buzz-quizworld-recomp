@@ -75,6 +75,7 @@ def geometryIndexBatched = providers.gradleProperty('buzzGeometryIndexBatched').
 def spursPoolLayout = providers.gradleProperty('buzzSpursPoolLayout').map { it.toBoolean() }.getOrElse(false)
 def spursDirectInputs = providers.gradleProperty('buzzSpursDirectInputs').map { it.toBoolean() }.getOrElse(false)
 def neonIndexOutput = providers.gradleProperty('buzzNeonIndexOutput').map { it.toBoolean() }.getOrElse(false)
+def neonClipKernels = providers.gradleProperty('buzzNeonClipKernels').map { it.toBoolean() }.getOrElse(false)
 def neonCullArea = providers.gradleProperty('buzzNeonCullArea').map { it.toBoolean() }.getOrElse(false)
 def geometryCullCompact = providers.gradleProperty('buzzGeometryCullCompact').map { it.toBoolean() }.getOrElse(false)
 def spursIdleSpinUs = providers.gradleProperty('buzzSpursIdleSpinUs').getOrElse('-1')
@@ -137,6 +138,7 @@ android {
                     "-DBUZZ_SPURS_POOL_LAYOUT=${spursPoolLayout ? 'ON' : 'OFF'}",
                     "-DBUZZ_SPURS_DIRECT_INPUTS=${spursDirectInputs ? 'ON' : 'OFF'}",
                     "-DBUZZ_NEON_INDEX_OUTPUT=${neonIndexOutput ? 'ON' : 'OFF'}",
+                    "-DBUZZ_NEON_CLIP_KERNELS=${neonClipKernels ? 'ON' : 'OFF'}",
                     "-DBUZZ_NEON_CULL_AREA=${neonCullArea ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_CULL_COMPACT=${geometryCullCompact ? 'ON' : 'OFF'}",
                     "-DBUZZ_SPURS_IDLE_SPIN_US=${spursIdleSpinUs}",

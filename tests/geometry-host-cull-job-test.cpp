@@ -61,6 +61,20 @@ int main(int argc, char** argv)
     _set_error_mode(_OUT_TO_STDERR); _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
     buzz_test_enter_rtz();
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+    // Probe both signs across every exponent, including the threshold at
+    // 2^28 and the guest's extended encodings. Check each lane independently.
+    for (unsigned exponent = 0; exponent < 256; ++exponent) {
+        for (unsigned sign : {0u, 0x80000000u}) {
+            alignas(32) uint32_t words[] = {0, 1, 2, 3, 0x3fffff, 0x7ffffd, 0x7ffffe, 0x7fffff};
+            for (auto& word : words) word |= sign | (exponent << 23);
+            const v8 result = v8_cflts3(_mm256_load_si256(reinterpret_cast<const v8*>(words)));
+            alignas(32) uint32_t actual[8];
+            _mm256_store_si256(reinterpret_cast<v8*>(actual), result);
+            for (unsigned i = 0; i < 8; ++i) assert(actual[i] == spu__cfl_lane(words[i], 3, 0));
+        }
+    }
+#endif
     auto entry = std::make_unique<spu_context>(), reference = std::make_unique<spu_context>();
     auto before = std::make_unique<uint8_t[]>(sizeof(spu_context));
     auto data = std::make_unique<GeometryHostInputData>(); auto workspace = std::make_unique<GeometryHostSkinWorkspace>();
@@ -89,6 +103,15 @@ int main(int argc, char** argv)
             for (unsigned v = 0; v < e.vertices; ++v)
                 bounded &= (clips->component[component][v] & 0x7fffffffu) <= 0x5d800000u;
         assert(clips->bounded_area == bounded);
+#endif
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+        uint32_t union_flags = 0, common_flags = ~0u;
+        for (unsigned v = 0; v < e.vertices; ++v) {
+            union_flags |= clips->component[2][v];
+            common_flags &= clips->component[2][v];
+        }
+        assert(clips->no_vertex_clip_flags == (union_flags == 0));
+        assert(clips->outside_common_plane == (common_flags != 0));
 #endif
         uint64_t values = 0;
         const char* reason = nullptr;

@@ -169,8 +169,11 @@ static inline v8 v8_fi(v8 a, v8 b)
     v8 value = _mm256_or_si256(_mm256_and_si256(b, bias), _mm256_or_si256(_mm256_slli_epi32(exponent, 23), fraction));
     return _mm256_and_si256(value, _mm256_cmpgt_epi32(exponent, _mm256_setzero_si256()));
 }
+#ifndef BUZZ_NEON_CLIP_KERNELS
+#define BUZZ_NEON_CLIP_KERNELS 0
+#endif
 /* cflts(a, 170): a * 2^3 truncated, saturating; extended-range lanes exact */
-#if !defined(__AVX2__) || defined(__aarch64__)
+#if (!defined(__AVX2__) || defined(__aarch64__)) && !(defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS)
 static __attribute__((noinline, cold)) v8 v8_cfl_fix(v8 out, int valid, v8 a)
 {
     uint32_t o[8], x[8];
@@ -181,7 +184,18 @@ static __attribute__((noinline, cold)) v8 v8_cfl_fix(v8 out, int valid, v8 a)
 #endif
 static inline v8 v8_cflts3(v8 a)
 {
-#if defined(__AVX2__) && !defined(__aarch64__)
+#if defined(__aarch64__) && BUZZ_NEON_CLIP_KERNELS
+    // At scale eight, |x| >= 2^28 saturates. Clamp the guest magnitude as
+    // bits first so extended SPU encodings also convert with the right sign.
+    const auto convert = [](uint32x4_t words) {
+        const uint32x4_t sign_bit = vdupq_n_u32(0x80000000u);
+        const uint32x4_t magnitude = vbicq_u32(words, sign_bit);
+        const uint32x4_t limited = vminq_u32(magnitude, vdupq_n_u32(0x4d800000u));
+        const uint32x4_t bits = vorrq_u32(vandq_u32(words, sign_bit), limited);
+        return vreinterpretq_u32_s32(vcvtq_n_s32_f32(vreinterpretq_f32_u32(bits), 3));
+    };
+    return {convert(a.lo), convert(a.hi)};
+#elif defined(__AVX2__) && !defined(__aarch64__)
     // At scale eight, all positive words >= 2^28 saturate, including SPU
     // extended numbers. Negative overflow already yields INT_MIN in CVTTPS2DQ.
     const v8 positive_overflow = _mm256_cmpgt_epi32(a, v8_set(0x4d7fffff));
