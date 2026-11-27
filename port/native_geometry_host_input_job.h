@@ -174,11 +174,19 @@ inline bool capture_geometry_host_inputs_phase(const spu_context& c, const Geome
                 if (f.storage == 2) output = decode_geometry_host_positions8(c.ls + source, active);
                 else {
                     const v8 input = geometry_host_unit_words8(c.ls+source,f.stride,active);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+                    const v8 selectors = _mm256_and_si256(input,v8_set(15));
+                    if (vmaxvq_u32(vmaxq_u32(selectors.lo,selectors.hi)) > 11) {
+#else
                     if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(_mm256_and_si256(input, v8_set(15)), v8_set(11)))) {
+#endif
                         if (reason) *reason = "host unsupported unit selector"; return false;
                     }
                     if(!capture)continue;
                     output = decode_geometry_host_unit8(input);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+                    if (active == 8) continue;
+#endif
                     const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
                     for (auto& component : output.component) component = _mm256_and_si256(component, mask);
                 }

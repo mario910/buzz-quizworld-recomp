@@ -41,8 +41,14 @@ inline bool read_geometry_host_clip_parameters(const spu_context& c, const Geome
         {0xcfd0,{0x80808004,0x05060707,0x80808080,0x80808080}},
         {0xd990,{0x00010203,0x04050607,0x13808080,0x0c0d0e0f}},
         {0xdae0,{0x0a0b0203,0x06071213,0x16171a1b,0x80808080}}};
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+    static constexpr auto bytes = geometry_codec_bytes(tables);
+    for (unsigned i=0; i<bytes.size(); ++i)
+        if (memcmp(c.ls+tables[i].at,bytes[i].data(),16)) return reject("host clip codec definition");
+#else
     for (const auto& table : tables) for (unsigned lane = 0; lane < 4; ++lane)
         if (geometry_job_be32(c.ls + table.at + lane * 4) != table.word[lane]) return reject("host clip codec definition");
+#endif
     const auto* view = c.ls + viewport.lsa;
     const unsigned format = view[112];
     if (format != 0 && format != 3) return reject("host unsupported clip format");
@@ -188,8 +194,15 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     const v8 cx = _mm256_and_si256(v8_cflts3(x), v8_set(params.quantization_mask));
     const v8 cy = _mm256_and_si256(v8_cflts3(y), v8_set(params.quantization_mask));
     v8 packed = _mm256_or_si256(_mm256_slli_epi32(cx, 16), _mm256_and_si256(cy, v8_set(65535)));
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+    // Positive normal and extended SPU words sort above the largest
+    // positive denormal as signed integers. Both signs of zero compare false.
+    const v8 positive_w = _mm256_cmpgt_epi32(w, v8_set(0x007fffff));
+#else
+    const v8 positive_w = greater(w, _mm256_setzero_si256());
+#endif
     packed = _mm256_or_si256(_mm256_and_si256(packed, v8_set(0x7fffffff)),
-        _mm256_and_si256(greater(w, _mm256_setzero_si256()), v8_set(0x80000000)));
+        _mm256_and_si256(positive_w, v8_set(0x80000000)));
     if constexpr (Deferred) {
         if (!fp.valid()) return geometry_host_clip8_impl<false>(params,position);
     }

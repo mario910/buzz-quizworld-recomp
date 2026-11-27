@@ -7,6 +7,10 @@
 #include <cstdint>
 #include <cstring>
 
+#ifndef BUZZ_GEOMETRY_MOBILE_KERNELS
+#define BUZZ_GEOMETRY_MOBILE_KERNELS 0
+#endif
+
 namespace buzz {
 struct GeometryJobInput {
     uint32_t lsa = 0, size = 0, ea = 0, size_flags = 0;
@@ -41,6 +45,18 @@ inline uint32_t geometry_job_be32(const uint8_t* bytes)
     return (uint32_t(bytes[0]) << 24) | (uint32_t(bytes[1]) << 16) |
            (uint32_t(bytes[2]) << 8) | bytes[3];
 }
+// The guest defines each shuffle as four big-endian words. Materialize
+// their exact 16 bytes at compile time for a whole-quad comparison.
+template<class Quad, size_t N>
+constexpr auto geometry_codec_bytes(const Quad (&tables)[N])
+{
+    std::array<std::array<uint8_t,16>,N> result{};
+    for (size_t i=0; i<N; ++i)
+        for (unsigned byte=0; byte<16; ++byte)
+            result[i][byte]=uint8_t(tables[i].word[byte/4] >> (24-8*(byte%4)));
+    return result;
+}
+
 inline uint32_t geometry_job_be16(const uint8_t* bytes)
 {
     return (uint32_t(bytes[0]) << 8) | bytes[1];

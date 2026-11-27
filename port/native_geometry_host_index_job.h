@@ -49,8 +49,14 @@ inline bool geometry_host_index_codec_matches(const spu_context& c)
         {0xd9d0,{0x00080109,0x020a030b,0x040c050d,0x060e070f}},
         {0xd9e0,{0x01010101,0x05050505,0x09090909,0x0d0d0d0d}},
         {0xda30,{0x04050607,0x08090a0b,0x0c0d0e0f,0x0c0d0e0f}}};
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+    static constexpr auto bytes = geometry_codec_bytes(tables);
+    for (unsigned i=0; i<bytes.size(); ++i)
+        if (memcmp(c.ls+tables[i].at,bytes[i].data(),16)) return false;
+#else
     for (const auto& table : tables) for (unsigned lane = 0; lane < 4; ++lane)
         if (geometry_job_be32(c.ls + table.at + lane * 4) != table.word[lane]) return false;
+#endif
     // The original two-triangle shuffle tables implement precisely these
     // four edge rules. Validate that definition, without using SPU shuffles
     // or copying their data-flow implementation into the host decoder.
@@ -245,8 +251,11 @@ public:
         const uint64_t io_end=uint64_t(e.io_lsa)+e.io_bytes;
         if(c.ls!=c.ls_store || e.index_flavor()!=3 || !triangles || triangles>4096 ||
            e.index_count%3 || (source.lsa&15) || source.size<8 || source.size>8192 ||
-           source.lsa<e.io_lsa || uint64_t(source.lsa)+source.size>io_end || io_end>SPU_LS_SIZE ||
-           !geometry_host_index_codec_matches(c))
+           source.lsa<e.io_lsa || uint64_t(source.lsa)+source.size>io_end || io_end>SPU_LS_SIZE
+#if !BUZZ_GEOMETRY_MOBILE_KERNELS
+           || !geometry_host_index_codec_matches(c)
+#endif
+        )
             return decode_geometry_host_indices_uncached(c,e,output,reason);
         const uint8_t* bytes=c.ls+source.lsa;
         uint64_t first,middle,last;
@@ -267,6 +276,12 @@ public:
             auto& cell=cells[first_cell+way];
             if(cell.fingerprint==fingerprint && cell.index_count==e.index_count &&
                cell.source.size()==source.size && !memcmp(cell.source.data(),bytes,source.size)) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+                // A miss goes through the checked decoder. Hits still verify
+                // every guest codec byte before exposing host-owned indices.
+                if (!geometry_host_index_codec_matches(c))
+                    return decode_geometry_host_indices_uncached(c,e,output,reason);
+#endif
                 // The caller consumes this view before the next decode on this worker.
                 if (cached_indices) *cached_indices = cell.indices.data();
                 else for(unsigned corner=0;corner<3;++corner)

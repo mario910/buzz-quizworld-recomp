@@ -15,29 +15,25 @@ string(REPLACE "unsigned saved_mxcsr = _mm_getcsr();" "buzz_arm_fp_state saved_f
 string(REPLACE "_mm_setcsr((saved_mxcsr & ~0x6000u) | 0x6000u | 0x8040u | 0x1f80u);" "buzz_arm_fp_enter_rtz(saved_fp);" job_text "${job_text}")
 string(REPLACE "_mm_setcsr(saved_mxcsr);" "buzz_arm_fp_restore(saved_fp);" job_text "${job_text}")
 # The captured image-41 list has 21 slots and few consecutive sources.
-# Stage each nonempty entry directly. The SDK still owns the copy, padding,
-# bounds, deferred clear, cache inputs and publication.
+# The specialized loop handles copying and padding. The SDK reads each
+# descriptor and owns deferred clearing, cache inputs and publication.
 option(BUZZ_SPURS_DIRECT_INPUTS "Stage the 21-entry geometry DMA list without lookahead" OFF)
 if(BUZZ_SPURS_DIRECT_INPUTS)
-    set(anchor "        while (!(sz & 15u) && i + 1 < n_dma) {")
-    set(prefetch "        if (i + 1 < n_dma) {")
-    set(loop "    uint32_t io_cur = io_ls, io_used = 0;")
-    set(input_copy "        memcpy(ls + io_cur, vm_base + eal, sz);")
-    foreach(pattern IN ITEMS "${loop}" "${anchor}" "${prefetch}" "${input_copy}")
-        string(FIND "${job_text}" "${pattern}" first)
-        string(FIND "${job_text}" "${pattern}" last REVERSE)
-        if(first LESS 0 OR NOT first EQUAL last)
-            message(FATAL_ERROR "Android direct inputs require the audited SDK staging loop")
-        endif()
-    endforeach()
-    string(REPLACE "${loop}" "${loop}
-    const int direct_inputs = image_id == 41 && n_dma == 21;" job_text "${job_text}")
-    string(REPLACE "${anchor}" "        while (!direct_inputs && !(sz & 15u) && i + 1 < n_dma) {" job_text "${job_text}")
-    string(REPLACE "${prefetch}" "        if (!direct_inputs && i + 1 < n_dma) {" job_text "${job_text}")
+    set(loop "    for (uint32_t i = 0; i < n_dma; i++) {")
+    set(anchor "    uint32_t io_cur = io_ls, io_used = 0;
+${loop}")
+    string(FIND "${job_text}" "${anchor}" first)
+    string(FIND "${job_text}" "${anchor}" last REVERSE)
+    if(first LESS 0 OR NOT first EQUAL last)
+        message(FATAL_ERROR "Android direct inputs require the audited SDK staging loop")
+    endif()
     string(PREPEND job_text "#include \"spurs_geometry_input_copy.h\"\n")
-    string(REPLACE "${input_copy}"
-        "        if (direct_inputs) buzz_spurs_geometry_input_copy(ls + io_cur, vm_base + eal, sz);\n        else memcpy(ls + io_cur, vm_base + eal, sz);"
-        job_text "${job_text}")
+    string(REPLACE "${anchor}" "    uint32_t io_cur = io_ls, io_used = 0;
+    if (image_id == 41 && n_dma == 21) {
+        io_used = buzz_spurs_stage_geometry_inputs(ls, vm_base, io_ls, SPU_LS_SIZE, dma_base, lazy_zero, g64);
+        io_cur += io_used;
+    } else
+${loop}" job_text "${job_text}")
 endif()
 file(CONFIGURE OUTPUT "${spurs_job_source}" CONTENT "${job_text}" @ONLY)
 get_target_property(sdk_sources ps3recomp_runtime SOURCES)

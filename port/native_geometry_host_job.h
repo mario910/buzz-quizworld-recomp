@@ -95,10 +95,13 @@ inline bool prepare_geometry_host_job_impl(const spu_context& c,const GeometryJo
             if(!project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason,&parameters,bounded,&no_clip_flags) ||
                !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason,cached_indices,no_clip_flags))return false;
         }
-    } else if (
-        !project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason) ||
-        !decode_geometry_host_indices(c,e,w.indices,reason) ||
-        !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason)) return false;
+    } else {
+        const uint16_t* cached_indices=nullptr;
+        if (!project_geometry_host_inputs<ExactProjection>(c,e,w.input,w.data,w.clips,reason) ||
+            !decode_geometry_host_indices(c,e,w.indices,reason,
+                BUZZ_GEOMETRY_MOBILE_KERNELS ? &cached_indices : nullptr) ||
+            !cull_geometry_host_triangles(c,e,w.clips,w.indices,reason,cached_indices)) return false;
+    }
     if(deferred && !only_positions && w.indices.triangles &&
        (!capture_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,w.input,w.data,reason) ||
         !skin_geometry_host_inputs_phase<GeometryHostInputPhase::Attributes>(c,e,w.input,w.data,w.skin_workspace,reason,&w.skin)))return false;

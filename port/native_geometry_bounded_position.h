@@ -27,11 +27,20 @@ inline v8 geometry_bounded_fma(v8 a,v8 b,v8 c)
 // job. Input rejection leaves value unchanged for the exact generic path.
 inline bool transform_geometry_bounded_position(GeometryHostSoA8& value,const v8* matrix,v8 mask)
 {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    uint32x4_t magnitude = vdupq_n_u32(0);
+    for (auto component : value.component) {
+        const v8 bits = _mm256_and_si256(component,v8_set(0x7fffffff));
+        magnitude = vmaxq_u32(magnitude,vmaxq_u32(bits.lo,bits.hi));
+    }
+    if (vmaxvq_u32(magnitude)>0x4e800000u) return false;
+#else
     v8 outside=_mm256_setzero_si256();
     for (const auto component:value.component)
         outside=_mm256_or_si256(outside,_mm256_cmpgt_epi32(
             _mm256_and_si256(component,v8_set(0x7fffffff)),v8_set(0x4e800000)));
     if (_mm256_movemask_ps(_mm256_castsi256_ps(outside))) return false;
+#endif
     const v8 x=value.component[0],y=value.component[1],z=value.component[2],w=value.component[3];
     v8 a=geometry_bounded_mul(x,matrix[0]);a=geometry_bounded_fma(y,matrix[1],a);
     a=geometry_bounded_fma(z,matrix[2],a);a=geometry_bounded_fma(w,matrix[3],a);

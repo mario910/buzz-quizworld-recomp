@@ -904,6 +904,7 @@ option(BUZZ_GEOMETRY_HOST_COMMANDS "Build and publish geometry command packets w
 option(BUZZ_GEOMETRY_ZERO_VERTEX_PADDING "Zero unindexed vertex alignment bytes instead of evaluating a padding vertex" OFF)
 option(BUZZ_NEON_INDEX_OUTPUT "Store eight big-endian triangles per interleaved ARM64 write" OFF)
 option(BUZZ_NEON_CLIP_KERNELS "Use exact ARM64 clip quantization and per-job clip flags" OFF)
+option(BUZZ_GEOMETRY_MOBILE_KERNELS "Use measured mobile geometry input, clip and index kernels" OFF)
 option(BUZZ_NEON_CULL_AREA "Use a proven finite range for triangle area on ARM64" OFF)
 # Explicitly reproduce the compaction path present in the qualified Windows
 # executable. Other platforms keep their existing source default.
@@ -922,6 +923,7 @@ set_property(SOURCE native_geometry_job_flow.cpp APPEND PROPERTY COMPILE_DEFINIT
     "BUZZ_GEOMETRY_ZERO_VERTEX_PADDING=$<BOOL:${BUZZ_GEOMETRY_ZERO_VERTEX_PADDING}>"
     "BUZZ_NEON_INDEX_OUTPUT=$<BOOL:${BUZZ_NEON_INDEX_OUTPUT}>"
     "BUZZ_NEON_CLIP_KERNELS=$<BOOL:${BUZZ_NEON_CLIP_KERNELS}>"
+    "BUZZ_GEOMETRY_MOBILE_KERNELS=$<BOOL:${BUZZ_GEOMETRY_MOBILE_KERNELS}>"
     "BUZZ_NEON_CULL_AREA=$<BOOL:${BUZZ_NEON_CULL_AREA}>"
     "BUZZ_GEOMETRY_CULL_COMPACT=$<BOOL:${BUZZ_GEOMETRY_CULL_COMPACT}>")
 # The flow TU is built on every desktop target and includes the AVX2/SSSE3

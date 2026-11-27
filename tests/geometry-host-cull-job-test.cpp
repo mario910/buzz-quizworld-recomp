@@ -90,8 +90,10 @@ int main(int argc, char** argv)
     }
     auto prepare_cull=[&](const GeometryJobEntry& e){
         const char* reason=nullptr;
-        assert(decode_geometry_host_indices(*entry,e,*indices,&reason));
-        assert(cull_geometry_host_triangles(*entry,e,*clips,*indices,&reason));
+        const uint16_t* cached_indices=nullptr;
+        assert(decode_geometry_host_indices(*entry,e,*indices,&reason,
+            BUZZ_GEOMETRY_MOBILE_KERNELS ? &cached_indices : nullptr));
+        assert(cull_geometry_host_triangles(*entry,e,*clips,*indices,&reason,cached_indices));
     };
     bool have_weighted = false, have_object = false;
     unsigned jobs = 0, captured = 0, skinned = 0, objects = 0; uint64_t compared = 0, skinned_vertices = 0, object_vertices = 0;

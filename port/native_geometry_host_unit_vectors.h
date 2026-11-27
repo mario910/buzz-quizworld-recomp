@@ -8,12 +8,20 @@
 namespace buzz {
 inline v8 geometry_host_unit_words8(const uint8_t* source,unsigned stride,unsigned vertices)
 {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    if (vertices == 8 && stride == 3) {
+        const uint8x8x3_t bytes = vld3_u8(source);
+        const uint16x8_t high = vorrq_u16(vshlq_n_u16(vmovl_u8(bytes.val[0]),8),vmovl_u8(bytes.val[1]));
+        const uint16x8_t low = vmovl_u8(bytes.val[2]);
+        return {vorrq_u32(vshll_n_u16(vget_low_u16(high),8),vmovl_u16(vget_low_u16(low))),
+                vorrq_u32(vshll_n_u16(vget_high_u16(high),8),vmovl_u16(vget_high_u16(low)))};
+    }
+#endif
     if (vertices==8 && stride>=3 && stride<=255) {
         // Four-byte reads for lanes 0..6 stay within the full source span.
         // Lane 7 is masked out and read as exactly three bytes at the end.
-#if defined(__AVX2__) && !defined(__aarch64__)
-        // These dword loads stay inside the validated stream. The independent
-        // scalar loads avoid a masked gather on Zen 2; lane seven is exact.
+#if (defined(__AVX2__) && !defined(__aarch64__)) || (BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))
+        // Independent word loads stay inside the validated stream.
         auto word = [&](unsigned lane) {
             uint32_t value;
             memcpy(&value,source+lane*stride,sizeof(value));

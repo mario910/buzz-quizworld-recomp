@@ -62,8 +62,14 @@ inline bool read_geometry_host_cull_parameters(const spu_context& c, const Geome
         {0xcff0,{0x08080808,0x08080808,0x18181818,0x18181818}},
         {0xcfe0,{0xffffffef,0xffffffdf,0,0}},
         {0xdaa0,{0x18191a1b,0x1c1d1e1f,0x00010203,0x04050607}}};
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+    static constexpr auto bytes = geometry_codec_bytes(tables);
+    for (unsigned i=0; i<bytes.size(); ++i)
+        if (memcmp(c.ls+tables[i].at,bytes[i].data(),16)) return reject("host cull codec definition");
+#else
     for (const auto& table : tables) for (unsigned lane = 0; lane < 4; ++lane)
         if (geometry_job_be32(c.ls + table.at + lane * 4) != table.word[lane]) return reject("host cull codec definition");
+#endif
     // The expected codec is immutable; guest bytes are still checked on EVERY
     // job. Build the reference once at compile time, not in each worker call.
     static constexpr auto compaction = [] {
