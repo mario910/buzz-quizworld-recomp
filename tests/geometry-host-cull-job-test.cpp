@@ -83,6 +83,13 @@ int main(int argc, char** argv)
     unsigned jobs = 0, captured = 0, skinned = 0, objects = 0; uint64_t compared = 0, skinned_vertices = 0, object_vertices = 0;
     std::map<std::string, unsigned> fallback;
     auto compare_original = [&](const GeometryJobEntry& e, const GeometryHostInputRecipe& input, const GeometryHostSkinRecipe& skin) {
+#if defined(__aarch64__) && BUZZ_NEON_CULL_AREA
+        bool bounded = true;
+        for (unsigned component = 0; component < 2; ++component)
+            for (unsigned v = 0; v < e.vertices; ++v)
+                bounded &= (clips->component[component][v] & 0x7fffffffu) <= 0x5d800000u;
+        assert(clips->bounded_area == bounded);
+#endif
         uint64_t values = 0;
         const char* reason = nullptr;
         memcpy(reference.get(), entry.get(), sizeof(*entry)); reference->ls = reference->ls_store;
@@ -281,7 +288,11 @@ int main(int argc, char** argv)
         case 3: e.input[6].size = 0; break;
         case 4: e.input[6].lsa |= 1; break;
         case 5: e.input[4].lsa |= 1; break;
-        case 6: e.input[4].size_flags = UINT32_MAX; break;
+        case 6:
+            // Keep the guest's unsigned sum from wrapping into a valid palette size.
+            e.input[4].size_flags = UINT32_MAX;
+            e.input[5].size_flags = 0;
+            break;
         case 7: {
             // A wholly zero influence must still reject an invalid palette index.
             for (unsigned vertex = 0; vertex < e.vertices; ++vertex) entry->ls[skin.weights + vertex * 8 + 6] = 0;

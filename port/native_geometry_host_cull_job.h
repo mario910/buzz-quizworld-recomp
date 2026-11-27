@@ -156,7 +156,7 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
             y[corner] = geometry_cull_gather(clips.component[1], corners[corner] + first);
         }
         v8 area;
-#if defined(__AVX2__) && !defined(__aarch64__)
+#if (defined(__AVX2__) && !defined(__aarch64__)) || BUZZ_NEON_CULL_AREA
         if (clips.bounded_area) {
             const auto diff = [](v8 a, v8 b) { return _mm256_sub_ps(_mm256_castsi256_ps(a), _mm256_castsi256_ps(b)); };
             const __m256 left = _mm256_mul_ps(diff(x[1], x[0]), diff(y[2], y[0]));

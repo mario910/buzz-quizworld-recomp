@@ -3,7 +3,12 @@
  * group; only that published tail is reproduced, without its LS pipeline. */
 #pragma once
 #include "native_geometry_host_index_job.h"
-#if defined(__SSSE3__) && !defined(__aarch64__)
+#ifndef BUZZ_NEON_INDEX_OUTPUT
+#define BUZZ_NEON_INDEX_OUTPUT 0
+#endif
+#if defined(__aarch64__) && BUZZ_NEON_INDEX_OUTPUT
+#include <arm_neon.h>
+#elif defined(__SSSE3__) && !defined(__aarch64__)
 #include <tmmintrin.h>
 #endif
 
@@ -18,7 +23,19 @@ inline bool emit_geometry_host_indices(const GeometryHostIndexData& indices,
     const unsigned logical = indices.triangles * 6, bytes = (logical + 15) & ~15u;
     if (capacity < bytes || (bytes && !destination)) return reject("host index output span");
     unsigned triangle = 0;
-#if defined(__SSSE3__) && !defined(__aarch64__)
+#if defined(__aarch64__) && BUZZ_NEON_INDEX_OUTPUT
+    if ((reinterpret_cast<uintptr_t>(destination) & 1u) == 0) {
+        for (; triangle + 8 <= indices.triangles; triangle += 8) {
+            uint16x8x3_t corners;
+            for (unsigned k = 0; k < 3; ++k) {
+                const auto words = vld1q_u16(indices.component[k] + triangle);
+                corners.val[k] = vreinterpretq_u16_u8(vrev16q_u8(vreinterpretq_u8_u16(words)));
+            }
+            vst3q_u16(reinterpret_cast<uint16_t*>(destination), corners);
+            destination += 48;
+        }
+    }
+#elif defined(__SSSE3__) && !defined(__aarch64__)
     // Each 16-byte result contains eight BE indices in A,B,C order.
     // In each mask lane select the source byte from exactly one corner.
     static constexpr auto masks = [] {

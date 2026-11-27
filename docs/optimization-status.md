@@ -279,6 +279,8 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_GEOMETRY_INDEX_CACHE` | `OFF` | Content-verified cache of decoded geometry indices ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_HOST_COMMANDS` | `OFF` | Build and publish geometry command packets with host integer control ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_ZERO_VERTEX_PADDING` | `OFF` | Zero unindexed vertex alignment bytes instead of evaluating a padding vertex ([source](../port/CMakeLists.txt)) |
+| `BUZZ_NEON_INDEX_OUTPUT` | `OFF` | Store eight big-endian triangles per interleaved ARM64 write ([source](../port/CMakeLists.txt)) |
+| `BUZZ_NEON_CULL_AREA` | `OFF` | Use a proven finite range for triangle area on ARM64 ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_CULL_COMPACT` | `${WIN32}` | Eight-lane geometry output compaction ([source](../port/CMakeLists.txt)) |
 | `PORT_REGIONAL_PPU_SOURCES` | `empty` | Reviewed regional PPU translation units ([source](../port/CMakeLists.txt)) |
 | `PORT_SPU_ISA` | `sse2` | Lifted x86 SPU helpers: sse2, sse41, avx2 or experimental avx512 ([source](../port/CMakeLists.txt)) |
@@ -286,6 +288,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `PORT_SPU_OPT` | `-O2` | Optimization level of the lifted SPU TUs ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_JOB_PROFILE` | `eu100-vulkan-native-v1` | Identity of the reviewed disc native runtime profile ([source](../port/CMakeLists.txt)) |
 | `PORT_ANIMATION_JOB_DEFAULT` | `empty` | Animation job mode override: empty inherits profile, 0 retained, 1 native, 2 compare ([source](../port/CMakeLists.txt)) |
+| `BUZZ_SPURS_DIRECT_INPUTS` | `OFF` | Stage the 21-entry geometry DMA list without lookahead ([source](../cmake/BuzzAndroidJobRtz.cmake)) |
 | `BUZZ_AUDIO_X86_RTZ` | `OFF` | Use generated scoped checked x86 audio kernels ([source](../cmake/BuzzAudioX86Rtz.cmake)) |
 | `BUZZ_DMA_DIAGNOSTICS_OPTIN` | `OFF` | Make the DMA poison logging scan opt-in ([source](../cmake/BuzzDmaDiagnostics.cmake)) |
 | `BUZZ_RSX_METHOD_FASTPATH` | `OFF` | Experimental compact FIFO method dispatch loop ([source](../cmake/BuzzFifoMethods.cmake)) |
@@ -381,6 +384,9 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzGeometryIndexSequential` | `false` | `false` | `false` |
 | `buzzGeometryIndexBatched` | `false` | `false` | `false` |
 | `buzzSpursPoolLayout` | `false` | `false` | `false` |
+| `buzzSpursDirectInputs` | `false` | `false` | `true` |
+| `buzzNeonIndexOutput` | `false` | `false` | `true` |
+| `buzzNeonCullArea` | `false` | `false` | `true` |
 | `buzzGeometryCullCompact` | `false` | `false` | `false` |
 | `buzzSpursIdleSpinUs` | `-1` | `-1` | `-1` |
 | `buzzSpursPoolAutoSpinUs` | `-1` | `50` | `50` |

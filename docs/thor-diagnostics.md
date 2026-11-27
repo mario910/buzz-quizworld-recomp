@@ -615,3 +615,77 @@ three effects in the same studio scene. Preserve a screenshot outside the
 timing window and check question text, score progression and audio playback.
 Device frame times, thermals and sustained gameplay for this candidate remain
 unmeasured.
+
+## Offline EU 1.00 geometry and SPURS replay
+
+The follow-up to the first mobile-cpu APK used the original big-endian Cell
+SPU job images. Ghidra 11.0.3 decompiled image 41 (`6eba`) at LS PCs
+`0x6188`, `0x6e08` and `0x6ee8`. The cull loop multiplies at `0x6f10`
+and `0x6f20`, subtracts at `0x6f60` and `0x6f70`, and branches back at
+`0x7104`. The audited projection and cull instruction ranges matched the
+saved LS bytes in all 1,200 benchmark captures. Image 36 (`14b4`) loads and
+compares words at `0x15ac` and `0x15b4`. Its `0x0a40` block issues two
+MFC commands at `0x0aa0` and `0x0ab8`. This replay had entry captures for
+image 41. The image-36 search and guest channel commands retain their existing
+implementation. [Ghidra Cell SPU processor revision](https://github.com/aleph-void/GhidraSPU/tree/a2efc11569d4a80511416fadaafdbeed15fc81b0)
+
+The ARM64 comparison used all 800 menu image-41 jobs and 100 evenly spaced
+captures from each of solo-session, multi-session, multi-private and
+multi-verified. Android NDK r30 Clang compiled the kernels at O2 with FP
+contraction disabled. Geometry ran with round-toward-zero and flush-to-zero
+enabled. QEMU 6.2 counted dynamically executed AArch64
+instructions in marked regions, including callees. Tests used the AArch64
+Linux ABI and libc. File reads, inflation, clock calls and fixture setup took
+place outside the counted regions. The figures describe these specific CPU
+stages.
+
+| Stage | Before | Mobile CPU | Change |
+| --- | ---: | ---: | ---: |
+| Projection, including the new XY bound | 36,985,809 | 37,921,306 | +2.53% |
+| Triangle culling | 14,533,220 | 12,614,584 | −13.20% |
+| Projection and culling together | 51,519,029 | 50,535,890 | −1.91% |
+| Final big-endian index output | 1,167,092 | 252,476 | −78.37% |
+| Input DMA list staging | 2,073,195 | 1,863,778 | −10.10% |
+
+Counting projection, culling and index output together gave 4.73% fewer
+instructions on menu jobs, 2.97% fewer on solo and 0.48–1.10% fewer in the
+three multiplayer samples. For projection plus culling alone the multiplayer
+samples used 0.02–0.56% more instructions. The index writer supplied the net
+gain there.
+
+- `buzzNeonCullArea` tracks maximum absolute projected XY over all active
+  vertices. With magnitudes at most 2^60, intermediates fit the ordinary
+  exponent range. ARM64 uses the same subtract/multiply/subtract sequence as
+  the existing bounded desktop path. A larger or extended operand selects
+  checked SPU arithmetic. The projection row includes the cost of this test.
+- `buzzNeonIndexOutput` byte-swaps and interleaves eight complete triangles
+  at a time. The remainder and the final packet padding follow the original
+  producer. The replay checks odd and even destination addresses.
+- `buzzSpursDirectInputs` stages nonempty descriptors in order for the
+  21-entry image-41 list. Of 25,200 slots, 10,130 were nonempty and only 55
+  adjacent pairs qualified for coalescing. This removes lookahead and prefetch
+  on that list. The SDK retains its copy bounds, padding, deferred zeros and
+  handling of all other lists. Independent replay compared the complete
+  256 KiB LS and end cursor for each job in both clear modes and for 7,200
+  generated boundary cases. On x86-64 Linux, the median of five warm-input
+  runs of 300 repetitions per list fell from 32.49 ms to 29.37 ms of thread CPU
+  time. Cold-cache and phone scheduling effects remain unmeasured.
+
+The 1,193 admitted benchmark jobs produced the same 190,224 retained indices
+and all 4,624 padding bytes as the lifted original. Seven jobs followed the
+unsupported input-format path. A subsequent untimed run in full-corpus mode
+exercised all 19,508 entries. The native path admitted 19,399 and matched
+5,280,336 output bytes from the original producer, including 2,617,893
+logical indices and 44,550 padding bytes. All 40 last-group/alignment shapes
+passed, as did the guarded and odd-address output cases. The remaining 109
+entries used unsupported input storage. A negative test now clears the second
+palette length when injecting an oversized first length, so unsigned addition
+cannot turn that fixture into a valid small palette on some captures.
+
+The arm64 debug APK passed v2 signature, 16 KiB
+ZIP alignment and all 11 JNI/SDL export checks. SHA-256 is
+`69b37998d6fe3745aacd00a0908b9d522e27af576b67fc2e573aee5f2d5a5b72`.
+The packaged and unstripped libraries have build ID
+`9d45659a604cee782958d8201ff95f1beea36227`.
+The APK, symbols, private guest disassembly and decompilation, and replay
+evidence are under `analysis/android-mobile-cpu/eu100-geometry-spurs/`.

@@ -4,6 +4,10 @@
 #pragma once
 #include "native_geometry_host_input_job.h"
 
+#ifndef BUZZ_NEON_CULL_AREA
+#define BUZZ_NEON_CULL_AREA 0
+#endif
+
 namespace buzz {
 struct GeometryHostClipParameters {
     uint32_t row[4][4], minimum[3], maximum[3], quantization_mask;
@@ -223,7 +227,7 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     // need not be proven disjoint from every member of the output workspace.
     const GeometryHostClipParameters params = prepared ? *prepared : storage;
     if(bounded_projection && !prepared)return reject("host clip missing arithmetic admission");
-#if defined(__AVX2__) && !defined(__aarch64__)
+#if (defined(__AVX2__) && !defined(__aarch64__)) || BUZZ_NEON_CULL_AREA
     v8 largest_xy = _mm256_setzero_si256();
 #endif
     v8 combined_flags = _mm256_setzero_si256();
@@ -250,13 +254,21 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
         if (no_clip_flags) combined_flags = _mm256_or_si256(combined_flags,value.component[2]);
         for (unsigned component = 0; component < 4; ++component)
             _mm256_store_si256(reinterpret_cast<v8*>(clips.component[component] + first), value.component[component]);
-#if defined(__AVX2__) && !defined(__aarch64__)
+#if (defined(__AVX2__) && !defined(__aarch64__)) || BUZZ_NEON_CULL_AREA
+#if defined(__aarch64__)
+        // Unsigned bit order is magnitude order after clearing the sign.
+        const v8 x = _mm256_and_si256(value.component[0], v8_set(0x7fffffff));
+        const v8 y = _mm256_and_si256(value.component[1], v8_set(0x7fffffff));
+        largest_xy = {vmaxq_u32(largest_xy.lo, vmaxq_u32(x.lo, y.lo)),
+                      vmaxq_u32(largest_xy.hi, vmaxq_u32(x.hi, y.hi))};
+#else
         const v8 magnitude = v8_set(0x7fffffff);
         largest_xy = _mm256_max_epi32(largest_xy, _mm256_max_epi32(
             _mm256_and_si256(value.component[0], magnitude), _mm256_and_si256(value.component[1], magnitude)));
 #endif
+#endif
     }
-#if defined(__AVX2__) && !defined(__aarch64__)
+#if (defined(__AVX2__) && !defined(__aarch64__)) || BUZZ_NEON_CULL_AREA
     // At |XY| <= 2^60, both edge products are <= 2^122 and their difference <= 2^123.
     clips.bounded_area = !_mm256_movemask_ps(_mm256_castsi256_ps(_mm256_cmpgt_epi32(largest_xy, v8_set(0x5d800000))));
 #endif

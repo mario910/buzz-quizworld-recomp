@@ -50,6 +50,13 @@ static void compare_index_output(const buzz::GeometryHostIndexData& indices,
     if (bytes) {
         assert(!buzz::emit_geometry_host_indices(indices,destination,bytes-1,&reason) && reason);
         assert(!memcmp(destination,expected,bytes));
+
+        // The serializer also accepts byte-aligned user buffers. Only the
+        // even-addressed path may use the interleaved halfword store.
+        auto* odd = destination - 1;
+        odd[bytes] = 0xa5;
+        assert(buzz::emit_geometry_host_indices(indices,odd,bytes,&reason) && !reason);
+        assert(!memcmp(odd,expected,bytes) && odd[-1]==0xa5 && odd[bytes]==0xa5);
     }
     static uint64_t cases=0,checked_bytes=0; static unsigned cohorts[5][8]{};
     ++cases; checked_bytes+=bytes; ++cohorts[indices.final_group_kept][indices.triangles&7];

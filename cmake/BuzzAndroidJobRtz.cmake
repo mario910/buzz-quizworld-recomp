@@ -14,6 +14,26 @@ string(REPLACE "#include <immintrin.h>" "#include \"spu_arm_fp_state.h\"" job_te
 string(REPLACE "unsigned saved_mxcsr = _mm_getcsr();" "buzz_arm_fp_state saved_fp = buzz_arm_fp_save();" job_text "${job_text}")
 string(REPLACE "_mm_setcsr((saved_mxcsr & ~0x6000u) | 0x6000u | 0x8040u | 0x1f80u);" "buzz_arm_fp_enter_rtz(saved_fp);" job_text "${job_text}")
 string(REPLACE "_mm_setcsr(saved_mxcsr);" "buzz_arm_fp_restore(saved_fp);" job_text "${job_text}")
+# The captured image-41 list has 21 slots and few consecutive sources.
+# Stage each nonempty entry directly. The SDK still owns the copy, padding,
+# bounds, deferred clear, cache inputs and publication.
+option(BUZZ_SPURS_DIRECT_INPUTS "Stage the 21-entry geometry DMA list without lookahead" OFF)
+if(BUZZ_SPURS_DIRECT_INPUTS)
+    set(anchor "        while (!(sz & 15u) && i + 1 < n_dma) {")
+    set(prefetch "        if (i + 1 < n_dma) {")
+    set(loop "    uint32_t io_cur = io_ls, io_used = 0;")
+    foreach(pattern IN ITEMS "${loop}" "${anchor}" "${prefetch}")
+        string(FIND "${job_text}" "${pattern}" first)
+        string(FIND "${job_text}" "${pattern}" last REVERSE)
+        if(first LESS 0 OR NOT first EQUAL last)
+            message(FATAL_ERROR "Android direct inputs require the audited SDK staging loop")
+        endif()
+    endforeach()
+    string(REPLACE "${loop}" "${loop}
+    const int direct_inputs = image_id == 41 && n_dma == 21;" job_text "${job_text}")
+    string(REPLACE "${anchor}" "        while (!direct_inputs && !(sz & 15u) && i + 1 < n_dma) {" job_text "${job_text}")
+    string(REPLACE "${prefetch}" "        if (!direct_inputs && i + 1 < n_dma) {" job_text "${job_text}")
+endif()
 file(CONFIGURE OUTPUT "${spurs_job_source}" CONTENT "${job_text}" @ONLY)
 get_target_property(sdk_sources ps3recomp_runtime SOURCES)
 list(REMOVE_ITEM sdk_sources "${sdk_job}")
