@@ -408,28 +408,55 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
         return true;
     }
 #endif
+    v8 blended[12];
     for (unsigned first = 0; first < input.vertices; first += 8) {
         const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
+#if defined(__aarch64__) && BUZZ_NEON_SKIN_BLOCKS
+        const uint8_t* records = c.ls + recipe.weights + first * 8;
+        // The palette is immutable during this job. Equal full blocks have
+        // identical validated indices and weights, including zero-weight lanes.
+        if (first && active == 8 && std::memcmp(records, records - 64, 64) == 0) {
+            if (bounded_palette)
+                transform_geometry_skin_block<true>(input, recipe, data, first / 8, blended, active);
+            else
+                transform_geometry_skin_block<false>(input, recipe, data, first / 8, blended, active);
+            continue;
+        }
+        alignas(16) uint16_t tail[32];
+        if (active < 8) {
+            std::memset(tail, 0, sizeof tail);
+            std::memcpy(tail, records, active * 8);
+        }
+        // Each little-endian halfword contains a weight byte and a bone index.
+        const auto pairs = vld4q_u16(active == 8 ? reinterpret_cast<const uint16_t*>(records) : tail);
+#else
         alignas(32) uint32_t indices[4][8]{}, weights[4][8]{};
         for (unsigned lane = 0; lane < active; ++lane) for (unsigned influence = 0; influence < 4; ++influence) {
             const auto* at = c.ls + recipe.weights + (first + lane) * 8 + influence * 2;
             weights[influence][lane] = at[0]; indices[influence][lane] = at[1];
         }
+#endif
         v8 index[4], factor[4];
         bool contributes[4];
         for (unsigned influence = 0; influence < 4; ++influence) {
+#if defined(__aarch64__) && BUZZ_NEON_SKIN_BLOCKS
+            const auto bones = vshrq_n_u16(pairs.val[influence], 8);
+            const auto weights = vandq_u16(pairs.val[influence], vdupq_n_u16(255));
+            index[influence] = {vmovl_u16(vget_low_u16(bones)), vmovl_high_u16(bones)};
+            const v8 weight = {vmovl_u16(vget_low_u16(weights)), vmovl_high_u16(weights)};
+#else
             index[influence] = _mm256_load_si256(reinterpret_cast<const v8*>(indices[influence]));
+            const v8 weight = _mm256_load_si256(reinterpret_cast<const v8*>(weights[influence]));
+#endif
             if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(index[influence], v8_set(recipe.matrices - 1)))) {
                 if (reason) *reason = "host skin palette index"; return false;
             }
-            const v8 integer_weight=_mm256_castps_si256(_mm256_cvtepi32_ps(
-                _mm256_load_si256(reinterpret_cast<const v8*>(weights[influence]))));
+            const v8 integer_weight=_mm256_castps_si256(_mm256_cvtepi32_ps(weight));
             // Staged weights are uint8, so this conversion is always finite.
             factor[influence] = Bounded ? geometry_bounded_mul(integer_weight,v8_set(0x3b808080))
                                         : v8_fm(integer_weight,v8_set(0x3b808080));
             contributes[influence] = _mm256_movemask_ps(_mm256_castsi256_ps(v8_nonzero(factor[influence]))) != 0;
         }
-        v8 blended[12];
 #if BUZZ_GEOMETRY_SKIN_ROWS
         v8 fetched[4][12];
         for (unsigned influence = 0; influence < 4; ++influence)

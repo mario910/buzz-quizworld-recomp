@@ -53,6 +53,7 @@ BNI __m256i _mm256_cmpeq_epi32(__m256i a,__m256i b){return {vceqq_u32(a.lo,b.lo)
 BNI __m256i _mm256_cmpgt_epi32(__m256i a,__m256i b){return {vcgtq_s32(vreinterpretq_s32_u32(a.lo),vreinterpretq_s32_u32(b.lo)),vcgtq_s32(vreinterpretq_s32_u32(a.hi),vreinterpretq_s32_u32(b.hi))};}
 BNI __m256i _mm256_cmpeq_epi16(__m256i a,__m256i b){return {vreinterpretq_u32_u16(vceqq_u16(vreinterpretq_u16_u32(a.lo),vreinterpretq_u16_u32(b.lo))),vreinterpretq_u32_u16(vceqq_u16(vreinterpretq_u16_u32(a.hi),vreinterpretq_u16_u32(b.hi)))};}
 BNI __m256 _mm256_add_ps(__m256 a,__m256 b){return {vaddq_f32(a.lo,b.lo),vaddq_f32(a.hi,b.hi)};}
+BNI __m256 _mm256_sub_ps(__m256 a,__m256 b){return {vsubq_f32(a.lo,b.lo),vsubq_f32(a.hi,b.hi)};}
 BNI __m256 _mm256_mul_ps(__m256 a,__m256 b){return {vmulq_f32(a.lo,b.lo),vmulq_f32(a.hi,b.hi)};}
 BNI __m256 _mm256_fmadd_ps(__m256 a,__m256 b,__m256 c){return {vfmaq_f32(c.lo,a.lo,b.lo),vfmaq_f32(c.hi,a.hi,b.hi)};}
 BNI __m256i _mm256_slli_epi32(__m256i a,int n){int32x4_t k=vdupq_n_s32(n>=32?32:n);return {vshlq_u32(a.lo,k),vshlq_u32(a.hi,k)};}

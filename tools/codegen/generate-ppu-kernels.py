@@ -64,6 +64,7 @@ FIRST_STORE = "        { uint64_t ea = ((ctx->gpr[10] + ctx->gpr[0])) & ~0xFULL;
 SLOT_BRANCH = "        if ((!((ctx->cr >> 2)"
 SLOT_CONTINUATION = "loc_002B7054:"
 MATRIX_ISA = "defined(__FMA__) && defined(__SSSE3__) && defined(__SSE4_1__)"
+PERMUTE_ISA = f"defined(__aarch64__) || ({MATRIX_ISA})"
 
 
 def function(source, address):
@@ -204,7 +205,7 @@ def adapt_permutations(original, address):
         a, b, c, dest = site.groups()
         same = "true" if a == b else "false"
         call = f"        buzz::ppu_permute_bytes<{same}>(ctx->vr[{dest}], ctx->vr[{a}], ctx->vr[{b}], ctx->vr[{c}]);"
-        original = original[:site.start()] + f"#if {MATRIX_ISA}\n{call}\n#else\n{site[0]}\n#endif" + original[site.end():]
+        original = original[:site.start()] + f"#if {PERMUTE_ISA}\n{call}\n#else\n{site[0]}\n#endif" + original[site.end():]
     return original
 
 
@@ -237,7 +238,7 @@ def generate(source, addresses, header, columns):
         if header != "native_ppu_records.h":
             include = f"#if {MATRIX_ISA}\n{include}\n#endif"
         if any(address in PERMUTE_COUNTS for address in applied):
-            include += f'\n#if {MATRIX_ISA}\n#include "native_ppu_permute.h"\n#endif'
+            include += f'\n#if {PERMUTE_ISA}\n#include "native_ppu_permute.h"\n#endif'
         if any(address in columns for address in applied):
             include += f'\n#if {MATRIX_ISA}\n#include "native_ppu_columns.h"\n#endif'
         if any(address in JOBS for address in applied):
@@ -255,9 +256,14 @@ def main():
     parser.add_argument("translations", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--ppu-columns", choices=COLUMN_GROUPS, default="none")
+    parser.add_argument("--require-studio", action="store_true", help="Require the reviewed EU studio dispatcher for builds exposing its controls")
     args = parser.parse_args()
     args.output.mkdir(exist_ok=True, parents=True)
     records = (args.translations / "ppu_recomp_015.cpp").read_text()
+    if args.require_studio:
+        command = function(records, COMMAND)
+        if not command or sha256(command[0].encode()).hexdigest() != DIGESTS[COMMAND]:
+            parser.error("Studio controls require the reviewed EU 1.00 dispatcher")
     search = function(records, SEARCH)
     collect = (COLLECT,) if search and sha256(search[0].encode()).hexdigest() == DIGESTS[SEARCH] else ()
     for chunk, addresses, header in [

@@ -8,7 +8,7 @@ zlib=${2:?Provide an AArch64 Linux libz.a archive}
 out=$(mktemp -d)
 trap 'rm -f -- "$out/test"; rmdir -- "$out"' EXIT
 for name in unit-vectors half-input input-fields output streams input-job skin-job clip-job cull-job index-job vertex-job; do
-    aarch64-linux-gnu-g++ -std=gnu++17 -O2 -UNDEBUG -D_Thread_local=thread_local \
+    aarch64-linux-gnu-g++ -std=gnu++17 -O2 -UNDEBUG -D_Thread_local=thread_local -DBUZZ_NEON_SKIN_BLOCKS=1 \
         -frounding-math -ffp-contract=off -Ips3recomp/include -Ips3recomp/runtime/spu \
         -Ithird_party/zlib "tests/geometry-host-$name-test.cpp" "$zlib" -o "$out/test"
     case "$name" in

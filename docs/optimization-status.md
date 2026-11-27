@@ -248,6 +248,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 
 | Switch | Source default | Meaning / defining source |
 |---|---|---|
+| `BUZZ_ANDROID_PPU_KERNELS` | `OFF` | Use reviewed EU 1.00 PPU producers and studio controls on Android ([source](../port/CMakeLists.txt)) |
 | `PORT_REGIONAL_STUDIO` | `OFF` | Regional PPU translations include the studio dispatcher ([source](../port/CMakeLists.txt)) |
 | `BUZZ_ANDROID_SHADER_CONTEXT_CHECKS` | `OFF` | Run expensive SPIRV-Tools debug IR consistency checks ([source](../port/CMakeLists.txt)) |
 | `BUZZ_EXPERIMENTAL_VULKAN` | `OFF` | Developer-only Vulkan game build; keep outside build-windows ([source](../port/CMakeLists.txt)) |
@@ -264,6 +265,7 @@ A cached `ON` survives reconfiguration unless explicitly reset.
 | `BUZZ_DISC_COMPLETION` | `OFF` | Enable the validated original disc completion mode ([source](../port/CMakeLists.txt)) |
 | `PORT_GEOMETRY_HOST_NEON` | `OFF` | Use the native host SoA geometry pipeline on ARM64 ([source](../port/CMakeLists.txt)) |
 | `PORT_ANDROID_GEOMETRY_COMPARE` | `OFF` | Check ARM64 whole geometry jobs against their retained I/O shadow (slow diagnostic) ([source](../port/CMakeLists.txt)) |
+| `BUZZ_NEON_SKIN_BLOCKS` | `OFF` | Unpack eight skin records with NEON and reuse repeated matrix blends ([source](../port/CMakeLists.txt)) |
 | `PORT_OPTIMIZE_PPU_HOT_PATHS` | `ON` | Optimize PPU bridge and profiled job-poll TU ([source](../port/CMakeLists.txt)) |
 | `PORT_NATIVE_JOB_DEFAULTS` | `${native_job_default_candidate}` | Embed the approved native/Vulkan runtime profile in the qualified EXE ([source](../port/CMakeLists.txt)) |
 | `BUZZ_GEOMETRY_INDEX_SEQUENTIAL` | `OFF` | Bulk-validated sequential geometry index decoding ([source](../port/CMakeLists.txt)) |
@@ -336,49 +338,52 @@ The reference column is the explicit phone comparison profile, not a claim
 that every enabled experiment independently increases FPS. A bare Gradle build
 uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are required separately.
 
-| Gradle `-P` property | Bare default | Reference 29 |
-|---|---|---|
-| `buzzNeonImage36` | `false` | `true` |
-| `buzzNeonImage7` | `false` | `true` |
-| `buzzCompareImage7` | `false` | `false` |
-| `buzzNeonJobFp` | `false` | `true` |
-| `buzzNativeImage39Request` | `false` | `false` |
-| `buzzNativeImage39Bounds` | `false` | `false` |
-| `buzzNeonGeometry` | `false` | `false` |
-| `buzzNeonGeometryDriver` | `false` | `true` |
-| `buzzNeonHostGeometry` | `false` | `true` |
-| `buzzNeonVideoIdct` | `false` | `true` |
-| `buzzRendererCpuRefinements` | `false` | `true` |
-| `buzzBatchedTextureUploads` | `false` | `false` |
-| `buzzSpecializedVertexFetch` | `false` | `true` |
-| `buzzTextureSnapshot` | `false` | `true` |
-| `buzzDescriptorBatch` | `false` | `true` |
-| `buzzDescriptorWrites` | `false` | `false` |
-| `buzzDrawState` | `false` | `false` |
-| `buzzStatePackets` | `false` | `false` |
-| `buzzDirectDraw` | `false` | `true` |
-| `buzzConstantRanges` | `false` | `true` |
-| `buzzVertexStream` | `false` | `true` |
-| `buzzRsxReadyCheck` | `false` | `true` |
-| `buzzRsxParkWake` | `false` | `false` |
-| `buzzRsxMethodFastpath` | `false` | `false` |
-| `buzzPpuWordWait` | `false` | `true` |
-| `buzzUniformReuse` | `false` | `true` |
-| `buzzIndexFusion` | `false` | `true` |
-| `buzzPackedIndexFusion` | `false` | `true` |
-| `buzzGeometryDeferredClip` | `false` | `false` |
-| `buzzGeometryLazyAttributes` | `false` | `false` |
-| `buzzGeometryIndexCache` | `false` | `false` |
-| `buzzGeometryHostCommands` | `false` | `false` |
-| `buzzGeometryZeroVertexPadding` | `false` | `false` |
-| `buzzSpuJobReturn` | `false` | `false` |
-| `buzzIndexPrepare` | `false` | `false` |
-| `buzzGeometryIndexSequential` | `false` | `false` |
-| `buzzGeometryIndexBatched` | `false` | `false` |
-| `buzzSpursPoolLayout` | `false` | `false` |
-| `buzzGeometryCullCompact` | `false` | `false` |
-| `buzzSpursIdleSpinUs` | `-1` | `-1` |
-| `buzzSpursPoolAutoSpinUs` | `-1` | `50` |
+| Gradle `-P` property | Bare default | Reference 29 | Mobile CPU candidate |
+|---|---|---|---|
+| `buzzNeonImage36` | `false` | `true` | `true` |
+| `buzzNeonImage7` | `false` | `true` | `true` |
+| `buzzCompareImage7` | `false` | `false` | `false` |
+| `buzzNeonJobFp` | `false` | `true` | `true` |
+| `buzzNativeImage39Request` | `false` | `false` | `false` |
+| `buzzNativeImage39Bounds` | `false` | `false` | `false` |
+| `buzzNeonGeometry` | `false` | `false` | `false` |
+| `buzzNeonGeometryDriver` | `false` | `true` | `true` |
+| `buzzNeonHostGeometry` | `false` | `true` | `true` |
+| `buzzNeonVideoIdct` | `false` | `true` | `true` |
+| `buzzRendererCpuRefinements` | `false` | `true` | `true` |
+| `buzzBatchedTextureUploads` | `false` | `false` | `false` |
+| `buzzSpecializedVertexFetch` | `false` | `true` | `true` |
+| `buzzTextureSnapshot` | `false` | `true` | `true` |
+| `buzzDescriptorBatch` | `false` | `true` | `true` |
+| `buzzDescriptorWrites` | `false` | `false` | `false` |
+| `buzzDrawState` | `false` | `false` | `false` |
+| `buzzStatePackets` | `false` | `false` | `false` |
+| `buzzDirectDraw` | `false` | `true` | `true` |
+| `buzzConstantRanges` | `false` | `true` | `true` |
+| `buzzVertexStream` | `false` | `true` | `true` |
+| `buzzRsxReadyCheck` | `false` | `true` | `true` |
+| `buzzRsxParkWake` | `false` | `false` | `false` |
+| `buzzRsxMethodFastpath` | `false` | `false` | `false` |
+| `buzzPpuWordWait` | `false` | `true` | `true` |
+| `buzzPpuKernels` | `false` | `false` | `true` |
+| `buzzNeonAudioDsp` | `false` | `false` | `true` |
+| `buzzNeonSkinBlocks` | `false` | `false` | `true` |
+| `buzzUniformReuse` | `false` | `true` | `true` |
+| `buzzIndexFusion` | `false` | `true` | `true` |
+| `buzzPackedIndexFusion` | `false` | `true` | `true` |
+| `buzzGeometryDeferredClip` | `false` | `false` | `false` |
+| `buzzGeometryLazyAttributes` | `false` | `false` | `false` |
+| `buzzGeometryIndexCache` | `false` | `false` | `true` |
+| `buzzGeometryHostCommands` | `false` | `false` | `false` |
+| `buzzGeometryZeroVertexPadding` | `false` | `false` | `false` |
+| `buzzSpuJobReturn` | `false` | `false` | `false` |
+| `buzzIndexPrepare` | `false` | `false` | `false` |
+| `buzzGeometryIndexSequential` | `false` | `false` | `false` |
+| `buzzGeometryIndexBatched` | `false` | `false` | `false` |
+| `buzzSpursPoolLayout` | `false` | `false` | `false` |
+| `buzzGeometryCullCompact` | `false` | `false` | `false` |
+| `buzzSpursIdleSpinUs` | `-1` | `-1` | `-1` |
+| `buzzSpursPoolAutoSpinUs` | `-1` | `50` | `50` |
 
 ## Embedded runtime values
 

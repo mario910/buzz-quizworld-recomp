@@ -44,6 +44,9 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix='buzz-offline-cpu-') as temp:
         out = Path(temp)
+        permute_flags = [] if args.arm64 else ['-mssse3', '-msse4.1']
+        run([prefix+'g++', '-O2', '-std=c++17', *permute_flags, 'tests/ppu-permute-test.cpp', '-o', out/'permute'])
+        run([*runner, out/'permute'])
         run([prefix+'gcc', '-O2', '-std=gnu17', '-ffunction-sections', '-fdata-sections', *includes,
              'tests/renderer-texture-snapshot-test.c', 'ps3recomp/libs/video/rsx_dispatch.c',
              '-Wl,--gc-sections', '-lm', '-pthread', '-o', out/'texture-snapshot'])
@@ -83,6 +86,7 @@ def main():
                  'tests/image39-descriptor-request-test.cpp', '-o', out/'image39-request'])
             run([*runner, out/'image39-request', args.image39_request_corpus.resolve()])
         for source, name in [('geometry-bounded-position-test.cpp', 'position'),
+                             ('geometry-blend-layout-test.cpp', 'blend-layout'),
                              ('geometry-channel-setup-test.cpp', 'channel-setup'),
                              ('geometry-strict-projection-test.cpp', 'strict-projection'),
                              ('geometry-object-directions-test.cpp', 'directions'),

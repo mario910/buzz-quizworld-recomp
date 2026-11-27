@@ -133,7 +133,8 @@ def generate_regional(source_dir, output, completion=None, ppu_columns="none"):
         if text.count(anchor) != 1:
             raise ValueError(f'Unexpected lifted preamble in {source}')
         includes = ('#include "native_ppu_records.h"\n#include "native_ppu_jobs.h"\n#include "native_ppu_scene.h"\n'
-                    f'#if {kernels["MATRIX_ISA"]}\n#include "native_ppu_transform.h"\n#include "native_ppu_permute.h"\n#include "native_ppu_columns.h"\n#endif')
+                    f'#if {kernels["PERMUTE_ISA"]}\n#include "native_ppu_permute.h"\n#endif\n'
+                    f'#if {kernels["MATRIX_ISA"]}\n#include "native_ppu_transform.h"\n#include "native_ppu_columns.h"\n#endif')
         text = text.replace(anchor, anchor + '\n' + includes)
         dest = output / source.name
         if not dest.exists() or dest.read_text(encoding='utf-8', errors='surrogateescape') != text:

@@ -34,6 +34,24 @@ comparison configuration, not proof that every enabled option independently
 improves FPS. No gameplay/scoring or audio-listening validation is implied by
 these menu tests.
 
+For the next Android performance build, use [mobile-cpu.properties](profiles/mobile-cpu.properties).
+It adds four independently selectable changes to reference29. It targets the three
+geometry workers, the serial PPU scene producer and the continuously running audio
+SPU identified in the [Thor profile](../docs/thor-diagnostics.md). Device FPS for this
+combination is still unmeasured.
+
+| Property | Work affected |
+|---|---|
+| `buzzPpuKernels` | Generates hash-checked PPU producers from the EU lift. Five functions use ARM64 byte-table lookups for 39 VMX permutations. The scene dispatcher can bypass three optional studio passes before their geometry is submitted. |
+| `buzzNeonSkinBlocks` | Decodes four bone/weight pairs for eight vertices together. An identical consecutive full block reuses its 12 blended matrix coefficients within that job. Every vertex still receives its own transform. |
+| `buzzGeometryIndexCache` | Reuses decoded mesh indices after checking the compressed bytes and codec. The pose, projection and culling still run for the current job. |
+| `buzzNeonAudioDsp` | Uses the checked compressor, mixer and ATRAC kernels. Audio mixing and playback remain active. |
+
+Open **Menu → Graphics** to change studio floor reflections, bloom or extra
+audience lighting independently. With fresh preferences the three passes are off.
+Existing explicit studio settings take precedence. Use **Save settings** to keep
+changes across restarts.
+
 ## 1. Host tools and sources
 
 Use Linux x86-64 or WSL2 with Git, patch, Python 3.10+, a C/C++ toolchain and
@@ -123,6 +141,12 @@ cd "$WORKSPACE"
 cd "$CHECKOUT"
 ```
 
+For `mobile-cpu`, also generate its audio sources with the current checkout:
+
+```sh
+"$PYTHON" "$CHECKOUT/tools/codegen/generate-audio-compressor.py" --workspace "$WORKSPACE" --include-mixer --include-atrac
+```
+
 The full geometry adapter is
 `analysis/native-geometry/phase3-host-arm64/spu_recomp.c`. Both
 `buzzNeonGeometryDriver=true` and `buzzNeonHostGeometry=true` are required.
@@ -139,17 +163,19 @@ SPU extended floating-point values retain exact repair; this is not unchecked
 fast-math. The selected Image7/36 leaves, Image39/40 checked arithmetic and
 video IDCT adapter are separate from the full geometry driver.
 
-## 4. Build reference29 or one controlled experiment
+## 4. Build a performance candidate or reference29
 
 Bash command, run from `CHECKOUT`:
 
 ```sh
 build_flags=()
+# Use reference29.properties here for the comparison build.
+profile=android/profiles/mobile-cpu.properties
 while IFS='=' read -r key value; do
   [[ -z "$key" || "$key" == \#* ]] && continue
   value=${value%$'\r'} # also accept a Windows checkout's CRLF property file
   build_flags+=("-P${key}=${value}")
-done < android/profiles/reference29.properties
+done < "$profile"
 
 CMAKE_BUILD_PARALLEL_LEVEL=6 gradle --no-daemon --max-workers=6 -p android \
   -PbuzzWorkspace="$WORKSPACE" \
@@ -384,8 +410,8 @@ builds do not acquire the qualified desktop native-job defaults. Regenerating
 the ordinary image40 source restores the old adapter.
 
 `generate-audio-compressor.py --include-atrac` additionally emits two private,
-hash-bound ATRAC filter blocks. Select their `spu_recomp.c` with the optional
-`PORT_AUDIO_ATRAC_SOURCE`; it requires the compressor wrapper configuration.
+hash-bound ATRAC filter blocks. The Gradle property `buzzNeonAudioDsp` selects
+these with the compressor and mixer adapters.
 The original remains the fallback. This is not an approximate or replacement
 audio decoder. The host sanitizer suite also checks these blocks; native ARM
 checks include all GPR/LS state, tail continuations and FPCR/FPSR restoration.
@@ -513,20 +539,14 @@ order, exact exceptional-lane repair, original reciprocal/interpolation helpers,
 and original fallback for external LS or enabled LS debug hooks. Host FPCR/FPSR
 is restored on every exit; no whole-image FP mode or audio disable is used.
 
-Generate from a prepared EU 1.00 workspace, then select these CMake cache values
-in that workspace's existing Android native build directory:
+Generate the three adapters and select `buzzNeonAudioDsp=true` in the Gradle profile:
 
 ```sh
-python3 tools/codegen/generate-audio-compressor.py --workspace "$WORKSPACE" --include-mixer
-# Extra CMake arguments (keep the existing Android toolchain/profile arguments):
-# -DPORT_AUDIO_COMPRESSOR_SOURCE="$WORKSPACE/analysis/native-audio-compressor/spu_recomp.c"
-# -DPORT_AUDIO_MIXER_SOURCE="$WORKSPACE/analysis/native-audio-mixer/spu_recomp.c"
-# -DPORT_AUDIO_COMPRESSOR_NEON=ON
+python3 tools/codegen/generate-audio-compressor.py --workspace "$WORKSPACE" --include-mixer --include-atrac
 # Complete-state host validation (ASan/UBSan; not ARM64 NEON qualification):
 sh tests/scripts/test-audio-dsp-host.sh "$WORKSPACE"
 ```
 
 `BUZZ_AUDIO_COMPRESSOR=0` rolls back to original functions without regenerating
-inputs. Clear both source cache values and set `PORT_AUDIO_COMPRESSOR_NEON=OFF`
-to remove the experiment from a rebuild. APKs built without these adapters
+inputs. Set `buzzNeonAudioDsp=false` to remove the adapters from a rebuild. APKs built without these adapters
 retain the original audio path regardless of diagnostic mode selection.

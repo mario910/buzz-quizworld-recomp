@@ -87,6 +87,20 @@ if(PORT_PRODUCER_PROBE_DIR)
     endforeach()
 endif()
 set(PORT_PPU_KERNEL_DIR "" CACHE PATH "Hash-checked native PPU translations")
+option(BUZZ_ANDROID_PPU_KERNELS "Use reviewed EU 1.00 PPU producers and studio controls on Android" OFF)
+if(ANDROID AND BUZZ_ANDROID_PPU_KERNELS)
+    set(PORT_PPU_KERNEL_DIR "${CMAKE_CURRENT_BINARY_DIR}/android-ppu")
+    set(ppu_generator "${CMAKE_CURRENT_SOURCE_DIR}/../tools/codegen/generate-ppu-kernels.py")
+    foreach(chunk 014 015 016 017)
+        list(APPEND ppu_kernel_inputs "${RECOMP_DIR}/ppu_recomp_${chunk}.cpp")
+        list(APPEND ppu_kernel_outputs "${PORT_PPU_KERNEL_DIR}/ppu_recomp_${chunk}.cpp")
+    endforeach()
+    add_custom_command(OUTPUT ${ppu_kernel_outputs}
+        COMMAND "${Python3_EXECUTABLE}" "${ppu_generator}" "${RECOMP_DIR}" "${PORT_PPU_KERNEL_DIR}" --require-studio
+        DEPENDS "${ppu_generator}" ${ppu_kernel_inputs}
+        COMMENT "Binding ARM64 PPU producers and studio controls to EU 1.00"
+        VERBATIM)
+endif()
 if(PORT_PPU_KERNEL_DIR)
     list(APPEND RECOMP_SOURCES native_ppu_scene.cpp)
     # Use the runtime's checked store fast paths in these producers only.
@@ -101,7 +115,9 @@ if(PORT_PPU_KERNEL_DIR)
             set(kernel_source "${PORT_PPU_KERNEL_DIR}/${kernel_name}")
             list(APPEND RECOMP_SOURCES "${kernel_source}")
             # The supported x86 disc build already requires AVX2/FMA for SPU jobs.
-            if(MSVC)
+            if(ANDROID)
+                set_property(SOURCE "${kernel_source}" APPEND PROPERTY COMPILE_OPTIONS -ffp-contract=off)
+            elseif(MSVC)
                 set_property(SOURCE "${kernel_source}" APPEND PROPERTY COMPILE_OPTIONS /arch:AVX2 /clang:-ffp-contract=off)
             else()
                 set_property(SOURCE "${kernel_source}" APPEND PROPERTY COMPILE_OPTIONS -mavx2 -mfma -ffp-contract=off)
@@ -796,6 +812,11 @@ if(geometry_arm_driver)
     set_property(SOURCE native_geometry_job.cpp native_geometry_job_flow.cpp runtime_defaults.cpp
                  APPEND PROPERTY COMPILE_DEFINITIONS BUZZ_GEOMETRY_LS_DRIVER=1)
     if(PORT_GEOMETRY_HOST_NEON)
+        option(BUZZ_NEON_SKIN_BLOCKS "Unpack eight skin records with NEON and reuse repeated matrix blends" OFF)
+        if(BUZZ_NEON_SKIN_BLOCKS)
+            set_property(SOURCE native_geometry_job.cpp native_geometry_job_flow.cpp
+                         APPEND PROPERTY COMPILE_DEFINITIONS BUZZ_NEON_SKIN_BLOCKS=1)
+        endif()
         if(NOT geometry_adapter_source MATCHES "#define BUZZ_GEOMETRY_HOST_NEON 1")
             message(FATAL_ERROR "Generate the full ARM64 host adapter with --arm64-host")
         endif()

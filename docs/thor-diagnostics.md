@@ -569,3 +569,49 @@ access 10%, DMA and lock-line 10%, copies 9%.
 4. The studio itself: the save data with three profiles is staged; the route
    takes about three minutes and the supervisor's 80 C limit has so far
    stopped runs on CPUs 0–4 before it.
+
+## 2026-11-27 offline ARM64 candidate
+
+The mobile-cpu profile targets the measured geometry-worker and audio load.
+The Android reference build also omitted the desktop PPU scene adapter, so its
+graphics menu could not bypass the three studio passes. The candidate binds the
+reviewed EU 1.00 dispatcher at `0x293000` during the build. A mismatched
+dispatcher fails generation before the graphics controls can be enabled.
+
+Targeted Ghidra decompilation of the EU 1.00 executable identified 25 VMX
+permutations in `0x2CACB8` and three in `0x28F930`. The dispatcher has an
+indirect branch at `0x2930A8`; the hash-checked lift supplies its jump table.
+Disassembly of the linked Android candidate shows 4, 3, 3, 25 and 4 ARM64
+`TBL` instructions in `0x2719D0`, `0x28F930`, `0x28D870`, `0x2CACB8`
+and `0x2CF700`, respectively. Host and ARM64/QEMU permutation checks cover
+all 256 selector bytes and overlapping source, control and output registers.
+
+In 800 archived image-41 menu jobs, 95 weighted jobs contained 10,178
+vertices. Of their 1,251 full eight-vertex blocks, 224 had the exact same
+64 weight/index bytes as the preceding block in the same job. Those blocks
+can reuse all 12 blended coefficients. The palette lifetime ends at the job
+boundary. Partial blocks use a bounded copy and check every active bone index.
+
+ARM64/QEMU replay compared 1,768,358 component values in 794 admitted jobs
+with the lifted skin producer. The other six used an unsupported input format.
+All 129 additional floating-point corner cases and 14 rejection cases passed.
+The index-cache oracle passed all 800 jobs, 2,730 mutations and 448 collision
+variants. The blend-table conversion passed an independent byte-order and
+guard-page check in both directions for every active length from zero to eight.
+ARM64/QEMU audio checks passed for 7,200 complete compressor/mixer states and
+1,600 ATRAC states. Both ARM64 debug APKs passed signature, alignment and JNI
+export checks. The mobile-cpu APK has SHA-256
+`517a80ed183440af82af807aa0e823f11e83fb513e9b2ab1ae3fb0730b434bc9`.
+Its matching unstripped `libmain.so` has build ID
+`1b70851e28ef27a081a5a8aa6e01faf590c4547c`. The reference29 control APK has
+SHA-256 `704f902e96fef4981f8703dcf472f3e78533cdeafa80131c3e62492741189285`.
+
+Build both profiles using the [Android build guide](../android/README.md).
+For the device comparison, reuse the same runtime, save, driver, frame cap
+and warm shader cache. Run reference/candidate/candidate/reference in the
+same visible menu and compare frame intervals, worker CPU and temperatures.
+For a separate graphics comparison use the candidate alone and toggle the
+three effects in the same studio scene. Preserve a screenshot outside the
+timing window and check question text, score progression and audio playback.
+Device frame times, thermals and sustained gameplay for this candidate remain
+unmeasured.

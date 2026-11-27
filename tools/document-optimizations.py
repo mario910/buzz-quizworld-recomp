@@ -8,6 +8,19 @@ START = '<!-- generated-options:start -->'
 END = '<!-- generated-options:end -->'
 
 
+def android_profile(filename, properties):
+    profile = {}
+    for line in (ROOT/'android/profiles'/filename).read_text().splitlines():
+        if line and not line.startswith('#'):
+            key, value = line.split('=', 1)
+            if key in profile:
+                raise ValueError(f'{filename} repeats {key}')
+            profile[key] = value
+    if set(profile) != {name for name, _ in properties}:
+        raise ValueError(f'{filename} must explicitly classify every optional Gradle property')
+    return profile
+
+
 def tables():
     lines = ['## Build switches (source defaults)', '',
              'Defaults below are declarations, not an existing CMake cache. Values in `${...}`',
@@ -27,25 +40,18 @@ def tables():
                 r'set\(\s*((?:BUZZ|PORT)_\w+)\s+"([^"]*)"\s+CACHE\s+STRING\s+"([^"]*)"\)', text):
             source = path.relative_to(ROOT).as_posix()
             lines.append(f'| `{name}` | `{default or "empty"}` | {description} ([source](../{source})) |')
-    profile = {}
-    for line in (ROOT/'android/profiles/reference29.properties').read_text().splitlines():
-        if line and not line.startswith('#'):
-            key, value = line.split('=', 1)
-            if key in profile:
-                raise ValueError('Duplicate profile property: '+key)
-            profile[key] = value
     properties = re.findall(r"providers.gradleProperty\('(buzz\w+)'\).*getOrElse\(([^)]*)\)",
                             (ROOT/'android/app/build.gradle').read_text())
-    if set(profile) != {name for name, _ in properties}:
-        raise ValueError('Reference profile must explicitly classify every optional Gradle property')
+    reference = android_profile('reference29.properties', properties)
+    mobile = android_profile('mobile-cpu.properties', properties)
     lines += ['', '## Android properties', '',
               'The reference column is the explicit phone comparison profile, not a claim',
               'that every enabled experiment independently increases FPS. A bare Gradle build',
               'uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are required separately.', '',
-              '| Gradle `-P` property | Bare default | Reference 29 |', '|---|---|---|']
+              '| Gradle `-P` property | Bare default | Reference 29 | Mobile CPU candidate |', '|---|---|---|---|']
     for name, default in properties:
         default = default.strip("'\"")
-        lines.append(f'| `{name}` | `{default}` | `{profile[name]}` |')
+        lines.append(f'| `{name}` | `{default}` | `{reference[name]}` | `{mobile[name]}` |')
     lines += ['', '## Embedded runtime values', '',
               'From `port/runtime_defaults.inc`. Common values install in standalone builds;',
               'the native-only section requires the qualified native profile. Explicit environment',

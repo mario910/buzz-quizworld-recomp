@@ -222,9 +222,14 @@ static inline v8 v8_nonzero(v8 a) { return _mm256_xor_si256(_mm256_cmpeq_epi32(a
 /* big-endian LS quadword pair <-> host words */
 static inline v8 v8_bswap(v8 v)
 {
+#if defined(__aarch64__)
+    return {vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(v.lo))),
+            vreinterpretq_u32_u8(vrev32q_u8(vreinterpretq_u8_u32(v.hi)))};
+#else
     const v8 swap = _mm256_setr_epi8(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12,
                                      3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12);
     return _mm256_shuffle_epi8(v, swap);
+#endif
 }
 static inline v8 v8_ld2(const uint8_t* ls, uint32_t a, uint32_t b)
 {

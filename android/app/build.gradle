@@ -53,6 +53,12 @@ def rsxReadyCheck = providers.gradleProperty('buzzRsxReadyCheck').map { it.toBoo
 def rsxParkWake = providers.gradleProperty('buzzRsxParkWake').map { it.toBoolean() }.getOrElse(false)
 def rsxMethodFastpath = providers.gradleProperty('buzzRsxMethodFastpath').map { it.toBoolean() }.getOrElse(false)
 def ppuWordWait = providers.gradleProperty('buzzPpuWordWait').map { it.toBoolean() }.getOrElse(false)
+def ppuKernels = providers.gradleProperty('buzzPpuKernels').map { it.toBoolean() }.getOrElse(false)
+def audioDsp = providers.gradleProperty('buzzNeonAudioDsp').map { it.toBoolean() }.getOrElse(false)
+def skinBlocks = providers.gradleProperty('buzzNeonSkinBlocks').map { it.toBoolean() }.getOrElse(false)
+if (skinBlocks && !(neonGeometryDriver && neonHostGeometry)) {
+    throw new GradleException('buzzNeonSkinBlocks requires the ARM64 host geometry driver')
+}
 
 def uniformReuse = providers.gradleProperty('buzzUniformReuse').map { it.toBoolean() }.getOrElse(false)
 def indexFusion = providers.gradleProperty('buzzIndexFusion').map { it.toBoolean() }.getOrElse(false)
@@ -108,6 +114,12 @@ android {
                     "-DBUZZ_RSX_PARK_WAKE=${rsxParkWake ? 'ON' : 'OFF'}",
                     "-DBUZZ_RSX_METHOD_FASTPATH=${rsxMethodFastpath ? 'ON' : 'OFF'}",
                     "-DBUZZ_PPU_WORD_WAIT=${ppuWordWait ? 'ON' : 'OFF'}",
+                    "-DBUZZ_ANDROID_PPU_KERNELS=${ppuKernels ? 'ON' : 'OFF'}",
+                    "-DBUZZ_NEON_SKIN_BLOCKS=${skinBlocks ? 'ON' : 'OFF'}",
+                    "-DPORT_AUDIO_COMPRESSOR_NEON=${audioDsp ? 'ON' : 'OFF'}",
+                    "-DPORT_AUDIO_COMPRESSOR_SOURCE=${audioDsp ? workspace.toString() + '/analysis/native-audio-compressor/spu_recomp.c' : ''}",
+                    "-DPORT_AUDIO_MIXER_SOURCE=${audioDsp ? workspace.toString() + '/analysis/native-audio-mixer/spu_recomp.c' : ''}",
+                    "-DPORT_AUDIO_ATRAC_SOURCE=${audioDsp ? workspace.toString() + '/analysis/native-audio-atrac/spu_recomp.c' : ''}",
                     "-DBUZZ_RENDERER_INDEX_FUSION=${indexFusion ? 'ON' : 'OFF'}",
                     "-DBUZZ_RENDERER_PACKED_FUSION=${packedIndexFusion ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_DEFERRED_CLIP=${geometryDeferredClip ? 'ON' : 'OFF'}",

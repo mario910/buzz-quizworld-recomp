@@ -159,6 +159,19 @@ inline bool admit_geometry_host_blend(const GeometryJobSetup& setup, const Geome
  * vertices at a time: the same bytes as the per-lane byte-swapped copies. */
 inline void geometry_blend_soa_to_quads(const GeometryHostSoA8& block, uint8_t* table, unsigned count)
 {
+#if defined(__aarch64__)
+    uint32x4x4_t low, high;
+    for (unsigned k = 0; k < 4; ++k) {
+        const v8 be = v8_bswap(block.component[k]);
+        low.val[k] = be.lo;
+        high.val[k] = be.hi;
+    }
+    alignas(16) uint32_t tail[32];
+    auto* output = count == 8 ? reinterpret_cast<uint32_t*>(table) : tail;
+    vst4q_u32(output, low);
+    vst4q_u32(output + 16, high);
+    if (count < 8) memcpy(table, tail, count * 16);
+#else
     const __m256i swap = _mm256_setr_epi8(3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12,
                                           3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12);
     const __m256i t0 = _mm256_unpacklo_epi32(block.component[0], block.component[1]);
@@ -176,9 +189,24 @@ inline void geometry_blend_soa_to_quads(const GeometryHostSoA8& block, uint8_t* 
     _mm256_store_si256(reinterpret_cast<__m256i*>(quads[4]), _mm256_permute2x128_si256(v01, v11, 0x31));
     _mm256_store_si256(reinterpret_cast<__m256i*>(quads[6]), _mm256_permute2x128_si256(v21, v31, 0x31));
     memcpy(table, quads, count * 16);
+#endif
 }
 inline void geometry_blend_quads_to_soa(const uint8_t* table, GeometryHostSoA8& block, unsigned count)
 {
+#if defined(__aarch64__)
+    alignas(16) uint32_t tail[32];
+    if (count < 8) {
+        // Preserve the inactive lanes without reading beyond the guest table.
+        geometry_blend_soa_to_quads(block, reinterpret_cast<uint8_t*>(tail), 8);
+        memcpy(tail, table, count * 16);
+        table = reinterpret_cast<const uint8_t*>(tail);
+    }
+    const auto* words = reinterpret_cast<const uint32_t*>(table);
+    const auto low = vld4q_u32(words);
+    const auto high = vld4q_u32(words + 16);
+    for (unsigned k = 0; k < 4; ++k)
+        block.component[k] = v8_bswap({low.val[k], high.val[k]});
+#else
     const __m256i swap = _mm256_setr_epi8(3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12,
                                           3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12);
     alignas(32) uint8_t quads[8][16];
@@ -203,6 +231,7 @@ inline void geometry_blend_quads_to_soa(const uint8_t* table, GeometryHostSoA8& 
     block.component[1] = _mm256_unpackhi_epi64(t0, t2);
     block.component[2] = _mm256_unpacklo_epi64(t1, t3);
     block.component[3] = _mm256_unpackhi_epi64(t1, t3);
+#endif
 }
 
 /* Runs the original blend routine on materialized tables. On success the SoA
