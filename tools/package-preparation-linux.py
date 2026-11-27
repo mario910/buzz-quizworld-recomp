@@ -261,6 +261,8 @@ def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
         raise ValueError("Commit the source changes before packaging: the package holds HEAD.")
     pins = {module: git(ROOT, "rev-parse", f"{revision}:{module}").decode().strip() for module in SUBMODULES}
     qt_plugins = Path(run("qtpaths6", "--query", "QT_INSTALL_PLUGINS").strip())
+    media_plugins = tuple(p.relative_to(qt_plugins) for p in sorted((qt_plugins / "multimedia").glob("*.so")))
+    plugins = QT_PLUGINS + media_plugins
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output) as scratch:
         staging = Path(scratch) / NAME
@@ -270,7 +272,7 @@ def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
         shutil.copy2(studio, staging / "bin/BuzzQuestionStudio")
         (staging / "bin/qt.conf").write_text("[Paths]\nPrefix = ..\nPlugins = plugins\n")
         elves = [staging / "bin/BuzzPrepare", staging / "bin/BuzzQuestionStudio"]
-        for plugin in QT_PLUGINS:
+        for plugin in plugins:
             target = staging / "plugins" / plugin
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(qt_plugins / plugin, target)
@@ -288,7 +290,7 @@ def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
             subprocess.run(["patchelf", "--set-rpath", "$ORIGIN/../lib", staging / "bin" / program], check=True)
         for name in libraries:
             subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", staging / "lib" / name], check=True)
-        for plugin in QT_PLUGINS:
+        for plugin in plugins:
             subprocess.run(["patchelf", "--set-rpath", "$ORIGIN/../../lib", staging / "plugins" / plugin], check=True)
         for elf in [*elves, *(staging / "lib" / name for name in libraries)]:
             env = dict(os.environ, LD_LIBRARY_PATH="")
@@ -297,6 +299,8 @@ def package(wizard, studio, output, appimage_tool=None, appimage_runtime=None):
         packages = {}
         for name, path in sorted(libraries.items()):
             packages.setdefault(owner_package(path), []).append(name)
+        for plugin in media_plugins:
+            packages.setdefault(owner_package(qt_plugins / plugin), []).append(str(plugin))
         licenses = staging / "licenses"
         licenses.mkdir()
         inventory = []

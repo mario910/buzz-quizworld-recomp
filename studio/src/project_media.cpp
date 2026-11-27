@@ -22,13 +22,15 @@ void visitMedia(Document &document, const std::function<void(QString &, const QS
         visit(q.image, "media/images");
         visit(q.speech, "media/audio/" + q.language);
         visit(q.video, "media/video");
+        visit(q.music, "media/music");
         for (auto it = q.translations.begin(); it != q.translations.end(); ++it) {
             if (it.key() == q.language)
                 continue;
             auto variant = it.value().toObject();
             for (const auto &[field, folder] : {std::pair<const char *, QString>{"image", "media/images"},
                                                 {"speech", "media/audio/" + it.key()},
-                                                {"video", "media/video"}}) {
+                                                {"video", "media/video"},
+                                                {"music", "media/music"}}) {
                 auto path = variant[field].toString();
                 if (path.isEmpty())
                     continue;

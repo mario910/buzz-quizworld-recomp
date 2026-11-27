@@ -9,9 +9,10 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 
-// Shared bounds-checked stored-ZIP reader and binary primitives.
+// Bounds-checked stored ZIP and PS2 BPAK reader and binary primitives.
 namespace studio::pack {
 [[noreturn]] inline void fail(const QString &message) { throw std::runtime_error(message.toStdString()); }
 inline void check(const QByteArray &b, qint64 off, qint64 size) {
@@ -27,6 +28,21 @@ inline quint32 u32(const QByteArray &b, qint64 off, bool be = false) {
     check(b, off, 4);
     return be ? qFromBigEndian<quint32>(b.constData() + off)
               : qFromLittleEndian<quint32>(b.constData() + off);
+}
+inline QString musicEntry(const QString &language, quint32 asset) {
+    // Quiz World formats the resource name as "1%06d", including for IDs above six digits.
+    return language + "/QUESTIONASSETS/MUSIC/STREAMED/1" + QString::number(asset).rightJustified(6, '0') + ".rsf";
+}
+constexpr qint64 maxMusicBytes = 16ll * 1024 * 1024;
+inline bool isStreamedMusic(const QByteArray &bytes) {
+    if (bytes.size() < 32 || bytes.size() > maxMusicBytes || quint8(bytes[0]) != 6 ||
+        quint8(bytes[2]) != 2 || u16(bytes, 4, true) != 48000 || u32(bytes, 16, true) != 384)
+        return false;
+    // The first two lengths can differ on Quiz TV discs. The file can also contain padding.
+    const auto first = u32(bytes, 8, true), second = u32(bytes, 12, true);
+    const auto stream = u32(bytes, 20, true);
+    return first && second && first % 384 == 0 && second % 384 == 0 &&
+           stream >= std::max(first, second) && stream % 384 == 0 && stream <= quint64(bytes.size() - 32);
 }
 inline quint32 crc32(const QByteArray &b) {
     static const auto table = [] {
@@ -52,6 +68,7 @@ class Archive {
     QFile disk;
     QBuffer memory;
     std::unique_ptr<QIODevice> owned;
+    bool rawEntries = false;
 
   public:
     // Reads go through this device: the file on disk, an archive held in
@@ -78,9 +95,39 @@ class Archive {
     Archive &operator=(const Archive &) = delete;
 
   private:
+    void readBpakDirectory(const QByteArray &header) {
+        const auto end = u32(header, 4), count = u32(header, 16), start = u32(header, 20);
+        const qint64 names = qint64(start) + qint64(count) * 16;
+        const auto error = QCoreApplication::translate("BuzzImport", "Niepoprawny katalog paczki.");
+        if (start < 28 || names > end || end > 16 * 1024 * 1024 || end > file.size() || !file.seek(0))
+            fail(error);
+        const auto directory = file.read(end);
+        if (directory.size() != end)
+            fail(error);
+        for (quint32 i = 0; i < count; ++i) {
+            const auto row = qint64(start) + i * 16;
+            const auto name = u32(directory, row + 4), offset = u32(directory, row + 8),
+                       size = u32(directory, row + 12);
+            const auto terminator = directory.indexOf('\0', name);
+            if (name < names || name >= end || terminator <= name || offset < end ||
+                qint64(offset) + size > file.size())
+                fail(error);
+            const auto key = QString::fromLatin1(directory.mid(name, terminator - name));
+            if (entries.contains(key))
+                fail(error);
+            entries.insert(key, {offset, size});
+        }
+        rawEntries = true;
+    }
+
     void readDirectory() {
         if (file.size() < 22)
             fail(QCoreApplication::translate("BuzzImport", "To nie jest archiwum paczki Buzz."));
+        const auto header = file.peek(28);
+        if (header.size() == 28 && header.startsWith("BPAK")) {
+            readBpakDirectory(header);
+            return;
+        }
         file.seek(std::max<qint64>(0, file.size() - 65557));
         const auto tail = file.readAll();
         int e = tail.size() - 22;
@@ -123,7 +170,10 @@ class Archive {
     }
 
   public:
-    QByteArray read(const QString &name) {
+    QByteArray read(const QString &name) { return readWithChecksum(name, std::nullopt); }
+
+    // One published PS2 disc stores an incorrect CRC for a known asset.
+    QByteArray readWithChecksum(const QString &name, std::optional<quint32> correctedChecksum) {
         if (!entries.contains(name))
             fail(QCoreApplication::translate("BuzzImport", "Brak pliku %1.").arg(name));
         const auto e = entries[name];
@@ -132,6 +182,14 @@ class Archive {
                                              "Obsługiwane są nieszyfrowane paczki ZIP bez kompresji."));
         if (e.size > 512u * 1024u * 1024u)
             fail(QCoreApplication::translate("BuzzImport", "Wpis paczki przekracza 512 MB."));
+        if (rawEntries) {
+            if (!file.seek(e.offset))
+                fail(QCoreApplication::translate("BuzzImport", "Ucięte archiwum paczki."));
+            const auto bytes = file.read(e.size);
+            if (bytes.size() != e.size)
+                fail(QCoreApplication::translate("BuzzImport", "Ucięte archiwum paczki."));
+            return bytes;
+        }
         file.seek(e.offset);
         const auto head = file.read(30);
         if (head.mid(0, 4) != QByteArray("PK\3\4", 4))
@@ -141,7 +199,7 @@ class Archive {
             fail(QCoreApplication::translate("BuzzImport", "Ucięte archiwum paczki."));
         file.seek(start);
         const auto b = file.read(e.size);
-        if (b.size() != e.size || crc32(b) != e.crc)
+        if (b.size() != e.size || crc32(b) != correctedChecksum.value_or(e.crc))
             fail(QCoreApplication::translate("BuzzImport", "Błędna suma kontrolna: %1.").arg(name));
         return b;
     }

@@ -21,6 +21,40 @@ selected language.
 Installation works before the game's first start. The interface uses the same
 colours and controls as BuzzSetup.
 
+## Import questions
+
+Choose **Import** to start the three-step wizard:
+
+1. Choose a disc image or question file. For an extracted PS3 or Knowledge Is
+   Power game, choose its folder. You can also paste a path or drag the source
+   into the wizard. For an extracted PS2 or PSP game, choose its `ROUND.PAK`
+   or `MERGED.QDB` file.
+2. Choose from the detected question languages and decide whether to add the
+   questions to your current project or open them as a new project. For paid
+   PS3 DLC, the wizard asks for the `.rap` license if Studio cannot find it.
+3. Review the question totals, reasons questions were skipped and the original
+   rounds in which repeated questions appeared. If images or clips can be
+   recovered, **Recover game media** attaches them directly to their questions.
+   The wizard reports what is still missing and lists unsupported standalone
+   music separately. **Skip and go to the editor** leaves media recovery for later.
+
+Studio keeps a game's source categories when importing questions. A source
+section becomes a project category, with deeper levels combined into a
+subcategory name to fit Quiz World's two levels. Compatible base Quiz World
+categories retain their existing mapping. If the game supplies no category
+name or the project reaches its category limit, Studio reports the affected
+questions and keeps their source information.
+
+Use the category assignment button in the summary to remap a source section
+and its subsections to one Quiz World or custom category and subcategory.
+The summary limits changes to newly added questions. The same action in the
+main menu can map sections across the entire project. Each assignment is
+one undoable change and keeps the original section available for later use.
+
+Use **Open** to resume a saved Question Studio project.
+New projects start in the interface language, which follows the system until
+the user chooses another language. The example opens in the selected question language.
+
 ## Implemented
 
 - Three-pane interface in the Buzz! game languages (Polish, English, German, French,
@@ -34,7 +68,9 @@ colours and controls as BuzzSetup.
   difficulty; map questions to Quiz World subjects/subcategories or to the
   project's own (see [Custom categories](#custom-categories)).
 - Question preview with four coloured answers and aspect-preserving images.
-- Attach images and audio files. Audio opens in the system's associated player;
+- Question cards show text, image or video as the content type and indicate
+  narration separately. The **With narration** filter includes any content type.
+- Attach images, videos and narration files. Narration opens in the system's associated player;
   this is not yet an internal RSF/WEM player.
 - Generate question audio locally as WAV, with voice selection, speed and
   pronunciation text: Windows SAPI voices on Windows, eSpeak NG on Linux.
@@ -49,24 +85,35 @@ colours and controls as BuzzSetup.
 - Native import of Knowledge Is Power / Wiedza to Potęga (PS4, CUSA09557) straight
   from the fake-signed `.pkg` (outer PFS decrypted with XTS-AES, compressed inner
   PFS read in place) or from an extracted folder (`Media/resources.assets`).
-  Reads the `KIP_*` question tables, every `*_text.loc` language, the
-  `QuestionImages.bytes` pictures and the selected language's `.wem` voice.
+  Reads the `KIP_*` question tables, offers locales with translated questions,
+  and imports the `QuestionImages.bytes` pictures and available `.wem`
+  narration for each language version kept in the project.
   AES comes from the system (CNG on Windows, OpenSSL libcrypto on Linux).
-  Sorting/linking rounds are skipped and categories still need mapping.
+  Sorting and linking with usable answer sets are converted to single-choice
+  questions. Studio reads category names from the game's localisation tables,
+  keeps the full source path, and uses its first three levels to group questions
+  within Quiz World's category limit.
 - Native read-only import of stored ZIP PAK / plaintext EDAT question archives
   from Quiz World and Quiz TV. Parses Huffman text, QAK records and category
   metadata; never executes imported Lua bytecode. Imported speech is cached
   locally. Still-picture questions use the frame index in the QAK record to
   import the matching frame from the pack's SDI picture sheet as a cached PNG.
   This uses the format of the pack, not a list of game IDs or languages. Use
-  FFmpeg next to Studio, on PATH or configured in the pack builder. If FFmpeg
+  FFmpeg next to Studio, on PATH or selected in the Studio menu. If FFmpeg
   is missing or a sheet cannot be decoded, the questions and their original
   references are still imported with a warning. Use **Decode source media**
-  on an imported movie question to read its original SDI, or use **Decode all
-  clips** for the whole project. Music-only tracks are not movie clips.
-  Picture-answer and multiple-correct-answer questions are skipped with a count;
-  their indices are not misinterpreted as text. Only one correct answer out of
-  four text answers is currently supported.
+  on an imported movie question to read its original SDI, or use **Recover game
+  media** for the whole project. Import from a decrypted PS3 ISO or question
+  pack copies music automatically. On older projects, **Play** can recover just
+  the selected question’s clip before opening the player. Studio stores the
+  clip separately from narration and includes it as streamed music in Quiz World packs.
+  Copying music works without FFmpeg. Questions whose clips could not
+  be recovered report the missing music and are skipped by default at build time.
+  Use **With music** to see all questions that use a music clip, including
+  questions still waiting for recovery. **Play** beside music, narration or
+  video opens a player in Studio. Previews of RSF and WEM use FFmpeg.
+  Multiple correct text answers can become one correct combination. Picture
+  answers and questions without a usable answer set are skipped with a count.
 - PS3 sources are read in place without unpacking the whole disc or package:
   - Decrypted disc images (`.iso`) of Quiz TV, Quiz World and Brain of...: every
     `PS3_GAME/USRDIR/PACKnnnn/<LANG>PACKnnnn.PAK` in the chosen language is
@@ -88,34 +135,49 @@ colours and controls as BuzzSetup.
   not question packs and are refused.
 - Native read-only import from the PS2 and PSP games, straight from a disc image
   (`.iso`, PSP `.cso`) or from the extracted files:
-  - PS2 Buzz! The Mega Quiz / Mega Quiz (PL, EN/FR/NL) and Hollywood Quiz:
-    `<LANG>/<LANG>ROUND.PAK` (round `.rnd` tables with Huffman text, or `.adt`
-    tables). For the Polish Mega Quiz (SCES-54690) the picture references get the
-    same correction as the PCSX2 patch v0.4 (675 media ids pointed two or three
-    frames early, from a review of every `rri.dat` entry);
-    a copy whose `rri.dat` is already fixed is left as is. Hollywood Quiz
-    automatically attaches still pictures using each question's QAK v1000
-    media link and the disc's `pics001.rsv`. It also resolves the RSV movie
-    references; their row-major layout differs from Mega Quiz.
-  - PSP Master Quiz and Polskie Łamigłówki (`MERGED.QDB` + `MERGED.TXT`) and Quiz
-    World PSP (per-language bundles in its numbered `.FLZ` archive). Movie
-    questions point to PMF clips; Studio combines the original AVC video
-    and ATRAC3+ soundtrack into an MP4 with AAC audio.
-  The correct answer is stored first in these games. Categories map onto Quiz
-  World subjects where the source category is clear; general ones are left for
-  you to choose. Comparison, put-in-order, true/false and party-challenge rounds
-  are skipped, as are tables a localized disc left in another language.
-  Select an imported question and choose **Decode source media** in the editor.
-  With FFmpeg installed (use its configured path or put it on PATH), Studio
-  attaches the decoded media. A clip becomes an MP4 with its original audio
-  and a representative still. **Open** plays the MP4 in the system player.
-  **Decode all clips** processes the whole project, deduplicates source clips
-  and skips questions that already have a video. The job can be cancelled;
-  completed attachments remain and can be undone together.
+  - PS2 The Music Quiz, The Big Quiz, The Mega Quiz, Hollywood Quiz, The Pop
+    Quiz, The Schools Quiz and The Sports Quiz. Studio reads the media links
+    from the game's own round tables. It supports RSV pictures and PAL/NTSC
+    video, Sports Quiz's separate image and indexed IPU archives, and VGP
+    music and sound clips. Sports Quiz's question narration is available in
+    its own player. Questions with four picture answers need a compatible
+    replacement to build as single-choice Quiz World questions.
+  - For the Polish Mega Quiz (SCES-54690), Studio applies the verified picture
+    offset correction to the original `rri.dat`. Australian Big Quiz v2.00
+    also has a verified correction for the picture sheet's ZIP checksum.
+  - PSP Master Quiz, the regional Brain quizzes, Quiz World (UMD and PSN),
+    and The Ultimate Music Quiz. Studio detects the languages present on the
+    disc and attaches imported pictures and music clips. **Play** recovers the
+    selected film or narration on demand. Studio combines the original PSP
+    video and soundtrack in an MP4 and uses the original narration when
+    building the pack if the source is still available. Brain Bender contains
+    puzzle minigames and has no quiz question bank to import.
+  The correct answer is stored first in these games. Studio keeps the category
+  names it can read or identify from the source. Comparison and true/false
+  rounds with identifiable correct
+  answers are converted to the four-choice format. An ordering table that labels
+  the first item can be converted to asking which item comes first. Rows without
+  a usable answer key and tables left in another language are skipped.
+  Select an imported question and click **Play** next to its video. Studio
+  uses FFmpeg to recover that clip, attaches it as an MP4 and plays it in the
+  editor. When the source clip includes its own audio, the MP4 includes it.
+  The **Play** buttons for narration and music can also recover their own
+  source audio on demand. When building a Quiz World pack, Studio encodes
+  recovered music and sound clips as stereo RSF and stores narration separately.
+  **Recover game media** tries missing images and clips in the current project.
+  It reuses shared images and clips, keeps existing attachments and edits, and
+  allows you to undo the recovered attachments together. Build Pack opens a
+  list of questions that still need media, with an option to recover them or
+  open a question to attach a replacement. The pack builder opens once recovery
+  clears the list.
   The Quiz World pack builder plays the attached clip with its own audio.
-  If FFmpeg is missing, Studio explains how to configure it without blocking
-  the question import. Get it from the [FFmpeg download page](https://ffmpeg.org/download.html),
-  then reimport to attach the pictures.
+  If Studio cannot find FFmpeg, **Recover game media** offers to install it
+  through WinGet on Windows, APT, DNF or pacman on Linux, or Homebrew on macOS.
+  Studio checks the installed executable and resumes recovery. You can also
+  select an existing executable or open the [FFmpeg download page](https://ffmpeg.org/download.html).
+  Linux installations use the configured repositories. Studio offers a terminal
+  command when graphical authorization is unavailable and a manual executable
+  on systems such as SteamOS.
   If an existing MP4 looks scrambled into blocks, remove the old video and
   its generated still in the editor, then run **Decode source media** again and
   rebuild the pack to use the corrected macroblock order. Unsupported
@@ -125,6 +187,8 @@ colours and controls as BuzzSetup.
 - Import into the current project with identity-based duplicate handling.
   Importing another language of the same Buzz question merges its translation;
   existing text/media is preserved and entirely empty drafts can be filled.
+  Reimporting can supply missing original narration for a matching question
+  and language whose prompt has stayed the same.
 - Export JSON for the existing buzzpack CLI, moving the correct answer first.
   That export requires complete questions and valid template category mappings.
 - Build aligned, stored-ZIP plaintext `.edat` packs directly in the application:
@@ -143,17 +207,27 @@ colours and controls as BuzzSetup.
    For Polish, use `POLPACK0100.PAK`; English needs an English template. A template
    for another language cannot supply translated category names. Project language,
    not interface language, controls the resulting pack.
-3. Choose **Build .edat** or select the game's runtime folder (the folder containing
+3. Review the preliminary counts for ready, incomplete and empty questions in
+   the active language. Click **Needs fixes** to see the questions and their
+   reasons. Open a question in the editor, move through the list with
+   **Previous question** and **Next question**, then use **Back to build** to
+   keep your settings and refresh the counts. Studio checks the template and
+   decodes media during the build.
+4. Choose **Build .edat** or select the game's runtime folder (the folder containing
    `dev_hdd0`) and click **Build and install**. Verify the title ID when you choose
    a runtime folder manually. The completion dialog shows generated, installed,
    and backup paths.
    Existing packs can also be installed using **… → Install an .edat pack…**.
-4. Restart the game and choose the pack in the quiz-pack game mode.
+5. Restart the game and choose the pack in the quiz-pack game mode.
 
 Output is `PACKnnnn/LANGPACKnnnn.edat`. Only the selected language is emitted.
-Questions with an entirely empty selected translation are counted and skipped;
-partially completed translations stop the build with an error. Other translations
-stay in the project. Images retain their proportions in a 16:9 letterboxed canvas.
+Studio skips incomplete questions, invalid category mappings, and questions
+with missing or unreadable media. The build report lists excluded questions
+and their reasons. Select an entry to open the question in the editor. Empty
+translations for the selected language are counted separately. The project keeps
+all questions, and a question can be included after fixing it and rebuilding.
+If every question is excluded, Studio preserves the previous output.
+Images retain their proportions in a 16:9 letterboxed canvas.
 An attached video takes precedence over the still image. For short clips (up to
 30 seconds, with an audio track), FFmpeg supplies the MPEG-1 video and stereo
 48 kHz ADX audio. Studio writes a native `.sdi` movie using metadata from the
@@ -188,8 +262,9 @@ When building, each own subject becomes a subject of the pack with its own round
 file, next to any Quiz World subjects the pack uses. Its name goes into the
 pack's NAMEDTEXT under a pack-specific `CAT_PK<number>_OWN<n>` key, which the
 category chooser displays. Internal names are `p<number>_OwnA`, `p<number>_OwnB`, …
-A language without a name for a used category stops that language's build with a
-clear message. Own and Quiz World categories share the pack's limit of 99
+Imported categories use their source name when no translation is available.
+A manually created category still needs a name for the language being built.
+Own and Quiz World categories share the pack's limit of 99
 categories in the category base range. Own categories have not yet been checked
 in the game's category chooser with players; the buzzpack JSON export refuses
 them.
@@ -204,7 +279,8 @@ metadata. Legacy JSON without `correct_index` defaults to answer zero.
 
 `pack.categories` (optional) lists the custom categories as `{id, parent, names}`:
 ids from 10001, `parent` 0 for a subject or the id of one of the project's
-subjects, and `names` keyed by language code. Questions refer to them through
+subjects, and `names` keyed by language code. Imported categories also keep a
+source key and fallback name. Questions refer to them through
 `subject`/`category` like Quiz World ids. `pack.titles`/`pack.descriptions`
 (optional) hold per-language titles; `pack.title` is the active language's.
 
@@ -272,7 +348,7 @@ are not modified. Opening a non-Studio source requires Save As to create a proje
 ## Build on Windows
 
 Install Visual Studio 2022 C++ tools, CMake 3.21+, Ninja, and Qt 6.2+ for MSVC x64
-(qtbase plus Qt Tools/Linguist). Qt 6.8.3 was tested. zlib comes from the
+(Qt Base, Qt Multimedia and Qt Tools/Linguist). Qt 6.8.3 was tested. zlib comes from the
 `third_party/zlib` submodule.
 From PowerShell:
 
@@ -285,9 +361,9 @@ If using the repo's private CMake/Ninja toolenv, set `BUZZ_TOOL_ENV` to its root
 The script builds, runs tests, installs into `dist-studio/`, and uses windeployqt
 to collect Qt's runtime dependencies (no software OpenGL, DXC or VC++
 redistributable installer) plus the Visual C++ runtime DLLs. The release workflow
-places `BuzzQuestionStudio.exe` and the JPEG/GIF image plugins next to BuzzSetup
-in `BuzzPrepare/`; the Qt DLLs are shared and checked to be identical, so only the
-qtbase source archive is published. Running the resulting application needs
+places `BuzzQuestionStudio.exe`, its image plugins and the Windows playback backend
+next to BuzzSetup in `BuzzPrepare/`. It publishes the Qt Base and Qt Multimedia
+source archives. Running the resulting application needs
 neither Python, PowerShell nor a development Qt installation.
 For images or audio conversion, install FFmpeg, select its executable in the build
 dialog, or include an actual standalone executable using the build helper's
@@ -300,7 +376,7 @@ Ubuntu 22.04/24.04:
 
 ```sh
 git submodule update --init third_party/zlib
-sudo apt-get install build-essential cmake ninja-build libssl-dev qt6-base-dev \
+sudo apt-get install build-essential cmake ninja-build libssl-dev qt6-base-dev qt6-multimedia-dev \
   qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools ffmpeg
 cmake -S studio -B build-studio/linux -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-studio/linux --parallel

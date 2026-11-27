@@ -7,22 +7,22 @@ namespace {
 constexpr auto audioBytes = 1136;
 const QByteArray first = QByteArray::fromHex("7143fc000001b0");
 const QByteArray next = QByteArray::fromHex("7143de000001b0");
-QByteArray rsv(bool video) {
+QByteArray rsv(bool video, int fps = 25) {
     QByteArray out(40, '\0');
     out.replace(0, 4, "rsv1");
     auto set = [&](int off, quint32 value) { qToLittleEndian(value, out.data() + off); };
     qToLittleEndian<quint16>(320, out.data() + 8);
     qToLittleEndian<quint16>(240, out.data() + 10);
     set(12, 2);
-    set(16, 25);
+    set(16, fps);
     set(20, video ? 24000 : 0);
     set(24, video ? 0x10000b : 0x100000);
     set(28, video ? 1 : 0);
     for (int i = 0; i < 2; ++i) {
         set(32 + i * 4, quint32(out.size()));
         if (video) {
-            QByteArray audio(audioBytes, '\0');
-            qToLittleEndian<quint16>(960, audio.data());
+            QByteArray audio(fps == 29 ? 944 : audioBytes, '\0');
+            qToLittleEndian<quint16>(fps == 29 ? 801 : 960, audio.data());
             out.append(audio);
         }
         out.append(i == 0 ? first : next);
@@ -71,7 +71,9 @@ class Ps2MediaTest final : public QObject {
         auto data = rsv(false);
         QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(data, 2), std::runtime_error);
         QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(data, -1), std::runtime_error);
-        QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(data, std::nullopt), std::runtime_error);
+        auto unknownLayout = data;
+        qToLittleEndian<quint32>(0, unknownLayout.data() + 24);
+        QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(unknownLayout, std::nullopt), std::runtime_error);
         QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(data.chopped(1), 0), std::runtime_error);
         qToLittleEndian<quint32>(0, data.data() + 36);
         QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(data, 0), std::runtime_error);
@@ -81,6 +83,29 @@ class Ps2MediaTest final : public QObject {
         clip = rsv(true);
         clip[40 + audioBytes + first.size() - 1] = 1;
         QVERIFY_EXCEPTION_THROWN(studio::makePs2Ipu(clip, std::nullopt), std::runtime_error);
+    }
+    void ntscVideo() {
+        QByteArray pcm;
+        const auto result = studio::makePs2Ipu(rsv(true, 29), std::nullopt, &pcm);
+        QCOMPARE(result.mid(16), first + next);
+        QCOMPARE(pcm.size(), 2 * 801 * 4);
+    }
+    void readsSportsArchiveEntries() {
+        QByteArray bpak(28 + 16, '\0');
+        bpak.replace(0, 4, "BPAK");
+        qToLittleEndian<quint32>(1, bpak.data() + 16);
+        qToLittleEndian<quint32>(28, bpak.data() + 20);
+        qToLittleEndian<quint32>(44, bpak.data() + 32);
+        bpak.append("questionvideos/sample.ipu", 26); // Include the terminator.
+        const auto start = bpak.size();
+        qToLittleEndian<quint32>(start, bpak.data() + 4);
+        qToLittleEndian<quint32>(start, bpak.data() + 36);
+        qToLittleEndian<quint32>(first.size(), bpak.data() + 40);
+        bpak += first;
+        studio::pack::Archive archive(bpak);
+        QCOMPARE(archive.read("questionvideos/sample.ipu"), first);
+        qToLittleEndian<quint32>(start + 1, bpak.data() + 36);
+        QVERIFY_EXCEPTION_THROWN(studio::pack::Archive{bpak}, std::runtime_error);
     }
     void rejectsOtherReferences() {
         studio::Question q;
@@ -96,6 +121,12 @@ class Ps2MediaTest final : public QObject {
         ref["type"] = "ps2-video";
         q.extra["source_media"] = QJsonArray{ref};
         QVERIFY(studio::hasPs2Media(q));
+        ref["container"] = "QVIDEOS.PAK:questionvideos/82_f_ita_ger-01.ipu";
+        q.extra["source_media"] = QJsonArray{ref};
+        QVERIFY(studio::hasPs2Media(q));
+        ref["type"] = "ps2-picture";
+        q.extra["source_media"] = QJsonArray{ref};
+        QVERIFY(!studio::hasPs2Media(q));
     }
 };
 

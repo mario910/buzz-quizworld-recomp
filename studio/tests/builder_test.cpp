@@ -2,6 +2,7 @@
 #include "kip_import.h"
 #include "legacy_import.h"
 #include "pack_builder.h"
+#include "pack_media.h"
 #include "ps3_source.h"
 #include "source_movie.h"
 #include "project_media.h"
@@ -328,6 +329,7 @@ class BuilderTest final : public QObject {
         QVERIFY(root.mkpath("Media/StreamingAssets/Localisation"));
         QVERIFY(root.mkpath("Media/StreamingAssets/QuestionImages"));
         QVERIFY(root.mkpath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/Polish"));
+        QVERIFY(root.mkpath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/English(UK)"));
         // 21-column trivia rows: id, text key, 4 answer keys, category path, ..., image, frame, tags, difficulty.
         auto row = [](const QString &id, const QString &key, const QString &image, const QString &difficulty) {
             QStringList r(21);
@@ -337,6 +339,8 @@ class BuilderTest final : public QObject {
                 r[2 + a] = key + "_A" + QString::number(a + 1);
             r[6] = "Experience";
             r[7] = "ModernWorld";
+            r[8] = "Society";
+            r[9] = "Topic" + id;
             r[15] = image;
             r[18] = difficulty;
             return r.join('\t');
@@ -352,6 +356,8 @@ class BuilderTest final : public QObject {
         assets += textAsset("KIP_Trivia_KillList_pl", "TRV00003");
         assets += textAsset("KIP_Finale_QuestionText", QByteArray());
         assets += textAsset("KIP_Sorting_QuestionText", "SRT1\tx\r\nSRT2\ty");
+        assets += textAsset("KIP_Sorting_QuestionText_pl", "LSS1pl\tLSS1\tG1\tCat\tG2\tRose|~|Oak|~|Moss");
+        assets += textAsset("KIP_Linking_QuestionText_pl", "LSL1pl\tLSL1\tA01|~|A02|~|A03|~|A04\tB01|~|B02|~|B03|~|B04");
         QVERIFY(write(root.filePath("Media/resources.assets"), assets));
         QStringList pl, en;
         for (const auto &key : {"TRV00001", "TRV00002", "TRV00003", "LST00001"}) {
@@ -362,13 +368,30 @@ class BuilderTest final : public QObject {
                 en << QString("%1_A%2\tAnswer %2").arg(key).arg(a);
             }
         }
+        pl << "LSS1\tZwierzę czy roślina?" << "G1\tZwierzę" << "G2\tRoślina" << "Cat\tKot"
+           << "Rose\tRóża" << "Oak\tDąb" << "Moss\tMech" << "LSL1\tPołącz państwo ze stolicą."
+           << "A01\tPolska" << "A02\tFrancja" << "A03\tHiszpania" << "A04\tNiemcy"
+           << "B01\tWarszawa" << "B02\tParyż" << "B03\tMadryt" << "B04\tBerlin";
+        pl << "Experience\tDoświadczenie" << "ModernWorld\tŚwiat współczesny" << "Society\tSpołeczeństwo"
+           << "TopicTRV00001\tWydarzenia";
+        en << "ModernWorld\tThe Modern World";
         QVERIFY(write(root.filePath("Media/StreamingAssets/Localisation/pl_text.loc"), utf16Loc(pl)));
         QVERIFY(write(root.filePath("Media/StreamingAssets/Localisation/en_text.loc"), utf16Loc(en)));
+        QVERIFY(write(root.filePath("Media/StreamingAssets/Localisation/en-GB_text.loc"),
+                      utf16Loc({"menu	Play"})));
+        auto placeholder = en;
+        for (auto &line : placeholder)
+            line = line.section('\t', 0, 0) + "\t<Translate: " + line.section('\t', 0, 0) + '>';
+        QVERIFY(write(root.filePath("Media/StreamingAssets/Localisation/cs_text.loc"), utf16Loc(placeholder)));
         const QByteArray jpeg = QByteArray("\xff\xd8\xff\xe0 fake jpeg ").repeated(40);
         QVERIFY(write(root.filePath("Media/StreamingAssets/QuestionImages/QuestionImages.bytes"),
                       deflatedZip("Pic1.jpg", jpeg)));
         QVERIFY(write(root.filePath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/Polish/pl_TRV00001.wem"),
                       "RIFF voice"));
+        QVERIFY(write(root.filePath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/English(UK)/en_TRV00001.wem"),
+                      "RIFF English voice"));
+        QVERIFY(write(root.filePath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/Polish/pl_LSS1.wem"),
+                      "RIFF sorting voice"));
         const auto assetsPath = root.filePath("Media/resources.assets");
         QVERIFY(studio::isKipSource(assetsPath));
         QCOMPARE(studio::kipLanguages(assetsPath).codes, QStringList({"en", "pl"}));
@@ -378,20 +401,58 @@ class BuilderTest final : public QObject {
         QStringList texts;
         for (const auto &question : r.document.questions)
             texts << question.text;
-        QVERIFY2(texts.size() == 3, qPrintable(texts.join(" | ") + " / " + r.warnings.join(" | ")));
-        QCOMPARE(texts, QStringList({"Pytanie TRV00001?", "Pytanie TRV00002?", "Pytanie LST00001?"}));
+        QVERIFY2(texts.size() == 5, qPrintable(texts.join(" | ") + " / " + r.warnings.join(" | ")));
+        QCOMPARE(texts, QStringList({"Pytanie TRV00001?", "Pytanie TRV00002?", "Pytanie LST00001?",
+                                    "Zwierzę czy roślina?\nZwierzę:", "Połącz państwo ze stolicą.\nPolska → …"}));
         const auto &q = r.document.questions[0];
         QCOMPARE(q.text, QString("Pytanie TRV00001?"));
         QCOMPARE(q.answers, QStringList({"Odpowiedź 1", "Odpowiedź 2", "Odpowiedź 3", "Odpowiedź 4"}));
         QCOMPARE(q.correct, 0);
         QCOMPARE(q.difficulty, 1);
         QCOMPARE(q.source, QString("Knowledge Is Power"));
+        QCOMPARE(q.sourceCategoryPath(),
+                 QStringList({"Doświadczenie", "Świat współczesny", "Społeczeństwo", "Wydarzenia"}));
+        QCOMPARE(q.extra["source_category_path"].toArray(),
+                 QJsonArray({"Experience", "ModernWorld", "Society", "TopicTRV00001"}));
         QCOMPARE(bytes(q.image), jpeg);
         QCOMPARE(bytes(q.speech), QByteArray("RIFF voice"));
+        auto englishVariant = q;
+        englishVariant.switchLanguage("en");
+        QCOMPARE(bytes(englishVariant.speech), QByteArray("RIFF English voice"));
         QCOMPARE(r.document.questions[1].difficulty, 3);
         QVERIFY(r.document.questions[1].speech.isEmpty());
         QCOMPARE(r.document.questions[2].text, QString("Pytanie LST00001?"));
-        QVERIFY(std::any_of(r.warnings.begin(), r.warnings.end(), [](const QString &w) { return w.contains("2"); }));
+        QCOMPARE(r.document.questions[3].answers, QStringList({"Kot", "Róża", "Dąb", "Mech"}));
+        QCOMPARE(bytes(r.document.questions[3].speech), QByteArray("RIFF sorting voice"));
+        QCOMPARE(r.document.questions[4].answers, QStringList({"Warszawa", "Paryż", "Madryt", "Berlin"}));
+        QVERIFY(r.document.questions[4].speech.isEmpty());
+        QVERIFY(r.warnings.contains(studio::adaptedAnswersWarning(2)));
+        QVERIFY(r.warnings.contains(studio::unsupportedAnswersWarning(2)));
+        auto mapped = r.document;
+        QStringList mappingWarnings;
+        QCOMPARE(studio::retainGameCategories(mapped, 0, "pl", mappingWarnings), 5);
+        QCOMPARE(mapped.categories.size(), 4);
+        QCOMPARE(mapped.questions[0].categoryId, mapped.questions[1].categoryId);
+        QCOMPARE(mapped.questions[0].sourceCategoryPath(), q.sourceCategoryPath());
+        QCOMPARE(mapped.categoryLabel(mapped.questions[0].subjectId), QString("Doświadczenie"));
+        QCOMPARE(mapped.categoryLabel(mapped.questions[0].categoryId), QString("Świat współczesny / Społeczeństwo"));
+        mapped.switchLanguage("en");
+        QCOMPARE(mapped.categoryLabel(mapped.questions[0].categoryId), QString("The Modern World / Society"));
+        QVERIFY(mappingWarnings.isEmpty());
+        auto oldImport = r.document;
+        for (auto &question : oldImport.questions)
+            question.extra.remove("source_category_labels");
+        studio::retainGameCategories(oldImport, 0, "pl", mappingWarnings);
+        QCOMPARE(oldImport.categoryLabel(oldImport.questions[0].subjectId), QString("Experience"));
+        const auto previousId = oldImport.questions[0].categoryId;
+        for (auto &category : oldImport.categories)
+            if (category.id == previousId)
+                category.names["pl"] = "Moja podkategoria";
+        for (int i = 0; i < oldImport.questions.size(); ++i)
+            oldImport.questions[i].extra["source_category_labels"] = r.document.questions[i].extra["source_category_labels"];
+        studio::retainGameCategories(oldImport, oldImport.questions.size(), "pl", mappingWarnings);
+        QCOMPARE(oldImport.categoryLabel(oldImport.questions[0].subjectId), QString("Doświadczenie"));
+        QCOMPARE(oldImport.categoryLabel(previousId), QString("Moja podkategoria"));
         // English keeps the killed question and has no local Polish one.
         const auto english = studio::importKip(assetsPath, "en");
         QVERIFY2(english.ok(), qPrintable(english.error));
@@ -449,19 +510,23 @@ class BuilderTest final : public QObject {
                 put(rri, v == 1 ? (id == 5 ? 9 : 0) : 0, 2);
         const QByteArray adt = "Id\tResource \tQuestion\tRight Answer\tWrong Answer\tWrong Answer\tWrong Answer\r\n"
                                "7\tnon-asset \tKto wyreżyserował film?\tA1\tB1\tC1\tD1\r\n";
+        const QByteArray order = "Id\tResource\tQuestion\tFirst\tSecond\tThird\tFourth\n"
+                                 "8\tnon-asset\tUstaw w kolejności\tA\tB\tC\tD\n";
+        const QByteArray unknownOrder = "Id\tResource\tQuestion\tItem\tItem\tItem\tItem\n"
+                                        "9\tnon-asset\tUłóż po kolei\tA\tB\tC\tD\n";
         writeArchive(temp.filePath("POLROUND.PAK"),
                      {{"BG2/SK_POL/Rounds/POL/TEST_ROUND.pkg", bytes(temp.filePath("round.pkg"))},
                       {"BG2/SK_POL/Rounds/rri.dat", rri},
                       {"BHW/SK_POL/Rounds/POL/quickfire_hard.adt", adt},
-                      {"BHW/SK_POL/Rounds/POL/toprank_easy.adt", adt}});
+                      {"BHW/SK_POL/Rounds/POL/toprank_easy.adt", order},
+                      {"BHW/SK_POL/Rounds/POL/toprank_medium.adt", unknownOrder}});
         const auto checkPs2 = [](const studio::LoadResult &r) {
             QVERIFY2(r.ok(), qPrintable(r.error));
             QCOMPARE(r.document.language, QString("pl"));
-            QCOMPARE(r.document.questions.size(), 3);
+            QCOMPARE(r.document.questions.size(), 5);
             QCOMPARE(r.duplicates, 2);
-            // qcompare and the toprank (put-in-order) table are not four-answer questions.
-            QVERIFY(std::any_of(r.warnings.begin(), r.warnings.end(),
-                                [](const QString &w) { return w.startsWith("Pominięto 2 pytań innych typów"); }));
+            QVERIFY(r.warnings.contains(studio::adaptedAnswersWarning(2)));
+            QVERIFY(r.warnings.contains(studio::unsupportedAnswersWarning(1)));
             QMap<QString, studio::Question> byText;
             for (const auto &q : r.document.questions)
                 byText[q.text] = q;
@@ -480,6 +545,12 @@ class BuilderTest final : public QObject {
             const auto film = byText["Kto wyreżyserował film?"];
             QCOMPARE(film.difficulty, 3);
             QCOMPARE(film.subjectId, 199);
+            const auto comparison = byText["Co jest większe?"];
+            QCOMPARE(comparison.answers.size(), 4);
+            QCOMPARE(comparison.answers[comparison.correct], QString("Słoń"));
+            QVERIFY(comparison.problems().isEmpty());
+            const auto ordered = byText["Ustaw w kolejności\nCo jest pierwsze w tej kolejności?"];
+            QCOMPARE(ordered.answers.value(ordered.correct), QString("A"));
         };
         checkPs2(studio::importLegacy(temp.filePath("POLROUND.PAK")));
         QCOMPARE(studio::legacyLanguages(temp.filePath("POLROUND.PAK")).codes, QStringList{"pl"});
@@ -502,9 +573,9 @@ class BuilderTest final : public QObject {
                           .toUtf8()));
         QByteArray qdb("\0BDQ", 4);
         put(qdb, 0, 4);
-        put(qdb, 3, 4);
+        put(qdb, 4, 4);
         put(qdb, 0, 4);
-        const auto pspRecord = [&](quint32 id, int category, int first, int flags, int level) {
+        const auto pspRecord = [&](quint32 id, int category, int first, int flags, int level, int mode = 0) {
             put(qdb, id, 4);
             put(qdb, 0, 2);
             put(qdb, category, 2);
@@ -513,21 +584,38 @@ class BuilderTest final : public QObject {
             put(qdb, 0, 2);
             put(qdb, flags, 2);
             qdb += char(level);
-            qdb += char(0);
+            qdb += char(mode);
         };
         pspRecord(100, 340, 0, 0, 0x21);
-        pspRecord(101, 345, 0, 0, 0x11); // Put-in-order round: skipped.
+        pspRecord(101, 345, 0, 0, 0x11); // Missing ordering mode: skipped.
         pspRecord(102, 335, 5, 0x3000, 0x31);
+        pspRecord(103, 345, 0, 0, 0x11, 3);
         QVERIFY(write(temp.filePath("psp/POLISH/MERGED.QDB"), qdb));
+        QVERIFY(QDir().mkpath(temp.filePath("QUIZASSETS")));
+        QByteArray texture("TEX\0", 4);
+        put(texture, 2, 4);
+        put(texture, 1, 4);
+        put(texture, 0x4005, 4);
+        QByteArray pixels(1026, '\0');
+        pixels.replace(4, 4, QByteArray::fromHex("4080ffff"));
+        pixels[1024] = 1;
+        texture += qCompress(pixels).mid(4);
+        QVERIFY(write(temp.filePath("QUIZASSETS/00000000.TEX"), texture));
         const auto psp = studio::importLegacy(temp.filePath("psp/POLISH/MERGED.QDB"));
         QVERIFY2(psp.ok(), qPrintable(psp.error));
-        QCOMPARE(psp.document.questions.size(), 2);
+        QCOMPARE(psp.document.questions.size(), 3);
         QCOMPARE(psp.document.questions[0].difficulty, 2);
         QCOMPARE(psp.document.questions[0].subjectId, 174);
         QCOMPARE(psp.document.questions[0].answers[0], QString("Legia"));
         QCOMPARE(psp.document.questions[1].subjectId, 199);
         QCOMPARE(psp.document.questions[1].extra["source_media"].toArray()[0].toObject()["type"].toString(),
                  QString("psp-picture"));
+        const QImage pspPicture(psp.document.questions[1].image);
+        QCOMPARE(pspPicture.size(), QSize(2, 1));
+        QCOMPARE(pspPicture.pixel(0, 0), qRgba(64, 128, 255, 255));
+        QCOMPARE(pspPicture.pixel(1, 0), qRgba(0, 0, 0, 0));
+        QCOMPARE(psp.document.questions[2].text, QString("Który klub wygrał?\nCo jest pierwsze w tej kolejności?"));
+        QVERIFY(psp.warnings.contains(studio::adaptedAnswersWarning(1)));
 
         // PSP Quiz World: per-language 1 MB bundle in a numbered .FLZ file.
         QByteArray bundle(0x100000, 'U');
@@ -841,11 +929,17 @@ class BuilderTest final : public QObject {
         // Decrypted PS3 disc image: every pack of the chosen language.
         const auto iso = temp.filePath("ps3.iso");
         QVERIFY(write(iso, isoImage({{"PS3_GAME/PARAM.SFO", paramSfo("Buzz! Disc")},
-                                     {"PS3_GAME/USRDIR/PACK0103/ENGPACK0103.PAK", plainPack}})));
+                                     {"PS3_GAME/USRDIR/PACK0103/ENGPACK0103.PAK", plainPack},
+                                     {"PS3_GAME/USRDIR/PACK0104/FRAPACK0104.PAK", plainPack}})));
         QVERIFY(studio::ps3::isPs3Source(iso));
+        const auto detected = studio::inspectLanguages(iso);
+        QVERIFY2(detected.ok(), qPrintable(detected.error));
+        QCOMPARE(detected.codes, QStringList{"en"});
         const auto disc = studio::loadDocument(iso, "en");
         sameQuestions(disc);
         QCOMPARE(disc.document.title, QString("Buzz! Disc"));
+        QCOMPARE(disc.duplicates, disc.document.questions.size());
+        QCOMPARE(disc.document.questions[0].localized()["source_rounds"].toArray().size(), 2);
         // An image whose files are still encrypted says so.
         auto scrambled = plainPack;
         for (auto &c : scrambled)
@@ -858,6 +952,49 @@ class BuilderTest final : public QObject {
         QCoreApplication::setOrganizationName("BuzzStudioTests");
         QCoreApplication::setApplicationName("BuilderTests");
         QStandardPaths::setTestModeEnabled(true);
+    }
+    void restoresQuizTvCategoriesFromRoundSetupAndSharedNamedText() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto named = [](const QString &key, const QString &label) {
+            const auto hash = qint32(crc32(key.toUtf8()) ^ 0xffffffffu ^ 0xfabcdef7u);
+            const auto code = encodeHuffman({label});
+            const QString base = "POL/NAMEDTEXT/default";
+            return Entries{{base + ".hdr", code.header}, {base + ".hst", code.stream},
+                           {base + ".ndx", namedIndex({QString::number(hash) + " 1"})}};
+        };
+        auto questions = named("PackTitleTest", "Music quiz");
+        questions << qMakePair(QString("POL/SCRIPTS/questioncategories.clu"),
+                               script({Call{{"AddQuestionCategoryItem"}, {115, "UNCATEGORISED", "QC_UNCATEGORISED", 67}}}));
+        questions << qMakePair(QString("POL/SCRIPTS/GENERATED/addpackinfo.clu"),
+                               script({Call{{"AddPackInfo"}, {1000, 2, 1, "PackTitleTest", "PACK0002", "Music"}}}));
+        questions << qMakePair(QString("POL/SCRIPTS/GENERATED/roundsetup.clu"),
+                               script({Call{{"AddRound"}, {1, "Quiz", 0, "First", "SUBJECT_RECENTMUSIC", "PACK0002", "recent_first"}},
+                                       Call{{"AddRound"}, {2, "Quiz", 0, "Final", "SUBJECT_RECENTMUSIC", "PACK0002", "recent_final"}}}));
+        for (const QString &name : {QString("recent_first"), QString("recent_final")}) {
+            const auto base = "POL/ROUNDS/" + name;
+            auto round = writeRound(name, "POL", 2, 1, 1, {{21, 0, "Question?", {}, {"A", "B", "C", "D"}, 2, 115, 115}});
+            patch(round.little, 4, 1002, 2);
+            questions << qMakePair(base + ".hdr", round.header) << qMakePair(base + ".hst", round.stream)
+                      << qMakePair(base + ".qak", round.little);
+        }
+        const auto questionsPath = temp.filePath("POLPACK0002.PAK");
+        const auto gamePath = temp.filePath("POL.PAK");
+        writeArchive(questionsPath, questions);
+        writeArchive(gamePath, named("SUBJECT_RECENTMUSIC", "Recent music"));
+        const auto iso = temp.filePath("quiz-tv.iso");
+        QVERIFY(write(iso, isoImage({{"PS3_GAME/PARAM.SFO", paramSfo("Quiz TV")},
+                                     {"PS3_GAME/USRDIR/PACK0002/POLPACK0002.PAK", bytes(questionsPath)},
+                                     {"PS3_GAME/USRDIR/GAME/POL.PAK", bytes(gamePath)}})));
+        auto imported = studio::ps3::importPs3(iso, "pl", false);
+        QVERIFY2(imported.ok(), qPrintable(imported.error));
+        QCOMPARE(imported.document.questions.size(), 1);
+        auto &question = imported.document.questions.first();
+        QCOMPARE(question.sourceCategoryPath(), (QStringList{"Music quiz", "Recent music"}));
+        QCOMPARE(question.localized()["source_rounds"].toArray().size(), 2);
+        QCOMPARE(studio::retainGameCategories(imported.document, 0, "pl", imported.warnings), 1);
+        QCOMPARE(imported.document.categoryLabel(question.subjectId), QString("Music quiz"));
+        QCOMPARE(imported.document.categoryLabel(question.categoryId), QString("Recent music"));
     }
     void matchesReferencePackEveryEntryAndByte() {
         QTemporaryDir temp;
@@ -872,6 +1009,110 @@ class BuilderTest final : public QObject {
         for (const auto &name : actual.entries.keys())
             QCOMPARE(actual.read(name), expected.read(name));
         QCOMPARE(bytes(r.path), bytes(fixture("build-reference.pak")));
+    }
+    void recoversMusicFromQuizWorldIsoAndBuildsItSeparatelyFromNarration() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto header = QByteArray::fromHex("06000200bb800006000001800000030000000180000003000102000000000000");
+        const auto first = QByteArray(384, 'a'), second = QByteArray(384, 'b');
+        const auto clip = (header + first).leftJustified(65536, '\0') +
+                          (header + second).leftJustified(65536, '\0');
+        const auto speech = bytes(fixture("atrac-reference.rsf"));
+        QVERIFY(!speech.isEmpty());
+        const QStringList answers{"One", "Two", "Three", "Four"};
+        const auto round = writeRound("q_music", "ENG", 100, 1, 1,
+            {{1, 42, "Which song is this?", {}, answers, 2, 235, 237, 0, 0, FirstMusicAsset},
+             {2, 42, "Which record is this?", {}, answers, 2, 235, 237, 0, 0, FirstMusicAsset},
+             {3, 42, "Which band is this?", {}, answers, 2, 235, 237, 0, 0, FirstMusicAsset + 1}});
+        const auto pack = temp.filePath("ENGPACK0100.PAK");
+        writeArchive(pack, {{"ENG/ROUNDS/q_music.qak", round.little}, {"ENG/ROUNDS/q_music.hdr", round.header},
+                            {"ENG/ROUNDS/q_music.hst", round.stream},
+                            {"ENG/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/6000000042.rsf", speech},
+                            {musicEntry("ENG", FirstMusicAsset), clip}});
+        const auto iso = temp.filePath("Quiz World.iso");
+        QVERIFY(write(iso, isoImage({{"PS3_GAME/USRDIR/PACK0100/ENGPACK0100.PAK", bytes(pack)}})));
+        auto imported = studio::ps3::importPs3(iso, "en");
+        QVERIFY2(imported.ok(), qPrintable(imported.error));
+        QCOMPARE(imported.document.questions.size(), 3);
+        QCOMPARE(bytes(imported.document.questions[0].music), clip);
+        QCOMPARE(imported.document.questions[1].music, imported.document.questions[0].music);
+        QVERIFY(imported.document.questions[2].hasUnresolvedMusic());
+        const auto metadataOnly = studio::ps3::importPs3(iso, "en", false);
+        QVERIFY2(metadataOnly.ok(), qPrintable(metadataOnly.error));
+        QVERIFY(metadataOnly.document.questions[0].hasUnresolvedMusic());
+        for (auto &q : imported.document.questions) {
+            q.music.clear();
+            q.translations["en"] = q.localized();
+        }
+        auto oldVariant = imported.document.questions[1].localized();
+        oldVariant["source_media"] = QJsonArray{QJsonObject{{"type", 1}, {"asset", FirstMusicAsset}}};
+        imported.document.questions[1].translations["en"] = oldVariant;
+        for (const auto &q : imported.document.questions) {
+            QVERIFY(q.hasUnresolvedMusic());
+            QVERIFY(!q.hasUnresolvedVisualMedia());
+            QVERIFY(studio::hasBuzzSourceMusic(q));
+        }
+
+        QStringList warnings;
+        studio::recoverBuzzMusic(imported.document.questions, warnings);
+        QCOMPARE(warnings.size(), 1);
+        const auto &questions = imported.document.questions;
+        QCOMPARE(bytes(questions[0].music), clip);
+        const auto musicWave = previewAudioWave(questions[0].music);
+        QCOMPARE(u16(musicWave, 22), 2);
+        QCOMPARE(musicWave.mid(60), first + second);
+        QCOMPARE(questions[0].music, questions[1].music);
+        QCOMPARE(bytes(questions[0].speech), speech);
+        QCOMPARE(previewAudioWave(questions[0].speech).mid(60), speech.mid(32));
+        QVERIFY(questions[0].problems().isEmpty());
+        QVERIFY(questions[2].hasUnresolvedMusic());
+        QCOMPARE(questions[2].problems(), QStringList{QString::fromUtf8("Brakuje klipu muzycznego do pytania.")});
+
+        const auto project = temp.filePath("Music.buzzproject");
+        QVERIFY(studio::exportProjectArchive(imported.document, project).ok());
+        const auto reopened = studio::openProjectArchive(project);
+        QVERIFY2(reopened.ok(), qPrintable(reopened.error));
+        QCOMPARE(bytes(reopened.document.questions[0].music), clip);
+
+        auto req = request(temp.path());
+        req.document = reopened.document;
+        req.skipInvalid = true;
+        const auto built = studio::buildPack(req);
+        QVERIFY2(built.ok(), qPrintable(built.error));
+        QCOMPARE(built.questions, 2);
+        QCOMPARE(built.excluded.size(), 1);
+        QCOMPARE(built.excluded[0].toMap()["reason"].toString(), questions[2].problems().first());
+        const auto builtPack = studio::importBuzz(built.path, "en");
+        QVERIFY2(builtPack.ok(), qPrintable(builtPack.error));
+        Archive archive(built.path);
+        const QJsonValue asset = builtPack.document.questions[0].sourceMusic()["asset"];
+        QVERIFY(asset.isDouble());
+        QCOMPARE(archive.read(QString("ENG/QUESTIONASSETS/MUSIC/STREAMED/1%1.rsf").arg(asset.toInteger(), 6, 10, QLatin1Char('0'))),
+                 clip);
+        QCOMPARE(builtPack.document.questions[1].sourceMusic()["asset"], asset);
+        QCOMPARE(bytes(builtPack.document.questions[0].speech), speech);
+    }
+    void encodesStereoMusicForQuizWorld() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        constexpr int samples = 48000 * 4;
+        QByteArray pcm(samples * 4, '\0');
+        for (int i = 0; i < samples; ++i) {
+            const auto left = qint16(i % 100 < 50 ? 5000 : -5000);
+            const auto right = qint16(i % 60 < 30 ? 3500 : -3500);
+            qToLittleEndian(left, pcm.data() + i * 4);
+            qToLittleEndian(right, pcm.data() + i * 4 + 2);
+        }
+        const auto clip = encodeStreamedMusicPcm(pcm);
+        QCOMPARE(clip.size(), 2 * 65536);
+        QVERIFY(isStreamedMusic(clip));
+        QCOMPARE(u16(clip, 6, true), 2);
+        const auto name = temp.filePath("music.rsf");
+        QVERIFY(write(name, clip));
+        const auto wave = previewAudioWave(name);
+        QCOMPARE(u16(wave, 22), 2);
+        QCOMPARE(u32(wave, 24), 48000u);
+        QCOMPARE(wave.size(), 60 + u32(clip, 20, true));
     }
     void selectedLanguageControlsPrefixAndSkipsMissingTranslations() {
         QTemporaryDir temp;
@@ -895,6 +1136,37 @@ class BuilderTest final : public QObject {
         const auto missing = studio::buildPack(req);
         QVERIFY(!missing.ok());
         QVERIFY(missing.path.isEmpty());
+    }
+    void roundTripsNarrationForTheRightQuestionAndLanguage() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto req = request(temp.path());
+        const auto pcm = bytes(fixture("atrac-input.pcm"));
+        QVERIFY(!pcm.isEmpty());
+        int recording = 0;
+        for (const QString &language : {QString("en"), QString("pl")}) {
+            req.document.switchLanguage(language);
+            QMap<QString, QByteArray> expected;
+            for (auto &q : req.document.questions) {
+                q.text = language + ' ' + q.id;
+                q.answers = QStringList{"A", "B", "C", "D"};
+                q.correct = 0;
+                q.speech = temp.filePath(QString::number(++recording) + ".rsf");
+                const auto audio = encodeAtracPcm(pcm.repeated(recording));
+                QVERIFY(write(q.speech, audio));
+                expected.insert(q.text, audio);
+            }
+            const auto built = studio::buildPack(req);
+            QVERIFY2(built.ok(), qPrintable(built.error));
+            const auto imported = studio::importBuzz(built.path, language);
+            QVERIFY2(imported.ok(), qPrintable(imported.error));
+            QCOMPARE(imported.document.questions.size(), expected.size());
+            for (const auto &q : imported.document.questions) {
+                QVERIFY(expected.contains(q.text));
+                QVERIFY(!q.speech.isEmpty());
+                QCOMPARE(bytes(q.speech), expected.value(q.text));
+            }
+        }
     }
     void customCategoriesAreNamedPerLanguageAndTravelWithTheProject() {
         QTemporaryDir temp;
@@ -955,6 +1227,41 @@ class BuilderTest final : public QObject {
         QVERIFY(!missing.ok());
         QVERIFY2(missing.error.contains(studio::languageName("pl")), qPrintable(missing.error));
     }
+    void buildsAnImportedCategoryWithoutManualMappingOrTranslation() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto req = request(temp.path());
+        req.document.questions.resize(1);
+        auto &question = req.document.questions.first();
+        question.source = "Knowledge Is Power";
+        question.subjectId = question.categoryId = 0;
+        question.extra["source_category_path"] = QJsonArray{"Experience", "Science", "General Science"};
+        QStringList warnings;
+        QCOMPARE(studio::retainGameCategories(req.document, 0, "pl", warnings), 1);
+        QVERIFY(warnings.isEmpty());
+        QCOMPARE(req.document.categories.size(), 2);
+        const int subject = question.subjectId;
+        QCOMPARE(question.category, QString("Experience"));
+        QCOMPARE(req.document.customCategory(question.categoryId)->name("en"), QString("Science / General Science"));
+        const auto saved = studio::parseJson(studio::serialize(req.document));
+        QVERIFY2(saved.ok(), qPrintable(saved.error));
+        QVERIFY(saved.document.categories == req.document.categories);
+        req.document = saved.document;
+        const auto built = studio::buildPack(req);
+        QVERIFY2(built.ok(), qPrintable(built.error));
+        const auto reopened = studio::importBuzz(built.path, "en", false);
+        QVERIFY2(reopened.ok(), qPrintable(reopened.error));
+        QCOMPARE(reopened.document.questions.first().sourceCategoryPath(),
+                 QStringList({"Experience", "Science / General Science"}));
+
+        auto other = req.document.questions.first();
+        other.id = "another";
+        other.extra.remove("category_override");
+        req.document.questions << other;
+        QCOMPARE(studio::retainGameCategories(req.document, 1, "en", warnings), 1);
+        QCOMPARE(req.document.categories.size(), 2);
+        QCOMPARE(req.document.questions.last().subjectId, subject);
+    }
     void mergingProjectsReusesCategoriesWithTheSameNames() {
         studio::Document into;
         into.categories = {{10001, 0, QJsonObject{{"pl", "Święta"}}}, {10002, 10001, QJsonObject{{"pl", "Kolędy"}}}};
@@ -992,6 +1299,70 @@ class BuilderTest final : public QObject {
         req.categoryBase = 999;
         QVERIFY(!studio::buildPack(req).ok());
         QCOMPARE(bytes(first.path), original);
+    }
+    void partialBuildReportsBadQuestionsAndPreservesTheLastPackWhenNoneAreReady() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto req = request(temp.path());
+        req.skipInvalid = true;
+        const auto valid = req.document.questions[0];
+        req.document.questions = {valid};
+        auto append = [&](const QString &id) -> studio::Question & {
+            auto bad = valid;
+            bad.id = id;
+            req.document.questions << bad;
+            return req.document.questions.last();
+        };
+        append("incomplete").answers[0].clear();
+        append("unsupported-text").text += QString::fromUcs4(U"\U0001F642");
+        append("missing-category").categoryId = 0;
+        append("missing-image").image = temp.filePath("missing.png");
+        const auto badSpeech = temp.filePath("invalid.rsf");
+        QVERIFY(write(badSpeech, "invalid RSF"));
+        append("broken-recording").speech = badSpeech;
+        auto &missingTranslation = append("no-language");
+        missingTranslation.switchLanguage("fr");
+        missingTranslation.translations.remove("en");
+
+        const auto readiness = studio::checkBuildReadiness(req.document);
+        QCOMPARE(readiness.ready, 2); // The invalid RSF is detected when build reads the file.
+        QCOMPARE(readiness.issues.size(), 4);
+        for (const auto &issue : readiness.issues)
+            QVERIFY(!issue.id.isEmpty() && !issue.reason.isEmpty());
+        QCOMPARE(readiness.missingLanguage, 1);
+        const auto built = studio::buildPack(req);
+        QVERIFY2(built.ok(), qPrintable(built.error));
+        QCOMPARE(built.questions, 1);
+        QCOMPARE(built.skipped, 1);
+        QCOMPARE(built.excluded.size(), 5);
+        for (const auto &entry : built.excluded) {
+            const auto row = entry.toMap();
+            QVERIFY(!row["id"].toString().isEmpty());
+            QVERIFY(!row["reason"].toString().isEmpty());
+        }
+        QCOMPARE(built.excluded.last().toMap()["id"].toString(), QString("broken-recording"));
+        const auto reopened = studio::importBuzz(built.path, "en", false);
+        QVERIFY2(reopened.ok(), qPrintable(reopened.error));
+        QCOMPARE(reopened.document.questions.size(), 1);
+        QCOMPARE(reopened.document.questions[0].text, valid.text);
+        const auto previous = bytes(built.path);
+
+        req.document.questions.removeFirst();
+        const auto empty = studio::buildPack(req);
+        QVERIFY(!empty.ok());
+        QVERIFY(empty.path.isEmpty());
+        QCOMPARE(empty.excluded.size(), 5);
+        QCOMPARE(bytes(built.path), previous);
+
+        req.document.questions = {valid};
+        const auto wave = temp.filePath("voice.wav");
+        QVERIFY(write(wave, "invalid WAV"));
+        append("requires-ffmpeg").speech = wave;
+        req.ffmpeg = temp.filePath("missing-ffmpeg");
+        const auto missingTool = studio::buildPack(req);
+        QVERIFY(!missingTool.ok());
+        QVERIFY(missingTool.excluded.isEmpty());
+        QCOMPARE(bytes(built.path), previous);
     }
     void installationMakesBackupAndRejectsCategoryCollisions() {
         QTemporaryDir temp;
@@ -1132,16 +1503,24 @@ class BuilderTest final : public QObject {
         writeArchive(req.templatePath, files);
         const auto clip = temp.filePath("clip.mp4");
         runMedia(ffmpeg, {"-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x120:rate=25",
-                          "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-t", "1",
+                          "-itsoffset", "0.25", "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-t", "1",
                           "-c:v", "mpeg4", "-c:a", "aac", clip}, nullptr);
         auto &q = req.document.questions[0];
         q.video = clip;
         q.image = temp.filePath("unused-poster.png"); // A movie supersedes the still.
         q.extra["source_media"] = QJsonArray{QJsonObject{{"type", "ps2-video"}}};
+        auto broken = q;
+        broken.id = "broken-video";
+        broken.video = temp.filePath("broken.mp4");
+        QVERIFY(write(broken.video, "not a video"));
+        req.document.questions.prepend(broken);
+        req.skipInvalid = true;
         const auto built = studio::buildPack(req);
         QVERIFY2(built.ok(), qPrintable(built.error));
         QCOMPARE(built.movies, 1);
         QCOMPARE(built.pictures, 0);
+        QCOMPARE(built.excluded.size(), 1);
+        QCOMPARE(built.excluded.first().toMap()["id"].toString(), broken.id);
         Archive output(built.path);
         const auto movie = output.read("ENG/QUESTIONASSETS/VIDEO/1021024.sdi");
         QVERIFY(isMovieTemplate(movie));
@@ -1150,14 +1529,22 @@ class BuilderTest final : public QObject {
         QVERIFY(write(sdi, movie));
         runMedia(ffmpeg, {"-v", "error", "-xerror", "-y", "-i", sdi, "-map", "0:a:0", "-f", "s16le",
                           audio, "-map", "0:v:0", "-f", "null", "-"}, nullptr);
-        const auto samples = bytes(audio);
-        QVERIFY(samples.size() > 180000);
-        QVERIFY(std::any_of(samples.cbegin(), samples.cend(), [](char v) { return v != 0; }));
+        const auto verifyAudioTiming = [&](const QByteArray &samples) {
+            QVERIFY(samples.size() > 180000);
+            constexpr int stereoFrameBytes = 4, sampleRate = 48000;
+            qsizetype offset = 0;
+            for (; offset + stereoFrameBytes <= samples.size(); offset += stereoFrameBytes)
+                if (std::abs(int(qFromLittleEndian<qint16>(samples.constData() + offset))) > 1000)
+                    break;
+            const double onset = double(offset) / (stereoFrameBytes * sampleRate);
+            QVERIFY2(onset >= 0.215 && onset <= 0.285, qPrintable(QString::number(onset)));
+        };
+        verifyAudioTiming(bytes(audio));
         const auto imported = studio::importBuzz(built.path, "en", false);
         QVERIFY(imported.ok());
         const auto &questions = imported.document.questions;
         const auto importedMovie = std::find_if(questions.cbegin(), questions.cend(), [&](const auto &item) {
-            return item.text == q.text;
+            return item.text == req.document.questions[1].text;
         });
         QVERIFY(importedMovie != questions.cend());
         const auto reference = importedMovie->extra["source_media"].toArray();
@@ -1174,9 +1561,7 @@ class BuilderTest final : public QObject {
         const auto converted = temp.filePath("converted.pcm");
         runMedia(ffmpeg, {"-v", "error", "-xerror", "-y", "-i", decoded.video, "-map", "0:a:0",
                           "-f", "s16le", converted, "-map", "0:v:0", "-f", "null", "-"}, nullptr);
-        const auto sound = bytes(converted);
-        QVERIFY(sound.size() > 180000);
-        QVERIFY(std::any_of(sound.cbegin(), sound.cend(), [](char v) { return v != 0; }));
+        verifyAudioTiming(bytes(converted));
     }
     void hollywoodMapsPicturesByQuestion() {
         QTemporaryDir temp;
@@ -1248,9 +1633,17 @@ class BuilderTest final : public QObject {
         QVERIFY(portrait.save(imagePath));
         req.document.questions[0].speech = audioPath;
         req.document.questions[0].image = imagePath;
+        auto broken = req.document.questions[0];
+        broken.id = "broken-image";
+        broken.image = temp.filePath("broken.png");
+        QVERIFY(write(broken.image, "not an image"));
+        req.document.questions.prepend(broken);
+        req.skipInvalid = true;
         const auto built = studio::buildPack(req);
         QVERIFY2(built.ok(), qPrintable(built.error));
         QCOMPARE(built.pictures, 1);
+        QCOMPARE(built.excluded.size(), 1);
+        QCOMPARE(built.excluded.first().toMap()["id"].toString(), broken.id);
         Archive archive(built.path);
         const auto speech = archive.read("ENG/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/6010300001.rsf");
         QCOMPARE(speech, bytes(fixture("atrac-reference.rsf")));

@@ -4,6 +4,16 @@
     <context>
         <name>BuzzImport</name>
         <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Pominięte pytania (%1). Odpowiedzi obrazkowe: %2. Brak poprawnej odpowiedzi: %3. Liczba odpowiedzi poza zakresem 2–4: %4. Nie udało się utworzyć czterech różnych odpowiedzi: %5.</source>
+            <translation>Ohitetut kysymykset (%1). Kuvavastaukset: %2. Ei oikeaa vastausta: %3. Vastausten määrä ei ole 2–4: %4. Neljää eri vastausta ei voitu muodostaa: %5.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Połączono wystąpienia pytań w rundach: %1. Każde pytanie jest zapisane raz, z listą rund źródłowych.</source>
+            <translation>Kierrosten kysymysesiintymät yhdistettiin: %1. Jokainen kysymys tallennetaan kerran ja sen alkuperäiset kierrokset luetellaan.</translation>
+        </message>
+        <message>
             <source>Uszkodzony plik: odczyt poza zakresem.</source>
             <translation>Vioittunut tiedosto: luku sen rajojen ulkopuolelta.</translation>
         </message>
@@ -178,16 +188,40 @@
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
             <translation>Ohitettiin %1 päällekkäistä kysymystunnusta eri kierroksilla.</translation>
         </message>
+        <message>
+            <source>Nieprawidłowy klip muzyczny w archiwum gry.</source>
+            <translation>Pelin arkistossa on virheellinen musiikkinäyte.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odzyskać klipu muzycznego.</source>
+            <translation>Musiikkinäytettä ei voitu palauttaa.</translation>
+        </message>
     </context>
     <context>
         <name>Document</name>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania bez przypisanej kategorii gry: %1. Brakuje nazwy źródłowej lub miejsca na kolejne kategorie.</source>
+            <translation>Kysymykset ilman peliluokkaa: %1. Alkuperäinen nimi puuttuu tai uusille luokille ei ole tilaa.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania przekształcone na jednokrotny wybór: %1.</source>
+            <translation>Yhden oikean vastauksen kysymyksiksi muunnettu: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania pominięte z powodu formatu odpowiedzi: %1.</source>
+            <translation>Vastausmuodon vuoksi ohitettu: %1 kysymystä.</translation>
+        </message>
         <message>
             <source>Nie znaleziono filmu.</source>
             <translation>Videota ei löytynyt.</translation>
         </message>
         <message>
-            <source>Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny obrazek.</source>
-            <translation>Kysymys käyttää pelin kuvaa, videota tai äänitettä. Liitä oma kuva.</translation>
+            <location filename="../src/document.cpp" />
+            <source>Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.</source>
+            <translation>Tämä kysymys käyttää alkuperäisen pelin mediaa. Liitä kuva tai video.</translation>
         </message>
         <message>
             <source>Wpisz treść pytania.</source>
@@ -321,6 +355,14 @@
             <source>Eksport do buzzpack nie obsługuje kategorii własnych. Zbuduj paczkę .edat w Studiu.</source>
             <translation>Buzzpack-vienti ei tue omia kategorioita. Rakenna .edat-paketti Studiossa.</translation>
         </message>
+        <message>
+            <source>Brakuje klipu muzycznego do pytania.</source>
+            <translation>Kysymyksen musiikkinäyte puuttuu.</translation>
+        </message>
+        <message>
+            <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
+            <translation>JSON-vienti jättää musiikkinäytteet pois. Luo .edat-paketti Studiossa.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -335,6 +377,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Pytania oczekujące na media: %1.</source>
+            <translation>Mediaa odottavia kysymyksiä: %1.</translation>
+        </message>
         <message>
             <location filename="../src/legacy_import.cpp" />
             <source>Zaimportowano obrazki RSV do %1 pytań.</source>
@@ -650,6 +697,170 @@
         <name>Main</name>
         <message>
             <location filename="../src/main_window.cpp" />
+            <source>WIDEO</source>
+            <translation>VIDEO</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Lektor</source>
+            <translation>Selostus</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Z lektorem</source>
+            <translation>Selostetut</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj nagranie</source>
+            <translation>Lisää tallenne</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Brak obrazu</source>
+            <translation>Ei kuvaa</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie po imporcie…</source>
+            <translation>Määritä luokat tuonnin jälkeen…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie działom gry</source>
+            <translation>Määritä luokat pelin osioille</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: ostatni import</source>
+            <translation>Laajuus: viimeisin tuonti</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: cały projekt</source>
+            <translation>Laajuus: koko projekti</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz dział gry i kategorię docelową. Wybór działu obejmuje także jego poddziały.</source>
+            <translation>Valitse pelin osio ja kohdeluokka. Osion valinta kattaa myös sen alaosiot.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dział źródłowy</source>
+            <translation>Alkuperäinen osio</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bez działu źródłowego</source>
+            <translation>Ei alkuperäistä osiota</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kategoria docelowa</source>
+            <translation>Kohdeluokka</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz podkategorię</source>
+            <translation>Valitse alaluokka</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podkategoria docelowa</source>
+            <translation>Kohdealaluokka</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisanie zastąpi kategorię pytań z tego działu. Zmianę można cofnąć.</source>
+            <translation>Tämä korvaa osion kysymysten luokan. Voit kumota muutoksen.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorię (%1)</source>
+            <translation>Määritä luokka (%1)</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania ze zmienioną kategorią: %1</source>
+            <translation>Kysymyksiä, joiden luokka muuttui: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Te pytania mają już wybraną kategorię.</source>
+            <translation>Näillä kysymyksillä on jo valittu luokka.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do przetwarzania mediów potrzebny jest FFmpeg.</source>
+            <translation>Median käsittelyyn tarvitaan FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Strona pobierania FFmpeg</source>
+            <translation>FFmpegin lataussivu</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zainstaluj przez %1</source>
+            <translation>Asenna työkalulla %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kopiuj polecenie instalacji</source>
+            <translation>Kopioi asennuskomento</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Uruchom skopiowane polecenie w terminalu, a potem wróć do Studio.
+
+%1</source>
+            <translation>Suorita kopioitu komento päätteessä ja palaa sitten Studioon.
+
+%1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalowanie FFmpeg przez %1…</source>
+            <translation>Asennetaan FFmpeg työkalulla %1…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja FFmpeg nie powiodła się.</source>
+            <translation>FFmpegin asennus epäonnistui.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja zakończona. Wybierz plik wykonywalny FFmpeg.</source>
+            <translation>Asennus on valmis. Valitse FFmpegin ohjelmatiedosto.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Palauta pelin media</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagają mediów.</source>
+            <translation>Joistakin kysymyksistä puuttuu media.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz działający plik wykonywalny FFmpeg.</source>
+            <translation>Valitse toimiva FFmpeg-ohjelmatiedosto.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagające mediów</source>
+            <translation>Kysymykset, joista puuttuu media</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz pytanie z listy, aby dodać brakujący obraz lub film (%1).</source>
+            <translation>Valitse kysymys ja lisää puuttuva kuva tai video (%1).</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
             <source>Zdekoduj media źródłowe</source>
             <translation>Pura lähdemedia</translation>
         </message>
@@ -681,6 +892,10 @@
         <message>
             <source>Wideo (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</source>
             <translation>Video (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</translation>
+        </message>
+        <message>
+            <source>Kliknij Odtwórz przy wideo, aby odzyskać je z gry.</source>
+            <translation>Palauta video pelistä napsauttamalla sen Toista-painiketta.</translation>
         </message>
         <message>
             <source>Brak filmu</source>
@@ -1420,9 +1635,70 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
             <source>Paczka może mieć najwyżej 99 kategorii własnych.</source>
             <translation>Paketissa voi olla enintään 99 omaa kategoriaa.</translation>
         </message>
+        <message>
+            <source>Odzyskano klip muzyczny z gry.</source>
+            <translation>Musiikkinäyte palautettiin pelistä.</translation>
+        </message>
+        <message>
+            <source>Wybierz pytanie, aby sprawdzić, których mediów brakuje (%1).</source>
+            <translation>Valitse kysymys nähdäksesi, mitä mediaa puuttuu (%1).</translation>
+        </message>
+        <message>
+            <source>Brak muzyki: %1</source>
+            <translation>Musiikki puuttuu: %1</translation>
+        </message>
+        <message>
+            <source>Z muzyką</source>
+            <translation>Musiikkia sisältävät</translation>
+        </message>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Toista</translation>
+        </message>
     </context>
     <context>
         <name>PackBuilder</name>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Wybierz kategorię i podkategorię dla tego pytania.</source>
+            <translation>Valitse tälle kysymykselle luokka ja alaluokka.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Żadne pytanie nie jest gotowe do zbudowania paczki.</source>
+            <translation>Yksikään kysymys ei ole valmis pakettiin.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Kodowanie filmu do pytania %1 z %2…</source>
+            <translation>Pakataan kysymysvideota %1/%2…</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Paczka zawiera za dużo różnych filmów do pytań.</source>
+            <translation>Paketti sisältää liian monta erilaista kysymysvideota.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <location filename="../src/pack_media.cpp" />
+            <source>Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI.</source>
+            <translation>Valitussa Quiz World -mallissa ei ole yhteensopivaa SDI-videon otsaketta.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Filmy do pytań przekraczają limit 256 MiB na paczkę.</source>
+            <translation>Kysymysvideot ylittävät paketin 256 MiB:n kokorajan.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Film do pytania musi zawierać obraz i trwać najwyżej 30 sekund.</source>
+            <translation>Kysymysvideossa on oltava videoraita, ja sen kesto saa olla enintään 30 sekuntia.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>FFmpeg nie utworzył oczekiwanego strumienia stereo ADX 48 kHz.</source>
+            <translation>FFmpeg ei tuottanut odotettua 48 kHz:n ADX-stereovirtaa.</translation>
+        </message>
         <message>
             <source>Przekroczony budżet ramki ATRAC3.</source>
             <translation>ATRAC3-kehysbudjetti ylitetty.</translation>
@@ -1823,9 +2099,91 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
             <source>Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w oknie Kategorie paczki.</source>
             <translation>Omalla kategorialla ei ole nimeä kielellä %1. Lisää se Paketin kategoriat -ikkunassa.</translation>
         </message>
+        <message>
+            <source>Plik klipu muzycznego RSF jest uszkodzony.</source>
+            <translation>Musiikkinäytteen RSF-tiedosto on vioittunut.</translation>
+        </message>
+        <message>
+            <source>W zapisanym pytaniu brakuje odwołania do klipu muzycznego.</source>
+            <translation>Tallennetusta kysymyksestä puuttuu viittaus musiikkinäytteeseen.</translation>
+        </message>
+        <message>
+            <source>Paczka zawiera za dużo różnych klipów muzycznych.</source>
+            <translation>Paketissa on liian monta eri musiikkinäytettä.</translation>
+        </message>
     </context>
     <context>
         <name>PackDialogs</name>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Sprawdzanie pytań…</source>
+            <translation>Tarkistetaan kysymyksiä…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Gotowe: %1</source>
+            <translation>Valmiina: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do poprawy: %1</source>
+            <translation>Korjattavia: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania do poprawy</source>
+            <translation>Korjattavat kysymykset</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Otwórz w edytorze</source>
+            <translation>Avaa editorissa</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wróć do budowania</source>
+            <translation>Takaisin paketin luontiin</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprzednie pytanie</source>
+            <translation>Edellinen kysymys</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Następne pytanie</source>
+            <translation>Seuraava kysymys</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>%1 z %2</source>
+            <translation>%1 / %2</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprawione</source>
+            <translation>Korjattu</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Puste w tym języku: %1</source>
+            <translation>Tyhjiä tällä kielellä: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>To wstępna kontrola. Studio sprawdzi szablon i media podczas budowania, a pominięte pytania pokaże w raporcie.</source>
+            <translation>Tämä on alustava tarkistus. Studio tarkistaa mallipohjan ja median paketin luonnin aikana ja näyttää ohitetut kysymykset raportissa.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Paczka nie została zbudowana</source>
+            <translation>Pakettia ei luotu</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pominięte pytania (%1). Wybierz pytanie, aby otworzyć je w edytorze.</source>
+            <translation>Ohitetut kysymykset (%1). Avaa kysymys editorissa valitsemalla se.</translation>
+        </message>
         <message>
             <source>Wybierz…</source>
             <translation>Valitse…</translation>
@@ -2012,6 +2370,36 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
     </context>
     <context>
         <name>StudioController</name>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zbiorcze przypisanie kategorii</source>
+            <translation>Luokkien joukkomääritys</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełnione nagrania lektora: %1.</source>
+            <translation>Alkuperäisiä selostuksia lisätty: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Palauta pelin media</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie znaleziono mediów do odzyskania.</source>
+            <translation>Palautettavaa mediaa ei löytynyt.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskiwanie mediów z gry…</source>
+            <translation>Palautetaan pelin mediaa…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełniono media (%1).</source>
+            <translation>Media palautettu %1 kysymysversioon.</translation>
+        </message>
         <message>
             <location filename="../src/controller.cpp" />
             <source>Dekodowanie mediów źródłowych…</source>
@@ -2242,6 +2630,16 @@ Rakennettu tiedosto: </translation>
     <context>
         <name>Ps3Source</name>
         <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Nie znaleziono oryginalnego archiwum pytań PS3.</source>
+            <translation>Alkuperäistä PS3-kysymysarkistoa ei löytynyt.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Wskazanego klipu SDI brakuje lub jest za duży.</source>
+            <translation>Viitattu SDI-leike puuttuu tai on liian suuri.</translation>
+        </message>
+        <message>
             <source>Plik jest ucięty.</source>
             <translation>Tiedosto on katkennut.</translation>
         </message>
@@ -2373,8 +2771,371 @@ Rakennettu tiedosto: </translation>
         <name>MediaTools</name>
         <message>
             <location filename="../src/media_tools.h" />
+            <source>Nie znaleziono FFmpeg. Skonfiguruj go w menu Question Studio.</source>
+            <translation>FFmpegiä ei löytynyt. Määritä se Question Studion valikosta.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Płyta źródłowa nie zawiera wskazanego archiwum filmów.</source>
+            <translation>Lähdelevy ei sisällä viitattua videoarkistoa.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Otwórz obraz płyty PS2 lub plik PAK z rundami z rozpakowanej płyty PS2.</source>
+            <translation>Avaa PS2-levykuva tai kierrosten PAK-tiedosto puretulta PS2-levyltä.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazanego pliku RSV brakuje lub jest za duży.</source>
+            <translation>Viitattu RSV-tiedosto puuttuu tai on liian suuri.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwany nagłówek bloku audio PS2 RSV.</source>
+            <translation>PS2 RSV -äänilohkon otsaketta ei tueta.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura PS2 RSV.</source>
+            <translation>PS2 RSV -rakennetta ei tueta.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazana klatka obrazu PS2 jest poza arkuszem.</source>
+            <translation>Viitattu PS2-kuvaruutu on kuva-arkin ulkopuolella.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Niepoprawne przesunięcia klatek PS2 RSV.</source>
+            <translation>Virheelliset PS2 RSV -kuvaruutujen siirtymät.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura bloku audio PS2 RSV.</source>
+            <translation>PS2 RSV -äänilohkon rakennetta ei tueta.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Brak znacznika końca klatki PS2 IPU.</source>
+            <translation>PS2 IPU -kuvaruudun loppumerkki puuttuu.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów PS2.</source>
+            <translation>FFmpeg ei tuottanut purettua PS2-mediaa.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się zapisać zdekodowanych mediów PS2.</source>
+            <translation>Purettua PS2-mediaa ei voitu tallentaa.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów PS2.</source>
+            <translation>PS2-median välimuistikansiota ei voitu luoda.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza.</source>
+            <translation>Purettujen PS2-kuvien määrä ei vastaa kuva-arkin hakemistoa.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Pytanie nie ma obsługiwanego odwołania do mediów PS2. Zaimportuj ponownie starsze wpisy z filmami.</source>
+            <translation>Kysymyksessä ei ole tuettua viittausta PS2-mediaan. Tuo vanhat videotiedot uudelleen.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć tymczasowego katalogu mediów.</source>
+            <translation>Väliaikaista mediakansiota ei voitu luoda.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Otwórz oryginalny obraz płyty PSP lub plik MERGED.QDB.</source>
+            <translation>Avaa alkuperäinen PSP-levykuva tai MERGED.QDB-tiedosto.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Archiwum pytań PSP nie zawiera katalogu mediów.</source>
+            <translation>PSP-kysymysarkistossa ei ole mediakansiota.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie znaleziono klipu PSP do pytania w katalogu rozpakowanych danych.</source>
+            <translation>PSP-kysymyksen videoleikettä ei löytynyt purettujen tietojen kansiosta.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawna granica pakietu PSP PSMF.</source>
+            <translation>Virheellinen paketin raja PSP PSMF -tiedostossa.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek pakietu zbiorczego PSP PSMF.</source>
+            <translation>Virheellinen PSP PSMF -lohkon otsake.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięty pakiet PSP PSMF.</source>
+            <translation>Katkennut PSP PSMF -paketti.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek PES w PSP PSMF.</source>
+            <translation>Virheellinen PSP PSMF:n PES-otsake.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne dane PES w PSP PSMF.</source>
+            <translation>Virheelliset PSP PSMF:n PES-tiedot.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Klip PSP nie zawiera rozpoznanej ścieżki ATRAC3+.</source>
+            <translation>PSP-leike ei sisällä tunnistettua ATRAC3+-raitaa.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięta ścieżka PSP ATRAC3+.</source>
+            <translation>Katkennut PSP ATRAC3+ -raita.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne wyrównanie ramek PSP ATRAC3+.</source>
+            <translation>Virheellinen PSP ATRAC3+ -kehysten kohdistus.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nieobsługiwany nagłówek filmu do pytania.</source>
+            <translation>Kysymysvideon otsaketta ei tueta.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów.</source>
+            <translation>Median välimuistikansiota ei voitu luoda.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów.</source>
+            <translation>FFmpeg ei tuottanut purettua mediaa.</translation>
+        </message>
+        <message>
+            <location filename="../src/media_tools.h" />
             <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
             <translation>Median purkaminen vaatii FFmpegin. Asenna se ja lisää se PATH-muuttujaan tai valitse sen suoritustiedosto koontiasetuksissa: Mediamoottori (FFmpeg).</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportWizard</name>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pomiń i przejdź do edytora</source>
+            <translation>Ohita ja siirry editoriin</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Obrazy lub filmy nadal brakujące po odzyskiwaniu: %1</source>
+            <translation>Palautuksen jälkeen puuttuvat kuvat tai videot: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z obrazem lub filmem do automatycznego odzyskania: %1</source>
+            <translation>Kysymykset, joiden kuva tai video voidaan palauttaa automaattisesti: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z samą ścieżką muzyczną, której Studio jeszcze nie obsługuje: %1</source>
+            <translation>Kysymykset, joissa on erillinen musiikkiraita, jota Studio ei vielä tue: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z brakującym lub nieobsługiwanym obrazem albo filmem: %1</source>
+            <translation>Kysymykset, joiden kuva tai video puuttuu tai ei ole tuettu: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania uzupełnione automatycznie: %1</source>
+            <translation>Automaattisesti täydennetyt kysymykset: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zmień przypisanie kategorii…</source>
+            <translation>Muuta luokkamäärityksiä…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z zachowaną kategorią gry: %1</source>
+            <translation>Kysymykset, joiden peliluokka säilyi: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania i gry</source>
+            <translation>Kysymykset ja pelit</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importuj pytania</source>
+            <translation>Tuo kysymyksiä</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
+            <translation>Valitse levykuva, kysymystiedosto tai PS3- tai Knowledge Is Power -pelin purettu kansio.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wklej ścieżkę lub przeciągnij plik albo folder</source>
+            <translation>Liitä polku tai vedä tiedosto tai kansio tähän</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Źródło pytań</source>
+            <translation>Kysymysten lähde</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz plik…</source>
+            <translation>Valitse tiedosto…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz folder…</source>
+            <translation>Valitse kansio…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
+            <translation>Jos PS2- tai PSP-peli on purettu, valitse ROUND.PAK tai MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodaj do bieżącego projektu</source>
+            <translation>Lisää nykyiseen projektiin</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Otwórz jako nowy projekt</source>
+            <translation>Avaa uutena projektina</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Miejsce importu</source>
+            <translation>Tuonnin kohde</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wstecz</source>
+            <translation>Takaisin</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Krok %1 z 3</source>
+            <translation>Vaihe %1/3</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Sprawdzanie źródła…</source>
+            <translation>Tarkistetaan lähdettä…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Ustawienia importu</source>
+            <translation>Tuontiasetukset</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importowanie pytań…</source>
+            <translation>Tuodaan kysymyksiä…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Import zakończony</source>
+            <translation>Tuonti valmis</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Przejdź do edytora</source>
+            <translation>Siirry editoriin</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dalej</source>
+            <translation>Seuraava</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz istniejący plik lub folder z obsługiwaną grą.</source>
+            <translation>Valitse olemassa oleva kysymystiedosto tai tuetun pelin kansio.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekt zachowa wszystkie wersje językowe.</source>
+            <translation>Projekti säilyttää kaikki kieliversiot.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodane pytania: %1</source>
+            <translation>Lisätyt kysymykset: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zaktualizowane pytania: %1</source>
+            <translation>Päivitetyt kysymykset: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Istniejące pytania zachowane bez zmian: %1</source>
+            <translation>Ennallaan säilytetyt kysymykset: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania w bieżącej wersji wymagające mediów: %1</source>
+            <translation>Kysymykset, joista puuttuu mediaa nykyisellä kielellä: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekty Question Studio</source>
+            <translation>Question Studio -projektit</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Aby zobaczyć tę wersję pytań, ustaw język pytań w projekcie na %1.</source>
+            <translation>Näet tämän kysymysversion valitsemalla projektin kysymysten kieleksi %1.</translation>
+        </message>
+        <message>
+            <source>Pytania z klipem muzycznym do odzyskania: %1</source>
+            <translation>Kysymyksiä, joiden musiikkinäyte voidaan palauttaa: %1</translation>
+        </message>
+        <message>
+            <source>Pytania z brakującym klipem muzycznym: %1</source>
+            <translation>Kysymyksiä, joista puuttuu musiikkinäyte: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaPreviewDialog</name>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Toista</translation>
+        </message>
+        <message>
+            <source>Pozycja odtwarzania</source>
+            <translation>Toistokohta</translation>
+        </message>
+        <message>
+            <source>Zamknij</source>
+            <translation>Sulje</translation>
+        </message>
+        <message>
+            <source>Pauza</source>
+            <translation>Tauko</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie podglądu…</source>
+            <translation>Valmistellaan esikatselua…</translation>
+        </message>
+        <message>
+            <source>Nie udało się odtworzyć tego pliku.</source>
+            <translation>Tätä tiedostoa ei voitu toistaa.</translation>
         </message>
     </context>
 </TS>

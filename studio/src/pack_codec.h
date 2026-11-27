@@ -10,6 +10,7 @@ struct Huffman {
     QByteArray header, stream;
 };
 Huffman encodeHuffman(const QStringList &strings);
+bool unsupportedPackCharacter(QChar c);
 struct LuaLocal {
     QByteArray name;
     quint32 start = 0, end = 0;
@@ -38,11 +39,13 @@ struct Category {
 };
 QVector<Category> readCategories(const QByteArray &bytes);
 inline constexpr int FirstMovieAsset = 20000, MovieAssetsPerPack = 512;
+inline constexpr int FirstMusicAsset = FirstMovieAsset + (10000 - 101) * MovieAssetsPerPack;
+inline constexpr int MusicAssetsPerPack = 65536;
 struct RoundQuestion {
     quint32 id = 0, speech = 0;
     QString text, topic;
     QStringList answers; // Correct first.
-    int difficulty = 2, root = 0, category = 0, picture = 0, movie = 0;
+    int difficulty = 2, root = 0, category = 0, picture = 0, movie = 0, music = 0;
 };
 struct RoundBytes {
     QByteArray header, stream, little, big;

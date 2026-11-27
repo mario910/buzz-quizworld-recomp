@@ -17,11 +17,11 @@ PACKAGE = "BuzzPrepare-windows-x64.zip"
 # Sources of the bundled Qt libraries (LGPLv3), published next to the package.
 QT_SOURCES = {
     "qtbase-everywhere-src-6.8.3.tar.xz": "56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80",
+    "qtmultimedia-everywhere-src-6.8.3.tar.xz": "32e82307d783172a3b984cc3c47c5e4e8b819cee3cbfc702c7012c47f15f6b01",
 }
-QT_LICENSE_SOURCE = "qtbase-everywhere-src-6.8.3.tar.xz"
-# Question Studio (Qt Widgets, like BuzzSetup) sits next to BuzzSetup and shares
-# its Qt libraries; these are the files only Studio needs.
-STUDIO_FILES = ("BuzzQuestionStudio.exe", "imageformats/qjpeg.dll", "imageformats/qgif.dll")
+# Files only Studio needs when it is installed next to BuzzSetup.
+STUDIO_FILES = ("BuzzQuestionStudio.exe", "imageformats/qjpeg.dll", "imageformats/qgif.dll",
+                "Qt6Multimedia.dll", "Qt6MultimediaWidgets.dll", "multimedia/windowsmediaplugin.dll")
 # Studio was deployed against these; they must be the very files BuzzSetup ships.
 SHARED_QT = ("Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "platforms/qwindows.dll")
 PORT_PATHS = (
@@ -86,7 +86,6 @@ def package(qt_sources, output, studio):
     for name, path in sources.items():
         if sha256(path) != QT_SOURCES[name]:
             raise ValueError(f"{name} does not match its pinned SHA-256.")
-    qt_source = sources[QT_LICENSE_SOURCE]
     revision = git(ROOT, "rev-parse", "HEAD").decode().strip()
     pins = {module: git(ROOT, "rev-parse", f"{revision}:{module}").decode().strip()
             for module in SUBMODULES}
@@ -110,11 +109,13 @@ def package(qt_sources, output, studio):
                 archive.write(ROOT / "dist-preparation/bin" / name, f"BuzzPrepare/{name}")
             for source, name in studio_files(studio):
                 archive.write(source, f"BuzzPrepare/{name}")
-            with tarfile.open(qt_source, "r:xz") as source:
-                for member in source:
-                    if member.isfile() and member.name.startswith("qtbase-everywhere-src-6.8.3/LICENSES/"):
-                        with source.extractfile(member) as stream:
-                            archive.writestr(f"BuzzPrepare/licenses/Qt/{Path(member.name).name}", stream.read())
+            for module, dest in (("qtbase", "Qt"), ("qtmultimedia", "QtMultimedia")):
+                prefix = f"{module}-everywhere-src-6.8.3"
+                with tarfile.open(sources[f"{prefix}.tar.xz"], "r:xz") as source:
+                    for member in source:
+                        if member.isfile() and member.name.startswith(f"{prefix}/LICENSES/"):
+                            with source.extractfile(member) as stream:
+                                archive.writestr(f"BuzzPrepare/licenses/{dest}/{Path(member.name).name}", stream.read())
         checksum = sha256(path)
         path.replace(output / PACKAGE)
         (output / "SHA256SUMS.txt").write_bytes(
@@ -125,7 +126,7 @@ def package(qt_sources, output, studio):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qt-source", type=Path, nargs="+", required=True,
-                        help="The pinned qtbase source archive")
+                        help="The pinned qtbase and qtmultimedia source archives")
     parser.add_argument("--studio", type=Path, default=ROOT / "dist-studio/bin",
                         help="Deployed Question Studio (scripts/build-question-studio.ps1)")
     parser.add_argument("--output", type=Path, required=True)

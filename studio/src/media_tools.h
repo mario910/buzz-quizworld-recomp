@@ -4,18 +4,20 @@
 #include <QFileInfo>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QUrl>
 #include <atomic>
+#include <stdexcept>
 
 namespace studio {
-inline QString findMediaFfmpeg() {
-#ifdef Q_OS_WIN
-    const auto bundled = QDir(QCoreApplication::applicationDirPath()).filePath("ffmpeg.exe");
-#else
-    const auto bundled = QDir(QCoreApplication::applicationDirPath()).filePath("ffmpeg");
-#endif
-    return QFileInfo::exists(bundled) ? bundled : QStandardPaths::findExecutable("ffmpeg");
-}
+QString findMediaFfmpeg();
+bool verifyMediaFfmpeg(const QString &executable);
+struct FfmpegInstallation {
+    QString manager, program;
+    QStringList arguments;
+    QString terminalCommand;
+};
+FfmpegInstallation ffmpegInstallation();
 inline QString configuredMediaFfmpeg() {
     auto path = QSettings().value("build/ffmpeg").toString();
     const QUrl url(path);
@@ -28,12 +30,15 @@ inline QString configuredMediaFfmpeg() {
 }
 inline QString missingMediaFfmpeg() {
     return QCoreApplication::translate(
-        "MediaTools", "Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH "
-                      "lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).");
+        "MediaTools", "Nie znaleziono FFmpeg. Skonfiguruj go w menu Question Studio.");
 }
 } // namespace studio
 
 namespace studio::pack {
+class MediaEnvironmentError final : public std::runtime_error {
+  public:
+    explicit MediaEnvironmentError(const QString &message) : std::runtime_error(message.toStdString()) {}
+};
 void checkCancelled(const std::atomic_bool *cancel);
 void runMedia(const QString &executable, const QStringList &arguments, const std::atomic_bool *cancel,
               const QString &limitedOutput = {});

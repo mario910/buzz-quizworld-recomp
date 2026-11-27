@@ -4,6 +4,16 @@
     <context>
         <name>BuzzImport</name>
         <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Pominięte pytania (%1). Odpowiedzi obrazkowe: %2. Brak poprawnej odpowiedzi: %3. Liczba odpowiedzi poza zakresem 2–4: %4. Nie udało się utworzyć czterech różnych odpowiedzi: %5.</source>
+            <translation>Vynechané otázky (%1). Obrázkové odpovědi: %2. Bez správné odpovědi: %3. Počet odpovědí mimo rozsah 2–4: %4. Nepodařilo se vytvořit čtyři různé odpovědi: %5.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Połączono wystąpienia pytań w rundach: %1. Każde pytanie jest zapisane raz, z listą rund źródłowych.</source>
+            <translation>Výskyty otázek sloučené napříč koly: %1. Každá otázka je uložena jednou se seznamem původních kol.</translation>
+        </message>
+        <message>
             <source>Uszkodzony plik: odczyt poza zakresem.</source>
             <translation>Poškozený soubor: čtení mimo rozsah.</translation>
         </message>
@@ -178,16 +188,40 @@
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
             <translation>Přeskočeno duplicitních ID otázek mezi koly: %1.</translation>
         </message>
+        <message>
+            <source>Nieprawidłowy klip muzyczny w archiwum gry.</source>
+            <translation>Neplatná hudební ukázka v archivu hry.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odzyskać klipu muzycznego.</source>
+            <translation>Hudební ukázku se nepodařilo obnovit.</translation>
+        </message>
     </context>
     <context>
         <name>Document</name>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania bez przypisanej kategorii gry: %1. Brakuje nazwy źródłowej lub miejsca na kolejne kategorie.</source>
+            <translation>Otázky bez herní kategorie: %1. Chybí původní název nebo místo pro další kategorie.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania przekształcone na jednokrotny wybór: %1.</source>
+            <translation>Otázky převedené na výběr jedné odpovědi: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania pominięte z powodu formatu odpowiedzi: %1.</source>
+            <translation>Otázky vynechané kvůli formátu odpovědí: %1.</translation>
+        </message>
         <message>
             <source>Nie znaleziono filmu.</source>
             <translation>Video nebylo nalezeno.</translation>
         </message>
         <message>
-            <source>Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny obrazek.</source>
-            <translation>Otázka používá obrázek, video nebo nahrávku ze hry. Přiřaďte vlastní obrázek.</translation>
+            <location filename="../src/document.cpp" />
+            <source>Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.</source>
+            <translation>Tato otázka používá média z původní hry. Připojte obrázek nebo video.</translation>
         </message>
         <message>
             <source>Wpisz treść pytania.</source>
@@ -321,6 +355,14 @@
             <source>Eksport do buzzpack nie obsługuje kategorii własnych. Zbuduj paczkę .edat w Studiu.</source>
             <translation>Export pro buzzpack nepodporuje vlastní kategorie. Sestavte sadu .edat ve Studiu.</translation>
         </message>
+        <message>
+            <source>Brakuje klipu muzycznego do pytania.</source>
+            <translation>U otázky chybí hudební ukázka.</translation>
+        </message>
+        <message>
+            <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
+            <translation>Export do JSON vynechává hudební ukázky. Sestavte ve Studiu balíček .edat.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -335,6 +377,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Pytania oczekujące na media: %1.</source>
+            <translation>Otázky čekající na média: %1.</translation>
+        </message>
         <message>
             <location filename="../src/legacy_import.cpp" />
             <source>Zaimportowano obrazki RSV do %1 pytań.</source>
@@ -650,6 +697,170 @@
         <name>Main</name>
         <message>
             <location filename="../src/main_window.cpp" />
+            <source>WIDEO</source>
+            <translation>VIDEO</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Lektor</source>
+            <translation>Namluveno</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Z lektorem</source>
+            <translation>S namluvením</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj nagranie</source>
+            <translation>Přidat nahrávku</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Brak obrazu</source>
+            <translation>Bez obrázku</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie po imporcie…</source>
+            <translation>Přiřadit kategorie po importu…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie działom gry</source>
+            <translation>Přiřadit kategorie herním sekcím</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: ostatni import</source>
+            <translation>Rozsah: poslední import</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: cały projekt</source>
+            <translation>Rozsah: celý projekt</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz dział gry i kategorię docelową. Wybór działu obejmuje także jego poddziały.</source>
+            <translation>Vyberte herní sekci a cílovou kategorii. Výběr sekce zahrnuje i její podsekce.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dział źródłowy</source>
+            <translation>Zdrojová sekce</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bez działu źródłowego</source>
+            <translation>Bez zdrojové sekce</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kategoria docelowa</source>
+            <translation>Cílová kategorie</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz podkategorię</source>
+            <translation>Vyberte podkategorii</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podkategoria docelowa</source>
+            <translation>Cílová podkategorie</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisanie zastąpi kategorię pytań z tego działu. Zmianę można cofnąć.</source>
+            <translation>Tím nahradíte kategorii otázek v této sekci. Změnu lze vrátit zpět.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorię (%1)</source>
+            <translation>Přiřadit kategorii (%1)</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania ze zmienioną kategorią: %1</source>
+            <translation>Otázky se změněnou kategorií: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Te pytania mają już wybraną kategorię.</source>
+            <translation>Tyto otázky již mají vybranou kategorii.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do przetwarzania mediów potrzebny jest FFmpeg.</source>
+            <translation>Ke zpracování médií je potřeba FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Strona pobierania FFmpeg</source>
+            <translation>Stránka pro stažení FFmpeg</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zainstaluj przez %1</source>
+            <translation>Nainstalovat pomocí %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kopiuj polecenie instalacji</source>
+            <translation>Zkopírovat instalační příkaz</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Uruchom skopiowane polecenie w terminalu, a potem wróć do Studio.
+
+%1</source>
+            <translation>Spusťte zkopírovaný příkaz v terminálu a pak se vraťte do Studia.
+
+%1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalowanie FFmpeg przez %1…</source>
+            <translation>Instalace FFmpeg pomocí %1…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja FFmpeg nie powiodła się.</source>
+            <translation>Instalace FFmpeg se nezdařila.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja zakończona. Wybierz plik wykonywalny FFmpeg.</source>
+            <translation>Instalace byla dokončena. Vyberte spustitelný soubor FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Obnovit média ze hry</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagają mediów.</source>
+            <translation>Některé otázky potřebují média.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz działający plik wykonywalny FFmpeg.</source>
+            <translation>Vyberte funkční spustitelný soubor FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagające mediów</source>
+            <translation>Otázky, které potřebují média</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz pytanie z listy, aby dodać brakujący obraz lub film (%1).</source>
+            <translation>Vyberte otázku a přidejte chybějící obrázek nebo video (%1).</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
             <source>Zdekoduj media źródłowe</source>
             <translation>Dekódovat zdrojová média</translation>
         </message>
@@ -681,6 +892,10 @@
         <message>
             <source>Wideo (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</source>
             <translation>Video (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</translation>
+        </message>
+        <message>
+            <source>Kliknij Odtwórz przy wideo, aby odzyskać je z gry.</source>
+            <translation>Kliknutím na Přehrát u videa jej obnovíte ze hry.</translation>
         </message>
         <message>
             <source>Brak filmu</source>
@@ -1420,9 +1635,70 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
             <source>Paczka może mieć najwyżej 99 kategorii własnych.</source>
             <translation>Sada může mít nejvýše 99 vlastních kategorií.</translation>
         </message>
+        <message>
+            <source>Odzyskano klip muzyczny z gry.</source>
+            <translation>Hudební ukázka byla obnovena ze hry.</translation>
+        </message>
+        <message>
+            <source>Wybierz pytanie, aby sprawdzić, których mediów brakuje (%1).</source>
+            <translation>Vyberte otázku a zjistěte, která média chybí (%1).</translation>
+        </message>
+        <message>
+            <source>Brak muzyki: %1</source>
+            <translation>Chybí hudba: %1</translation>
+        </message>
+        <message>
+            <source>Z muzyką</source>
+            <translation>S hudbou</translation>
+        </message>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Přehrát</translation>
+        </message>
     </context>
     <context>
         <name>PackBuilder</name>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Wybierz kategorię i podkategorię dla tego pytania.</source>
+            <translation>Vyberte kategorii a podkategorii pro tuto otázku.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Żadne pytanie nie jest gotowe do zbudowania paczki.</source>
+            <translation>Žádná otázka není připravena k sestavení balíčku.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Kodowanie filmu do pytania %1 z %2…</source>
+            <translation>Kódování videa k otázce %1 z %2…</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Paczka zawiera za dużo różnych filmów do pytań.</source>
+            <translation>Balíček obsahuje příliš mnoho různých videí k otázkám.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <location filename="../src/pack_media.cpp" />
+            <source>Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI.</source>
+            <translation>Vybraná šablona Quiz World neobsahuje kompatibilní hlavičku videa SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Filmy do pytań przekraczają limit 256 MiB na paczkę.</source>
+            <translation>Videa k otázkám překračují limit 256 MiB na balíček.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Film do pytania musi zawierać obraz i trwać najwyżej 30 sekund.</source>
+            <translation>Video k otázce musí obsahovat obrazovou stopu a smí trvat nejvýše 30 sekund.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>FFmpeg nie utworzył oczekiwanego strumienia stereo ADX 48 kHz.</source>
+            <translation>FFmpeg nevytvořil očekávaný stereofonní stream ADX s frekvencí 48 kHz.</translation>
+        </message>
         <message>
             <source>Przekroczony budżet ramki ATRAC3.</source>
             <translation>Překročen rozpočet rámce ATRAC3.</translation>
@@ -1823,9 +2099,91 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
             <source>Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w oknie Kategorie paczki.</source>
             <translation>Vlastní kategorie nemá název v jazyce %1. Doplňte ho v okně Kategorie sady.</translation>
         </message>
+        <message>
+            <source>Plik klipu muzycznego RSF jest uszkodzony.</source>
+            <translation>Soubor RSF s hudební ukázkou je poškozený.</translation>
+        </message>
+        <message>
+            <source>W zapisanym pytaniu brakuje odwołania do klipu muzycznego.</source>
+            <translation>V uložené otázce chybí odkaz na hudební ukázku.</translation>
+        </message>
+        <message>
+            <source>Paczka zawiera za dużo różnych klipów muzycznych.</source>
+            <translation>Balíček obsahuje příliš mnoho různých hudebních ukázek.</translation>
+        </message>
     </context>
     <context>
         <name>PackDialogs</name>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Sprawdzanie pytań…</source>
+            <translation>Kontrola otázek…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Gotowe: %1</source>
+            <translation>Připravené: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do poprawy: %1</source>
+            <translation>K opravě: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania do poprawy</source>
+            <translation>Otázky k opravě</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Otwórz w edytorze</source>
+            <translation>Otevřít v editoru</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wróć do budowania</source>
+            <translation>Zpět k sestavení</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprzednie pytanie</source>
+            <translation>Předchozí otázka</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Następne pytanie</source>
+            <translation>Další otázka</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>%1 z %2</source>
+            <translation>%1 z %2</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprawione</source>
+            <translation>Opraveno</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Puste w tym języku: %1</source>
+            <translation>Prázdné v tomto jazyce: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>To wstępna kontrola. Studio sprawdzi szablon i media podczas budowania, a pominięte pytania pokaże w raporcie.</source>
+            <translation>Toto je předběžná kontrola. Studio při sestavování zkontroluje šablonu a média a v přehledu zobrazí vynechané otázky.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Paczka nie została zbudowana</source>
+            <translation>Balíček se nepodařilo sestavit</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pominięte pytania (%1). Wybierz pytanie, aby otworzyć je w edytorze.</source>
+            <translation>Vynechané otázky (%1). Výběrem otázky ji otevřete v editoru.</translation>
+        </message>
         <message>
             <source>Wybierz…</source>
             <translation>Vybrat…</translation>
@@ -2012,6 +2370,36 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
     </context>
     <context>
         <name>StudioController</name>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zbiorcze przypisanie kategorii</source>
+            <translation>Hromadné přiřazení kategorií</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełnione nagrania lektora: %1.</source>
+            <translation>Doplněné původní nahrávky: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Obnovit média ze hry</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie znaleziono mediów do odzyskania.</source>
+            <translation>Nebyla nalezena žádná média k obnovení.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskiwanie mediów z gry…</source>
+            <translation>Obnovování médií ze hry…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełniono media (%1).</source>
+            <translation>Média obnovena pro %1 jazykových verzí otázek.</translation>
+        </message>
         <message>
             <location filename="../src/controller.cpp" />
             <source>Dekodowanie mediów źródłowych…</source>
@@ -2242,6 +2630,16 @@ Sestavený soubor: </translation>
     <context>
         <name>Ps3Source</name>
         <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Nie znaleziono oryginalnego archiwum pytań PS3.</source>
+            <translation>Původní archiv otázek PS3 nebyl nalezen.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Wskazanego klipu SDI brakuje lub jest za duży.</source>
+            <translation>Odkazovaný klip SDI chybí nebo je příliš velký.</translation>
+        </message>
+        <message>
             <source>Plik jest ucięty.</source>
             <translation>Soubor je zkrácený.</translation>
         </message>
@@ -2373,8 +2771,371 @@ Sestavený soubor: </translation>
         <name>MediaTools</name>
         <message>
             <location filename="../src/media_tools.h" />
+            <source>Nie znaleziono FFmpeg. Skonfiguruj go w menu Question Studio.</source>
+            <translation>FFmpeg nebyl nalezen. Nastavte jej v nabídce Question Studio.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Płyta źródłowa nie zawiera wskazanego archiwum filmów.</source>
+            <translation>Zdrojový disk neobsahuje odkazovaný archiv videí.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Otwórz obraz płyty PS2 lub plik PAK z rundami z rozpakowanej płyty PS2.</source>
+            <translation>Otevřete obraz disku PS2 nebo soubor PAK s koly z rozbaleného disku PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazanego pliku RSV brakuje lub jest za duży.</source>
+            <translation>Odkazovaný soubor RSV chybí nebo je příliš velký.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwany nagłówek bloku audio PS2 RSV.</source>
+            <translation>Nepodporovaná hlavička zvukového bloku PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura PS2 RSV.</source>
+            <translation>Nepodporovaná struktura PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazana klatka obrazu PS2 jest poza arkuszem.</source>
+            <translation>Odkazovaný snímek PS2 je mimo arch obrázků.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Niepoprawne przesunięcia klatek PS2 RSV.</source>
+            <translation>Neplatné pozice snímků PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura bloku audio PS2 RSV.</source>
+            <translation>Nepodporovaná struktura zvukového bloku PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Brak znacznika końca klatki PS2 IPU.</source>
+            <translation>Chybí značka konce snímku PS2 IPU.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów PS2.</source>
+            <translation>FFmpeg nevytvořil dekódovaná média PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się zapisać zdekodowanych mediów PS2.</source>
+            <translation>Dekódovaná média PS2 se nepodařilo uložit.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów PS2.</source>
+            <translation>Nepodařilo se vytvořit složku mezipaměti médií PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza.</source>
+            <translation>Počet dekódovaných obrázků PS2 neodpovídá indexu archu.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Pytanie nie ma obsługiwanego odwołania do mediów PS2. Zaimportuj ponownie starsze wpisy z filmami.</source>
+            <translation>Tato otázka neobsahuje podporovaný odkaz na média PS2. Importujte starší položky s videem znovu.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć tymczasowego katalogu mediów.</source>
+            <translation>Nepodařilo se vytvořit dočasnou složku médií.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Otwórz oryginalny obraz płyty PSP lub plik MERGED.QDB.</source>
+            <translation>Otevřete původní obraz disku PSP nebo soubor MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Archiwum pytań PSP nie zawiera katalogu mediów.</source>
+            <translation>Archiv otázek PSP neobsahuje složku médií.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie znaleziono klipu PSP do pytania w katalogu rozpakowanych danych.</source>
+            <translation>Klip k otázce PSP nebyl ve složce rozbalených dat nalezen.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawna granica pakietu PSP PSMF.</source>
+            <translation>Neplatná hranice paketu PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek pakietu zbiorczego PSP PSMF.</source>
+            <translation>Neplatná hlavička bloku PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięty pakiet PSP PSMF.</source>
+            <translation>Neúplný paket PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek PES w PSP PSMF.</source>
+            <translation>Neplatná hlavička PES v PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne dane PES w PSP PSMF.</source>
+            <translation>Neplatná data PES v PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Klip PSP nie zawiera rozpoznanej ścieżki ATRAC3+.</source>
+            <translation>Klip PSP neobsahuje rozpoznanou stopu ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięta ścieżka PSP ATRAC3+.</source>
+            <translation>Neúplná stopa PSP ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne wyrównanie ramek PSP ATRAC3+.</source>
+            <translation>Neplatné zarovnání rámců PSP ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nieobsługiwany nagłówek filmu do pytania.</source>
+            <translation>Nepodporovaná hlavička videa k otázce.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów.</source>
+            <translation>Nepodařilo se vytvořit složku mezipaměti médií.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów.</source>
+            <translation>FFmpeg nevytvořil dekódovaná média.</translation>
+        </message>
+        <message>
+            <location filename="../src/media_tools.h" />
             <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
             <translation>K dekódování médií je potřeba FFmpeg. Nainstalujte jej a přidejte do PATH nebo vyberte jeho spustitelný soubor v nastavení sestavení: Mediální modul (FFmpeg).</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportWizard</name>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pomiń i przejdź do edytora</source>
+            <translation>Přeskočit a přejít do editoru</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Obrazy lub filmy nadal brakujące po odzyskiwaniu: %1</source>
+            <translation>Obrázky nebo videa stále chybějící po obnovení: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z obrazem lub filmem do automatycznego odzyskania: %1</source>
+            <translation>Otázky s obrázkem nebo videem k automatickému obnovení: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z samą ścieżką muzyczną, której Studio jeszcze nie obsługuje: %1</source>
+            <translation>Otázky se samostatnou hudební stopou, kterou Studio zatím nepodporuje: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z brakującym lub nieobsługiwanym obrazem albo filmem: %1</source>
+            <translation>Otázky s chybějícím nebo nepodporovaným obrázkem či videem: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania uzupełnione automatycznie: %1</source>
+            <translation>Automaticky doplněné otázky: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zmień przypisanie kategorii…</source>
+            <translation>Změnit přiřazení kategorií…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z zachowaną kategorią gry: %1</source>
+            <translation>Otázky se zachovanou herní kategorií: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania i gry</source>
+            <translation>Otázky a hry</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importuj pytania</source>
+            <translation>Importovat otázky</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
+            <translation>Vyberte obraz disku, soubor s otázkami nebo rozbalenou složku hry pro PS3 či Knowledge Is Power.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wklej ścieżkę lub przeciągnij plik albo folder</source>
+            <translation>Vložte cestu nebo sem přetáhněte soubor či složku</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Źródło pytań</source>
+            <translation>Zdroj otázek</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz plik…</source>
+            <translation>Vybrat soubor…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz folder…</source>
+            <translation>Vybrat složku…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
+            <translation>U rozbalené hry pro PS2 nebo PSP vyberte ROUND.PAK nebo MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodaj do bieżącego projektu</source>
+            <translation>Přidat do aktuálního projektu</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Otwórz jako nowy projekt</source>
+            <translation>Otevřít jako nový projekt</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Miejsce importu</source>
+            <translation>Importovat do</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wstecz</source>
+            <translation>Zpět</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Krok %1 z 3</source>
+            <translation>Krok %1 ze 3</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Sprawdzanie źródła…</source>
+            <translation>Kontrola zdroje…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Ustawienia importu</source>
+            <translation>Nastavení importu</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importowanie pytań…</source>
+            <translation>Importují se otázky…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Import zakończony</source>
+            <translation>Import dokončen</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Przejdź do edytora</source>
+            <translation>Přejít do editoru</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dalej</source>
+            <translation>Další</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz istniejący plik lub folder z obsługiwaną grą.</source>
+            <translation>Vyberte existující soubor s otázkami nebo složku podporované hry.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekt zachowa wszystkie wersje językowe.</source>
+            <translation>Projekt zachová všechny jazykové verze.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodane pytania: %1</source>
+            <translation>Přidané otázky: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zaktualizowane pytania: %1</source>
+            <translation>Aktualizované otázky: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Istniejące pytania zachowane bez zmian: %1</source>
+            <translation>Stávající otázky beze změny: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania w bieżącej wersji wymagające mediów: %1</source>
+            <translation>Otázky s chybějícími médii v aktuálním jazyce: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekty Question Studio</source>
+            <translation>Projekty Question Studio</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Aby zobaczyć tę wersję pytań, ustaw język pytań w projekcie na %1.</source>
+            <translation>Chcete-li zobrazit tuto verzi otázek, nastavte jazyk otázek v projektu na %1.</translation>
+        </message>
+        <message>
+            <source>Pytania z klipem muzycznym do odzyskania: %1</source>
+            <translation>Otázky s hudební ukázkou k obnovení: %1</translation>
+        </message>
+        <message>
+            <source>Pytania z brakującym klipem muzycznym: %1</source>
+            <translation>Otázky s chybějící hudební ukázkou: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaPreviewDialog</name>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Přehrát</translation>
+        </message>
+        <message>
+            <source>Pozycja odtwarzania</source>
+            <translation>Pozice přehrávání</translation>
+        </message>
+        <message>
+            <source>Zamknij</source>
+            <translation>Zavřít</translation>
+        </message>
+        <message>
+            <source>Pauza</source>
+            <translation>Pozastavit</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie podglądu…</source>
+            <translation>Příprava náhledu…</translation>
+        </message>
+        <message>
+            <source>Nie udało się odtworzyć tego pliku.</source>
+            <translation>Tento soubor se nepodařilo přehrát.</translation>
         </message>
     </context>
 </TS>

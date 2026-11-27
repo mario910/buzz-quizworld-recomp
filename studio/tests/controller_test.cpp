@@ -4,7 +4,9 @@
 #include "tts.h"
 #include <QAbstractItemModelTester>
 #include <QFile>
+#include <QImage>
 #include <QJsonArray>
+#include <QScopeGuard>
 #include <QSemaphore>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -20,6 +22,129 @@ class ControllerTest final : public QObject {
         QCoreApplication::setOrganizationName("BuzzStudioTests");
         QCoreApplication::setApplicationName("ControllerTests");
         QStandardPaths::setTestModeEnabled(true);
+    }
+    void bulkAssignmentCanTargetOnlyTheLatestImportAndKeepsSourceSections() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto document = studio::exampleDocument();
+        document.questions.resize(1);
+        auto &question = document.questions.first();
+        question.id = "earlier";
+        question.source = "Imported game";
+        question.category = "Original section";
+        const auto firstPath = temp.filePath("first.buzz.json");
+        QString error;
+        QVERIFY2(studio::saveDocument(document, firstPath, &error), qPrintable(error));
+        question.id = "latest";
+        const auto secondPath = temp.filePath("second.buzz.json");
+        QVERIFY2(studio::saveDocument(document, secondPath, &error), qPrintable(error));
+
+        StudioController c;
+        c.openFile(QUrl::fromLocalFile(firstPath));
+        QTRY_VERIFY(!c.busy());
+        c.updateCurrent({{"subject", 199}, {"category", 208}, {"category_name", "Film"}});
+        c.openFile(QUrl::fromLocalFile(secondPath), true);
+        QTRY_VERIFY(!c.busy());
+        QCOMPARE(c.importedSections(false).size(), 1);
+        QCOMPARE(c.importedSections(false).first().questions, 2);
+        QCOMPARE(c.importedSections(true).first().questions, 1);
+
+        const int subject = c.addPackSubject({{"pl", "Własny temat"}, {"en", "Custom topic"}});
+        QVERIFY(subject > 0);
+        const int child = c.packCategories().last().toMap()["id"].toInt();
+        QCOMPARE(c.assignImportedSection("Imported game", {"Original section"}, subject, child, {}, true), 1);
+        c.select("earlier");
+        QCOMPARE(c.current()["category"].toInt(), 208);
+        c.select("latest");
+        QCOMPARE(c.current()["category"].toInt(), child);
+        QCOMPARE(c.importedSections(false).first().path, QStringList{"Original section"});
+        QCOMPARE(c.assignImportedSection("Imported game", {"Original section"}, subject, child, {}, true), 0);
+        c.undo();
+        QCOMPARE(c.current()["category"].toInt(), 237);
+        c.redo();
+        QCOMPARE(c.current()["category"].toInt(), child);
+        const auto saved = temp.filePath("saved.buzz.json");
+        QVERIFY(c.saveFile(QUrl::fromLocalFile(saved)));
+        c.openFile(QUrl::fromLocalFile(saved));
+        QTRY_VERIFY(!c.busy());
+        QCOMPARE(c.importedSections(false).first().path, QStringList{"Original section"});
+        QCOMPARE(c.importedSections(false).first().questions, 2);
+    }
+    void narrationDoesNotChangeTheQuestionContentType() {
+        StudioController controller;
+        controller.newProject(true);
+        controller.updateCurrent({{"speech", "voice.wav"}});
+        controller.setFilter({}, {}, "audio");
+        auto *questions = controller.questions();
+        QCOMPARE(questions->rowCount(), 1);
+        const auto row = questions->index(0, 0);
+        QVERIFY(row.data(QuestionModel::Audio).toBool());
+        QCOMPARE(row.data(QuestionModel::ContentType).toInt(), int(studio::QuestionContentType::Text));
+        controller.updateCurrent({{"image", "picture.png"}});
+        QCOMPARE(questions->index(0, 0).data(QuestionModel::ContentType).toInt(), int(studio::QuestionContentType::Picture));
+        controller.updateCurrent({{"video", "clip.mp4"}});
+        QCOMPARE(questions->index(0, 0).data(QuestionModel::ContentType).toInt(), int(studio::QuestionContentType::Video));
+        QVERIFY(questions->index(0, 0).data(QuestionModel::Audio).toBool());
+
+        auto imported = studio::newQuestion();
+        imported.speech = "voice.rsf";
+        imported.extra["source_media"] = QJsonArray{QJsonObject{{"type", 1}}};
+        QCOMPARE(imported.contentType(), studio::QuestionContentType::Text);
+        imported.extra["source_media"] = QJsonArray{QJsonObject{{"type", "ps2-picture"}}};
+        QCOMPARE(imported.contentType(), studio::QuestionContentType::Picture);
+        imported.extra["source_media"] = QJsonArray{QJsonObject{{"type", 2}}};
+        QCOMPARE(imported.contentType(), studio::QuestionContentType::Video);
+    }
+    void musicFilterAndRecoveryForOneQuestion() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto document = studio::exampleDocument("en");
+        auto &question = document.questions.first();
+        const auto source = temp.filePath("music.pak");
+        const auto clip = QByteArray::fromHex("06000200bb800006000001800000018000000180000001800000000000000000") +
+                          QByteArray(384, 'm');
+        studio::pack::writeArchive(source, {{studio::pack::musicEntry("ENG", 42), clip}});
+        for (int i : {0, 2}) {
+            auto &q = document.questions[i];
+            auto localized = q.localized();
+            localized["source_archive"] = source;
+            localized["source_round"] = "ENG/ROUNDS/q_music";
+            localized["source_media"] = QJsonArray{QJsonObject{{"type", 1}, {"asset", 42}}};
+            q.translations["en"] = localized;
+        }
+        document.questions[1].speech = "narration.wav";
+        QFile file(temp.filePath("music.buzz.json"));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QVERIFY(file.write(studio::serialize(document, temp.path())) > 0);
+        file.close();
+
+        StudioController controller;
+        controller.openFile(QUrl::fromLocalFile(file.fileName()));
+        QTRY_COMPARE(controller.totalCount(), document.questions.size());
+        QCOMPARE(controller.musicCount(), 2);
+        QCOMPARE(controller.audioCount(), 1);
+        controller.setFilter({}, {}, "music");
+        auto *questions = controller.questions();
+        QCOMPARE(questions->rowCount(), 2);
+        const auto row = questions->index(0, 0);
+        QCOMPARE(row.data(QuestionModel::Uid).toString(), question.id);
+        QCOMPARE(row.data(QuestionModel::ContentType).toInt(), int(studio::QuestionContentType::Text));
+        QVERIFY(row.data(QuestionModel::Music).toBool());
+        QVERIFY(!row.data(QuestionModel::Audio).toBool());
+        QSignalSpy recovered(&controller, &StudioController::currentMusicRecovered);
+        controller.select(question.id);
+        QVERIFY(controller.current()["canRecoverMusic"].toBool());
+        controller.recoverCurrentMusic();
+        QTRY_COMPARE(recovered.size(), 1);
+        QFile recoveredClip(recovered.first().first().toString());
+        QVERIFY(recoveredClip.open(QIODevice::ReadOnly));
+        QCOMPARE(recoveredClip.readAll(), clip);
+        QVERIFY(controller.current()["hasMusicClip"].toBool());
+        controller.select(document.questions[2].id);
+        QVERIFY(controller.current()["music"].toString().isEmpty());
+        controller.undo();
+        QCOMPARE(controller.current()["id"].toString(), question.id);
+        QVERIFY(!controller.current()["hasMusicClip"].toBool());
     }
     void editsUndoDeleteAndSave() {
         StudioController c;
@@ -52,6 +177,31 @@ class ControllerTest final : public QObject {
         QCOMPARE(result.document.questions.size(), 6);
         QCOMPARE(result.document.questions[1].correct, 2);
     }
+#ifdef Q_OS_WIN
+    void findsWingetAndFfmpegWithAnUnrefreshedPath() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto restore = qScopeGuard([path = qgetenv("PATH"), localAppData = qgetenv("LOCALAPPDATA")] {
+            qputenv("PATH", path);
+            qputenv("LOCALAPPDATA", localAppData);
+        });
+        // The executable names are discoverable, but this test runs neither program.
+        const auto winget = temp.filePath("winget.exe");
+        QVERIFY(QFile::copy(QCoreApplication::applicationFilePath(), winget));
+        const auto links = temp.filePath("Microsoft/WinGet/Links");
+        QVERIFY(QDir().mkpath(links));
+        const auto ffmpeg = QDir(links).filePath("ffmpeg.exe");
+        QVERIFY(QFile::copy(QCoreApplication::applicationFilePath(), ffmpeg));
+        qputenv("PATH", QDir::toNativeSeparators(temp.path()).toLocal8Bit());
+        qputenv("LOCALAPPDATA", QDir::toNativeSeparators(temp.path()).toLocal8Bit());
+        const auto installer = studio::ffmpegInstallation();
+        QCOMPARE(installer.program, winget);
+        QVERIFY(installer.arguments.contains("Gyan.FFmpeg"));
+        QVERIFY(installer.arguments.contains("user"));
+        if (!QFileInfo::exists(QDir(QCoreApplication::applicationDirPath()).filePath("ffmpeg.exe")))
+            QCOMPARE(studio::findMediaFfmpeg(), ffmpeg);
+    }
+#endif
     void decodesAllClipsOnceAndUndoesAttachments() {
         const auto ffmpeg = studio::configuredMediaFfmpeg();
         if (ffmpeg.isEmpty())
@@ -94,9 +244,9 @@ class ControllerTest final : public QObject {
         StudioController c;
         c.openFile(QUrl::fromLocalFile(file));
         QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
-        QSignalSpy progress(&c, &StudioController::clipProgress);
+        QSignalSpy progress(&c, &StudioController::sourceMediaProgress);
         QSignalSpy failures(&c, &StudioController::errorOccurred);
-        QVERIFY(c.decodeAllSourceClips());
+        QVERIFY(c.recoverSourceMedia());
         QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 20000);
         QCOMPARE(failures.size(), 0);
         QCOMPARE(progress.size(), 1);
@@ -107,7 +257,7 @@ class ControllerTest final : public QObject {
         QCOMPARE(c.current()["video"].toString(), decoded);
         c.select("2");
         QCOMPARE(c.current()["video"].toString(), mpeg);
-        QVERIFY(!c.decodeAllSourceClips());
+        QVERIFY(!c.recoverSourceMedia());
         c.undo();
         c.select("0");
         QVERIFY(c.current()["video"].toString().isEmpty());
@@ -115,15 +265,106 @@ class ControllerTest final : public QObject {
         QCOMPARE(c.current()["video"].toString(), mpeg);
         // Cancel at the start signal, before the worker is scheduled.
         connect(&c, &StudioController::busyChanged, &c, [&c] {
-            if (c.clipActive())
-                c.cancelSourceClips();
+            if (c.sourceMediaRecoveryActive())
+                c.cancelSourceMediaRecovery();
         });
-        QVERIFY(c.decodeAllSourceClips());
+        QVERIFY(c.recoverSourceMedia());
         QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
         QCOMPARE(failures.size(), 0);
         QCOMPARE(progress.size(), 1);
         c.select("0");
         QVERIFY(c.current()["video"].toString().isEmpty());
+    }
+    void recoversStillsInAnEditedProject() {
+        const auto ffmpeg = studio::configuredMediaFfmpeg();
+        if (ffmpeg.isEmpty())
+            QSKIP("FFmpeg not installed.");
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto image = temp.filePath("picture.png");
+        QImage picture(64, 64, QImage::Format_RGB32);
+        picture.fill(Qt::green);
+        QVERIFY(picture.save(image));
+        QFile pictureTemplate(QFINDTESTDATA("fixtures/build-sheet-template.sdi"));
+        QVERIFY(pictureTemplate.open(QIODevice::ReadOnly));
+        const auto sheet = studio::pack::pictureSheet(pictureTemplate.readAll(), {image}, ffmpeg, nullptr);
+        const auto pak = temp.filePath("test.pak");
+        studio::pack::writeArchive(pak, {{"ENG/QUESTIONASSETS/VIDEO/PICS001.SDI", sheet}});
+
+        studio::Document doc;
+        doc.language = "en";
+        for (int id = 0; id < 3; ++id) {
+            auto q = studio::newQuestion();
+            q.id = QString::number(id);
+            q.language = "en";
+            q.text = "Question as edited";
+            q.answers = QStringList{"A", "B", "C", "D"};
+            if (id == 1)
+                q.image = image;
+            auto variant = q.localized();
+            variant["source_archive"] = pak;
+            variant["source_round"] = "ENG/ROUNDS/round";
+            variant["source_media"] = QJsonArray{QJsonObject{{"type", 3}, {"slot", id == 2 ? 0 : 1}}};
+            q.translations["en"] = variant;
+            doc.questions << q;
+        }
+        const auto path = temp.filePath("test.buzz.json");
+        QString error;
+        QVERIFY2(studio::saveDocument(doc, path, &error), qPrintable(error));
+        StudioController c;
+        c.openFile(QUrl::fromLocalFile(path));
+        QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
+        QCOMPARE(c.unresolvedMediaQuestions().size(), 2);
+        QSignalSpy finished(&c, &StudioController::sourceMediaRecoveryFinished);
+        QVERIFY(c.recoverSourceMedia());
+        QTRY_COMPARE_WITH_TIMEOUT(finished.size(), 1, 20000);
+        QVERIFY2(finished.first().first().toStringList().isEmpty(),
+                 qPrintable(finished.first().first().toStringList().join('\n')));
+        QCOMPARE(c.unresolvedMediaQuestions().size(), 1);
+        QCOMPARE(c.unresolvedMediaQuestions().first().toMap()["id"].toString(), QString("2"));
+        c.select("0");
+        QCOMPARE(c.current()["question"].toString(), QString("Question as edited"));
+        QVERIFY(QFileInfo::exists(c.current()["image"].toString()));
+        c.select("1");
+        QCOMPARE(c.current()["image"].toString(), image);
+        c.undo();
+        QCOMPARE(c.unresolvedMediaQuestions().size(), 2);
+    }
+    void importsNarrationOnlyForMatchingPromptsWithoutAudio() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto voice = temp.filePath("source.rsf"), replacement = temp.filePath("replacement.rsf");
+        for (const auto &path : {voice, replacement}) {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            QVERIFY(file.write("audio") > 0);
+        }
+        auto original = studio::exampleDocument();
+        original.questions.resize(3);
+        auto edited = original;
+        edited.questions[1].text += " Edited.";
+        edited.questions[2].speech = replacement;
+        for (auto &q : original.questions)
+            q.speech = voice;
+        const auto project = temp.filePath("project.buzz.json"), source = temp.filePath("source.buzz.json");
+        QString error;
+        QVERIFY2(studio::saveDocument(edited, project, &error), qPrintable(error));
+        QVERIFY2(studio::saveDocument(original, source, &error), qPrintable(error));
+        StudioController c;
+        c.openFile(QUrl::fromLocalFile(project));
+        QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
+        c.openFile(QUrl::fromLocalFile(source), true);
+        QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
+        c.select(edited.questions[0].id);
+        QCOMPARE(c.current()["speech"].toString(), voice);
+        c.select(edited.questions[1].id);
+        QVERIFY(c.current()["speech"].toString().isEmpty());
+        QCOMPARE(c.current()["question"].toString(), edited.questions[1].text);
+        c.select(edited.questions[2].id);
+        QCOMPARE(c.current()["speech"].toString(), replacement);
+        c.undo();
+        c.select(edited.questions[0].id);
+        QVERIFY(c.current()["speech"].toString().isEmpty());
     }
     void customCategoriesAreEditedRemovedAndUndone() {
         StudioController c;
@@ -281,8 +522,8 @@ class ControllerTest final : public QObject {
         c.openFile(QUrl::fromLocalFile(path), true, "en");
         QTRY_VERIFY_WITH_TIMEOUT(!c.busy(), 5000);
         QCOMPARE(c.current()["question"].toString(), QString("My correction"));
-        c.undo(); // Import is one undoable command even if every ID was skipped.
-        QCOMPARE(c.current()["question"].toString(), QString("My correction"));
+        c.undo(); // A duplicate import leaves the last actual edit at the top of the undo stack.
+        QCOMPARE(c.current()["question"].toString(), QString("Which letter comes first?"));
         c.setPackLanguage("pl");
         QCOMPARE(c.current()["question"].toString(), QString("Moja polska poprawka"));
     }

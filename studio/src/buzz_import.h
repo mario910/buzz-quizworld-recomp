@@ -1,6 +1,7 @@
 #pragma once
 #include "document.h"
 #include "languages.h"
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -25,5 +26,10 @@ LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &langua
 BuzzPack buzzFilePack(const QString &path);
 SourceLanguages buzzLanguages(const QString &path);
 QStringList buzzArchiveLanguages(pack::Archive &archive);
+bool hasBuzzSourcePicture(const Question &question);
+int recoverBuzzPictures(QVector<Question> &questions, const QString &ffmpeg, QStringList &warnings,
+                       const std::atomic_bool *cancel);
+bool hasBuzzSourceMusic(const Question &question);
+void recoverBuzzMusic(QVector<Question> &questions, QStringList &warnings, const std::atomic_bool *cancel = nullptr);
 QStringList decodeHuffman(const QByteArray &header, const QByteArray &stream);
 } // namespace studio

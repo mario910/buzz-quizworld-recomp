@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $QtPrefix -or -not (Test-Path -LiteralPath (Join-Path $QtPrefix 'lib/cmake/Qt6/Qt6Config.cmake'))) {
-    throw 'Pass -QtPrefix <Qt6 MSVC x64 directory>, or set QT_ROOT_DIR. Qt 6.2+ (Base and Tools) is required.'
+    throw 'Pass -QtPrefix <Qt6 MSVC x64 directory>, or set QT_ROOT_DIR. Qt 6.2+ (Base, Multimedia and Tools) is required.'
 }
 $QtPrefix = (Resolve-Path -LiteralPath $QtPrefix).Path
 $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
@@ -52,10 +52,10 @@ if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -For
 & $cmake --install $build --prefix $dist
 if ($LASTEXITCODE) { throw 'Studio installation failed.' }
 $studio = Join-Path $dist 'bin/BuzzQuestionStudio.exe'
-# Qt Widgets only (as BuzzSetup): no software OpenGL, D3D/DXC compilers, Qt
-# translations or VC++ redistributable installer next to the application.
+# Use the Windows Media Foundation backend for the shared Windows package.
 & (Join-Path $QtPrefix 'bin/windeployqt.exe') --release --no-translations --no-compiler-runtime --no-opengl-sw `
-    --no-system-d3d-compiler --no-system-dxc-compiler $studio
+    --no-system-d3d-compiler --no-system-dxc-compiler --no-ffmpeg --exclude-plugins ffmpegmediaplugin `
+    --include-plugins windowsmediaplugin $studio
 if ($LASTEXITCODE) { throw 'Qt deployment failed.' }
 if ($env:VCToolsRedistDir) {
     $crt = Join-Path $env:VCToolsRedistDir 'x64/Microsoft.VC143.CRT'

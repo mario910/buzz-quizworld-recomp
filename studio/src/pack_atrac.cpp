@@ -1,4 +1,4 @@
-// Native port of this repository's at3enc.py: mono ATRAC3, 48 kHz, CLC.
+// Native port of this repository's at3enc.py: ATRAC3, 48 kHz, CLC.
 #include "pack_codec.h"
 #include "pack_media.h"
 #include <array>
@@ -72,7 +72,8 @@ struct Qmf {
     }
 };
 struct Bits {
-    QByteArray data = QByteArray(152, '\0');
+    explicit Bits(int bytes) : data(bytes, '\0') {}
+    QByteArray data;
     int position = 0;
     void add(int value, int bits) {
         if (position + bits > data.size() * 8)
@@ -82,7 +83,7 @@ struct Bits {
                 data[position >> 3] = char(quint8(data[position >> 3]) | (1 << (7 - (position & 7))));
     }
 };
-QByteArray frame(const std::array<double, 1024> &spectrum) {
+QByteArray frame(const std::array<double, 1024> &spectrum, int size) {
     const auto &t = tables();
     std::array<int, 32> scales{}, chosen{};
     double peak[32]{}, noise[32][6]{};
@@ -122,7 +123,7 @@ QByteArray frame(const std::array<double, 1024> &spectrum) {
     double lo = -20, hi = 40;
     for (int i = 0; i < 30; ++i) {
         const auto mid = (lo + hi) / 2;
-        if (pick(std::pow(2., mid)) <= 1216)
+        if (pick(std::pow(2., mid)) <= size * 8)
             hi = mid;
         else
             lo = mid;
@@ -138,7 +139,7 @@ QByteArray frame(const std::array<double, 1024> &spectrum) {
     const int nb = coded ? std::min((edges[last + 1] - 1) >> 8, 3) : 0;
     if (coded && (last == 0 || last == 18 || last == 26 || last == 30))
         ++last;
-    Bits bits;
+    Bits bits(size);
     bits.add(0x28, 6);
     bits.add(nb, 2);
     for (int i = 0; i <= nb; ++i)
@@ -185,41 +186,81 @@ QByteArray silentSpeech() {
     f[0] = '\xa0';
     return rsf(f.repeated(47));
 }
-QByteArray encodeAtracPcm(const QByteArray &pcm, const std::atomic_bool *cancel) {
-    if (pcm.isEmpty() || pcm.size() % 2 || pcm.size() > 48000 * 2 * 600)
+namespace {
+QByteArray encodeAtracFrames(const QByteArray &pcm, int channels, int unitSize, const std::atomic_bool *cancel) {
+    const int stride = channels * 2;
+    if (pcm.isEmpty() || pcm.size() % stride || pcm.size() > 48000 * stride * 600)
         fail(QCoreApplication::translate("PackBuilder", "Niepoprawna długość nagrania (limit 10 minut)."));
-    const int samples = pcm.size() / 2, frames = (samples + 1023) / 1024 + 2;
-    Qmf full, low, high;
-    std::array<std::array<double, 256>, 4> previous{};
+    const int samples = pcm.size() / stride, frames = (samples + 1023) / 1024 + 2;
+    struct SoundUnit {
+        Qmf full, low, high;
+        std::array<std::array<double, 256>, 4> previous{};
+    };
+    std::array<SoundUnit, 2> units;
     QByteArray result;
-    result.reserve(frames * 152);
+    result.reserve(frames * unitSize * channels);
     const auto &t = tables();
     for (int f = 0; f < frames; ++f) {
         checkCancelled(cancel);
-        std::array<double, 1024> input{}, spectrum{};
-        for (int i = 0; i < 1024 && f * 1024 + i < samples; ++i)
-            input[i] = qFromLittleEndian<qint16>(pcm.constData() + (f * 1024 + i) * 2) / 32768.;
-        std::array<double, 512> lo{}, hi{};
-        std::array<std::array<double, 256>, 4> bands{};
-        full.split(input.data(), 1024, lo.data(), hi.data());
-        low.split(lo.data(), 512, bands[0].data(), bands[1].data());
-        high.split(hi.data(), 512, bands[3].data(), bands[2].data());
-        for (int b = 0; b < 4; ++b) {
-            std::array<double, 512> windowed{};
-            for (int n = 0; n < 256; ++n) {
-                windowed[n] = previous[b][n] * t.window[n];
-                windowed[n + 256] = bands[b][n] * t.window[n + 256];
+        for (int c = 0; c < channels; ++c) {
+            auto &unit = units[c];
+            std::array<double, 1024> input{}, spectrum{};
+            for (int i = 0; i < 1024 && f * 1024 + i < samples; ++i)
+                input[i] = qFromLittleEndian<qint16>(pcm.constData() + (f * 1024 + i) * stride + c * 2) / 32768.;
+            std::array<double, 512> lo{}, hi{};
+            std::array<std::array<double, 256>, 4> bands{};
+            unit.full.split(input.data(), 1024, lo.data(), hi.data());
+            unit.low.split(lo.data(), 512, bands[0].data(), bands[1].data());
+            unit.high.split(hi.data(), 512, bands[3].data(), bands[2].data());
+            for (int b = 0; b < 4; ++b) {
+                std::array<double, 512> windowed{};
+                for (int n = 0; n < 256; ++n) {
+                    windowed[n] = unit.previous[b][n] * t.window[n];
+                    windowed[n + 256] = bands[b][n] * t.window[n + 256];
+                }
+                unit.previous[b] = bands[b];
+                for (int k = 0; k < 256; ++k) {
+                    double sum = 0;
+                    for (int n = 0; n < 512; ++n)
+                        sum += windowed[n] * t.basis[k][n];
+                    spectrum[b * 256 + ((b & 1) ? 255 - k : k)] = -sum * 256;
+                }
             }
-            previous[b] = bands[b];
-            for (int k = 0; k < 256; ++k) {
-                double sum = 0;
-                for (int n = 0; n < 512; ++n)
-                    sum += windowed[n] * t.basis[k][n];
-                spectrum[b * 256 + ((b & 1) ? 255 - k : k)] = -sum * 256;
-            }
+            result += frame(spectrum, unitSize);
         }
-        result += frame(spectrum);
     }
-    return rsf(result);
+    return result;
+}
+} // namespace
+
+QByteArray encodeAtracPcm(const QByteArray &pcm, const std::atomic_bool *cancel) {
+    return rsf(encodeAtracFrames(pcm, 1, 152, cancel));
+}
+
+QByteArray encodeStreamedMusicPcm(const QByteArray &pcm, const std::atomic_bool *cancel) {
+    constexpr int chunkSize = 65536, frameSize = 384, framesPerChunk = 154;
+    auto data = encodeAtracFrames(pcm, 2, frameSize / 2, cancel);
+    const int frames = data.size() / frameSize, chunks = (frames + framesPerChunk - 1) / framesPerChunk;
+    const int chunkFrames = (frames + chunks - 1) / chunks, chunkBytes = chunkFrames * frameSize;
+    // A stable payload size across 64 KiB blocks matches the game's streamed format.
+    QByteArray silence(frameSize, '\0');
+    silence[0] = silence[frameSize / 2] = '\xa0';
+    data += silence.repeated(chunkFrames * chunks - frames);
+    QByteArray header = QByteArray::fromHex("06000200bb80");
+    put(header, chunks, 2, true);
+    put(header, chunkBytes, 4, true);
+    put(header, chunkBytes, 4, true);
+    put(header, frameSize, 4, true);
+    put(header, data.size(), 4, true);
+    put(header, 0x01020000, 4, true);
+    put(header, 0, 4, true);
+    QByteArray output;
+    output.reserve(chunks * chunkSize);
+    for (int i = 0; i < chunks; ++i) {
+        output += header;
+        output.append(data.constData() + i * chunkBytes, chunkBytes);
+        output.append(chunkSize - header.size() - chunkBytes, '\0');
+    }
+    return output;
 }
 } // namespace studio::pack

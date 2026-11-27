@@ -438,7 +438,7 @@ BuzzPack makePack(const QString &label, const QString &fileName, const QString &
     pack.label = label;
     pack.identity = identity;
     const auto match = packName.match(fileName);
-    if (match.hasMatch())
+    if (match.hasMatch() && !discImage)
         pack.language = languageCode(match.captured(1));
     pack.open = [device, licenseFolders, discImage]() {
         auto raw = device();
@@ -695,7 +695,8 @@ SourceLanguages ps3Languages(const QString &path) {
                 codes.insert(code);
         }
         // Ask for a missing license now, before the language is chosen.
-        source.packs.first().open();
+        if (!source.packs.first().language.isEmpty())
+            source.packs.first().open();
         result.codes = codes.values();
         result.codes.sort();
         result.preferred = preferredLanguage(result.codes);
@@ -730,12 +731,9 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
         auto result = importBuzzPacks(source.packs, language, extractSpeech,
                                       source.title.isEmpty() ? QFileInfo(path).completeBaseName() : source.title);
         result.license = *license;
-        int used = 0;
-        for (const auto &pack : source.packs)
-            used += pack.language.isEmpty() || pack.language == result.document.language;
-        if (result.ok() && used > 1)
+        if (result.ok() && result.sourcePacks > 1)
             result.warnings.prepend(
-                tr("Zaimportowano pytania ze wszystkich paczek w wybranym języku (%1 plików).").arg(used));
+                tr("Zaimportowano pytania ze wszystkich paczek w wybranym języku (%1 plików).").arg(result.sourcePacks));
         return result;
     } catch (const LicenseRequired &e) {
         LoadResult out;
@@ -749,23 +747,51 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
     }
 }
 
-QByteArray readMovie(const QString &sourcePath, const QString &packLabel, const QString &entry) {
-    std::unique_ptr<pack::Archive> archive;
-    if (sourcePath.isEmpty()) {
-        archive = buzzFilePack(packLabel).open();
+std::unique_ptr<pack::Archive> openGameLanguageArchive(const QString &sourcePath, const QString &language) {
+    static const QRegularExpression folder("^[A-Za-z]{3}$");
+    if (!folder.match(language).hasMatch())
+        return {};
+    const auto fileName = language.toUpper() + ".PAK";
+    if (sourcePath.endsWith(".iso", Qt::CaseInsensitive) && DiscImage::isDiscImage(sourcePath)) {
+        const DiscImage disc(sourcePath);
+        const auto path = "PS3_GAME/USRDIR/GAME/" + fileName;
+        const auto file = disc.files().constFind(path);
+        if (file != disc.files().cend())
+            return std::make_unique<Archive>(std::make_unique<FileRange>(openFile(sourcePath), file->offset, file->size));
     } else {
-        const auto source = openSource(sourcePath);
-        for (const auto &pack : source.packs)
-            if (pack.label == packLabel) {
-                archive = pack.open();
+        const QFileInfo source(sourcePath);
+        if (source.fileName().compare("PARAM.SFO", Qt::CaseInsensitive) == 0) {
+            const QDir game(source.absoluteDir().filePath("USRDIR/GAME"));
+            for (const auto &file : game.entryInfoList(QDir::Files))
+                if (file.fileName().compare(fileName, Qt::CaseInsensitive) == 0)
+                    return std::make_unique<Archive>(file.absoluteFilePath());
+        }
+    }
+    return {};
+}
+
+std::unique_ptr<pack::Archive> openQuestionArchive(const QString &sourcePath, const QString &packLabel) {
+    if (sourcePath.isEmpty())
+        return buzzFilePack(packLabel).open();
+    const auto source = openSource(sourcePath);
+    for (const auto &pack : source.packs)
+        if (pack.label == packLabel)
+            return pack.open();
+    fail(tr("Nie znaleziono oryginalnego archiwum pytań PS3."));
+}
+
+QByteArray readQuestionMedia(const QString &sourcePath, const QString &packLabel, const QString &entry) {
+    auto archive = openQuestionArchive(sourcePath, packLabel);
+    auto item = archive->entries.constFind(entry);
+    if (item == archive->entries.constEnd()) {
+        for (auto candidate = archive->entries.cbegin(); candidate != archive->entries.cend(); ++candidate)
+            if (candidate.key().compare(entry, Qt::CaseInsensitive) == 0) {
+                item = candidate;
                 break;
             }
     }
-    if (!archive)
-        fail(QStringLiteral("The original PS3 question archive was not found."));
-    const auto item = archive->entries.constFind(entry);
     if (item == archive->entries.constEnd() || item->size > 128 * 1024 * 1024)
-        fail(QStringLiteral("The referenced SDI clip is missing or too large."));
-    return archive->read(entry);
+        fail(tr("Wskazanego klipu SDI brakuje lub jest za duży."));
+    return archive->read(item.key());
 }
 } // namespace studio::ps3

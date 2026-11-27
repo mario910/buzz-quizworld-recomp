@@ -4,6 +4,16 @@
     <context>
         <name>BuzzImport</name>
         <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Pominięte pytania (%1). Odpowiedzi obrazkowe: %2. Brak poprawnej odpowiedzi: %3. Liczba odpowiedzi poza zakresem 2–4: %4. Nie udało się utworzyć czterech różnych odpowiedzi: %5.</source>
+            <translation>Domande escluse (%1). Risposte con immagini: %2. Nessuna risposta corretta: %3. Numero di risposte fuori dall’intervallo 2–4: %4. Impossibile ottenere quattro risposte distinte: %5.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Połączono wystąpienia pytań w rundach: %1. Każde pytanie jest zapisane raz, z listą rund źródłowych.</source>
+            <translation>Occorrenze di domande unite tra i round: %1. Ogni domanda viene salvata una sola volta con l’elenco dei round originali.</translation>
+        </message>
+        <message>
             <source>Uszkodzony plik: odczyt poza zakresem.</source>
             <translation>File danneggiato: lettura oltre i limiti.</translation>
         </message>
@@ -178,16 +188,40 @@
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
             <translation>Saltati %1 ID di domanda duplicati tra i round.</translation>
         </message>
+        <message>
+            <source>Nieprawidłowy klip muzyczny w archiwum gry.</source>
+            <translation>Brano musicale non valido nell’archivio del gioco.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odzyskać klipu muzycznego.</source>
+            <translation>Impossibile recuperare il brano musicale.</translation>
+        </message>
     </context>
     <context>
         <name>Document</name>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania bez przypisanej kategorii gry: %1. Brakuje nazwy źródłowej lub miejsca na kolejne kategorie.</source>
+            <translation>Domande senza categoria del gioco: %1. Manca il nome originale o non c’è spazio per altre categorie.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania przekształcone na jednokrotny wybór: %1.</source>
+            <translation>Domande convertite in domande a risposta singola: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania pominięte z powodu formatu odpowiedzi: %1.</source>
+            <translation>Domande ignorate per il formato delle risposte: %1.</translation>
+        </message>
         <message>
             <source>Nie znaleziono filmu.</source>
             <translation>Video non trovato.</translation>
         </message>
         <message>
-            <source>Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny obrazek.</source>
-            <translation>La domanda usa un'immagine, un video o una registrazione del gioco. Assegna una tua immagine.</translation>
+            <location filename="../src/document.cpp" />
+            <source>Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.</source>
+            <translation>Questa domanda usa contenuti multimediali del gioco originale. Allega un’immagine o un video.</translation>
         </message>
         <message>
             <source>Wpisz treść pytania.</source>
@@ -321,6 +355,14 @@
             <source>Eksport do buzzpack nie obsługuje kategorii własnych. Zbuduj paczkę .edat w Studiu.</source>
             <translation>L'esportazione buzzpack non supporta le categorie personalizzate. Crea un pacchetto .edat in Studio.</translation>
         </message>
+        <message>
+            <source>Brakuje klipu muzycznego do pytania.</source>
+            <translation>Manca il brano musicale della domanda.</translation>
+        </message>
+        <message>
+            <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
+            <translation>L’esportazione in JSON omette i brani musicali. Crea un pacchetto .edat in Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -335,6 +377,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Pytania oczekujące na media: %1.</source>
+            <translation>Domande in attesa di contenuti multimediali: %1.</translation>
+        </message>
         <message>
             <location filename="../src/legacy_import.cpp" />
             <source>Zaimportowano obrazki RSV do %1 pytań.</source>
@@ -650,6 +697,170 @@
         <name>Main</name>
         <message>
             <location filename="../src/main_window.cpp" />
+            <source>WIDEO</source>
+            <translation>VIDEO</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Lektor</source>
+            <translation>Voce narrante</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Z lektorem</source>
+            <translation>Con voce narrante</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj nagranie</source>
+            <translation>Aggiungi registrazione</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Brak obrazu</source>
+            <translation>Nessuna immagine</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie po imporcie…</source>
+            <translation>Assegna categorie dopo l’importazione…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie działom gry</source>
+            <translation>Assegna categorie alle sezioni del gioco</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: ostatni import</source>
+            <translation>Ambito: ultima importazione</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: cały projekt</source>
+            <translation>Ambito: intero progetto</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz dział gry i kategorię docelową. Wybór działu obejmuje także jego poddziały.</source>
+            <translation>Scegli una sezione del gioco e una categoria di destinazione. La selezione include anche le sottosezioni.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dział źródłowy</source>
+            <translation>Sezione di origine</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bez działu źródłowego</source>
+            <translation>Nessuna sezione di origine</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kategoria docelowa</source>
+            <translation>Categoria di destinazione</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz podkategorię</source>
+            <translation>Scegli una sottocategoria</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podkategoria docelowa</source>
+            <translation>Sottocategoria di destinazione</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisanie zastąpi kategorię pytań z tego działu. Zmianę można cofnąć.</source>
+            <translation>Questa operazione sostituisce la categoria delle domande della sezione. Puoi annullare la modifica.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorię (%1)</source>
+            <translation>Assegna categoria (%1)</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania ze zmienioną kategorią: %1</source>
+            <translation>Domande con categoria modificata: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Te pytania mają już wybraną kategorię.</source>
+            <translation>Queste domande hanno già la categoria selezionata.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do przetwarzania mediów potrzebny jest FFmpeg.</source>
+            <translation>Per elaborare i contenuti multimediali serve FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Strona pobierania FFmpeg</source>
+            <translation>Pagina di download di FFmpeg</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zainstaluj przez %1</source>
+            <translation>Installa con %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kopiuj polecenie instalacji</source>
+            <translation>Copia il comando di installazione</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Uruchom skopiowane polecenie w terminalu, a potem wróć do Studio.
+
+%1</source>
+            <translation>Esegui il comando copiato in un terminale, poi torna in Studio.
+
+%1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalowanie FFmpeg przez %1…</source>
+            <translation>Installazione di FFmpeg con %1…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja FFmpeg nie powiodła się.</source>
+            <translation>L’installazione di FFmpeg non è riuscita.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja zakończona. Wybierz plik wykonywalny FFmpeg.</source>
+            <translation>Installazione completata. Seleziona l’eseguibile di FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Recupera i contenuti del gioco</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagają mediów.</source>
+            <translation>Ad alcune domande mancano contenuti multimediali.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz działający plik wykonywalny FFmpeg.</source>
+            <translation>Seleziona un eseguibile FFmpeg funzionante.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagające mediów</source>
+            <translation>Domande con contenuti mancanti</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz pytanie z listy, aby dodać brakujący obraz lub film (%1).</source>
+            <translation>Seleziona una domanda per aggiungere l’immagine o il video mancante (%1).</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
             <source>Zdekoduj media źródłowe</source>
             <translation>Decodifica i contenuti multimediali originali</translation>
         </message>
@@ -681,6 +892,10 @@
         <message>
             <source>Wideo (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</source>
             <translation>Video (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</translation>
+        </message>
+        <message>
+            <source>Kliknij Odtwórz przy wideo, aby odzyskać je z gry.</source>
+            <translation>Fai clic su Riproduci accanto al video per recuperarlo dal gioco.</translation>
         </message>
         <message>
             <source>Brak filmu</source>
@@ -1420,9 +1635,70 @@ I progetti collegano i file multimediali. La creazione di pacchetti nell'app e g
             <source>Paczka może mieć najwyżej 99 kategorii własnych.</source>
             <translation>Un pacchetto può avere al massimo 99 categorie personalizzate.</translation>
         </message>
+        <message>
+            <source>Odzyskano klip muzyczny z gry.</source>
+            <translation>Brano musicale recuperato dal gioco.</translation>
+        </message>
+        <message>
+            <source>Wybierz pytanie, aby sprawdzić, których mediów brakuje (%1).</source>
+            <translation>Seleziona una domanda per vedere quali contenuti multimediali mancano (%1).</translation>
+        </message>
+        <message>
+            <source>Brak muzyki: %1</source>
+            <translation>Musica mancante: %1</translation>
+        </message>
+        <message>
+            <source>Z muzyką</source>
+            <translation>Con musica</translation>
+        </message>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Riproduci</translation>
+        </message>
     </context>
     <context>
         <name>PackBuilder</name>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Wybierz kategorię i podkategorię dla tego pytania.</source>
+            <translation>Scegli una categoria e una sottocategoria per questa domanda.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Żadne pytanie nie jest gotowe do zbudowania paczki.</source>
+            <translation>Nessuna domanda è pronta per creare il pacchetto.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Kodowanie filmu do pytania %1 z %2…</source>
+            <translation>Codifica del video della domanda %1 di %2…</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Paczka zawiera za dużo różnych filmów do pytań.</source>
+            <translation>Il pacchetto contiene troppi video diversi per le domande.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <location filename="../src/pack_media.cpp" />
+            <source>Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI.</source>
+            <translation>Il modello di Quiz World selezionato non contiene un’intestazione video SDI compatibile.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Filmy do pytań przekraczają limit 256 MiB na paczkę.</source>
+            <translation>I video delle domande superano il limite di 256 MiB per pacchetto.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Film do pytania musi zawierać obraz i trwać najwyżej 30 sekund.</source>
+            <translation>Il video di una domanda deve contenere una traccia video e durare al massimo 30 secondi.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>FFmpeg nie utworzył oczekiwanego strumienia stereo ADX 48 kHz.</source>
+            <translation>FFmpeg non ha prodotto il flusso ADX stereo a 48 kHz previsto.</translation>
+        </message>
         <message>
             <source>Przekroczony budżet ramki ATRAC3.</source>
             <translation>Superato il budget di frame ATRAC3.</translation>
@@ -1823,9 +2099,91 @@ I progetti collegano i file multimediali. La creazione di pacchetti nell'app e g
             <source>Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w oknie Kategorie paczki.</source>
             <translation>Una categoria personalizzata non ha un nome in %1. Aggiungilo nella finestra Categorie del pacchetto.</translation>
         </message>
+        <message>
+            <source>Plik klipu muzycznego RSF jest uszkodzony.</source>
+            <translation>Il file RSF del brano musicale è danneggiato.</translation>
+        </message>
+        <message>
+            <source>W zapisanym pytaniu brakuje odwołania do klipu muzycznego.</source>
+            <translation>Nella domanda salvata manca il riferimento al brano musicale.</translation>
+        </message>
+        <message>
+            <source>Paczka zawiera za dużo różnych klipów muzycznych.</source>
+            <translation>Il pacchetto contiene troppi brani musicali diversi.</translation>
+        </message>
     </context>
     <context>
         <name>PackDialogs</name>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Sprawdzanie pytań…</source>
+            <translation>Verifica delle domande…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Gotowe: %1</source>
+            <translation>Pronte: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do poprawy: %1</source>
+            <translation>Da correggere: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania do poprawy</source>
+            <translation>Domande da correggere</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Otwórz w edytorze</source>
+            <translation>Apri nell’editor</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wróć do budowania</source>
+            <translation>Torna alla creazione</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprzednie pytanie</source>
+            <translation>Domanda precedente</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Następne pytanie</source>
+            <translation>Domanda successiva</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>%1 z %2</source>
+            <translation>%1 di %2</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprawione</source>
+            <translation>Corretta</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Puste w tym języku: %1</source>
+            <translation>Vuote in questa lingua: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>To wstępna kontrola. Studio sprawdzi szablon i media podczas budowania, a pominięte pytania pokaże w raporcie.</source>
+            <translation>Questa è una verifica preliminare. Studio controlla il modello e i contenuti multimediali durante la creazione e mostra nel rapporto le domande escluse.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Paczka nie została zbudowana</source>
+            <translation>Pacchetto non creato</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pominięte pytania (%1). Wybierz pytanie, aby otworzyć je w edytorze.</source>
+            <translation>Domande escluse (%1). Seleziona una domanda per aprirla nell’editor.</translation>
+        </message>
         <message>
             <source>Wybierz…</source>
             <translation>Scegli…</translation>
@@ -2012,6 +2370,36 @@ I progetti collegano i file multimediali. La creazione di pacchetti nell'app e g
     </context>
     <context>
         <name>StudioController</name>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zbiorcze przypisanie kategorii</source>
+            <translation>Assegnazione in blocco delle categorie</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełnione nagrania lektora: %1.</source>
+            <translation>Registrazioni originali aggiunte: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Recupera i contenuti del gioco</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie znaleziono mediów do odzyskania.</source>
+            <translation>Nessun contenuto multimediale recuperabile.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskiwanie mediów z gry…</source>
+            <translation>Recupero dei contenuti del gioco…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełniono media (%1).</source>
+            <translation>Contenuti recuperati per %1 versioni di domande.</translation>
+        </message>
         <message>
             <location filename="../src/controller.cpp" />
             <source>Dekodowanie mediów źródłowych…</source>
@@ -2242,6 +2630,16 @@ File creato: </translation>
     <context>
         <name>Ps3Source</name>
         <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Nie znaleziono oryginalnego archiwum pytań PS3.</source>
+            <translation>L’archivio originale delle domande PS3 non è stato trovato.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Wskazanego klipu SDI brakuje lub jest za duży.</source>
+            <translation>Il filmato SDI indicato manca o è troppo grande.</translation>
+        </message>
+        <message>
             <source>Plik jest ucięty.</source>
             <translation>Il file è troncato.</translation>
         </message>
@@ -2373,8 +2771,371 @@ File creato: </translation>
         <name>MediaTools</name>
         <message>
             <location filename="../src/media_tools.h" />
+            <source>Nie znaleziono FFmpeg. Skonfiguruj go w menu Question Studio.</source>
+            <translation>FFmpeg non è stato trovato. Configuralo dal menu di Question Studio.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Płyta źródłowa nie zawiera wskazanego archiwum filmów.</source>
+            <translation>Il disco di origine non contiene l’archivio video indicato.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Otwórz obraz płyty PS2 lub plik PAK z rundami z rozpakowanej płyty PS2.</source>
+            <translation>Apri l’immagine del disco PS2 o un file PAK dei round estratto da un disco PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazanego pliku RSV brakuje lub jest za duży.</source>
+            <translation>Il file RSV indicato manca o è troppo grande.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwany nagłówek bloku audio PS2 RSV.</source>
+            <translation>Intestazione di blocco audio PS2 RSV non supportata.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura PS2 RSV.</source>
+            <translation>Struttura PS2 RSV non supportata.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazana klatka obrazu PS2 jest poza arkuszem.</source>
+            <translation>Il fotogramma PS2 indicato è al di fuori del foglio.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Niepoprawne przesunięcia klatek PS2 RSV.</source>
+            <translation>Offset dei fotogrammi PS2 RSV non validi.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura bloku audio PS2 RSV.</source>
+            <translation>Struttura di blocco audio PS2 RSV non supportata.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Brak znacznika końca klatki PS2 IPU.</source>
+            <translation>Indicatore di fine fotogramma PS2 IPU mancante.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów PS2.</source>
+            <translation>FFmpeg non ha prodotto i contenuti PS2 decodificati.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się zapisać zdekodowanych mediów PS2.</source>
+            <translation>Impossibile salvare i contenuti PS2 decodificati.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów PS2.</source>
+            <translation>Impossibile creare la cartella della cache multimediale PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza.</source>
+            <translation>Il numero di immagini PS2 decodificate non corrisponde all’indice del foglio.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Pytanie nie ma obsługiwanego odwołania do mediów PS2. Zaimportuj ponownie starsze wpisy z filmami.</source>
+            <translation>Questa domanda non contiene un riferimento multimediale PS2 supportato. Reimporta le voci video meno recenti.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć tymczasowego katalogu mediów.</source>
+            <translation>Impossibile creare la cartella multimediale temporanea.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Otwórz oryginalny obraz płyty PSP lub plik MERGED.QDB.</source>
+            <translation>Apri l’immagine del disco PSP originale o il file MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Archiwum pytań PSP nie zawiera katalogu mediów.</source>
+            <translation>L’archivio delle domande PSP non contiene una cartella multimediale.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie znaleziono klipu PSP do pytania w katalogu rozpakowanych danych.</source>
+            <translation>Il filmato della domanda PSP non è stato trovato nella cartella dei dati estratti.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawna granica pakietu PSP PSMF.</source>
+            <translation>Limite del pacchetto PSP PSMF non valido.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek pakietu zbiorczego PSP PSMF.</source>
+            <translation>Intestazione del blocco PSP PSMF non valida.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięty pakiet PSP PSMF.</source>
+            <translation>Pacchetto PSP PSMF troncato.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek PES w PSP PSMF.</source>
+            <translation>Intestazione PES PSP PSMF non valida.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne dane PES w PSP PSMF.</source>
+            <translation>Dati PES PSP PSMF non validi.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Klip PSP nie zawiera rozpoznanej ścieżki ATRAC3+.</source>
+            <translation>Il filmato PSP non contiene tracce ATRAC3+ riconosciute.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięta ścieżka PSP ATRAC3+.</source>
+            <translation>Traccia PSP ATRAC3+ troncata.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne wyrównanie ramek PSP ATRAC3+.</source>
+            <translation>Allineamento dei fotogrammi PSP ATRAC3+ non valido.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nieobsługiwany nagłówek filmu do pytania.</source>
+            <translation>Intestazione del video della domanda non supportata.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów.</source>
+            <translation>Impossibile creare la cartella della cache multimediale.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów.</source>
+            <translation>FFmpeg non ha prodotto i contenuti decodificati.</translation>
+        </message>
+        <message>
+            <location filename="../src/media_tools.h" />
             <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
             <translation>Per decodificare i contenuti multimediali serve FFmpeg. Installalo e aggiungilo al PATH oppure seleziona il suo eseguibile nelle impostazioni di compilazione: Motore multimediale (FFmpeg).</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportWizard</name>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pomiń i przejdź do edytora</source>
+            <translation>Salta e vai all’editor</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Obrazy lub filmy nadal brakujące po odzyskiwaniu: %1</source>
+            <translation>Immagini o video ancora mancanti dopo il recupero: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z obrazem lub filmem do automatycznego odzyskania: %1</source>
+            <translation>Domande con immagine o video recuperabile automaticamente: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z samą ścieżką muzyczną, której Studio jeszcze nie obsługuje: %1</source>
+            <translation>Domande con una sola traccia musicale non ancora supportata: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z brakującym lub nieobsługiwanym obrazem albo filmem: %1</source>
+            <translation>Domande con immagine o video mancante o non supportato: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania uzupełnione automatycznie: %1</source>
+            <translation>Domande completate automaticamente: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zmień przypisanie kategorii…</source>
+            <translation>Modifica l’assegnazione delle categorie…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z zachowaną kategorią gry: %1</source>
+            <translation>Domande con la categoria originale del gioco: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania i gry</source>
+            <translation>Domande e giochi</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importuj pytania</source>
+            <translation>Importa domande</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
+            <translation>Scegli un’immagine disco, un file di domande o una cartella di gioco estratta di PS3 o Il sapere è potere.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wklej ścieżkę lub przeciągnij plik albo folder</source>
+            <translation>Incolla un percorso o trascina qui un file o una cartella</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Źródło pytań</source>
+            <translation>Origine delle domande</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz plik…</source>
+            <translation>Scegli file…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz folder…</source>
+            <translation>Scegli cartella…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
+            <translation>Per un gioco PS2 o PSP estratto, scegli ROUND.PAK o MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodaj do bieżącego projektu</source>
+            <translation>Aggiungi al progetto attuale</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Otwórz jako nowy projekt</source>
+            <translation>Apri come nuovo progetto</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Miejsce importu</source>
+            <translation>Importa in</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wstecz</source>
+            <translation>Indietro</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Krok %1 z 3</source>
+            <translation>Passaggio %1 di 3</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Sprawdzanie źródła…</source>
+            <translation>Verifica dell’origine…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Ustawienia importu</source>
+            <translation>Impostazioni di importazione</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importowanie pytań…</source>
+            <translation>Importazione delle domande…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Import zakończony</source>
+            <translation>Importazione completata</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Przejdź do edytora</source>
+            <translation>Vai all’editor</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dalej</source>
+            <translation>Avanti</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz istniejący plik lub folder z obsługiwaną grą.</source>
+            <translation>Scegli un file di domande esistente o una cartella di gioco supportata.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekt zachowa wszystkie wersje językowe.</source>
+            <translation>Il progetto conserva tutte le versioni linguistiche.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodane pytania: %1</source>
+            <translation>Domande aggiunte: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zaktualizowane pytania: %1</source>
+            <translation>Domande aggiornate: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Istniejące pytania zachowane bez zmian: %1</source>
+            <translation>Domande esistenti lasciate invariate: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania w bieżącej wersji wymagające mediów: %1</source>
+            <translation>Domande che richiedono contenuti multimediali nella lingua attuale: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekty Question Studio</source>
+            <translation>Progetti Question Studio</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Aby zobaczyć tę wersję pytań, ustaw język pytań w projekcie na %1.</source>
+            <translation>Per vedere questa versione delle domande, imposta %1 come lingua delle domande del progetto.</translation>
+        </message>
+        <message>
+            <source>Pytania z klipem muzycznym do odzyskania: %1</source>
+            <translation>Domande con un brano musicale da recuperare: %1</translation>
+        </message>
+        <message>
+            <source>Pytania z brakującym klipem muzycznym: %1</source>
+            <translation>Domande con un brano musicale mancante: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaPreviewDialog</name>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Riproduci</translation>
+        </message>
+        <message>
+            <source>Pozycja odtwarzania</source>
+            <translation>Posizione di riproduzione</translation>
+        </message>
+        <message>
+            <source>Zamknij</source>
+            <translation>Chiudi</translation>
+        </message>
+        <message>
+            <source>Pauza</source>
+            <translation>Pausa</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie podglądu…</source>
+            <translation>Preparazione dell’anteprima…</translation>
+        </message>
+        <message>
+            <source>Nie udało się odtworzyć tego pliku.</source>
+            <translation>Impossibile riprodurre questo file.</translation>
         </message>
     </context>
 </TS>

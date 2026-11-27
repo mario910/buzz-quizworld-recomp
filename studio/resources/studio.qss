@@ -38,7 +38,7 @@ QFrame#promo {
     border: 1px solid #59467b;
     border-radius: 10px;
 }
-QFrame#warningBar, QLabel#issues {
+QFrame#warningBar, QLabel#issues, QLabel#buildIssueDetails {
     background: #3a2f22;
     color: #ffcf63;
     border: 0;
@@ -48,6 +48,10 @@ QFrame#warningBar, QLabel#issues {
 QFrame#warningBar {
     border-radius: 0;
     padding: 4px 12px;
+}
+QFrame#buildReviewPanel {
+    background: #292741;
+    border-bottom: 1px solid #494566;
 }
 QFrame#divider {
     background: #40405c;
@@ -93,7 +97,7 @@ QLabel#dirty {
     color: #ffcf63;
     font-size: 11px;
 }
-QLabel#accent {
+QLabel#accent, QLabel#buildReadiness {
     color: #c4a5ff;
 }
 QLabel#ready, QLabel#todo {
@@ -160,7 +164,7 @@ QPushButton:hover {
 QPushButton:focus {
     border-color: #dfcaff;
 }
-QPushButton#primary {
+QPushButton#primary, QPushButton[primary="true"] {
     background: #ffcf63;
     color: #271b23;
     border: 2px solid #ffcf63;
@@ -168,10 +172,10 @@ QPushButton#primary {
     min-height: 30px;
     padding: 4px 20px;
 }
-QPushButton#primary:hover {
+QPushButton#primary:hover, QPushButton[primary="true"]:hover {
     background: #ffe298;
 }
-QPushButton#primary:focus {
+QPushButton#primary:focus, QPushButton[primary="true"]:focus {
     border-color: #fff1c9;
 }
 QPushButton#quiet, QPushButton#tab, QPushButton#filter {
@@ -198,7 +202,7 @@ QPushButton#filter:checked {
 QPushButton#danger {
     color: #ffa3a3;
 }
-QPushButton:disabled, QPushButton#primary:disabled {
+QPushButton:disabled, QPushButton#primary:disabled, QPushButton[primary="true"]:disabled {
     background: #2c2b42;
     color: #a09ab3;
     border-color: #46445e;

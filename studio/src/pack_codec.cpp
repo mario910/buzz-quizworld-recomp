@@ -15,12 +15,15 @@ void patch(QByteArray &out, int offset, quint64 value, int bytes, bool be) {
     for (int i = 0; i < bytes; ++i)
         out[offset + i] = char(value >> (8 * (be ? bytes - i - 1 : i)));
 }
+bool unsupportedPackCharacter(QChar c) {
+    return c.isSurrogate() || c.unicode() == 0xfefe || c.unicode() == 0xfe00;
+}
 Huffman encodeHuffman(const QStringList &strings) {
     QMap<ushort, quint32> frequencies;
     quint64 total = strings.size();
     for (const auto &text : strings)
         for (auto c : text) {
-            if (c.isSurrogate() || c.unicode() == 0xfefe || c.unicode() == 0xfe00)
+            if (unsupportedPackCharacter(c))
                 fail(QCoreApplication::translate("PackBuilder",
                                                  "Tekst zawiera znak nieobsługiwany przez grę (np. emoji)."));
             ++frequencies[c.unicode()];
@@ -337,11 +340,15 @@ RoundBytes writeRound(const QString &name, const QString &language, int pack, in
         fail(QCoreApplication::translate("PackBuilder", "Przekroczono limit pytań jednej kategorii."));
     QStringList strings;
     QMap<int, int> mediaSlots; // Local media ID -> QAK row, after sorting by ID.
+    const auto mediaAssets = [](const RoundQuestion &q) {
+        return std::array<int, 2>{q.music, q.movie ? q.movie : q.picture};
+    };
     for (const auto &q : questions) {
         strings << q.text << q.topic;
         strings << q.answers;
-        if (const int media = q.movie ? q.movie : q.picture)
-            mediaSlots.insert(media, 0);
+        for (const int media : mediaAssets(q))
+            if (media)
+                mediaSlots.insert(media, 0);
     }
     int mediaRow = 0;
     for (auto &row : mediaSlots)
@@ -353,18 +360,20 @@ RoundBytes writeRound(const QString &name, const QString &language, int pack, in
         QMap<int, int> categoryCounts;
         auto add = [&](int sec, quint64 value, int bytes) { put(sections[sec], value, bytes, be); };
         for (int slot : mediaSlots.keys()) {
-            const bool movie = slot >= FirstMovieAsset;
+            const int type = slot >= FirstMusicAsset ? 1 : slot >= FirstMovieAsset ? 2 : 3;
             add(0, slot, 4);
             add(0, slot, 4);
             add(0, 0, 2);
-            add(0, movie ? 0 : slot, 2);
-            sections[0] += QByteArray::fromHex(movie ? "02100000" : "03100400");
+            add(0, type == 3 ? slot : 0, 2);
+            for (const int value : {type, 0x10, type == 3 ? 4 : 0, 0})
+                add(0, value, 1);
             mediaIndex << qMakePair(quint32(slot), 0u);
             ++counts[0];
         }
         for (int i = 0; i < questions.size(); ++i) {
             const auto &q = questions[i];
-            const int media = q.movie ? q.movie : q.picture;
+            const auto media = mediaAssets(q);
+            const int mediaCount = int(std::count_if(media.begin(), media.end(), [](int asset) { return asset != 0; }));
             const int base = i * 6;
             if (q.answers.size() != 4)
                 fail(QCoreApplication::translate("PackBuilder", "Wymagane są cztery odpowiedzi."));
@@ -372,19 +381,21 @@ RoundBytes writeRound(const QString &name, const QString &language, int pack, in
             sections[1] += language.toLatin1() + '\0';
             add(1, 0, 4);
             add(1, i, 2);
-            add(1, media ? counts[2] : 0xffff, 2);
+            add(1, mediaCount ? counts[2] : 0xffff, 2);
             add(1, i * 2, 2);
             add(1, i * 2, 2);
             add(1, 0, 2);
             add(1, 0x7ffe, 2);
             add(1, i * 4, 2);
-            add(1, media ? 0 : 8, 2);
-            for (int v : {0, 1 + ((i + 1) % 6), q.difficulty, 1, media ? 1 : 0, 2, 2, 4})
+            add(1, mediaCount ? 0 : 8, 2);
+            for (int v : {0, 1 + ((i + 1) % 6), q.difficulty, 1, mediaCount, 2, 2, 4})
                 add(1, v, 1);
             ++counts[1];
             questionIndex << qMakePair(q.id, 0u);
-            if (media) {
-                add(2, mediaSlots[media], 2);
+            for (const int asset : media) {
+                if (!asset)
+                    continue;
+                add(2, mediaSlots[asset], 2);
                 add(2, 1, 1);
                 add(2, 0, 1);
                 ++counts[2];

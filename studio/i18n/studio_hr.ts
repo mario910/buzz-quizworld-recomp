@@ -4,6 +4,16 @@
     <context>
         <name>BuzzImport</name>
         <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Pominięte pytania (%1). Odpowiedzi obrazkowe: %2. Brak poprawnej odpowiedzi: %3. Liczba odpowiedzi poza zakresem 2–4: %4. Nie udało się utworzyć czterech różnych odpowiedzi: %5.</source>
+            <translation>Preskočena pitanja (%1). Slikovni odgovori: %2. Nema točnog odgovora: %3. Broj odgovora izvan 2–4: %4. Nije bilo moguće sastaviti četiri različita odgovora: %5.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Połączono wystąpienia pytań w rundach: %1. Każde pytanie jest zapisane raz, z listą rund źródłowych.</source>
+            <translation>Pojavljivanja pitanja spojena između rundi: %1. Svako pitanje pohranjuje se jednom s popisom izvornih rundi.</translation>
+        </message>
+        <message>
             <source>Uszkodzony plik: odczyt poza zakresem.</source>
             <translation>Oštećena datoteka: čitanje izvan granica.</translation>
         </message>
@@ -178,16 +188,40 @@
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
             <translation>Preskočeno dupliciranih ID-ova pitanja između rundi: %1.</translation>
         </message>
+        <message>
+            <source>Nieprawidłowy klip muzyczny w archiwum gry.</source>
+            <translation>Neispravan glazbeni isječak u arhivi igre.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odzyskać klipu muzycznego.</source>
+            <translation>Glazbeni isječak nije moguće oporaviti.</translation>
+        </message>
     </context>
     <context>
         <name>Document</name>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania bez przypisanej kategorii gry: %1. Brakuje nazwy źródłowej lub miejsca na kolejne kategorie.</source>
+            <translation>Pitanja bez kategorije igre: %1. Nedostaje izvorni naziv ili nema mjesta za još kategorija.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania przekształcone na jednokrotny wybór: %1.</source>
+            <translation>Pitanja pretvorena u pitanja s jednim točnim odgovorom: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania pominięte z powodu formatu odpowiedzi: %1.</source>
+            <translation>Pitanja preskočena zbog formata odgovora: %1.</translation>
+        </message>
         <message>
             <source>Nie znaleziono filmu.</source>
             <translation>Video nije pronađen.</translation>
         </message>
         <message>
-            <source>Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny obrazek.</source>
-            <translation>Pitanje koristi sliku, video ili snimku iz igre. Dodijelite vlastitu sliku.</translation>
+            <location filename="../src/document.cpp" />
+            <source>Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.</source>
+            <translation>Ovo pitanje koristi medijske datoteke iz izvorne igre. Priložite sliku ili videozapis.</translation>
         </message>
         <message>
             <source>Wpisz treść pytania.</source>
@@ -321,6 +355,14 @@
             <source>Eksport do buzzpack nie obsługuje kategorii własnych. Zbuduj paczkę .edat w Studiu.</source>
             <translation>Izvoz za buzzpack ne podržava vlastite kategorije. Izgradite paket .edat u Studiju.</translation>
         </message>
+        <message>
+            <source>Brakuje klipu muzycznego do pytania.</source>
+            <translation>Nedostaje glazbeni isječak za pitanje.</translation>
+        </message>
+        <message>
+            <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
+            <translation>Izvoz u JSON izostavlja glazbene isječke. Izradite paket .edat u Studiju.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -335,6 +377,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Pytania oczekujące na media: %1.</source>
+            <translation>Pitanja koja čekaju medijske datoteke: %1.</translation>
+        </message>
         <message>
             <location filename="../src/legacy_import.cpp" />
             <source>Zaimportowano obrazki RSV do %1 pytań.</source>
@@ -650,6 +697,170 @@
         <name>Main</name>
         <message>
             <location filename="../src/main_window.cpp" />
+            <source>WIDEO</source>
+            <translation>VIDEO</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Lektor</source>
+            <translation>Naracija</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Z lektorem</source>
+            <translation>S naracijom</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj nagranie</source>
+            <translation>Dodaj snimku</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Brak obrazu</source>
+            <translation>Bez slike</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie po imporcie…</source>
+            <translation>Dodijeli kategorije nakon uvoza…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie działom gry</source>
+            <translation>Dodijeli kategorije odjeljcima igre</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: ostatni import</source>
+            <translation>Opseg: posljednji uvoz</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: cały projekt</source>
+            <translation>Opseg: cijeli projekt</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz dział gry i kategorię docelową. Wybór działu obejmuje także jego poddziały.</source>
+            <translation>Odaberite odjeljak igre i odredišnu kategoriju. Odabir odjeljka uključuje i njegove pododjeljke.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dział źródłowy</source>
+            <translation>Izvorni odjeljak</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bez działu źródłowego</source>
+            <translation>Bez izvornog odjeljka</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kategoria docelowa</source>
+            <translation>Odredišna kategorija</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz podkategorię</source>
+            <translation>Odaberite potkategoriju</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podkategoria docelowa</source>
+            <translation>Odredišna potkategorija</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisanie zastąpi kategorię pytań z tego działu. Zmianę można cofnąć.</source>
+            <translation>Time se zamjenjuje kategorija pitanja iz tog odjeljka. Promjenu možete poništiti.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorię (%1)</source>
+            <translation>Dodijeli kategoriju (%1)</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania ze zmienioną kategorią: %1</source>
+            <translation>Pitanja s promijenjenom kategorijom: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Te pytania mają już wybraną kategorię.</source>
+            <translation>Ova pitanja već imaju odabranu kategoriju.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do przetwarzania mediów potrzebny jest FFmpeg.</source>
+            <translation>Za obradu medijskih datoteka potreban je FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Strona pobierania FFmpeg</source>
+            <translation>Stranica za preuzimanje FFmpega</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zainstaluj przez %1</source>
+            <translation>Instaliraj pomoću %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kopiuj polecenie instalacji</source>
+            <translation>Kopiraj naredbu za instalaciju</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Uruchom skopiowane polecenie w terminalu, a potem wróć do Studio.
+
+%1</source>
+            <translation>Pokrenite kopiranu naredbu u terminalu i vratite se u Studio.
+
+%1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalowanie FFmpeg przez %1…</source>
+            <translation>Instaliranje FFmpega pomoću %1…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja FFmpeg nie powiodła się.</source>
+            <translation>Instalacija FFmpega nije uspjela.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja zakończona. Wybierz plik wykonywalny FFmpeg.</source>
+            <translation>Instalacija je dovršena. Odaberite izvršnu datoteku FFmpega.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Vrati medijske datoteke iz igre</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagają mediów.</source>
+            <translation>Nekim pitanjima nedostaju medijske datoteke.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz działający plik wykonywalny FFmpeg.</source>
+            <translation>Odaberite ispravnu izvršnu datoteku FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagające mediów</source>
+            <translation>Pitanja kojima nedostaju medijske datoteke</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz pytanie z listy, aby dodać brakujący obraz lub film (%1).</source>
+            <translation>Odaberite pitanje i dodajte sliku ili videozapis koji nedostaje (%1).</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
             <source>Zdekoduj media źródłowe</source>
             <translation>Dekodiraj izvorne medije</translation>
         </message>
@@ -681,6 +892,10 @@
         <message>
             <source>Wideo (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</source>
             <translation>Video (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</translation>
+        </message>
+        <message>
+            <source>Kliknij Odtwórz przy wideo, aby odzyskać je z gry.</source>
+            <translation>Kliknite Reproduciraj pored videozapisa da biste ga preuzeli iz igre.</translation>
         </message>
         <message>
             <source>Brak filmu</source>
@@ -1420,9 +1635,70 @@ Projekti sadrže poveznice na medijske datoteke. Izgradnja paketa u aplikaciji i
             <source>Paczka może mieć najwyżej 99 kategorii własnych.</source>
             <translation>Paket može imati najviše 99 vlastitih kategorija.</translation>
         </message>
+        <message>
+            <source>Odzyskano klip muzyczny z gry.</source>
+            <translation>Glazbeni isječak oporavljen je iz igre.</translation>
+        </message>
+        <message>
+            <source>Wybierz pytanie, aby sprawdzić, których mediów brakuje (%1).</source>
+            <translation>Odaberite pitanje da biste vidjeli koji mediji nedostaju (%1).</translation>
+        </message>
+        <message>
+            <source>Brak muzyki: %1</source>
+            <translation>Nedostaje glazba: %1</translation>
+        </message>
+        <message>
+            <source>Z muzyką</source>
+            <translation>S glazbom</translation>
+        </message>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Reproduciraj</translation>
+        </message>
     </context>
     <context>
         <name>PackBuilder</name>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Wybierz kategorię i podkategorię dla tego pytania.</source>
+            <translation>Odaberite kategoriju i potkategoriju za ovo pitanje.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Żadne pytanie nie jest gotowe do zbudowania paczki.</source>
+            <translation>Nijedno pitanje nije spremno za izradu paketa.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Kodowanie filmu do pytania %1 z %2…</source>
+            <translation>Kodiranje videozapisa za pitanje %1 od %2…</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Paczka zawiera za dużo różnych filmów do pytań.</source>
+            <translation>Paket sadrži previše različitih videozapisa za pitanja.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <location filename="../src/pack_media.cpp" />
+            <source>Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI.</source>
+            <translation>Odabrani predložak Quiz World ne sadrži kompatibilno zaglavlje SDI videozapisa.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Filmy do pytań przekraczają limit 256 MiB na paczkę.</source>
+            <translation>Videozapisi za pitanja premašuju ograničenje od 256 MiB po paketu.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Film do pytania musi zawierać obraz i trwać najwyżej 30 sekund.</source>
+            <translation>Videozapis za pitanje mora sadržavati slikovni zapis i trajati najviše 30 sekundi.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>FFmpeg nie utworzył oczekiwanego strumienia stereo ADX 48 kHz.</source>
+            <translation>FFmpeg nije proizveo očekivani stereozapis ADX od 48 kHz.</translation>
+        </message>
         <message>
             <source>Przekroczony budżet ramki ATRAC3.</source>
             <translation>Premašen proračun ATRAC3 okvira.</translation>
@@ -1823,9 +2099,91 @@ Projekti sadrže poveznice na medijske datoteke. Izgradnja paketa u aplikaciji i
             <source>Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w oknie Kategorie paczki.</source>
             <translation>Vlastita kategorija nema naziv na jeziku %1. Dodajte ga u prozoru Kategorije paketa.</translation>
         </message>
+        <message>
+            <source>Plik klipu muzycznego RSF jest uszkodzony.</source>
+            <translation>RSF datoteka glazbenog isječka je oštećena.</translation>
+        </message>
+        <message>
+            <source>W zapisanym pytaniu brakuje odwołania do klipu muzycznego.</source>
+            <translation>U spremljenom pitanju nedostaje referenca na glazbeni isječak.</translation>
+        </message>
+        <message>
+            <source>Paczka zawiera za dużo różnych klipów muzycznych.</source>
+            <translation>Paket sadrži previše različitih glazbenih isječaka.</translation>
+        </message>
     </context>
     <context>
         <name>PackDialogs</name>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Sprawdzanie pytań…</source>
+            <translation>Provjera pitanja…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Gotowe: %1</source>
+            <translation>Spremna: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do poprawy: %1</source>
+            <translation>Za ispravak: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania do poprawy</source>
+            <translation>Pitanja za ispravak</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Otwórz w edytorze</source>
+            <translation>Otvori u uređivaču</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wróć do budowania</source>
+            <translation>Natrag na izradu paketa</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprzednie pytanie</source>
+            <translation>Prethodno pitanje</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Następne pytanie</source>
+            <translation>Sljedeće pitanje</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>%1 z %2</source>
+            <translation>%1 od %2</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprawione</source>
+            <translation>Ispravljeno</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Puste w tym języku: %1</source>
+            <translation>Prazna na ovom jeziku: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>To wstępna kontrola. Studio sprawdzi szablon i media podczas budowania, a pominięte pytania pokaże w raporcie.</source>
+            <translation>Ovo je preliminarna provjera. Studio provjerava predložak i medije tijekom izrade te prikazuje preskočena pitanja u izvješću.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Paczka nie została zbudowana</source>
+            <translation>Paket nije izrađen</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pominięte pytania (%1). Wybierz pytanie, aby otworzyć je w edytorze.</source>
+            <translation>Preskočena pitanja (%1). Odaberite pitanje da biste ga otvorili u uređivaču.</translation>
+        </message>
         <message>
             <source>Wybierz…</source>
             <translation>Odaberi…</translation>
@@ -2012,6 +2370,36 @@ Projekti sadrže poveznice na medijske datoteke. Izgradnja paketa u aplikaciji i
     </context>
     <context>
         <name>StudioController</name>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zbiorcze przypisanie kategorii</source>
+            <translation>Skupna dodjela kategorija</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełnione nagrania lektora: %1.</source>
+            <translation>Dodane izvorne govorne snimke: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Vrati medijske datoteke iz igre</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie znaleziono mediów do odzyskania.</source>
+            <translation>Nema medijskih datoteka koje se mogu vratiti.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskiwanie mediów z gry…</source>
+            <translation>Vraćanje medijskih datoteka iz igre…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełniono media (%1).</source>
+            <translation>Vraćene medijske datoteke za %1 verzija pitanja.</translation>
+        </message>
         <message>
             <location filename="../src/controller.cpp" />
             <source>Dekodowanie mediów źródłowych…</source>
@@ -2242,6 +2630,16 @@ Izgrađena datoteka: </translation>
     <context>
         <name>Ps3Source</name>
         <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Nie znaleziono oryginalnego archiwum pytań PS3.</source>
+            <translation>Izvorna arhiva pitanja za PS3 nije pronađena.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Wskazanego klipu SDI brakuje lub jest za duży.</source>
+            <translation>Navedeni SDI isječak nedostaje ili je prevelik.</translation>
+        </message>
+        <message>
             <source>Plik jest ucięty.</source>
             <translation>Datoteka je skraćena.</translation>
         </message>
@@ -2373,8 +2771,371 @@ Izgrađena datoteka: </translation>
         <name>MediaTools</name>
         <message>
             <location filename="../src/media_tools.h" />
+            <source>Nie znaleziono FFmpeg. Skonfiguruj go w menu Question Studio.</source>
+            <translation>FFmpeg nije pronađen. Postavite ga u izborniku Question Studija.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Płyta źródłowa nie zawiera wskazanego archiwum filmów.</source>
+            <translation>Izvorni disk ne sadrži navedenu arhivu videozapisa.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Otwórz obraz płyty PS2 lub plik PAK z rundami z rozpakowanej płyty PS2.</source>
+            <translation>Otvorite sliku diska za PS2 ili PAK s rundama iz raspakiranih datoteka diska za PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazanego pliku RSV brakuje lub jest za duży.</source>
+            <translation>Navedena RSV datoteka nedostaje ili je prevelika.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwany nagłówek bloku audio PS2 RSV.</source>
+            <translation>Zaglavlje zvučnog bloka PS2 RSV nije podržano.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura PS2 RSV.</source>
+            <translation>Struktura PS2 RSV nije podržana.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazana klatka obrazu PS2 jest poza arkuszem.</source>
+            <translation>Navedena sličica PS2 nalazi se izvan lista sa slikama.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Niepoprawne przesunięcia klatek PS2 RSV.</source>
+            <translation>Nevaljani pomaci sličica PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura bloku audio PS2 RSV.</source>
+            <translation>Struktura zvučnog bloka PS2 RSV nije podržana.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Brak znacznika końca klatki PS2 IPU.</source>
+            <translation>Nedostaje oznaka kraja sličice PS2 IPU.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów PS2.</source>
+            <translation>FFmpeg nije stvorio dekodirane medijske datoteke za PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się zapisać zdekodowanych mediów PS2.</source>
+            <translation>Dekodirane medijske datoteke za PS2 nije moguće spremiti.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów PS2.</source>
+            <translation>Nije moguće stvoriti mapu predmemorije za medijske datoteke PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza.</source>
+            <translation>Broj dekodiranih slika za PS2 ne odgovara indeksu lista.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Pytanie nie ma obsługiwanego odwołania do mediów PS2. Zaimportuj ponownie starsze wpisy z filmami.</source>
+            <translation>Ovo pitanje nema podržanu referencu na medijske datoteke PS2. Ponovno uvezite starije unose s videozapisima.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć tymczasowego katalogu mediów.</source>
+            <translation>Nije moguće stvoriti privremenu mapu za medijske datoteke.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Otwórz oryginalny obraz płyty PSP lub plik MERGED.QDB.</source>
+            <translation>Otvorite izvornu sliku diska za PSP ili datoteku MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Archiwum pytań PSP nie zawiera katalogu mediów.</source>
+            <translation>Arhiva pitanja za PSP nema mapu za medijske datoteke.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie znaleziono klipu PSP do pytania w katalogu rozpakowanych danych.</source>
+            <translation>Isječak za pitanje PSP nije pronađen u mapi raspakiranih podataka.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawna granica pakietu PSP PSMF.</source>
+            <translation>Nevaljana granica paketa PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek pakietu zbiorczego PSP PSMF.</source>
+            <translation>Nevaljano zaglavlje bloka PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięty pakiet PSP PSMF.</source>
+            <translation>Nepotpun paket PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek PES w PSP PSMF.</source>
+            <translation>Nevaljano zaglavlje PES u PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne dane PES w PSP PSMF.</source>
+            <translation>Nevaljani podaci PES u PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Klip PSP nie zawiera rozpoznanej ścieżki ATRAC3+.</source>
+            <translation>Isječak za PSP nema prepoznat zvučni zapis ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięta ścieżka PSP ATRAC3+.</source>
+            <translation>Nepotpun zvučni zapis PSP ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne wyrównanie ramek PSP ATRAC3+.</source>
+            <translation>Nevaljano poravnanje okvira PSP ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nieobsługiwany nagłówek filmu do pytania.</source>
+            <translation>Zaglavlje videozapisa za pitanje nije podržano.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów.</source>
+            <translation>Nije moguće stvoriti mapu predmemorije za medijske datoteke.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów.</source>
+            <translation>FFmpeg nije stvorio dekodirane medijske datoteke.</translation>
+        </message>
+        <message>
+            <location filename="../src/media_tools.h" />
             <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
             <translation>Za dekodiranje medija potreban je FFmpeg. Instalirajte ga i dodajte u PATH ili odaberite njegovu izvršnu datoteku u postavkama izrade: Medijski pogon (FFmpeg).</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportWizard</name>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pomiń i przejdź do edytora</source>
+            <translation>Preskoči i idi u uređivač</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Obrazy lub filmy nadal brakujące po odzyskiwaniu: %1</source>
+            <translation>Slike ili videozapisi koji i dalje nedostaju nakon oporavka: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z obrazem lub filmem do automatycznego odzyskania: %1</source>
+            <translation>Pitanja sa slikom ili videozapisom za automatski oporavak: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z samą ścieżką muzyczną, której Studio jeszcze nie obsługuje: %1</source>
+            <translation>Pitanja sa zasebnom glazbenom snimkom koju Studio još ne podržava: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z brakującym lub nieobsługiwanym obrazem albo filmem: %1</source>
+            <translation>Pitanja s nedostajućom ili nepodržanom slikom ili videozapisom: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania uzupełnione automatycznie: %1</source>
+            <translation>Automatski dopunjena pitanja: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zmień przypisanie kategorii…</source>
+            <translation>Promijeni dodijeljene kategorije…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z zachowaną kategorią gry: %1</source>
+            <translation>Pitanja sa zadržanom izvornom kategorijom igre: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania i gry</source>
+            <translation>Pitanja i igre</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importuj pytania</source>
+            <translation>Uvezi pitanja</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
+            <translation>Odaberite sliku diska, datoteku s pitanjima ili raspakiranu mapu igre za PS3 ili Knowledge Is Power.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wklej ścieżkę lub przeciągnij plik albo folder</source>
+            <translation>Zalijepite putanju ili dovucite datoteku ili mapu ovamo</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Źródło pytań</source>
+            <translation>Izvor pitanja</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz plik…</source>
+            <translation>Odaberi datoteku…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz folder…</source>
+            <translation>Odaberi mapu…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
+            <translation>Za raspakiranu igru za PS2 ili PSP odaberite ROUND.PAK ili MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodaj do bieżącego projektu</source>
+            <translation>Dodaj u trenutačni projekt</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Otwórz jako nowy projekt</source>
+            <translation>Otvori kao novi projekt</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Miejsce importu</source>
+            <translation>Uvezi u</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wstecz</source>
+            <translation>Natrag</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Krok %1 z 3</source>
+            <translation>Korak %1 od 3</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Sprawdzanie źródła…</source>
+            <translation>Provjera izvora…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Ustawienia importu</source>
+            <translation>Postavke uvoza</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importowanie pytań…</source>
+            <translation>Uvoz pitanja…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Import zakończony</source>
+            <translation>Uvoz je dovršen</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Przejdź do edytora</source>
+            <translation>Idi u uređivač</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dalej</source>
+            <translation>Dalje</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz istniejący plik lub folder z obsługiwaną grą.</source>
+            <translation>Odaberite postojeću datoteku s pitanjima ili mapu podržane igre.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekt zachowa wszystkie wersje językowe.</source>
+            <translation>Projekt zadržava sve jezične verzije.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodane pytania: %1</source>
+            <translation>Dodana pitanja: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zaktualizowane pytania: %1</source>
+            <translation>Ažurirana pitanja: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Istniejące pytania zachowane bez zmian: %1</source>
+            <translation>Postojeća pitanja zadržana bez promjena: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania w bieżącej wersji wymagające mediów: %1</source>
+            <translation>Pitanja kojima nedostaju mediji na trenutačnom jeziku: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekty Question Studio</source>
+            <translation>Projekti Question Studio</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Aby zobaczyć tę wersję pytań, ustaw język pytań w projekcie na %1.</source>
+            <translation>Za prikaz ove verzije pitanja postavite jezik pitanja projekta na %1.</translation>
+        </message>
+        <message>
+            <source>Pytania z klipem muzycznym do odzyskania: %1</source>
+            <translation>Pitanja s glazbenim isječkom za oporavak: %1</translation>
+        </message>
+        <message>
+            <source>Pytania z brakującym klipem muzycznym: %1</source>
+            <translation>Pitanja kojima nedostaje glazbeni isječak: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaPreviewDialog</name>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Reproduciraj</translation>
+        </message>
+        <message>
+            <source>Pozycja odtwarzania</source>
+            <translation>Položaj reprodukcije</translation>
+        </message>
+        <message>
+            <source>Zamknij</source>
+            <translation>Zatvori</translation>
+        </message>
+        <message>
+            <source>Pauza</source>
+            <translation>Pauza</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie podglądu…</source>
+            <translation>Priprema pregleda…</translation>
+        </message>
+        <message>
+            <source>Nie udało się odtworzyć tego pliku.</source>
+            <translation>Datoteku nije moguće reproducirati.</translation>
         </message>
     </context>
 </TS>

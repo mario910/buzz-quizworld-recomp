@@ -16,6 +16,11 @@
 #include <QTranslator>
 #include <cstdio>
 
+static QString uiLanguageOverride(const QStringList &args) {
+    const int index = args.indexOf("--ui-language");
+    return index < 0 ? QString() : args.value(index + 1);
+}
+
 int main(int argc, char **argv) {
     for (int i = 1; i < argc; ++i) {
         const QByteArray mode(argv[i]);
@@ -30,6 +35,7 @@ int main(int argc, char **argv) {
             app.setOrganizationName("BuzzRecomp");
             app.setApplicationName("QuestionStudio");
             const auto args = app.arguments();
+            Localization localization(nullptr, uiLanguageOverride(args));
             auto option = [&](const QString &key, const QString &fallback = QString()) {
                 const int at = args.indexOf(key);
                 return at >= 0 && at + 1 < args.size() ? args[at + 1] : fallback;
@@ -75,6 +81,7 @@ int main(int argc, char **argv) {
             app.setOrganizationName("BuzzRecomp");
             app.setApplicationName("QuestionStudio");
             const auto arguments = app.arguments();
+            Localization localization(nullptr, uiLanguageOverride(arguments));
             const int selected = arguments.indexOf("--language");
             const auto language =
                 selected >= 0 && selected + 1 < arguments.size() ? arguments[selected + 1] : QString();
@@ -102,9 +109,7 @@ int main(int argc, char **argv) {
     const int gameDirectory = args.indexOf("--game-dir");
     if (gameDirectory >= 0 && gameDirectory + 1 < args.size())
         studio::setGameDirectory(args[gameDirectory + 1]);
-    const int uiLanguage = args.indexOf("--ui-language");
-    Localization localization(nullptr, uiLanguage >= 0 && uiLanguage + 1 < args.size() ? args[uiLanguage + 1]
-                                                                                       : QString());
+    Localization localization(nullptr, uiLanguageOverride(args));
 #ifdef Q_OS_WIN
     QFont interfaceFont(QStringLiteral("Segoe UI"));
 #else
@@ -126,7 +131,7 @@ int main(int argc, char **argv) {
         if (previous)
             previous(type, context, message);
     });
-    StudioController studio;
+    StudioController studio(nullptr, localization.language());
     if (args.contains("--demo") || args.contains("--smoke"))
         studio.newProject(true);
     const int open = args.indexOf("--open");

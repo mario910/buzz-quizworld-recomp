@@ -6,9 +6,11 @@
 #include "ps3_source.h"
 #include "project_media.h"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -18,6 +20,7 @@
 #include <QUuid>
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 
 namespace studio {
 QString categoryName(int id) {
@@ -76,6 +79,132 @@ Question newQuestion() {
     q.source = QStringLiteral("Własne");
     return q;
 }
+bool adaptImportedAnswers(Question &question, const QList<int> &correctAnswers) {
+    const auto &answers = question.answers;
+    if (answers.size() < 2 || answers.size() > 4 || correctAnswers.isEmpty())
+        return false;
+    if (std::any_of(correctAnswers.begin(), correctAnswers.end(), [&](int i) { return i < 0 || i >= answers.size(); }))
+        return false;
+    if (answers.size() == 4 && correctAnswers.size() == 1) {
+        question.correct = correctAnswers.first();
+        return true;
+    }
+    struct Labels {
+        QString both, neither, completeSet;
+    };
+    // These strings become part of the imported quiz, in its content language.
+    static const QMap<QString, Labels> labels = {
+        {"pl", {"Obie odpowiedzi", "Żadna z powyższych", "Wybierz pełny zestaw poprawnych odpowiedzi."}},
+        {"en", {"Both answers", "None of the above", "Choose the complete set of correct answers."}},
+        {"cs", {"Obě odpovědi", "Žádná z uvedených", "Vyberte úplný soubor správných odpovědí."}},
+        {"da", {"Begge svar", "Ingen af ovenstående", "Vælg sættet med alle de rigtige svar."}},
+        {"de", {"Beide Antworten", "Keine der genannten Antworten", "Wähle die Kombination mit allen richtigen Antworten."}},
+        {"el", {"Και οι δύο απαντήσεις", "Καμία από τις παραπάνω", "Επίλεξε το σύνολο με όλες τις σωστές απαντήσεις."}},
+        {"es", {"Ambas respuestas", "Ninguna de las anteriores", "Elige la opción que incluye todas las respuestas correctas."}},
+        {"fi", {"Molemmat vastaukset", "Ei mikään edellisistä", "Valitse vaihtoehto, jossa ovat kaikki oikeat vastaukset."}},
+        {"fr", {"Les deux réponses", "Aucune des réponses", "Choisissez l’ensemble qui contient toutes les bonnes réponses."}},
+        {"hr", {"Oba odgovora", "Ništa od navedenog", "Odaberite skup koji sadrži sve točne odgovore."}},
+        {"it", {"Entrambe le risposte", "Nessuna delle precedenti", "Scegli l’opzione che contiene tutte le risposte corrette."}},
+        {"nl", {"Beide antwoorden", "Geen van de bovenstaande", "Kies de optie met alle juiste antwoorden."}},
+        {"no", {"Begge svarene", "Ingen av alternativene", "Velg alternativet med alle de riktige svarene."}},
+        {"pt", {"Ambas as respostas", "Nenhuma das anteriores", "Escolhe a opção com todas as respostas certas."}},
+        {"ru", {"Оба ответа", "Ни один из вариантов", "Выберите вариант со всеми правильными ответами."}},
+        {"sv", {"Båda svaren", "Inget av alternativen", "Välj alternativet med alla rätta svar."}},
+    };
+    const auto label = labels.constFind(question.language.section('-', 0, 0));
+    if (label == labels.cend())
+        return false;
+    QSet<QString> unique;
+    for (const auto &answer : answers) {
+        const auto key = answer.simplified().toCaseFolded();
+        if (key.isEmpty() || unique.contains(key))
+            return false;
+        unique.insert(key);
+    }
+    if (correctAnswers.size() == 1) {
+        if (unique.contains(label->neither.toCaseFolded()) ||
+            (answers.size() == 2 && unique.contains(label->both.toCaseFolded())))
+            return false;
+        if (answers.size() == 2)
+            question.answers << label->both;
+        question.answers << label->neither;
+        question.correct = correctAnswers.first();
+        return true;
+    }
+    int correctMask = 0;
+    for (const int index : correctAnswers)
+        correctMask |= 1 << index;
+    const auto combination = [&](int mask) {
+        QStringList parts;
+        for (int i = 0; i < answers.size(); ++i)
+            if (mask & (1 << i))
+                parts << answers[i];
+        return parts.isEmpty() ? label->neither : parts.join(QStringLiteral(" + "));
+    };
+    QStringList choices{combination(correctMask)};
+    for (int mask = (1 << answers.size()) - 1; mask >= 0 && choices.size() < 4; --mask) {
+        auto choice = combination(mask);
+        if (!choices.contains(choice, Qt::CaseInsensitive))
+            choices << std::move(choice);
+    }
+    if (choices.size() != 4)
+        return false;
+    question.text += '\n' + label->completeSet;
+    question.answers = std::move(choices);
+    question.correct = 0;
+    return true;
+}
+QString adaptedAnswersWarning(int count) {
+    return QCoreApplication::translate("Document", "Pytania przekształcone na jednokrotny wybór: %1.").arg(count);
+}
+QString unsupportedAnswersWarning(int count) {
+    return QCoreApplication::translate("Document", "Pytania pominięte z powodu formatu odpowiedzi: %1.").arg(count);
+}
+QJsonArray Question::sourceMedia() const {
+    return (translations.isEmpty() ? extra.value("source_media")
+                                   : translations.value(language).toObject().value("source_media")).toArray();
+}
+namespace {
+bool isMusicReference(const QJsonValue &type) { return type == 1 || type == "ps2-audio" || type == "psp-audio"; }
+}
+QJsonObject Question::sourceMusic() const {
+    for (const auto &entry : sourceMedia()) {
+        const auto ref = entry.toObject();
+        if (isMusicReference(ref["type"]))
+            return ref;
+    }
+    return {};
+}
+bool Question::usesMusic() const { return !music.isEmpty() || !sourceMusic().isEmpty(); }
+QuestionContentType Question::contentType() const {
+    if (!video.isEmpty())
+        return QuestionContentType::Video;
+    if (!image.isEmpty())
+        return QuestionContentType::Picture;
+    auto kind = QuestionContentType::Text;
+    for (const auto &entry : sourceMedia()) {
+        const auto type = entry.toObject().value("type");
+        if (type == 2 || type == "ps2-video" || type == "psp-video")
+            return QuestionContentType::Video;
+        if (type == 3 || type == "ps2-picture" || type == "psp-picture")
+            kind = QuestionContentType::Picture;
+    }
+    return kind;
+}
+bool Question::hasUnresolvedMusic() const {
+    return music.isEmpty() ? !sourceMusic().isEmpty() : !QFileInfo(music).isFile();
+}
+bool Question::hasUnresolvedVisualMedia() const {
+    if (!image.isEmpty() || !video.isEmpty())
+        return false;
+    const auto refs = sourceMedia();
+    return std::any_of(refs.cbegin(), refs.cend(), [](const auto &entry) {
+        return !isMusicReference(entry.toObject()["type"]);
+    });
+}
+bool Question::hasUnresolvedSourceMedia() const {
+    return hasUnresolvedMusic() || hasUnresolvedVisualMedia();
+}
 QStringList Question::problems() const {
     QStringList out;
     if (text.trimmed().isEmpty())
@@ -100,10 +229,9 @@ QStringList Question::problems() const {
         out << QCoreApplication::translate("Document", "Nie znaleziono nagrania.");
     if (!video.isEmpty() && !QFileInfo::exists(video))
         out << QCoreApplication::translate("Document", "Nie znaleziono filmu.");
-    // Imported references need a resolved picture or video attachment.
-    const auto media = translations.isEmpty() ? extra["source_media"]
-                                              : translations[language].toObject()["source_media"];
-    if (image.isEmpty() && video.isEmpty() && !media.toArray().isEmpty())
+    if (hasUnresolvedMusic())
+        out << QCoreApplication::translate("Document", "Brakuje klipu muzycznego do pytania.");
+    if (hasUnresolvedVisualMedia())
         out << QCoreApplication::translate("Document",
                                            "Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.");
     return out;
@@ -121,6 +249,10 @@ QJsonObject Question::localized(const QString &baseDir) const {
         o.remove("video"); // Older projects stay byte-identical.
     else
         o["video"] = persistedPath(video, baseDir);
+    if (music.isEmpty())
+        o.remove("music");
+    else
+        o["music"] = persistedPath(music, baseDir);
     o["tts_text"] = ttsText;
     return o;
 }
@@ -130,6 +262,25 @@ QStringList Question::languages() const {
         codes << language;
     codes.sort();
     return codes;
+}
+QStringList Question::sourceCategoryPath() const {
+    if (source.isEmpty() || source == "Własne" || source == "JSON")
+        return {};
+    QStringList path;
+    auto original = extra["source_category_labels"].toObject().value(language);
+    if (!original.isArray())
+        original = extra["source_category_path"];
+    if (original.isArray()) {
+        for (const auto &part : original.toArray())
+            if (const auto name = part.toString().trimmed(); !name.isEmpty())
+                path << name;
+    } else if (!category.isEmpty() && category != "Bez kategorii") {
+        path << category;
+    }
+    // An imported question can be assigned even if its game supplied no section.
+    if (path.isEmpty())
+        path << QString();
+    return path;
 }
 void Question::switchLanguage(const QString &code) {
     if (language == code)
@@ -150,6 +301,7 @@ void Question::loadLocalized(const QJsonObject &next) {
     image = next["image"].toString();
     speech = next["speech"].toString();
     video = next["video"].toString();
+    music = next["music"].toString();
     ttsText = next["tts_text"].toString();
 }
 QJsonObject Question::json(const QString &baseDir) const {
@@ -166,6 +318,8 @@ QJsonObject Question::json(const QString &baseDir) const {
         v["speech"] = persistedPath(v["speech"].toString(), baseDir);
         if (v.contains("video"))
             v["video"] = persistedPath(v["video"].toString(), baseDir);
+        if (v.contains("music"))
+            v["music"] = persistedPath(v["music"].toString(), baseDir);
         it.value() = v;
     }
     variants[language] = active;
@@ -241,10 +395,14 @@ QMap<int, int> mergeCustomCategories(Document &into, const QVector<CustomCategor
                 continue;
             c.parent = c.parent ? remap.value(c.parent) : 0;
             const auto same = std::find_if(into.categories.begin(), into.categories.end(), [&](const auto &e) {
-                return e.parent == c.parent && e.names == c.names;
+                return e.parent == c.parent &&
+                       (c.sourceKey.isEmpty() ? e.sourceKey.isEmpty() && e.names == c.names : e.sourceKey == c.sourceKey);
             });
             if (same != into.categories.end()) {
                 remap[c.id] = same->id;
+                for (auto it = c.names.constBegin(); it != c.names.constEnd(); ++it)
+                    if (!same->names.contains(it.key()))
+                        same->names[it.key()] = it.value();
                 continue;
             }
             if (into.categories.size() >= 99)
@@ -258,6 +416,134 @@ QMap<int, int> mergeCustomCategories(Document &into, const QVector<CustomCategor
         }
     return remap;
 }
+
+int retainGameCategories(Document &document, qsizetype firstQuestion, const QString &sourceLanguage,
+                         QStringList &warnings) {
+    QHash<QString, int> bySource;
+    for (const auto &category : std::as_const(document.categories))
+        if (!category.sourceKey.isEmpty())
+            bySource.insert(category.sourceKey, category.id);
+    int nextId = nextCustomCategoryId(document);
+    int kept = 0, unmapped = 0;
+    const auto key = [](const QString &game, const QStringList &path) {
+        auto array = QJsonArray::fromStringList(path);
+        array.prepend(game);
+        return QString::fromLatin1(QCryptographicHash::hash(
+            QJsonDocument(array).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex());
+    };
+    const auto validName = [](const QString &originalName) {
+        // Game packs use BMP text and the Studio category editor caps names at 40 characters.
+        QString name;
+        for (const QChar character : originalName.simplified()) {
+            if (!character.isSurrogate() && character.unicode() != 0xfefe && character.unicode() != 0xfe00)
+                name += character;
+            if (name.size() == customCategoryNameLimit)
+                break;
+        }
+        return name;
+    };
+    auto addCategory = [&](const QString &sourceKey, const QString &name, const QJsonObject &labels, int parent,
+                           bool create) {
+        if (const int id = bySource.value(sourceKey)) {
+            auto &category = *std::find_if(document.categories.begin(), document.categories.end(),
+                                           [id](const CustomCategory &c) { return c.id == id; });
+            for (auto it = labels.constBegin(); it != labels.constEnd(); ++it) {
+                const bool oldSourceLabel = category.sourceName == name && category.names.value(it.key()) == name;
+                if (!category.names.contains(it.key()) || oldSourceLabel)
+                    category.names[it.key()] = it.value();
+            }
+            if (category.sourceName == name && labels.contains(sourceLanguage))
+                category.sourceName = labels.value(sourceLanguage).toString();
+            return id;
+        }
+        if (!create)
+            return 0;
+        const int id = nextId++;
+        document.categories << CustomCategory{id, parent, labels, sourceKey, labels.value(sourceLanguage).toString(name)};
+        bySource.insert(sourceKey, id);
+        return id;
+    };
+    for (qsizetype i = 0; i < document.questions.size(); ++i) {
+        auto &question = document.questions[i];
+        const bool refreshOnly = i < firstQuestion || question.extra["category_override"].toBool();
+        const auto localized = question.extra["source_category_labels"].toObject();
+        if (refreshOnly && localized.isEmpty())
+            continue;
+        if (question.extra["source_uses_quiz_world_categories"].toBool() && question.subjectId > 0 &&
+            question.subjectId <= 999 && question.categoryId > 0 && question.categoryId <= 999 &&
+            question.categoryId != question.subjectId) {
+            if (!refreshOnly)
+                ++kept;
+            continue;
+        }
+        QStringList path;
+        for (const auto &part : question.extra["source_pack_category_path"].toArray())
+            if (!part.toString().isEmpty())
+                path << part.toString();
+        if (path.isEmpty())
+            path = question.sourceCategoryPath();
+        if (path.isEmpty())
+            continue;
+        if (!refreshOnly) {
+            question.subjectId = question.categoryId = 0;
+            question.extra["category_override"] = true;
+        }
+        if (path.first().isEmpty()) {
+            if (!refreshOnly)
+                ++unmapped;
+            continue;
+        }
+        auto identity = path;
+        for (const auto *field : {"source_subject_key", "source_section_key"})
+            if (const auto value = question.extra.value(field).toString(); !value.isEmpty())
+                identity[0] = value;
+        if (path.size() > 1)
+            if (const auto value = question.extra.value("source_category_key").toString(); !value.isEmpty())
+                identity[1] = value;
+        const auto subjectKey = key(question.source, identity.first(1));
+        auto childIdentity = identity;
+        if (childIdentity.size() == 1)
+            childIdentity << QString();
+        const auto childKey = key(question.source, childIdentity);
+        const int needed = !bySource.contains(subjectKey) + !bySource.contains(childKey);
+        const auto subjectName = validName(path.first());
+        const auto childName = validName(path.size() > 1 ? path.mid(1).join(" / ") : path.first());
+        if (subjectName.isEmpty() || childName.isEmpty() ||
+            (!refreshOnly && (document.categories.size() + needed > 99 || nextId + needed > 100000))) {
+            if (!refreshOnly)
+                ++unmapped;
+            continue;
+        }
+        QJsonObject subjectLabels{{sourceLanguage, subjectName}}, childLabels{{sourceLanguage, childName}};
+        for (auto it = localized.constBegin(); it != localized.constEnd(); ++it) {
+            QStringList parts;
+            const auto names = it.value().toArray();
+            for (qsizetype n = 0; n < path.size() && n < names.size(); ++n)
+                parts << names[n].toString();
+            if (parts.size() != path.size())
+                continue;
+            const auto subject = validName(parts.first());
+            const auto child = validName(parts.size() > 1 ? parts.mid(1).join(" / ") : parts.first());
+            if (!subject.isEmpty() && !child.isEmpty()) {
+                subjectLabels[it.key()] = subject;
+                childLabels[it.key()] = child;
+            }
+        }
+        const int subject = addCategory(subjectKey, subjectName, subjectLabels, 0, !refreshOnly);
+        const int child = addCategory(childKey, childName, childLabels, subject, !refreshOnly);
+        if (refreshOnly)
+            continue;
+        question.subjectId = subject;
+        question.categoryId = child;
+        ++kept;
+    }
+    document.refreshCategoryNames();
+    if (unmapped)
+        warnings << QCoreApplication::translate("Document",
+            "Pytania bez przypisanej kategorii gry: %1. Brakuje nazwy źródłowej lub miejsca na kolejne kategorie.").arg(unmapped);
+    return kept;
+}
+
 static QVector<CustomCategory> readCustomCategories(const QJsonValue &value) {
     auto invalid = [] {
         throw std::runtime_error(
@@ -269,11 +555,18 @@ static QVector<CustomCategory> readCustomCategories(const QJsonValue &value) {
         invalid();
     QVector<CustomCategory> out;
     QSet<int> subjects, ids;
+    QSet<QString> sourceKeys;
     for (const auto &v : value.toArray()) {
         const auto o = v.toObject();
-        CustomCategory c{o["id"].toInt(), o["parent"].toInt(), o["names"].toObject()};
+        CustomCategory c{o["id"].toInt(), o["parent"].toInt(), o["names"].toObject(),
+                         o["source_key"].toString(), o["source_name"].toString()};
         if (!isCustomCategory(c.id) || c.id > 99999 || ids.contains(c.id))
             invalid();
+        if (c.sourceName.size() > customCategoryNameLimit ||
+            (!c.sourceKey.isEmpty() && (c.sourceKey.size() != 64 || sourceKeys.contains(c.sourceKey))))
+            invalid();
+        if (!c.sourceKey.isEmpty())
+            sourceKeys.insert(c.sourceKey);
         for (auto it = c.names.constBegin(); it != c.names.constEnd(); ++it)
             if (!it.value().isString() || it.value().toString().size() > customCategoryNameLimit)
                 invalid();
@@ -311,6 +604,8 @@ static QJsonObject readLocalized(QJsonObject o, const QString &baseDir) {
     o["speech"] = localPath(o["speech"].toString(), baseDir);
     if (o.contains("video"))
         o["video"] = localPath(o["video"].toString(), baseDir);
+    if (o.contains("music"))
+        o["music"] = localPath(o["music"].toString(), baseDir);
     return o;
 }
 static QString idString(const QJsonValue &v) {
@@ -413,6 +708,7 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
                         .toStdString());
             const auto o = list[i].toObject();
             if (!root.contains("format") && o["langs"].isObject()) {
+                out.gameImport = true;
                 const auto variants = o["langs"].toObject();
                 bool present = false;
                 for (auto it = variants.constBegin(); it != variants.constEnd(); ++it)
@@ -513,6 +809,7 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
             q.image = t["image"].toString();
             q.speech = t["speech"].toString();
             q.video = t["video"].toString();
+            q.music = t["music"].toString();
             if (root["version"].toInt(1) <= 1 && q.extra["source_media"].isArray() &&
                 !q.translations[q.language].toObject().contains("source_media")) {
                 auto localized = q.translations[q.language].toObject();
@@ -556,16 +853,20 @@ LoadResult parseJson(const QByteArray &bytes, const QString &baseDir, const QStr
     return out;
 }
 LoadResult loadDocument(const QString &path, const QString &language) {
+    const auto gameImport = [](LoadResult result) {
+        result.gameImport = true;
+        return result;
+    };
     if (isProjectArchive(path))
         return openProjectArchive(path);
     if (ps3::isPs3Source(path))
-        return ps3::importPs3(path, language);
+        return gameImport(ps3::importPs3(path, language));
     if (isKipSource(path))
-        return importKip(path, language);
+        return gameImport(importKip(path, language));
     if (isLegacySource(path))
-        return importLegacy(path, language);
+        return gameImport(importLegacy(path, language));
     if (path.endsWith(".pak", Qt::CaseInsensitive) || path.endsWith(".edat", Qt::CaseInsensitive))
-        return importBuzz(path, language);
+        return gameImport(importBuzz(path, language));
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) {
         LoadResult r;
@@ -598,8 +899,14 @@ QByteArray serialize(const Document &doc, const QString &baseDir, bool legacy) {
             pack["descriptions"] = descriptions;
         if (!doc.categories.isEmpty()) {
             QJsonArray categories;
-            for (const auto &c : doc.categories)
-                categories << QJsonObject{{"id", c.id}, {"parent", c.parent}, {"names", c.names}};
+            for (const auto &c : doc.categories) {
+                QJsonObject category{{"id", c.id}, {"parent", c.parent}, {"names", c.names}};
+                if (!c.sourceKey.isEmpty())
+                    category["source_key"] = c.sourceKey;
+                if (!c.sourceName.isEmpty())
+                    category["source_name"] = c.sourceName;
+                categories << category;
+            }
             pack["categories"] = categories;
         }
     }
@@ -610,6 +917,10 @@ QByteArray serialize(const Document &doc, const QString &baseDir, bool legacy) {
     for (const auto &q : doc.questions) {
         auto o = q.json(baseDir);
         if (legacy) {
+            if (!q.music.isEmpty() || !q.sourceMusic().isEmpty())
+                throw std::runtime_error(
+                    QCoreApplication::translate("Document", "Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.")
+                        .toStdString());
             const auto media =
                 q.translations.isEmpty() ? q.extra["source_media"] : q.localized()["source_media"];
             if (!media.toArray().isEmpty() && q.image.isEmpty())
@@ -669,12 +980,14 @@ bool saveDocument(const Document &doc, const QString &path, QString *error, bool
         return false;
     }
 }
-Document exampleDocument() {
+Document exampleDocument(const QString &language) {
     Document d;
+    d.language = language;
     d.title = "Wieczór z przyjaciółmi";
     d.description = "Przykładowy projekt — pytania własne";
     auto add = [&](QString text, QStringList answers, int subject, int category, int level) {
         auto q = newQuestion();
+        q.language = language;
         q.text = text;
         q.answers = answers;
         q.subjectId = subject;
@@ -683,6 +996,66 @@ Document exampleDocument() {
         q.difficulty = level;
         d.questions << q;
     };
+    if (language != "pl") {
+        // The examples use numerical choices so the same answer order works in every language.
+        static const QHash<QString, QStringList> examples{
+            {"en", {"Quiz night", "Sample questions", "How many planets orbit the Sun?",
+                    "How many white keys does a standard piano have?", "How many sides does a hexagon have?",
+                    "How many acts are in Shakespeare's Hamlet?", "How many players per team are on court in indoor volleyball?"}},
+            {"de", {"Quizabend", "Beispielfragen", "Wie viele Planeten umkreisen die Sonne?",
+                    "Wie viele weiße Tasten hat ein Standardklavier?", "Wie viele Seiten hat ein Sechseck?",
+                    "Wie viele Akte hat Shakespeares Hamlet?", "Wie viele Spieler pro Mannschaft stehen beim Hallenvolleyball auf dem Feld?"}},
+            {"fr", {"Soirée quiz", "Questions d’exemple", "Combien de planètes tournent autour du Soleil ?",
+                    "Combien de touches blanches compte un piano standard ?", "Combien de côtés a un hexagone ?",
+                    "Combien d’actes compte Hamlet de Shakespeare ?", "Combien de joueurs par équipe sont sur le terrain en volley-ball en salle ?"}},
+            {"it", {"Serata quiz", "Domande di esempio", "Quanti pianeti orbitano intorno al Sole?",
+                    "Quanti tasti bianchi ha un pianoforte standard?", "Quanti lati ha un esagono?",
+                    "Quanti atti ha l’Amleto di Shakespeare?", "Quanti giocatori per squadra sono in campo nella pallavolo indoor?"}},
+            {"es", {"Noche de quiz", "Preguntas de ejemplo", "¿Cuántos planetas orbitan alrededor del Sol?",
+                    "¿Cuántas teclas blancas tiene un piano estándar?", "¿Cuántos lados tiene un hexágono?",
+                    "¿Cuántos actos tiene Hamlet de Shakespeare?", "¿Cuántos jugadores por equipo hay en pista en el voleibol de sala?"}},
+            {"nl", {"Quizavond", "Voorbeeldvragen", "Hoeveel planeten draaien om de zon?",
+                    "Hoeveel witte toetsen heeft een standaardpiano?", "Hoeveel zijden heeft een zeshoek?",
+                    "Hoeveel bedrijven heeft Hamlet van Shakespeare?", "Hoeveel spelers per team staan bij zaalvolleybal op het veld?"}},
+            {"pt", {"Noite de quiz", "Perguntas de exemplo", "Quantos planetas orbitam o Sol?",
+                    "Quantas teclas brancas tem um piano normal?", "Quantos lados tem um hexágono?",
+                    "Quantos atos tem Hamlet, de Shakespeare?", "Quantos jogadores por equipa estão em campo no voleibol de pavilhão?"}},
+            {"sv", {"Quizkväll", "Exempelfrågor", "Hur många planeter kretsar kring solen?",
+                    "Hur många vita tangenter har ett standardpiano?", "Hur många sidor har en sexhörning?",
+                    "Hur många akter har Shakespeares Hamlet?", "Hur många spelare per lag är på planen i inomhusvolleyboll?"}},
+            {"da", {"Quizaften", "Eksempelspørgsmål", "Hvor mange planeter kredser om Solen?",
+                    "Hvor mange hvide tangenter har et almindeligt klaver?", "Hvor mange sider har en sekskant?",
+                    "Hvor mange akter har Shakespeares Hamlet?", "Hvor mange spillere pr. hold er på banen i indendørs volleyball?"}},
+            {"no", {"Quizkveld", "Eksempelspørsmål", "Hvor mange planeter går i bane rundt sola?",
+                    "Hvor mange hvite tangenter har et vanlig piano?", "Hvor mange sider har en sekskant?",
+                    "Hvor mange akter har Shakespeares Hamlet?", "Hvor mange spillere per lag er på banen i innendørsvolleyball?"}},
+            {"fi", {"Tietovisailta", "Esimerkkikysymyksiä", "Kuinka monta planeettaa kiertää Aurinkoa?",
+                    "Kuinka monta valkoista kosketinta tavallisessa pianossa on?", "Kuinka monta sivua kuusikulmiossa on?",
+                    "Kuinka monta näytöstä Shakespearen Hamletissa on?", "Kuinka monta pelaajaa joukkueesta on kentällä sisälentopallossa?"}},
+            {"ru", {"Вечер викторин", "Примеры вопросов", "Сколько планет обращается вокруг Солнца?",
+                    "Сколько белых клавиш у стандартного фортепиано?", "Сколько сторон у шестиугольника?",
+                    "Сколько действий в «Гамлете» Шекспира?", "Сколько игроков от каждой команды находится на площадке в классическом волейболе?"}},
+            {"cs", {"Kvízový večer", "Ukázkové otázky", "Kolik planet obíhá kolem Slunce?",
+                    "Kolik bílých kláves má standardní klavír?", "Kolik stran má šestiúhelník?",
+                    "Kolik dějství má Shakespearův Hamlet?", "Kolik hráčů každého týmu je na hřišti při halovém volejbalu?"}},
+            {"el", {"Βραδιά κουίζ", "Ενδεικτικές ερωτήσεις", "Πόσοι πλανήτες περιφέρονται γύρω από τον Ήλιο;",
+                    "Πόσα λευκά πλήκτρα έχει ένα τυπικό πιάνο;", "Πόσες πλευρές έχει ένα εξάγωνο;",
+                    "Πόσες πράξεις έχει ο Άμλετ του Σαίξπηρ;", "Πόσοι παίκτες κάθε ομάδας βρίσκονται στο γήπεδο στο βόλεϊ σάλας;"}},
+            {"hr", {"Kviz večer", "Primjeri pitanja", "Koliko planeta kruži oko Sunca?",
+                    "Koliko bijelih tipki ima standardni klavir?", "Koliko stranica ima šesterokut?",
+                    "Koliko činova ima Shakespeareov Hamlet?", "Koliko je igrača svake ekipe na terenu u dvoranskoj odbojci?"}}};
+        const auto sample = examples.value(language, examples.value("en"));
+        d.title = sample[0];
+        d.description = sample[1];
+        add(sample[2], {"8", "7", "9", "10"}, 235, 237, 1);
+        add(sample[3], {"52", "36", "44", "60"}, 175, 224, 1);
+        add(sample[4], {"6", "5", "7", "8"}, 235, 237, 1);
+        add(sample[5], {"5", "3", "4", "6"}, 177, 179, 2);
+        add(sample[6], {"6", "5", "7", "8"}, 174, 247, 1);
+        for (auto &q : d.questions)
+            q.category = QCoreApplication::translate("Main", q.category.toUtf8().constData());
+        return d;
+    }
     add("Która planeta Układu Słonecznego jest największa?", {"Jowisz", "Saturn", "Ziemia", "Neptun"}, 235,
         237, 1);
     add("Który instrument ma zwykle 88 klawiszy?", {"Fortepian", "Skrzypce", "Flet", "Trąbka"}, 175, 224, 1);
