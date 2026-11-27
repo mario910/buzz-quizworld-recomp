@@ -100,13 +100,28 @@ Press **Esc** or **Start / Options** to pause the game and open PC settings. Use
 
 ## Question Studio
 
-Create your own question packs for **Pack Game** with Buzz! Question Studio, a separate Windows and Linux editor. Write questions, preview answers, add pictures and audio, or import questions from supported Buzz! and Knowledge Is Power sources. You can build and install the pack into your prepared game from the editor.
+Create your own question packs for **Pack Game** with Buzz! Question Studio, the editor bundled with BuzzSetup on Windows and Linux. Open it with **Question Studio** in BuzzSetup. You can write questions from scratch, import them from your own game files, and build and install a pack from the editor.
+
+### Import questions from a game
+
+1. Select **Import** and choose a disc image, an extracted question pack, or a supported PKG. The wizard shows the question languages it finds in that source.
+2. Choose a language and review the import. Studio keeps the original categories where available. You can also assign a category to a whole section at once.
+3. Use **Recover game media** to attach supported clips in bulk. Use **Play** on an individual question to check its video, music or narration. Studio can recover the selected clip on demand. **Build Pack** shows which questions are ready and lets you leave out entries that still need attention.
+
+### Game editions tested for question import
+
+| Platform | Tested sources |
+| --- | --- |
+| PS2 | *The Music Quiz* (UK and Europe), *The Big Quiz* (Europe and Australia v2.00), *The Mega Quiz* (Europe, Poland and USA), *Hollywood Quiz* (Poland and Finland), *The Pop Quiz*, *The Schools Quiz* and *The Sports Quiz*. |
+| PSP | *Master Quiz* (Europe and USA), *Brain of the UK*, *Brain of the World*, *Danske Genier / Norgesmester*, *Quiz World* (European UMD and European and US PSN editions), and *The Ultimate Music Quiz* (Europe and Australia). |
+| PS3 | *Buzz! Quiz TV* (Polish Special Edition, BCES00305) and *Buzz! Quiz World* (base question packs). |
+| PS4 | *Knowledge Is Power / Wiedza to Potęga* (CUSA09557), imported directly from a supported PKG. |
+
+Media and languages vary by edition. *Brain Bender* on PSP was also checked and contains puzzle minigames without a quiz question bank. For supported files, DLC licenses, FFmpeg setup and media limitations, see the [Question Studio guide](docs/question-studio.md).
 
 ![Question Studio showing an illustrated multiple-choice question imported from the PS2 release of Buzz! The Mega Quiz](docs/screenshots/question-studio-preview.png)
 
 *An imported Mega Quiz question in the player preview, with its picture and all four answers.*
-
-Question Studio is available in current source builds. If your BuzzSetup package includes it, open it with the **Question Studio** button. [Question Studio guide and build instructions](docs/question-studio.md).
 
 ## Updates, saves and help
 
