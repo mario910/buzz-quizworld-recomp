@@ -1,13 +1,18 @@
 #include "main_window.h"
 #include "controller.h"
+#include "import_wizard.h"
 #include "localization.h"
+#include "media_preview.h"
+#include "media_tools.h"
 #include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -15,8 +20,10 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QFrame>
+#include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QImageReader>
 #include <QInputDialog>
 #include <QLabel>
@@ -29,9 +36,11 @@
 #include <QPainterPath>
 #include <QPlainTextEdit>
 #include <QProgressBar>
+#include <QProcess>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
+#include <QSettings>
 #include <QShortcut>
 #include <QSlider>
 #include <QSpinBox>
@@ -43,11 +52,19 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <iterator>
+#include <utility>
 
 namespace {
 // Translation contexts "Main" and "PackDialogs" group the interface strings in studio_en.ts.
 QString T(const char *text) { return QCoreApplication::translate("Main", text); }
 QString P(const char *text) { return QCoreApplication::translate("PackDialogs", text); }
+
+void copyFfmpegInstallCommand(QWidget *parent, const QString &command) {
+    QApplication::clipboard()->setText(command);
+    QMessageBox::information(parent, P("Silnik mediów (FFmpeg)"),
+                             T("Uruchom skopiowane polecenie w terminalu, a potem wróć do Studio.\n\n%1")
+                                 .arg(command));
+}
 
 const QColor answerColors[4] = {QColor("#689EFF"), QColor("#F4AD63"), QColor("#96D471"), QColor("#E9D878")};
 
@@ -78,6 +95,35 @@ QVector<QPair<int, const char *>> subcategories(int subject) {
     }
 }
 
+void fillCategorySubjects(QComboBox *combo, const QVariantList &ownCategories) {
+    combo->clear();
+    for (const auto &subject : subjects)
+        combo->addItem(T(subject.name), subject.id);
+    bool separated = false;
+    for (const auto &value : ownCategories) {
+        const auto category = value.toMap();
+        if (category["parent"].toInt())
+            continue;
+        if (!separated)
+            combo->insertSeparator(combo->count());
+        separated = true;
+        combo->addItem(category["name"].toString(), category["id"]);
+    }
+}
+
+void fillCategoryChildren(QComboBox *combo, int subject, const QVariantList &ownCategories) {
+    combo->clear();
+    if (!subject)
+        return;
+    for (const auto &[id, name] : subcategories(subject))
+        combo->addItem(T(name), id);
+    for (const auto &value : ownCategories) {
+        const auto category = value.toMap();
+        if (category["parent"].toInt() == subject)
+            combo->addItem(category["name"].toString(), category["id"]);
+    }
+}
+
 QLabel *label(const QString &text, const char *role = nullptr, QWidget *parent = nullptr) {
     auto *l = new QLabel(text, parent);
     if (role)
@@ -105,7 +151,10 @@ void restyle(QWidget *w) {
     w->style()->unpolish(w);
     w->style()->polish(w);
 }
-QString fileName(const QString &path) { return QFileInfo(path).fileName(); }
+QString fileName(const QString &path) {
+    const auto name = QFileInfo(path).fileName();
+    return name.size() > 26 ? name.left(15) + QChar(0x2026) + name.right(10) : name;
+}
 
 // Category names fit the game's chooser: at most 40 characters.
 class LimitedTextDelegate final : public QStyledItemDelegate {
@@ -144,20 +193,24 @@ class QuestionDelegate final : public QStyledItemDelegate {
         }
         const auto category = index.data(QuestionModel::Category).toString();
         const bool valid = index.data(QuestionModel::Valid).toBool();
-        const auto kind = index.data(QuestionModel::Image).toBool()   ? T("OBRAZ")
-                          : index.data(QuestionModel::Audio).toBool() ? T("AUDIO")
-                          : !valid                                    ? T("SZKIC")
-                                                                      : T("TEKST");
+        const auto content = studio::QuestionContentType(index.data(QuestionModel::ContentType).toInt());
+        auto kind = content == studio::QuestionContentType::Video ? T("WIDEO")
+                    : content == studio::QuestionContentType::Picture ? T("OBRAZ") : T("TEKST");
+        if (index.data(QuestionModel::Music).toBool())
+            kind += " · " + T("Muzyka").toUpper();
+        if (!valid)
+            kind += " · " + T("SZKIC");
         QFont small = option.font;
         small.setPixelSize(10);
         p->setFont(small);
         p->setPen(chosen ? QColor("#C4A5FF") : QColor("#C4BFD9"));
         const QRect top(r.left() + 16, r.top() + 10, r.width() - 32, 16);
-        p->drawText(top.adjusted(0, 0, -60, 0), Qt::AlignLeft | Qt::AlignVCenter,
-                    p->fontMetrics().elidedText(category, Qt::ElideRight, top.width() - 60));
         QFont tiny = small;
         tiny.setPixelSize(8);
         tiny.setLetterSpacing(QFont::AbsoluteSpacing, 0.7);
+        const int categoryWidth = std::max(0, top.width() - QFontMetrics(tiny).horizontalAdvance(kind) - 10);
+        p->drawText(QRect(top.left(), top.top(), categoryWidth, top.height()), Qt::AlignLeft | Qt::AlignVCenter,
+                    p->fontMetrics().elidedText(category, Qt::ElideRight, categoryWidth));
         p->setFont(tiny);
         p->setPen(valid ? QColor("#C4BFD9") : QColor("#FFCF63"));
         p->drawText(top, Qt::AlignRight | Qt::AlignVCenter, kind);
@@ -201,11 +254,24 @@ class QuestionDelegate final : public QStyledItemDelegate {
         p->setFont(foot);
         p->setPen(QColor("#C4BFD9"));
         const char *levels[] = {"", "Łatwe", "Średnie", "Trudne"};
-        p->drawText(QRect(r.left() + 64, r.bottom() - 24, 100, 14), Qt::AlignLeft | Qt::AlignVCenter,
-                    level >= 1 && level <= 3 ? T(levels[level]) : QString());
+        const auto difficulty = level >= 1 && level <= 3 ? T(levels[level]) : QString();
+        const int difficultyWidth = p->fontMetrics().horizontalAdvance(difficulty);
+        p->drawText(QRect(r.left() + 64, r.bottom() - 24, difficultyWidth, 14), Qt::AlignLeft | Qt::AlignVCenter,
+                    difficulty);
+        const int left = r.left() + 64 + difficultyWidth + 10;
+        const int right = r.right() - 16;
+        const auto tagsText = index.data(QuestionModel::Audio).toBool()
+            ? p->fontMetrics().elidedText(T("Lektor"), Qt::ElideRight, std::max(0, right - left)) : QString();
+        const int tagsWidth = p->fontMetrics().horizontalAdvance(tagsText);
+        const int sourceWidth = std::max(0, right - left - (tagsWidth ? tagsWidth + 8 : 0));
         p->setPen(QColor("#8F89A8"));
-        p->drawText(QRect(r.left() + 16, r.bottom() - 24, r.width() - 32, 14), Qt::AlignRight | Qt::AlignVCenter,
-                    index.data(QuestionModel::Source).toString());
+        p->drawText(QRect(left, r.bottom() - 24, sourceWidth, 14), Qt::AlignRight | Qt::AlignVCenter,
+                    p->fontMetrics().elidedText(index.data(QuestionModel::Source).toString(), Qt::ElideRight, sourceWidth));
+        if (tagsWidth) {
+            p->setPen(QColor("#C4A5FF"));
+            p->drawText(QRect(right - tagsWidth, r.bottom() - 24, tagsWidth, 14),
+                        Qt::AlignRight | Qt::AlignVCenter, tagsText);
+        }
         p->restore();
     }
 };
@@ -309,11 +375,22 @@ const QStringList titleIds{"BCES00647", "BCES00644", "BCES00645", "BCUS98209"};
 
 MainWindow::MainWindow(StudioController &studioController, Localization &localization, QWidget *parent)
     : QMainWindow(parent), studio(studioController), i18n(localization) {
+    studio.setNewProjectLanguage(i18n.language());
     setMinimumSize(1120, 760);
     resize(1440, 940);
     buildUi();
     connect(&studio, &StudioController::contentChanged, this, &MainWindow::refreshContent);
+    connect(&studio, &StudioController::projectReplaced, this, &MainWindow::clearBuildReview);
     connect(&studio, &StudioController::selectionChanged, this, &MainWindow::refreshSelection);
+    connect(&studio, &StudioController::currentMusicRecovered, this, [this](const QString &path) {
+        playMedia(path, T("Muzyka"));
+    });
+    connect(&studio, &StudioController::currentNarrationRecovered, this, [this](const QString &path) {
+        playMedia(path, T("Lektor pytania"));
+    });
+    connect(&studio, &StudioController::currentVideoRecovered, this, [this](const QString &path) {
+        playMedia(path, T("WIDEO"), true);
+    });
     connect(&studio, &StudioController::filterChanged, this, [this] {
         if (countText)
             countText->setText(QString::number(studio.visibleCount()) + T(" pytań") +
@@ -329,12 +406,35 @@ MainWindow::MainWindow(StudioController &studioController, Localization &localiz
     connect(&studio, &StudioController::historyChanged, this, &MainWindow::refreshHistory);
     connect(&studio, &StudioController::busyChanged, this, &MainWindow::refreshBusy);
     connect(&studio, &StudioController::buildProgressChanged, this, &MainWindow::refreshBusy);
-    connect(&studio, &StudioController::clipProgress, this, &MainWindow::refreshBusy);
-    connect(&studio, &StudioController::errorOccurred, this, &MainWindow::showError);
+    connect(&studio, &StudioController::sourceMediaProgress, this, &MainWindow::refreshBusy);
+    connect(&studio, &StudioController::mediaFfmpegRequired, this, [this] {
+        if (chooseMediaFfmpeg())
+            studio.recoverSourceMedia();
+        else
+            buildAfterMediaRecovery = false;
+    });
+    connect(&studio, &StudioController::sourceMediaRecoveryFinished, this, [this](const QStringList &errors) {
+        mediaRecoveryErrors = errors;
+        const bool openBuilder = buildAfterMediaRecovery;
+        buildAfterMediaRecovery = false;
+        if (openBuilder)
+            openBuild();
+    });
+    connect(&studio, &StudioController::projectReplaced, this, [this] { mediaRecoveryErrors.clear(); });
+    connect(&studio, &StudioController::errorOccurred, this, [this](const QString &message) {
+        if (!importWizard || !importWizard->showImportError(message))
+            showError(message);
+    });
     connect(&studio, &StudioController::importLanguageRequested, this, &MainWindow::showImportLanguages);
-    connect(&studio, &StudioController::licenseRequested, this, &MainWindow::askLicense);
+    connect(&studio, &StudioController::licenseRequested, this,
+            [this](const QUrl &source, bool append, const QString &contentId, const QString &message) {
+        if (!importWizard || !importWizard->requestLicense(contentId, message))
+            askLicense(source, append, contentId, message);
+    });
     connect(&studio, &StudioController::packFinished, this, &MainWindow::showPackResult);
+    connect(&studio, &StudioController::packReviewRequired, this, &MainWindow::showPackResult);
     connect(&i18n, &Localization::languageChanged, this, [this] {
+        studio.setNewProjectLanguage(i18n.language());
         commitEdits();
         // Rebuild after the current event: the language menu item is still in use.
         QTimer::singleShot(0, this, [this] { buildUi(); });
@@ -344,7 +444,7 @@ MainWindow::MainWindow(StudioController &studioController, Localization &localiz
     };
     shortcut(QKeySequence::Save, [this] { save(); });
     shortcut(QKeySequence::SaveAs, [this] { saveAs(); });
-    shortcut(QKeySequence::Open, [this] { guard([this] { chooseOpen(false); }); });
+    shortcut(QKeySequence::Open, [this] { chooseProject(); });
     shortcut(QKeySequence::New, [this] { guard([this] { studio.newProject(); }); });
     shortcut(QKeySequence::Undo, [this] {
         commitEdits();
@@ -426,12 +526,11 @@ QWidget *MainWindow::buildHeader() {
     connect(languageButton, &QPushButton::clicked, this, &MainWindow::openProjectLanguages);
     auto *open = button(T("Otwórz"));
     open->setObjectName("openLibraryButton");
-    connect(open, &QPushButton::clicked, this, [this] { guard([this] { chooseOpen(false); }); });
+    open->setToolTip(T("Otwórz bibliotekę"));
+    connect(open, &QPushButton::clicked, this, &MainWindow::chooseProject);
     auto *import = button(T("↓  Importuj"));
-    connect(import, &QPushButton::clicked, this, [this] {
-        commitEdits();
-        chooseOpen(true);
-    });
+    import->setObjectName("openImportWizardButton");
+    connect(import, &QPushButton::clicked, this, [this] { openImportWizard(); });
     auto *saveButton = button(T("Zapisz projekt"));
     connect(saveButton, &QPushButton::clicked, this, [this] { save(); });
     buildButton = button(T("Zbuduj paczkę"), "primary");
@@ -463,7 +562,14 @@ QWidget *MainWindow::buildHeader() {
     }
     menu->addAction(T("Języki paczki…"), this, &MainWindow::openProjectLanguages);
     menu->addAction(T("Kategorie paczki…"), this, &MainWindow::openPackCategories);
-    menu->addAction(T("Zdekoduj wszystkie klipy"), this, &MainWindow::decodeAllClips);
+    auto *assignCategories = menu->addAction(T("Przypisz kategorie po imporcie…"), this,
+                                             [this] { openImportedCategories(false, this); });
+    connect(menu, &QMenu::aboutToShow, assignCategories, [this, assignCategories] {
+        assignCategories->setEnabled(!studio.busy() && studio.hasImportedSections());
+    });
+    auto *recoverMedia = menu->addAction(T("Odzyskaj media z gry"), this, &MainWindow::recoverSourceMedia);
+    menu->addAction(T("Pytania wymagające mediów"), this, [this] { showUnresolvedMedia(mediaRecoveryErrors); });
+    menu->addAction(P("Silnik mediów (FFmpeg)"), this, [this] { chooseMediaFfmpeg(); });
     menu->addSeparator();
     menu->addAction(T("Nowa paczka"), this, [this] { guard([this] { studio.newProject(); }); });
     menu->addAction(T("Zapisz jako…"), this, [this] { saveAs(); });
@@ -488,12 +594,15 @@ QWidget *MainWindow::buildHeader() {
     });
     menu->addAction(T("Zmień nazwę paczki…"), this, &MainWindow::renamePack);
     menu->addSeparator();
-    menu->addAction(T("Przykładowy projekt"), this, [this] { guard([this] { studio.newProject(true); }); });
+    menu->addAction(T("Przykładowy projekt"), this, [this] {
+        guard([this] { studio.newProject(true, studio.packLanguage()); });
+    });
     auto *recover = menu->addAction(T("Odzyskaj autozapis"), this, [this] { guard([this] { studio.recover(); }); });
     menu->addAction(T("O aplikacji"), this, &MainWindow::showAbout);
-    connect(menu, &QMenu::aboutToShow, this, [this, buildItem, recover] {
+    connect(menu, &QMenu::aboutToShow, this, [this, buildItem, recover, recoverMedia] {
         buildItem->setEnabled(studio.totalCount() > 0);
         recover->setEnabled(studio.recoveryAvailable());
+        recoverMedia->setEnabled(studio.totalCount() > 0);
     });
     connect(more, &QPushButton::clicked, this, [more, menu] { menu->popup(more->mapToGlobal(QPoint(0, more->height()))); });
     for (auto *b : {languageButton, open, import, saveButton, buildButton, more}) {
@@ -514,11 +623,13 @@ QWidget *MainWindow::buildSidebar() {
     col->addWidget(label(T("TWOJA BIBLIOTEKA"), "section"));
     col->addSpacing(10);
     const QList<QPair<const char *, QString>> library{
-        {"Wszystkie pytania", {}}, {"Z obrazkiem", "images"}, {"Z nagraniem", "audio"}, {"Szkice", "drafts"}};
+        {"Wszystkie pytania", {}}, {"Z obrazkiem", "images"}, {"Z muzyką", "music"},
+        {"Z lektorem", "audio"}, {"Szkice", "drafts"}};
     for (const auto &[title, key] : library) {
         auto *b = button({}, "filter");
         b->setCheckable(true);
         b->setProperty("kind", key);
+        b->setAccessibleName(T(title));
         auto *inner = new QHBoxLayout(b);
         inner->setContentsMargins(12, 0, 10, 0);
         auto *name = label(T(title));
@@ -645,21 +756,31 @@ QWidget *MainWindow::buildList() {
     emptyTitle->setWordWrap(true);
     emptyText = label({}, "muted");
     emptyText->setWordWrap(true);
+    auto *import = button(ImportWizard::tr("Importuj pytania"));
+    import->setObjectName("emptyImportWizardButton");
+    import->setProperty("primary", true);
+    connect(import, &QPushButton::clicked, this, [this] { openImportWizard(); });
+    busyDisabled << import;
     auto *example = button(T("Otwórz przykład"));
     example->setObjectName("exampleButton");
-    connect(example, &QPushButton::clicked, this, [this] { guard([this] { studio.newProject(true); }); });
+    connect(example, &QPushButton::clicked, this, [this] {
+        guard([this] { studio.newProject(true, studio.packLanguage()); });
+    });
     emptyCol->addWidget(emptyTitle);
     emptyCol->addWidget(emptyText);
+    emptyCol->addWidget(import, 0, Qt::AlignLeft);
     emptyCol->addWidget(example, 0, Qt::AlignLeft);
     emptyCol->addStretch();
     stack->addWidget(empty);
     col->addWidget(stack, 1);
-    connect(&studio, &StudioController::filterChanged, stack, [this, stack, example] {
+    const auto refreshEmpty = [this, stack, import, example] {
         stack->setCurrentIndex(studio.visibleCount() == 0 ? 1 : 0);
-        example->setVisible(studio.totalCount() == 0);
-    });
-    stack->setCurrentIndex(studio.visibleCount() == 0 ? 1 : 0);
-    example->setVisible(studio.totalCount() == 0);
+        const bool empty = studio.totalCount() == 0;
+        import->setVisible(empty);
+        example->setVisible(empty);
+    };
+    connect(&studio, &StudioController::filterChanged, stack, refreshEmpty);
+    refreshEmpty();
     return panel;
 }
 
@@ -700,6 +821,7 @@ QWidget *MainWindow::buildEditor() {
     tabs->addWidget(redoButton);
     col->addLayout(tabs);
     col->addWidget(divider());
+    col->addWidget(buildReviewControls());
 
     editorPages = new QStackedWidget;
     // Editor.
@@ -859,7 +981,7 @@ QWidget *MainWindow::buildEditor() {
     speechRow->addWidget(speechName, 1);
     auto *tts = button(T("Generuj głos"));
     connect(tts, &QPushButton::clicked, this, &MainWindow::openTts);
-    auto *audio = button(T("Dodaj audio"));
+    auto *audio = button(T("Dodaj nagranie"));
     connect(audio, &QPushButton::clicked, this, [this] {
         commitEdits();
         const auto file = QFileDialog::getOpenFileName(this, T("Wybierz nagranie"), {},
@@ -867,13 +989,14 @@ QWidget *MainWindow::buildEditor() {
         if (!file.isEmpty())
             studio.updateCurrent({{"speech", QUrl::fromLocalFile(file).toString()}});
     });
-    speechOpen = button(T("Otwórz"));
-    connect(speechOpen, &QPushButton::clicked, &studio, &StudioController::openAudio);
+    speechPlay = button(T("Odtwórz"));
+    speechPlay->setObjectName("previewSpeech");
+    connect(speechPlay, &QPushButton::clicked, this, [this] { previewMedia("speech", T("Lektor pytania")); });
+    busyDisabled << speechPlay;
     speechRemove = button(QStringLiteral("×"), "quiet");
     connect(speechRemove, &QPushButton::clicked, this, [this] { studio.updateCurrent({{"speech", QString()}}); });
-    for (auto *b : {tts, audio, speechOpen, speechRemove})
+    for (auto *b : {tts, audio, speechPlay, speechRemove})
         speechRow->addWidget(b);
-    form->addLayout(speechRow);
     auto *videoRow = new QHBoxLayout;
     videoName = label({}, "small");
     videoRow->addWidget(videoName, 1);
@@ -885,28 +1008,37 @@ QWidget *MainWindow::buildEditor() {
         if (!file.isEmpty())
             studio.updateCurrent({{"video", QUrl::fromLocalFile(file).toString()}});
     });
-    videoOpen = button(T("Otwórz"));
-    connect(videoOpen, &QPushButton::clicked, &studio, &StudioController::openVideo);
+    videoPlay = button(T("Odtwórz"));
+    videoPlay->setObjectName("previewVideo");
+    connect(videoPlay, &QPushButton::clicked, this, [this] { previewMedia("video", T("WIDEO"), true); });
+    busyDisabled << videoPlay;
     videoRemove = button(QStringLiteral("×"), "quiet");
     connect(videoRemove, &QPushButton::clicked, this, [this] { studio.updateCurrent({{"video", QString()}}); });
-    for (auto *b : {video, videoOpen, videoRemove})
+    for (auto *b : {video, videoPlay, videoRemove})
         videoRow->addWidget(b);
     form->addLayout(videoRow);
     decodeMediaButton = button(T("Zdekoduj media źródłowe"));
     connect(decodeMediaButton, &QPushButton::clicked, this, [this] {
         commitEdits();
-        studio.decodeSourceMedia();
+        if (!studio::configuredMediaFfmpeg().isEmpty() || chooseMediaFfmpeg())
+            studio.decodeSourceMedia();
     });
     busyDisabled << decodeMediaButton;
     form->addWidget(decodeMediaButton);
-    auto *decodeAll = button(T("Zdekoduj wszystkie klipy"));
-    decodeAll->setObjectName("decodeAllClips");
-    connect(decodeAll, &QPushButton::clicked, this, &MainWindow::decodeAllClips);
-    busyDisabled << decodeAll;
-    form->addWidget(decodeAll);
     mediaNote = label(T("Źródło zawiera media Buzza. Zachowano ich oryginalne odwołania."), "faint");
     mediaNote->setWordWrap(true);
     form->addWidget(mediaNote);
+    musicNote = label(T("Muzyka"), "small");
+    auto *musicRow = new QHBoxLayout;
+    musicRow->addWidget(musicNote, 1);
+    musicPlay = button(T("Odtwórz"));
+    musicPlay->setObjectName("previewMusic");
+    connect(musicPlay, &QPushButton::clicked, this, [this] { previewMedia("music", T("Muzyka")); });
+    busyDisabled << musicPlay;
+    musicRow->addWidget(musicPlay);
+    form->addLayout(musicRow);
+    form->addWidget(label(T("Lektor pytania"), "caption"));
+    form->addLayout(speechRow);
     issues = label({}, "issues");
     issues->setWordWrap(true);
     form->addWidget(issues);
@@ -951,9 +1083,18 @@ QWidget *MainWindow::buildEditor() {
     warningText = label({});
     warningText->setStyleSheet("color:#ffcf63;background:transparent;");
     warn->addWidget(warningText, 1);
-    auto *show = button(T("Pokaż"), "quiet");
-    connect(show, &QPushButton::clicked, this, &MainWindow::showWarnings);
-    warn->addWidget(show);
+    importWarningsButton = button(T("Pokaż"), "quiet");
+    connect(importWarningsButton, &QPushButton::clicked, this, &MainWindow::showWarnings);
+    warn->addWidget(importWarningsButton);
+    recoverMediaButton = button(T("Odzyskaj media z gry"));
+    recoverMediaButton->setObjectName("recoverSourceMedia");
+    connect(recoverMediaButton, &QPushButton::clicked, this, [this] {
+        if (studio.hasRecoverableSourceMedia())
+            recoverSourceMedia();
+        else
+            showUnresolvedMedia(mediaRecoveryErrors);
+    });
+    warn->addWidget(recoverMediaButton);
     col->addWidget(warningBar);
     return panel;
 }
@@ -995,9 +1136,10 @@ void MainWindow::buildOverlay(QWidget *root) {
     inner->addWidget(overlayProgress);
     overlayCancel = button(T("Anuluj"));
     connect(overlayCancel, &QPushButton::clicked, this, [this] {
-        if (studio.clipActive())
-            studio.cancelSourceClips();
-        else
+        if (studio.sourceMediaRecoveryActive()) {
+            buildAfterMediaRecovery = false;
+            studio.cancelSourceMediaRecovery();
+        } else
             studio.cancelBuild();
     });
     inner->addWidget(overlayCancel, 0, Qt::AlignHCenter);
@@ -1015,6 +1157,8 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 void MainWindow::refreshContent() {
     if (!packTitle)
         return;
+    if (!reviewLanguage.isEmpty() && (reviewLanguage != studio.packLanguage() || studio.totalCount() == 0))
+        clearBuildReview();
     packTitle->setText(studio.packTitle());
     languageButton->setText(studio.packLanguage().toUpper());
     footerCount->setText("UTF-8   ·   " + QString::number(studio.totalCount()) + T(" pytań   ·   ") +
@@ -1023,7 +1167,7 @@ void MainWindow::refreshContent() {
 #else
                          "Linux");
 #endif
-    const int counts[] = {studio.totalCount(), studio.imageCount(), studio.audioCount(), -1};
+    const int counts[] = {studio.totalCount(), studio.imageCount(), studio.musicCount(), studio.audioCount(), -1};
     for (int i = 0; i < filterButtons.size(); ++i)
         if (auto *count = filterButtons[i]->findChild<QLabel *>("count"))
             count->setText(counts[i] >= 0 ? QString::number(counts[i]) : QString());
@@ -1046,8 +1190,15 @@ void MainWindow::refreshContent() {
                                "na przykładowej paczce.")
                            : T("Zmień wyszukiwanie lub wybierz inną kategorię."));
     const auto warnings = studio.importWarnings();
-    warningBar->setVisible(!warnings.isEmpty());
-    warningText->setText(T("Uwagi importu (") + QString::number(warnings.size()) + ")");
+    const bool needsMedia = studio.hasUnresolvedSourceMedia();
+    warningBar->setVisible(needsMedia || !warnings.isEmpty());
+    warningText->setText(warnings.isEmpty() ? T("Pytania wymagają mediów.")
+                                           : T("Uwagi importu (") + QString::number(warnings.size()) + ")");
+    importWarningsButton->setVisible(!warnings.isEmpty());
+    recoverMediaButton->setVisible(needsMedia);
+    if (needsMedia)
+        recoverMediaButton->setText(studio.hasRecoverableSourceMedia() ? T("Odzyskaj media z gry")
+                                                                      : T("Pytania wymagające mediów"));
     buildButton->setEnabled(!studio.busy() && studio.totalCount() > 0);
     refreshFilterButtons();
     refreshHistory();
@@ -1077,6 +1228,7 @@ void MainWindow::refreshSelection() {
         return;
     const auto q = current();
     const bool has = q.contains("id");
+    const bool reviewing = refreshBuildReview(q["id"].toString());
     editorPages->setCurrentIndex(has ? editorTab : 2);
     if (!has)
         return;
@@ -1096,40 +1248,39 @@ void MainWindow::refreshSelection() {
     }
     // Quiz World subjects, then the project's own.
     const auto own = studio.packCategories();
-    subjectCombo->clear();
-    for (const auto &s : subjects)
-        subjectCombo->addItem(T(s.name), s.id);
-    bool separated = false;
-    for (const auto &value : own) {
-        const auto c = value.toMap();
-        if (c["parent"].toInt())
-            continue;
-        if (!separated)
-            subjectCombo->insertSeparator(subjectCombo->count());
-        separated = true;
-        subjectCombo->addItem(c["name"].toString(), c["id"]);
-    }
+    fillCategorySubjects(subjectCombo, own);
     const int subject = q["subject"].toInt() ? subjectCombo->findData(q["subject"].toInt()) : -1;
     subjectCombo->setCurrentIndex(subject);
     if (subject < 0)
         subjectCombo->setPlaceholderText(q["category_name"].toString().isEmpty() ? T("Wybierz kategorię")
                                                                                  : q["category_name"].toString());
     difficultyCombo->setCurrentIndex(std::clamp(q.value("difficulty", 2).toInt(), 1, 3) - 1);
-    subCombo->clear();
-    for (const auto &[id, name] : subcategories(q["subject"].toInt()))
-        subCombo->addItem(T(name), id);
-    for (const auto &value : own)
-        if (q["subject"].toInt() && value.toMap()["parent"].toInt() == q["subject"].toInt())
-            subCombo->addItem(value.toMap()["name"].toString(), value.toMap()["id"]);
+    fillCategoryChildren(subCombo, q["subject"].toInt(), own);
     subCombo->setPlaceholderText(T("Zachowaj kategorię źródłową"));
     subCombo->setCurrentIndex(subCombo->findData(q["category"].toInt()));
-    const auto problems = q["problems"].toStringList();
+    auto problems = q["problems"].toStringList();
+    const bool canRecoverVideo = q["canRecoverVideo"].toBool();
+    if (canRecoverVideo) {
+        const auto missing = QCoreApplication::translate(
+            "Document", "Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.");
+        if (problems.removeAll(missing))
+            problems << T("Kliknij Odtwórz przy wideo, aby odzyskać je z gry.");
+    }
     readyChip->setText(problems.isEmpty() ? T("GOTOWE") : T("DO UZUPEŁNIENIA"));
     readyChip->setObjectName(problems.isEmpty() ? "ready" : "todo");
     restyle(readyChip);
+    readyChip->setVisible(!reviewing);
     sourceText->setText(q["sourceLabel"].toString().isEmpty() ? T("Własne") : q["sourceLabel"].toString());
+    QStringList rounds;
+    for (const auto &value : q["source_rounds"].toList()) {
+        const auto round = value.toMap()["round"].toString();
+        if (!rounds.contains(round))
+            rounds << round;
+    }
+    sourceText->setToolTip(rounds.join('\n'));
     const auto image = q["image"].toString();
-    imageName->setText(image.isEmpty() ? T("Pytanie tekstowe") : fileName(image));
+    imageName->setText(image.isEmpty() ? T("Brak obrazu") : fileName(image));
+    imageName->setToolTip(image);
     QImageReader reader(image);
     reader.setAutoTransform(true);
     const auto picture = image.isEmpty() ? QImage() : reader.read();
@@ -1139,17 +1290,23 @@ void MainWindow::refreshSelection() {
         change->setText(image.isEmpty() ? T("Dodaj obrazek") : T("Zmień obrazek"));
     imageRemove->setVisible(!image.isEmpty());
     const auto speech = q["speech"].toString();
-    speechName->setText(speech.isEmpty() ? T("Brak nagrania lektora") : fileName(speech));
-    speechOpen->setVisible(!speech.isEmpty());
+    const bool canRecoverNarration = q["canRecoverNarration"].toBool();
+    speechName->setText(canRecoverNarration ? QString() :
+                        speech.isEmpty() ? T("Brak nagrania lektora") : fileName(speech));
+    speechName->setToolTip(speech);
+    speechPlay->setVisible(!speech.isEmpty() || canRecoverNarration);
     speechRemove->setVisible(!speech.isEmpty());
     const auto video = q["video"].toString();
-    videoName->setText(video.isEmpty() ? T("Brak filmu") : fileName(video));
-    videoOpen->setVisible(!video.isEmpty());
+    videoName->setText(canRecoverVideo ? T("WIDEO") : video.isEmpty() ? T("Brak filmu") : fileName(video));
+    videoName->setToolTip(video);
+    videoPlay->setVisible(!video.isEmpty() || canRecoverVideo);
     videoRemove->setVisible(!video.isEmpty());
-    mediaNote->setVisible(!q["source_media"].toList().isEmpty());
-    decodeMediaButton->setVisible(q["canDecodeSourceMedia"].toBool());
+    mediaNote->setVisible(!canRecoverVideo && !q["source_media"].toList().isEmpty());
+    musicNote->setVisible(q["usesMusic"].toBool());
+    musicPlay->setVisible(q["hasMusicClip"].toBool() || q["canRecoverMusic"].toBool());
+    decodeMediaButton->setVisible(q["canDecodeSourceMedia"].toBool() && !canRecoverVideo);
     issues->setText(problems.join('\n'));
-    issues->setVisible(!problems.isEmpty());
+    issues->setVisible(!reviewing && !problems.isEmpty());
     idText->setText("ID  " + q["id"].toString());
     preview->update();
     loading = false;
@@ -1163,9 +1320,10 @@ void MainWindow::refreshBusy() {
     overlay->setVisible(busy);
     overlay->raise();
     overlayText->setText(studio.status());
-    overlayProgress->setVisible(studio.buildActive() || studio.clipActive());
-    overlayProgress->setValue(studio.clipActive() ? studio.clipPercent() : studio.buildProgress());
-    overlayCancel->setVisible(studio.buildActive() || studio.clipActive());
+    const bool recovering = studio.sourceMediaRecoveryActive();
+    overlayProgress->setVisible(studio.buildActive() || recovering);
+    overlayProgress->setValue(recovering ? studio.sourceMediaRecoveryPercent() : studio.buildProgress());
+    overlayCancel->setVisible(studio.buildActive() || recovering);
     for (auto *b : busyDisabled)
         b->setEnabled(!busy);
     buildButton->setEnabled(!busy && studio.totalCount() > 0);
@@ -1215,7 +1373,7 @@ void MainWindow::guard(const std::function<void()> &action) {
         action();
         return;
     }
-    QMessageBox box(this);
+    QMessageBox box(importWizard && importWizard->isVisible() ? static_cast<QWidget *>(importWizard.data()) : this);
     box.setWindowTitle(T("Zapisać zmiany?"));
     box.setText(T("Bieżąca paczka zawiera niezapisane zmiany."));
     auto *cancel = box.addButton(T("Anuluj"), QMessageBox::RejectRole);
@@ -1243,7 +1401,8 @@ void MainWindow::save(const std::function<void()> &done) {
 
 void MainWindow::saveAs(const std::function<void()> &done) {
     commitEdits();
-    auto file = QFileDialog::getSaveFileName(this, T("Zapisz projekt"), studio.projectPath(),
+    auto *parent = importWizard && importWizard->isVisible() ? static_cast<QWidget *>(importWizard.data()) : this;
+    auto file = QFileDialog::getSaveFileName(parent, T("Zapisz projekt"), studio.projectPath(),
                                              T("Projekt Question Studio (*.buzz.json)"));
     if (file.isEmpty())
         return;
@@ -1253,16 +1412,41 @@ void MainWindow::saveAs(const std::function<void()> &done) {
         done();
 }
 
-void MainWindow::chooseOpen(bool append) {
-    const auto filter =
-        append ? T("Pytania (*.json *.buzzproject *.PAK *.pak *.edat *.EDAT *.sdat *.iso *.cso *.QDB *.qdb *.pkg "
-                   "*.SFO *.assets)")
-               : T("Pytania (*.buzz.json *.buzzproject *.json *.PAK *.pak *.edat *.EDAT *.sdat *.iso *.cso *.QDB "
-                   "*.qdb *.pkg *.SFO *.assets)");
-    const auto file = QFileDialog::getOpenFileName(
-        this, append ? T("Importuj pytania do bieżącej paczki") : T("Otwórz bibliotekę"), {}, filter);
-    if (!file.isEmpty())
-        studio.prepareImport(QUrl::fromLocalFile(file), append);
+void MainWindow::chooseProject() {
+    if (studio.busy())
+        return;
+    const auto filter = ImportWizard::tr("Projekty Question Studio") + " (*.buzz.json *.buzzproject);;" +
+                        ImportWizard::sourceFilter();
+    const auto file = QFileDialog::getOpenFileName(this, T("Otwórz bibliotekę"), studio.projectPath(), filter);
+    if (file.isEmpty())
+        return;
+    if (file.endsWith(".buzz.json", Qt::CaseInsensitive) || file.endsWith(".buzzproject", Qt::CaseInsensitive))
+        guard([this, file] { studio.openFile(QUrl::fromLocalFile(file)); });
+    else
+        openImportWizard(file, false);
+}
+
+void MainWindow::openImportWizard(const QString &sourcePath, bool preferAppend) {
+    if (studio.busy() || (importWizard && importWizard->isVisible()))
+        return;
+    commitEdits();
+    auto *wizard = new ImportWizard(studio, preferAppend, [this](const auto &action) { guard(action); }, this);
+    importWizard = wizard;
+    wizard->setSourcePath(sourcePath);
+    connect(wizard, &ImportWizard::assignCategoriesRequested, this, [this, wizard] {
+        openImportedCategories(true, wizard);
+    });
+    connect(wizard, &ImportWizard::recoverMediaRequested, this, [this, wizard](const QString &language) {
+        const auto media = studio.sourceMediaStatus(language, true);
+        if (media.visualRecoverable && studio::configuredMediaFfmpeg().isEmpty() && !chooseMediaFfmpeg(wizard) &&
+            !media.musicRecoverable) {
+            wizard->recoveryNotStarted();
+            return;
+        }
+        studio.recoverSourceMedia(language, true);
+    });
+    connect(wizard, &ImportWizard::buildPackRequested, this, &MainWindow::openBuild);
+    showDialog(wizard);
 }
 
 void MainWindow::showDialog(QDialog *dialog) {
@@ -1286,9 +1470,367 @@ void MainWindow::showWarnings() {
     showDialog(box);
 }
 
-void MainWindow::decodeAllClips() {
+void MainWindow::recoverSourceMedia() {
     commitEdits();
-    studio.decodeAllSourceClips();
+    studio.recoverSourceMedia();
+}
+
+void MainWindow::previewMedia(const char *field, const QString &title, bool video) {
+    commitEdits();
+    const auto question = current();
+    if (QByteArrayView(field) == "music" && question["canRecoverMusic"].toBool()) {
+        studio.recoverCurrentMusic();
+        return;
+    }
+    if (QByteArrayView(field) == "speech" && question["canRecoverNarration"].toBool()) {
+        studio.recoverCurrentMusic(true);
+        return;
+    }
+    if (video && question["canRecoverVideo"].toBool()) {
+        if (!studio::configuredMediaFfmpeg().isEmpty() || chooseMediaFfmpeg())
+            studio.decodeSourceMedia(true);
+        return;
+    }
+    playMedia(question.value(field).toString(), title, video);
+}
+
+void MainWindow::playMedia(const QString &path, const QString &title, bool video) {
+    if (path.isEmpty())
+        return;
+    auto ffmpeg = studio::configuredMediaFfmpeg();
+    if (MediaPreviewDialog::needsConversion(path) && ffmpeg.isEmpty()) {
+        if (!chooseMediaFfmpeg())
+            return;
+        ffmpeg = studio::configuredMediaFfmpeg();
+    }
+    showDialog(new MediaPreviewDialog(path, title, video, ffmpeg, this));
+}
+
+bool MainWindow::chooseMediaFfmpeg(QWidget *parent) {
+    if (!parent)
+        parent = this;
+    if (!studio::configuredMediaFfmpeg().isEmpty())
+        return browseMediaFfmpeg(parent);
+
+    const auto installation = studio::ffmpegInstallation();
+    QMessageBox setup(QMessageBox::Information, P("Silnik mediów (FFmpeg)"),
+                      T("Do przetwarzania mediów potrzebny jest FFmpeg."), QMessageBox::NoButton, parent);
+    setup.setObjectName("mediaFfmpegSetup");
+    auto *browse = setup.addButton(P("Wybierz FFmpeg"), QMessageBox::ActionRole);
+    auto *download = setup.addButton(T("Strona pobierania FFmpeg"), QMessageBox::ActionRole);
+    auto *cancel = setup.addButton(T("Anuluj"), QMessageBox::RejectRole);
+    setup.setEscapeButton(cancel);
+    QPushButton *install = nullptr, *copy = nullptr;
+    if (!installation.program.isEmpty()) {
+        install = setup.addButton(T("Zainstaluj przez %1").arg(installation.manager), QMessageBox::AcceptRole);
+        setup.setDefaultButton(install);
+    } else if (!installation.terminalCommand.isEmpty()) {
+        copy = setup.addButton(T("Kopiuj polecenie instalacji"), QMessageBox::ActionRole);
+    }
+    setup.exec();
+    const auto *selected = setup.clickedButton();
+    if (install && selected == install)
+        return installMediaFfmpeg(installation, parent);
+    if (selected == browse)
+        return browseMediaFfmpeg(parent);
+    if (selected == download)
+        QDesktopServices::openUrl(QUrl("https://ffmpeg.org/download.html"));
+    if (copy && selected == copy)
+        copyFfmpegInstallCommand(parent, installation.terminalCommand);
+    return false;
+}
+
+bool MainWindow::browseMediaFfmpeg(QWidget *parent) {
+    if (!parent)
+        parent = this;
+    const auto file = QFileDialog::getOpenFileName(parent, P("Wybierz FFmpeg"), studio::configuredMediaFfmpeg());
+    if (file.isEmpty())
+        return false;
+    if (!studio::verifyMediaFfmpeg(file)) {
+        QMessageBox::warning(parent, P("Silnik mediów (FFmpeg)"), T("Wybierz działający plik wykonywalny FFmpeg."));
+        return false;
+    }
+    QSettings().setValue("build/ffmpeg", file);
+    return true;
+}
+
+bool MainWindow::installMediaFfmpeg(const studio::FfmpegInstallation &installation, QWidget *parent) {
+    class InstallDialog final : public QDialog {
+      public:
+        using QDialog::QDialog;
+        QProcess process;
+        void reject() override {
+            if (process.state() == QProcess::NotRunning)
+                QDialog::reject();
+        }
+    } dialog(parent);
+    dialog.setObjectName("mediaFfmpegInstall");
+    dialog.setWindowTitle(P("Silnik mediów (FFmpeg)"));
+    dialog.resize(560, 310);
+    auto *column = new QVBoxLayout(&dialog);
+    auto *status = label(T("Instalowanie FFmpeg przez %1…").arg(installation.manager));
+    status->setWordWrap(true);
+    column->addWidget(status);
+    auto *progress = new QProgressBar;
+    progress->setRange(0, 0);
+    column->addWidget(progress);
+    auto *log = new QPlainTextEdit;
+    log->setReadOnly(true);
+    log->setMaximumBlockCount(150);
+    column->addWidget(log, 1);
+    auto *buttons = new QDialogButtonBox;
+    auto *browse = buttons->addButton(P("Wybierz FFmpeg"), QDialogButtonBox::ActionRole);
+    auto *close = buttons->addButton(T("Zamknij"), QDialogButtonBox::RejectRole);
+    QPushButton *copy = nullptr;
+    if (!installation.terminalCommand.isEmpty()) {
+        copy = buttons->addButton(T("Kopiuj polecenie instalacji"), QDialogButtonBox::ActionRole);
+        copy->setEnabled(false);
+        connect(copy, &QPushButton::clicked, &dialog, [&] {
+            copyFfmpegInstallCommand(&dialog, installation.terminalCommand);
+        });
+    }
+    browse->setEnabled(false);
+    close->setEnabled(false);
+    column->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(browse, &QPushButton::clicked, &dialog, [this, &dialog] {
+        if (browseMediaFfmpeg(&dialog))
+            dialog.accept();
+    });
+    auto &process = dialog.process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    const auto appendOutput = [&] {
+        auto output = QString::fromLocal8Bit(process.readAll().right(16000)).replace('\r', '\n').trimmed();
+        if (!output.isEmpty())
+            log->appendPlainText(output);
+    };
+    const auto showFailure = [&](const QString &message) {
+        status->setText(message);
+        progress->hide();
+        browse->setEnabled(true);
+        close->setEnabled(true);
+        if (copy)
+            copy->setEnabled(true);
+    };
+    connect(&process, &QProcess::readyReadStandardOutput, &dialog, appendOutput);
+    connect(&process, &QProcess::errorOccurred, &dialog, [&](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart) {
+            log->appendPlainText(process.errorString());
+            showFailure(T("Instalacja FFmpeg nie powiodła się."));
+        }
+    });
+    connect(&process, &QProcess::finished, &dialog, [&](int code, QProcess::ExitStatus exitStatus) {
+        appendOutput();
+        if (exitStatus != QProcess::NormalExit || code != 0) {
+            showFailure(T("Instalacja FFmpeg nie powiodła się."));
+            return;
+        }
+        const auto ffmpeg = studio::findMediaFfmpeg();
+        if (!studio::verifyMediaFfmpeg(ffmpeg)) {
+            showFailure(T("Instalacja zakończona. Wybierz plik wykonywalny FFmpeg."));
+            return;
+        }
+        QSettings().setValue("build/ffmpeg", ffmpeg);
+        dialog.accept();
+    });
+    QTimer::singleShot(0, &dialog, [&] {
+        process.start(installation.program, installation.arguments);
+        process.closeWriteChannel();
+    });
+    return dialog.exec() == QDialog::Accepted;
+}
+
+void MainWindow::editReportedQuestion(const QString &id) {
+    categoryFilter.clear();
+    kindFilter.clear();
+    search->clear();
+    applyFilter();
+    studio.select(id);
+    setEditorTab(0);
+    const auto *model = questionList->model();
+    const auto matching = model->match(model->index(0, 0), QuestionModel::Uid, id, 1, Qt::MatchExactly);
+    if (!matching.isEmpty())
+        questionList->scrollTo(matching.first());
+}
+
+QWidget *MainWindow::buildReviewControls() {
+    auto *panel = new QFrame;
+    panel->setObjectName("buildReviewPanel");
+    buildReviewPanel = panel;
+    auto *column = new QVBoxLayout(panel);
+    column->setContentsMargins(22, 10, 22, 10);
+    auto *heading = new QHBoxLayout;
+    buildReviewTitle = label({}, "accent");
+    buildReviewTitle->setWordWrap(true);
+    heading->addWidget(buildReviewTitle, 1);
+    auto *back = button(P("Wróć do budowania"));
+    back->setObjectName("resumeBuildAfterReview");
+    connect(back, &QPushButton::clicked, this, &MainWindow::openBuild);
+    heading->addWidget(back);
+    column->addLayout(heading);
+    buildReviewReason = label({}, "buildReviewReason");
+    buildReviewReason->setTextFormat(Qt::PlainText);
+    buildReviewReason->setWordWrap(true);
+    column->addWidget(buildReviewReason);
+    auto *navigation = new QHBoxLayout;
+    previousReviewButton = button(P("Poprzednie pytanie"));
+    nextReviewButton = button(P("Następne pytanie"));
+    previousReviewButton->setObjectName("previousBuildIssue");
+    nextReviewButton->setObjectName("nextBuildIssue");
+    navigation->addWidget(previousReviewButton);
+    navigation->addWidget(nextReviewButton);
+    navigation->addStretch();
+    column->addLayout(navigation);
+    connect(previousReviewButton, &QPushButton::clicked, this, [this] { moveBuildReview(-1); });
+    connect(nextReviewButton, &QPushButton::clicked, this, [this] { moveBuildReview(1); });
+    panel->hide();
+    return panel;
+}
+
+int MainWindow::nextReviewIndex(int index, int direction) const {
+    for (int i = index + direction; i >= 0 && i < reviewQuestionIds.size(); i += direction)
+        if (studio.hasQuestion(reviewQuestionIds.at(i)))
+            return i;
+    return -1;
+}
+
+bool MainWindow::refreshBuildReview(const QString &selectedId) {
+    if (reviewQuestionIds.isEmpty()) {
+        buildReviewPanel->hide();
+        return false;
+    }
+    buildReviewPanel->show();
+    const int currentIndex = reviewQuestionIds.indexOf(selectedId);
+    if (currentIndex >= 0)
+        reviewIndex = currentIndex;
+    auto title = P("Pytania do poprawy");
+    if (currentIndex >= 0)
+        title += " · " + P("%1 z %2").arg(currentIndex + 1).arg(reviewQuestionIds.size());
+    buildReviewTitle->setText(title);
+    const auto reason = currentIndex < 0 ? QString() : studio.currentBuildProblem();
+    buildReviewReason->setText(reason.isEmpty() ? P("Poprawione") : reason);
+    buildReviewReason->setVisible(currentIndex >= 0);
+    const int previousFrom = currentIndex < 0 ? reviewIndex + 1 : reviewIndex;
+    previousReviewButton->setEnabled(nextReviewIndex(previousFrom, -1) >= 0);
+    nextReviewButton->setEnabled(nextReviewIndex(reviewIndex, 1) >= 0);
+    return currentIndex >= 0;
+}
+
+void MainWindow::moveBuildReview(int direction) {
+    commitEdits();
+    const int activeIndex = reviewQuestionIds.indexOf(current()["id"].toString());
+    const int from = activeIndex < 0 && direction < 0 ? reviewIndex + 1 : reviewIndex;
+    const int next = nextReviewIndex(from, direction);
+    if (next >= 0)
+        editReportedQuestion(reviewQuestionIds.at(next));
+}
+
+void MainWindow::clearBuildReview() {
+    reviewQuestionIds.clear();
+    reviewLanguage.clear();
+    reviewIndex = -1;
+    reviewBuildOptions.clear();
+    if (buildReviewPanel)
+        buildReviewPanel->hide();
+}
+
+void MainWindow::showBuildIssues(const QVector<studio::BuildQuestionIssue> &questionsToFix) {
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName("buildIssuesDialog");
+    dialog->setWindowTitle(P("Pytania do poprawy"));
+    dialog->setMinimumWidth(550);
+    dialog->resize(640, 360);
+    auto *column = new QVBoxLayout(dialog);
+    auto *list = new QListWidget;
+    list->setObjectName("buildIssuesList");
+    list->setAccessibleName(dialog->windowTitle());
+    for (const auto &issue : questionsToFix) {
+        const auto text = issue.text.simplified();
+        list->addItem(text.isEmpty() ? issue.id : text);
+    }
+    column->addWidget(list, 1);
+    auto *reason = label({}, "buildIssueDetails");
+    reason->setTextFormat(Qt::PlainText);
+    reason->setWordWrap(true);
+    column->addWidget(reason);
+    auto *buttons = new QDialogButtonBox;
+    buttons->addButton(P("Wróć do budowania"), QDialogButtonBox::RejectRole);
+    auto *edit = buttons->addButton(P("Otwórz w edytorze"), QDialogButtonBox::AcceptRole);
+    edit->setObjectName("editBuildIssue");
+    edit->setProperty("primary", true);
+    column->addWidget(buttons);
+    connect(list, &QListWidget::currentRowChanged, dialog, [reason, edit, questionsToFix](int row) {
+        edit->setEnabled(row >= 0);
+        reason->setText(row >= 0 ? questionsToFix.at(row).reason : QString());
+    });
+    const auto open = [this, dialog, list, questionsToFix] {
+        const int row = list->currentRow();
+        if (row < 0 || !dialog->isVisible())
+            return;
+        for (const auto &issue : questionsToFix)
+            reviewQuestionIds << issue.id;
+        reviewIndex = row;
+        reviewLanguage = studio.packLanguage();
+        dialog->accept();
+        editReportedQuestion(questionsToFix.at(row).id);
+    };
+    connect(buttons, &QDialogButtonBox::accepted, dialog, open);
+    connect(list, &QListWidget::itemActivated, dialog, open);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    connect(dialog, &QDialog::rejected, this, &MainWindow::openBuild);
+    list->setCurrentRow(0);
+    showDialog(dialog);
+    list->setFocus();
+}
+
+void MainWindow::showUnresolvedMedia(const QStringList &errors) {
+    const auto questions = studio.unresolvedMediaQuestions();
+    if (questions.isEmpty()) {
+        if (!errors.isEmpty())
+            showError(errors.mid(0, 5).join("\n\n"));
+        return;
+    }
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName("unresolvedMediaDialog");
+    dialog->setWindowTitle(T("Pytania wymagające mediów"));
+    dialog->resize(650, 420);
+    auto *column = new QVBoxLayout(dialog);
+    auto *note = label(T("Wybierz pytanie, aby sprawdzić, których mediów brakuje (%1).").arg(questions.size()));
+    note->setWordWrap(true);
+    column->addWidget(note);
+    auto *list = new QListWidget;
+    for (const auto &value : questions) {
+        const auto question = value.toMap();
+        const auto id = question["id"].toString();
+        const auto text = question["text"].toString().simplified();
+        auto title = text.isEmpty() ? id : text;
+        if (question["missingMusic"].toBool())
+            title = T("Brak muzyki: %1").arg(title);
+        auto *item = new QListWidgetItem(title, list);
+        item->setData(Qt::UserRole, id);
+        item->setToolTip(id);
+    }
+    column->addWidget(list, 1);
+    const auto open = [this, dialog](QListWidgetItem *item) {
+        if (!dialog->isVisible())
+            return;
+        const auto id = item->data(Qt::UserRole).toString();
+        dialog->accept();
+        editReportedQuestion(id);
+    };
+    connect(list, &QListWidget::itemClicked, dialog, open);
+    connect(list, &QListWidget::itemActivated, dialog, open);
+    if (!errors.isEmpty()) {
+        auto *details = new QPlainTextEdit(errors.mid(0, 5).join("\n\n"));
+        details->setReadOnly(true);
+        details->setMaximumHeight(80);
+        column->addWidget(details);
+    }
+    auto *buttons = new QDialogButtonBox;
+    buttons->addButton(T("Zamknij"), QDialogButtonBox::RejectRole);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    column->addWidget(buttons);
+    showDialog(dialog);
 }
 
 void MainWindow::showAbout() {
@@ -1401,7 +1943,7 @@ void MainWindow::openProjectLanguages() {
     combo->setObjectName("projectLanguageCombo");
     auto fill = [this, combo] {
         combo->clear();
-        for (const auto &value : studio.projectLanguages())
+        for (const auto &value : studio.editingLanguageOptions())
             combo->addItem(value.toMap()["name"].toString(), value.toMap()["code"]);
         combo->setCurrentIndex(combo->findData(studio.packLanguage()));
     };
@@ -1414,15 +1956,6 @@ void MainWindow::openProjectLanguages() {
                        "muted");
     info->setWordWrap(true);
     col->addWidget(info);
-    auto *addRow = new QHBoxLayout;
-    auto *options = new QComboBox;
-    for (const auto &value : studio.languageOptions())
-        options->addItem(value.toMap()["name"].toString(), value.toMap()["code"]);
-    auto *add = button(T("Dodaj / wybierz"));
-    connect(add, &QPushButton::clicked, this, [this, options] { studio.setPackLanguage(options->currentData().toString()); });
-    addRow->addWidget(options, 1);
-    addRow->addWidget(add);
-    col->addLayout(addRow);
     auto *other = new QLineEdit;
     other->setPlaceholderText(T("Inny kod języka, np. en-GB — Enter"));
     connect(other, &QLineEdit::returnPressed, this, [this, other] {
@@ -1447,6 +1980,113 @@ QString MainWindow::languageLabel(const QString &code) const {
         if (value.toMap()["code"].toString() == code)
             return value.toMap()["name"].toString();
     return code;
+}
+
+void MainWindow::openImportedCategories(bool latestOnly, QWidget *parent) {
+    commitEdits();
+    if (studio.busy())
+        return;
+    const auto sections = studio.importedSections(latestOnly);
+    if (sections.isEmpty())
+        return;
+    auto *dialog = new QDialog(parent);
+    dialog->setObjectName("importedCategoriesDialog");
+    dialog->setWindowTitle(T("Przypisz kategorie działom gry"));
+    dialog->setMinimumWidth(640);
+    dialog->resize(680, 500);
+    auto *column = new QVBoxLayout(dialog);
+    column->addWidget(label(latestOnly ? T("Zakres: ostatni import") : T("Zakres: cały projekt"), "accent"));
+    auto *hint = label(T("Wybierz dział gry i kategorię docelową. Wybór działu obejmuje także jego poddziały."), "muted");
+    hint->setWordWrap(true);
+    column->addWidget(hint);
+
+    constexpr int nameRole = Qt::UserRole, gameRole = Qt::UserRole + 1, pathRole = Qt::UserRole + 2;
+    auto *tree = new QTreeWidget;
+    tree->setObjectName("importedCategorySections");
+    tree->setAccessibleName(T("Dział źródłowy"));
+    tree->setHeaderLabels({T("Dział źródłowy"), T("Pytania")});
+    tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    auto child = [](QTreeWidgetItem *parent, const QString &name, const QString &shown) {
+        for (int i = 0; i < parent->childCount(); ++i)
+            if (parent->child(i)->data(0, nameRole).toString() == name)
+                return parent->child(i);
+        auto *item = new QTreeWidgetItem(parent, QStringList{shown});
+        item->setData(0, nameRole, name);
+        return item;
+    };
+    for (const auto &section : sections) {
+        auto *game = child(tree->invisibleRootItem(), section.game, section.game);
+        game->setFlags(game->flags() & ~Qt::ItemIsSelectable);
+        auto *item = game;
+        QStringList path;
+        for (const auto &part : section.path) {
+            path << part;
+            item = child(item, part, part.isEmpty() ? T("Bez działu źródłowego") : part);
+            item->setData(0, gameRole, section.game);
+            item->setData(0, pathRole, path);
+            item->setData(1, Qt::DisplayRole, item->data(1, Qt::DisplayRole).toInt() + section.questions);
+        }
+    }
+    tree->sortItems(0, Qt::AscendingOrder);
+    for (int i = 0; i < tree->topLevelItemCount(); ++i)
+        tree->topLevelItem(i)->setExpanded(true);
+    column->addWidget(tree, 1);
+
+    const auto own = studio.packCategories();
+    auto *form = new QFormLayout;
+    auto *subject = new QComboBox;
+    subject->setObjectName("importedCategorySubject");
+    fillCategorySubjects(subject, own);
+    subject->setPlaceholderText(T("Wybierz kategorię"));
+    subject->setCurrentIndex(-1);
+    form->addRow(T("Kategoria docelowa"), subject);
+    auto *category = new QComboBox;
+    category->setObjectName("importedCategoryChild");
+    category->setPlaceholderText(T("Wybierz podkategorię"));
+    category->setEnabled(false);
+    form->addRow(T("Podkategoria docelowa"), category);
+    column->addLayout(form);
+    auto *note = label(T("Przypisanie zastąpi kategorię pytań z tego działu. Zmianę można cofnąć."), "muted");
+    note->setWordWrap(true);
+    column->addWidget(note);
+    auto *feedback = label({}, "accent");
+    feedback->setWordWrap(true);
+    column->addWidget(feedback);
+    auto *buttons = new QDialogButtonBox;
+    buttons->addButton(T("Zamknij"), QDialogButtonBox::RejectRole);
+    auto *apply = buttons->addButton(T("Przypisz kategorię (%1)").arg(0), QDialogButtonBox::ActionRole);
+    apply->setObjectName("applyImportedCategory");
+    apply->setProperty("primary", true);
+    column->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    const auto refresh = [=] {
+        const auto *item = tree->currentItem();
+        const int count = item ? item->data(1, Qt::DisplayRole).toInt() : 0;
+        apply->setText(T("Przypisz kategorię (%1)").arg(count));
+        apply->setEnabled(count > 0 && category->currentData().toInt() > 0);
+        feedback->clear();
+    };
+    connect(tree, &QTreeWidget::currentItemChanged, dialog, refresh);
+    connect(subject, &QComboBox::currentIndexChanged, dialog, [=] {
+        fillCategoryChildren(category, subject->currentData().toInt(), own);
+        category->setEnabled(category->count() > 0);
+        category->setCurrentIndex(category->count() == 1 ? 0 : -1);
+        refresh();
+    });
+    connect(category, &QComboBox::currentIndexChanged, dialog, refresh);
+    connect(apply, &QPushButton::clicked, dialog, [=] {
+        const auto *item = tree->currentItem();
+        if (!item)
+            return;
+        const int changes = studio.assignImportedSection(item->data(0, gameRole).toString(),
+            item->data(0, pathRole).toStringList(), subject->currentData().toInt(),
+            category->currentData().toInt(), subject->currentText(), latestOnly);
+        feedback->setText(changes ? T("Pytania ze zmienioną kategorią: %1").arg(changes)
+                                  : T("Te pytania mają już wybraną kategorię."));
+    });
+    tree->setCurrentItem(tree->topLevelItem(0)->child(0));
+    showDialog(dialog);
 }
 
 void MainWindow::openPackCategories() {
@@ -1676,7 +2316,12 @@ void MainWindow::openBuild() {
     commitEdits();
     if (studio.busy() || studio.totalCount() == 0)
         return;
-    const auto values = studio.buildSettings();
+    const auto reviewOptions = std::exchange(reviewBuildOptions, {});
+    const bool wasReviewing = !reviewQuestionIds.isEmpty();
+    clearBuildReview();
+    if (wasReviewing)
+        refreshSelection();
+    const auto values = reviewOptions.isEmpty() ? studio.buildSettings() : reviewOptions;
     auto *dialog = new QDialog(this);
     dialog->setObjectName("buildPackDialog");
     dialog->setWindowTitle(P("Zbuduj paczkę quizów"));
@@ -1686,11 +2331,34 @@ void MainWindow::openBuild() {
     auto *summary = label(P("Język pytań: %1 · %2 pytań w projekcie").arg(studio.packLanguage()).arg(studio.totalCount()),
                           "accent");
     col->addWidget(summary);
-    auto *info = label(P("Zapisz paczkę dla aktywnego języka. Pytania bez tej wersji zostaną pominięte; niekompletne "
-                         "pytania trzeba poprawić przed budowaniem."),
+    auto *checks = new QHBoxLayout;
+    auto *readiness = label(P("Sprawdzanie pytań…"), "buildReadiness");
+    readiness->setWordWrap(true);
+    checks->addWidget(readiness);
+    auto *review = button({});
+    review->setObjectName("reviewBuildIssues");
+    review->hide();
+    checks->addWidget(review);
+    auto *missing = label({}, "muted");
+    missing->setWordWrap(true);
+    missing->hide();
+    checks->addWidget(missing);
+    checks->addStretch();
+    col->addLayout(checks);
+    auto *info = label(P("To wstępna kontrola. Studio sprawdzi szablon i media podczas budowania, a pominięte pytania pokaże w raporcie."),
                        "muted");
     info->setWordWrap(true);
     col->addWidget(info);
+    if (studio.hasRecoverableSourceMedia()) {
+        auto *recover = button(T("Odzyskaj media z gry"));
+        recover->setObjectName("buildRecoverMedia");
+        col->addWidget(recover, 0, Qt::AlignLeft);
+        connect(recover, &QPushButton::clicked, dialog, [this, dialog] {
+            dialog->accept();
+            buildAfterMediaRecovery = true;
+            recoverSourceMedia();
+        });
+    }
     auto browseFile = [this](const QString &title, const QString &filter) {
         return [this, title, filter](QLineEdit *edit) {
             const auto file = QFileDialog::getOpenFileName(this, title, edit->text(), filter);
@@ -1778,16 +2446,45 @@ void MainWindow::openBuild() {
     validate();
     for (auto *edit : {templatePath, output, runtime})
         connect(edit, &QLineEdit::textChanged, dialog, validate);
+    const auto readOptions = [=] {
+        return QVariantMap{{"number", number->value()},         {"categoryBase", base->value()},
+                           {"templatePath", templatePath->text()}, {"outputDirectory", output->text()},
+                           {"runtimeRoot", runtime->text()},      {"titleId", title->currentText()},
+                           {"ffmpeg", ffmpeg->text()},             {"skipInvalid", true}};
+    };
+    auto *checker = new QFutureWatcher<studio::BuildReadiness>(dialog);
+    connect(checker, &QFutureWatcher<studio::BuildReadiness>::finished, dialog, [=] {
+        const auto counts = checker->result();
+        readiness->setText(P("Gotowe: %1").arg(counts.ready));
+        review->setText(P("Do poprawy: %1").arg(counts.issues.size()));
+        review->setEnabled(!counts.issues.isEmpty());
+        review->show();
+        missing->setText(P("Puste w tym języku: %1").arg(counts.missingLanguage));
+        missing->setVisible(counts.missingLanguage > 0);
+        if (!counts.issues.isEmpty()) {
+            connect(review, &QPushButton::clicked, dialog, [this, dialog, advanced, readOptions, questionsToFix = counts.issues] {
+                reviewBuildOptions = readOptions();
+                reviewBuildOptions["advanced"] = advanced->isChecked();
+                dialog->accept();
+                showBuildIssues(questionsToFix);
+            });
+        }
+        checker->deleteLater();
+    });
+    checker->setFuture(studio.checkBuildReadiness());
     auto start = [=](bool install) {
-        const QVariantMap options{{"number", number->value()},         {"categoryBase", base->value()},
-                                  {"templatePath", templatePath->text()}, {"outputDirectory", output->text()},
-                                  {"runtimeRoot", runtime->text()},      {"titleId", title->currentText()},
-                                  {"ffmpeg", ffmpeg->text()}};
+        if (ffmpeg->text().isEmpty() && studio.packNeedsFfmpeg()) {
+            if (studio::configuredMediaFfmpeg().isEmpty() && !chooseMediaFfmpeg())
+                return;
+            ffmpeg->setText(studio::configuredMediaFfmpeg());
+        }
+        const auto options = readOptions();
         dialog->accept();
         studio.buildPack(options, install);
     };
     connect(buildOnly, &QPushButton::clicked, dialog, [start] { start(false); });
     connect(buildInstall, &QPushButton::clicked, dialog, [start] { start(true); });
+    advanced->setChecked(values["advanced"].toBool());
     showDialog(dialog);
 }
 
@@ -1842,40 +2539,81 @@ void MainWindow::showPackResult(const QVariantMap &result) {
     auto *dialog = new QDialog(this);
     dialog->setObjectName("packResultDialog");
     const bool installed = !result["installedPath"].toString().isEmpty();
-    dialog->setWindowTitle(installed ? P("Paczka zainstalowana") : P("Paczka zbudowana"));
+    const bool built = !result["path"].toString().isEmpty();
+    dialog->setWindowTitle(installed ? P("Paczka zainstalowana")
+                                   : built ? P("Paczka zbudowana") : P("Paczka nie została zbudowana"));
     dialog->setMinimumWidth(640);
     auto *col = new QVBoxLayout(dialog);
     col->setSpacing(12);
-    col->addWidget(label(P("Język: %1 · Pytania: %2 · Kategorie: %3")
-                             .arg(result["language"].toString())
-                             .arg(result["questions"].toInt())
-                             .arg(result["categories"].toInt()),
-                         "accent"));
+    if (built)
+        col->addWidget(label(P("Język: %1 · Pytania: %2 · Kategorie: %3")
+                                 .arg(result["language"].toString())
+                                 .arg(result["questions"].toInt())
+                                 .arg(result["categories"].toInt()),
+                             "accent"));
+    if (!result["error"].toString().isEmpty()) {
+        auto *error = label(result["error"].toString(), "issues");
+        error->setTextFormat(Qt::PlainText);
+        error->setWordWrap(true);
+        col->addWidget(error);
+    }
     if (result["skipped"].toInt() > 0)
         col->addWidget(label(P("Pominięto %1 pytań bez wybranego języka.").arg(result["skipped"].toInt()), "muted"));
-    auto *paths = new QPlainTextEdit;
-    paths->setReadOnly(true);
-    paths->setFixedHeight(130);
-    QString text = result["path"].toString();
-    if (installed)
-        text += "\n\n" + P("Instalacja:") + "\n" + result["installedPath"].toString();
-    if (!result["backupPath"].toString().isEmpty())
-        text += "\n\n" + P("Kopia poprzedniej wersji:") + "\n" + result["backupPath"].toString();
-    paths->setPlainText(text);
-    col->addWidget(paths);
+    const auto excluded = result["excluded"].toList();
+    if (!excluded.isEmpty()) {
+        auto *intro = label(P("Pominięte pytania (%1). Wybierz pytanie, aby otworzyć je w edytorze.")
+                                .arg(excluded.size()), "muted");
+        intro->setWordWrap(true);
+        col->addWidget(intro);
+        auto *list = new QListWidget;
+        list->setObjectName("buildExcludedQuestions");
+        list->setAccessibleName(intro->text());
+        list->setFixedHeight(160);
+        for (const auto &value : excluded) {
+            const auto row = value.toMap();
+            const auto id = row["id"].toString();
+            const auto question = row["text"].toString().simplified();
+            const auto reason = row["reason"].toString();
+            auto *item = new QListWidgetItem((question.isEmpty() ? id : question) + "  ·  " + reason.simplified(), list);
+            item->setData(Qt::UserRole, id);
+            item->setToolTip("<p>" + reason.toHtmlEscaped().replace('\n', "<br>") + "</p>");
+        }
+        const auto open = [this, dialog](QListWidgetItem *item) {
+            if (dialog->isVisible()) {
+                dialog->accept();
+                editReportedQuestion(item->data(Qt::UserRole).toString());
+            }
+        };
+        connect(list, &QListWidget::itemClicked, dialog, open);
+        connect(list, &QListWidget::itemActivated, dialog, open);
+        col->addWidget(list);
+    }
+    if (built) {
+        QString text = result["path"].toString();
+        if (installed)
+            text += "\n\n" + P("Instalacja:") + "\n" + result["installedPath"].toString();
+        if (!result["backupPath"].toString().isEmpty())
+            text += "\n\n" + P("Kopia poprzedniej wersji:") + "\n" + result["backupPath"].toString();
+        auto *paths = new QPlainTextEdit(text);
+        paths->setReadOnly(true);
+        paths->setFixedHeight(130);
+        col->addWidget(paths);
+    }
     if (installed)
         col->addWidget(label(P("Uruchom grę ponownie i wybierz paczkę w grze z pakietami quizów."), "muted"));
     auto *buttons = new QHBoxLayout;
-    auto *reveal = button(P("Pokaż folder"));
-    connect(reveal, &QPushButton::clicked, this,
-            [this] { studio.revealFile(QUrl(studio.lastBuild()["fileUrl"].toString())); });
-    buttons->addWidget(reveal);
+    const auto url = QUrl(result["fileUrl"].toString());
+    if (built) {
+        auto *reveal = button(P("Pokaż folder"));
+        connect(reveal, &QPushButton::clicked, this, [this, url] { studio.revealFile(url); });
+        buttons->addWidget(reveal);
+    }
     buttons->addStretch();
-    if (!installed) {
+    if (built && !installed) {
         auto *install = button(P("Zainstaluj…"));
-        connect(install, &QPushButton::clicked, dialog, [this, dialog] {
+        connect(install, &QPushButton::clicked, dialog, [this, dialog, url] {
             dialog->accept();
-            openInstall(QUrl(studio.lastBuild()["fileUrl"].toString()).toLocalFile());
+            openInstall(url.toLocalFile());
         });
         buttons->addWidget(install);
     }

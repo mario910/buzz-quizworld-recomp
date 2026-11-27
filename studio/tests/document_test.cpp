@@ -149,12 +149,12 @@ class DocumentTest final : public QObject {
         QVERIFY(!result.ok());
         QVERIFY(result.document.questions.isEmpty());
     }
-    void importsQuizTvWithoutMisreadingPictureOrMultipleAnswers() {
+    void importsQuizTvAndAdaptsMultipleAnswers() {
         const auto path = QFINDTESTDATA("fixtures/native-quiztv.pak");
         QVERIFY(!path.isEmpty());
         auto result = studio::importBuzz(path);
         QVERIFY2(result.ok(), qPrintable(result.error));
-        QCOMPARE(result.document.questions.size(), 1);
+        QCOMPARE(result.document.questions.size(), 2);
         const auto &q = result.document.questions[0];
         QCOMPARE(q.text, QString::fromUtf8("Która litera jest pierwsza?"));
         QCOMPARE(q.topic, QString("Alfabet"));
@@ -162,8 +162,14 @@ class DocumentTest final : public QObject {
         QCOMPARE(q.correct, 0);
         QCOMPARE(q.subjectId, 235);
         QCOMPARE(q.categoryId, 237);
-        QCOMPARE(result.warnings.size(), 1);
-        QVERIFY(result.warnings[0].contains("2 pytań"));
+        const auto &converted = result.document.questions[1];
+        QCOMPARE(converted.id, QString("buzz:1002:991:3"));
+        QCOMPARE(converted.answers[converted.correct], QString("A + B"));
+        QVERIFY(converted.text.endsWith("Wybierz pełny zestaw poprawnych odpowiedzi."));
+        QVERIFY(converted.problems().isEmpty());
+        QCOMPARE(result.warnings.size(), 2);
+        QCOMPARE(result.warnings[0], studio::adaptedAnswersWarning(1));
+        QVERIFY(result.warnings[1].contains(QString::fromUtf8("Odpowiedzi obrazkowe: 1")));
     }
     void retainsAndEditsEveryKipLanguage() {
         auto q = validQuestion();

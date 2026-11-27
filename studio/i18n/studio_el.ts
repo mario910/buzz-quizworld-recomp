@@ -4,6 +4,16 @@
     <context>
         <name>BuzzImport</name>
         <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Pominięte pytania (%1). Odpowiedzi obrazkowe: %2. Brak poprawnej odpowiedzi: %3. Liczba odpowiedzi poza zakresem 2–4: %4. Nie udało się utworzyć czterech różnych odpowiedzi: %5.</source>
+            <translation>Ερωτήσεις που παραλείφθηκαν (%1). Απαντήσεις με εικόνες: %2. Χωρίς σωστή απάντηση: %3. Πλήθος απαντήσεων εκτός 2–4: %4. Δεν ήταν δυνατό να σχηματιστούν τέσσερις διαφορετικές απαντήσεις: %5.</translation>
+        </message>
+        <message>
+            <location filename="../src/buzz_import.cpp" />
+            <source>Połączono wystąpienia pytań w rundach: %1. Każde pytanie jest zapisane raz, z listą rund źródłowych.</source>
+            <translation>Συγχωνεύθηκαν εμφανίσεις ερωτήσεων σε διαφορετικούς γύρους: %1. Κάθε ερώτηση αποθηκεύεται μία φορά με τη λίστα των αρχικών γύρων.</translation>
+        </message>
+        <message>
             <source>Uszkodzony plik: odczyt poza zakresem.</source>
             <translation>Κατεστραμμένο αρχείο: ανάγνωση εκτός ορίων.</translation>
         </message>
@@ -178,16 +188,40 @@
             <source>Pominięto %1 powtórzeń identyfikatorów między rundami.</source>
             <translation>Παραλείφθηκαν %1 διπλότυπα αναγνωριστικά ερωτήσεων σε διάφορους γύρους.</translation>
         </message>
+        <message>
+            <source>Nieprawidłowy klip muzyczny w archiwum gry.</source>
+            <translation>Μη έγκυρο μουσικό απόσπασμα στο αρχείο του παιχνιδιού.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odzyskać klipu muzycznego.</source>
+            <translation>Δεν ήταν δυνατή η ανάκτηση του μουσικού αποσπάσματος.</translation>
+        </message>
     </context>
     <context>
         <name>Document</name>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania bez przypisanej kategorii gry: %1. Brakuje nazwy źródłowej lub miejsca na kolejne kategorie.</source>
+            <translation>Ερωτήσεις χωρίς κατηγορία παιχνιδιού: %1. Λείπει το αρχικό όνομα ή δεν υπάρχει χώρος για άλλες κατηγορίες.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania przekształcone na jednokrotny wybór: %1.</source>
+            <translation>Ερωτήσεις που μετατράπηκαν σε μονής επιλογής: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Pytania pominięte z powodu formatu odpowiedzi: %1.</source>
+            <translation>Ερωτήσεις που παραλείφθηκαν λόγω της μορφής των απαντήσεων: %1.</translation>
+        </message>
         <message>
             <source>Nie znaleziono filmu.</source>
             <translation>Το βίντεο δεν βρέθηκε.</translation>
         </message>
         <message>
-            <source>Pytanie korzysta z obrazka, filmu lub nagrania z gry. Przypisz własny obrazek.</source>
-            <translation>Η ερώτηση χρησιμοποιεί εικόνα, βίντεο ή ηχογράφηση από το παιχνίδι. Ορίστε δική σας εικόνα.</translation>
+            <location filename="../src/document.cpp" />
+            <source>Pytanie korzysta z nierozwiązanych mediów z gry. Przypisz obrazek lub film.</source>
+            <translation>Αυτή η ερώτηση χρησιμοποιεί πολυμέσα από το αρχικό παιχνίδι. Επισυνάψτε μια εικόνα ή ένα βίντεο.</translation>
         </message>
         <message>
             <source>Wpisz treść pytania.</source>
@@ -321,6 +355,14 @@
             <source>Eksport do buzzpack nie obsługuje kategorii własnych. Zbuduj paczkę .edat w Studiu.</source>
             <translation>Η εξαγωγή buzzpack δεν υποστηρίζει προσαρμοσμένες κατηγορίες. Δημιουργήστε πακέτο .edat στο Studio.</translation>
         </message>
+        <message>
+            <source>Brakuje klipu muzycznego do pytania.</source>
+            <translation>Λείπει το μουσικό απόσπασμα της ερώτησης.</translation>
+        </message>
+        <message>
+            <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
+            <translation>Η εξαγωγή JSON παραλείπει τα μουσικά αποσπάσματα. Δημιουργήστε ένα πακέτο .edat στο Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -335,6 +377,11 @@
     </context>
     <context>
         <name>LegacyImport</name>
+        <message>
+            <location filename="../src/legacy_import.cpp" />
+            <source>Pytania oczekujące na media: %1.</source>
+            <translation>Ερωτήσεις που αναμένουν πολυμέσα: %1.</translation>
+        </message>
         <message>
             <location filename="../src/legacy_import.cpp" />
             <source>Zaimportowano obrazki RSV do %1 pytań.</source>
@@ -650,6 +697,170 @@
         <name>Main</name>
         <message>
             <location filename="../src/main_window.cpp" />
+            <source>WIDEO</source>
+            <translation>ΒΙΝΤΕΟ</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Lektor</source>
+            <translation>Αφήγηση</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Z lektorem</source>
+            <translation>Με αφήγηση</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj nagranie</source>
+            <translation>Προσθήκη ηχογράφησης</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Brak obrazu</source>
+            <translation>Χωρίς εικόνα</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie po imporcie…</source>
+            <translation>Αντιστοίχιση κατηγοριών μετά την εισαγωγή…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorie działom gry</source>
+            <translation>Αντιστοίχιση κατηγοριών στις ενότητες του παιχνιδιού</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: ostatni import</source>
+            <translation>Εύρος: τελευταία εισαγωγή</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zakres: cały projekt</source>
+            <translation>Εύρος: ολόκληρο το έργο</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz dział gry i kategorię docelową. Wybór działu obejmuje także jego poddziały.</source>
+            <translation>Επιλέξτε ενότητα παιχνιδιού και κατηγορία προορισμού. Η επιλογή μιας ενότητας περιλαμβάνει και τις υποενότητές της.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dział źródłowy</source>
+            <translation>Ενότητα προέλευσης</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bez działu źródłowego</source>
+            <translation>Χωρίς ενότητα προέλευσης</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kategoria docelowa</source>
+            <translation>Κατηγορία προορισμού</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz podkategorię</source>
+            <translation>Επιλέξτε υποκατηγορία</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podkategoria docelowa</source>
+            <translation>Υποκατηγορία προορισμού</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisanie zastąpi kategorię pytań z tego działu. Zmianę można cofnąć.</source>
+            <translation>Αντικαθίσταται η κατηγορία των ερωτήσεων της ενότητας. Μπορείτε να αναιρέσετε την αλλαγή.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przypisz kategorię (%1)</source>
+            <translation>Αντιστοίχιση κατηγορίας (%1)</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania ze zmienioną kategorią: %1</source>
+            <translation>Ερωτήσεις με αλλαγμένη κατηγορία: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Te pytania mają już wybraną kategorię.</source>
+            <translation>Αυτές οι ερωτήσεις έχουν ήδη την επιλεγμένη κατηγορία.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do przetwarzania mediów potrzebny jest FFmpeg.</source>
+            <translation>Για την επεξεργασία πολυμέσων απαιτείται το FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Strona pobierania FFmpeg</source>
+            <translation>Σελίδα λήψης FFmpeg</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zainstaluj przez %1</source>
+            <translation>Εγκατάσταση μέσω %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kopiuj polecenie instalacji</source>
+            <translation>Αντιγραφή εντολής εγκατάστασης</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Uruchom skopiowane polecenie w terminalu, a potem wróć do Studio.
+
+%1</source>
+            <translation>Εκτελέστε την αντιγραμμένη εντολή σε τερματικό και επιστρέψτε στο Studio.
+
+%1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalowanie FFmpeg przez %1…</source>
+            <translation>Εγκατάσταση του FFmpeg μέσω %1…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja FFmpeg nie powiodła się.</source>
+            <translation>Η εγκατάσταση του FFmpeg απέτυχε.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Instalacja zakończona. Wybierz plik wykonywalny FFmpeg.</source>
+            <translation>Η εγκατάσταση ολοκληρώθηκε. Επιλέξτε το εκτελέσιμο αρχείο του FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Ανάκτηση πολυμέσων παιχνιδιού</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagają mediów.</source>
+            <translation>Ορισμένες ερωτήσεις χρειάζονται πολυμέσα.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz działający plik wykonywalny FFmpeg.</source>
+            <translation>Επιλέξτε ένα λειτουργικό εκτελέσιμο αρχείο FFmpeg.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania wymagające mediów</source>
+            <translation>Ερωτήσεις που χρειάζονται πολυμέσα</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wybierz pytanie z listy, aby dodać brakujący obraz lub film (%1).</source>
+            <translation>Επιλέξτε μια ερώτηση για να προσθέσετε την εικόνα ή το βίντεο που λείπει (%1).</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
             <source>Zdekoduj media źródłowe</source>
             <translation>Αποκωδικοποίηση πολυμέσων πηγής</translation>
         </message>
@@ -681,6 +892,10 @@
         <message>
             <source>Wideo (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</source>
             <translation>Βίντεο (*.mp4 *.mkv *.webm *.avi *.mov *.m4v *.mpg)</translation>
+        </message>
+        <message>
+            <source>Kliknij Odtwórz przy wideo, aby odzyskać je z gry.</source>
+            <translation>Πάτησε Αναπαραγωγή δίπλα στο βίντεο για να το ανακτήσεις από το παιχνίδι.</translation>
         </message>
         <message>
             <source>Brak filmu</source>
@@ -1420,9 +1635,70 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <source>Paczka może mieć najwyżej 99 kategorii własnych.</source>
             <translation>Ένα πακέτο μπορεί να έχει έως 99 προσαρμοσμένες κατηγορίες.</translation>
         </message>
+        <message>
+            <source>Odzyskano klip muzyczny z gry.</source>
+            <translation>Το μουσικό απόσπασμα ανακτήθηκε από το παιχνίδι.</translation>
+        </message>
+        <message>
+            <source>Wybierz pytanie, aby sprawdzić, których mediów brakuje (%1).</source>
+            <translation>Επιλέξτε μια ερώτηση για να δείτε ποια πολυμέσα λείπουν (%1).</translation>
+        </message>
+        <message>
+            <source>Brak muzyki: %1</source>
+            <translation>Λείπει η μουσική: %1</translation>
+        </message>
+        <message>
+            <source>Z muzyką</source>
+            <translation>Με μουσική</translation>
+        </message>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Αναπαραγωγή</translation>
+        </message>
     </context>
     <context>
         <name>PackBuilder</name>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Wybierz kategorię i podkategorię dla tego pytania.</source>
+            <translation>Επιλέξτε κατηγορία και υποκατηγορία για αυτή την ερώτηση.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Żadne pytanie nie jest gotowe do zbudowania paczki.</source>
+            <translation>Καμία ερώτηση δεν είναι έτοιμη για τη δημιουργία του πακέτου.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Kodowanie filmu do pytania %1 z %2…</source>
+            <translation>Κωδικοποίηση βίντεο ερώτησης %1 από %2…</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Paczka zawiera za dużo różnych filmów do pytań.</source>
+            <translation>Το πακέτο περιέχει υπερβολικά πολλά διαφορετικά βίντεο ερωτήσεων.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <location filename="../src/pack_media.cpp" />
+            <source>Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI.</source>
+            <translation>Το επιλεγμένο πρότυπο Quiz World δεν περιέχει συμβατή κεφαλίδα βίντεο SDI.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_builder.cpp" />
+            <source>Filmy do pytań przekraczają limit 256 MiB na paczkę.</source>
+            <translation>Τα βίντεο ερωτήσεων υπερβαίνουν το όριο των 256 MiB ανά πακέτο.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Film do pytania musi zawierać obraz i trwać najwyżej 30 sekund.</source>
+            <translation>Το βίντεο μιας ερώτησης πρέπει να περιέχει ροή βίντεο και να διαρκεί έως 30 δευτερόλεπτα.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>FFmpeg nie utworzył oczekiwanego strumienia stereo ADX 48 kHz.</source>
+            <translation>Το FFmpeg δεν δημιούργησε την αναμενόμενη στερεοφωνική ροή ADX στα 48 kHz.</translation>
+        </message>
         <message>
             <source>Przekroczony budżet ramki ATRAC3.</source>
             <translation>Υπέρβαση του ορίου καρέ ATRAC3.</translation>
@@ -1823,9 +2099,91 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <source>Kategoria własna nie ma nazwy w języku %1. Uzupełnij ją w oknie Kategorie paczki.</source>
             <translation>Μια προσαρμοσμένη κατηγορία δεν έχει όνομα στη γλώσσα %1. Προσθέστε το στο παράθυρο «Κατηγορίες πακέτου».</translation>
         </message>
+        <message>
+            <source>Plik klipu muzycznego RSF jest uszkodzony.</source>
+            <translation>Το αρχείο RSF του μουσικού αποσπάσματος είναι κατεστραμμένο.</translation>
+        </message>
+        <message>
+            <source>W zapisanym pytaniu brakuje odwołania do klipu muzycznego.</source>
+            <translation>Στην αποθηκευμένη ερώτηση λείπει η αναφορά στο μουσικό απόσπασμα.</translation>
+        </message>
+        <message>
+            <source>Paczka zawiera za dużo różnych klipów muzycznych.</source>
+            <translation>Το πακέτο περιέχει υπερβολικά πολλά διαφορετικά μουσικά αποσπάσματα.</translation>
+        </message>
     </context>
     <context>
         <name>PackDialogs</name>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Sprawdzanie pytań…</source>
+            <translation>Έλεγχος ερωτήσεων…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Gotowe: %1</source>
+            <translation>Έτοιμες: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do poprawy: %1</source>
+            <translation>Προς διόρθωση: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pytania do poprawy</source>
+            <translation>Ερωτήσεις προς διόρθωση</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Otwórz w edytorze</source>
+            <translation>Άνοιγμα στον επεξεργαστή</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Wróć do budowania</source>
+            <translation>Επιστροφή στη δημιουργία</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprzednie pytanie</source>
+            <translation>Προηγούμενη ερώτηση</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Następne pytanie</source>
+            <translation>Επόμενη ερώτηση</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>%1 z %2</source>
+            <translation>%1 από %2</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Poprawione</source>
+            <translation>Διορθώθηκε</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Puste w tym języku: %1</source>
+            <translation>Κενές σε αυτή τη γλώσσα: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>To wstępna kontrola. Studio sprawdzi szablon i media podczas budowania, a pominięte pytania pokaże w raporcie.</source>
+            <translation>Αυτός είναι ένας προκαταρκτικός έλεγχος. Το Studio θα ελέγξει το πρότυπο και τα πολυμέσα κατά τη δημιουργία και θα εμφανίσει τις ερωτήσεις που παραλείφθηκαν στην αναφορά.</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Paczka nie została zbudowana</source>
+            <translation>Το πακέτο δεν δημιουργήθηκε</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Pominięte pytania (%1). Wybierz pytanie, aby otworzyć je w edytorze.</source>
+            <translation>Ερωτήσεις που παραλείφθηκαν (%1). Επιλέξτε μια ερώτηση για να την ανοίξετε στον επεξεργαστή.</translation>
+        </message>
         <message>
             <source>Wybierz…</source>
             <translation>Επιλογή…</translation>
@@ -2012,6 +2370,36 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
     </context>
     <context>
         <name>StudioController</name>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Zbiorcze przypisanie kategorii</source>
+            <translation>Μαζική αντιστοίχιση κατηγοριών</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełnione nagrania lektora: %1.</source>
+            <translation>Προστέθηκαν αρχικές εκφωνήσεις: %1.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskaj media z gry</source>
+            <translation>Ανάκτηση πολυμέσων παιχνιδιού</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Nie znaleziono mediów do odzyskania.</source>
+            <translation>Δεν βρέθηκαν πολυμέσα για ανάκτηση.</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Odzyskiwanie mediów z gry…</source>
+            <translation>Ανάκτηση πολυμέσων παιχνιδιού…</translation>
+        </message>
+        <message>
+            <location filename="../src/controller.cpp" />
+            <source>Uzupełniono media (%1).</source>
+            <translation>Ανακτήθηκαν πολυμέσα για %1 εκδόσεις ερωτήσεων.</translation>
+        </message>
         <message>
             <location filename="../src/controller.cpp" />
             <source>Dekodowanie mediów źródłowych…</source>
@@ -2242,6 +2630,16 @@ Zbudowany plik: </source>
     <context>
         <name>Ps3Source</name>
         <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Nie znaleziono oryginalnego archiwum pytań PS3.</source>
+            <translation>Δεν βρέθηκε το αρχικό αρχείο ερωτήσεων του PS3.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps3_source.cpp" />
+            <source>Wskazanego klipu SDI brakuje lub jest za duży.</source>
+            <translation>Το αναφερόμενο κλιπ SDI λείπει ή είναι υπερβολικά μεγάλο.</translation>
+        </message>
+        <message>
             <source>Plik jest ucięty.</source>
             <translation>Το αρχείο είναι περικομμένο.</translation>
         </message>
@@ -2373,8 +2771,371 @@ Zbudowany plik: </source>
         <name>MediaTools</name>
         <message>
             <location filename="../src/media_tools.h" />
+            <source>Nie znaleziono FFmpeg. Skonfiguruj go w menu Question Studio.</source>
+            <translation>Δεν βρέθηκε το FFmpeg. Ρυθμίστε το από το μενού του Question Studio.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Płyta źródłowa nie zawiera wskazanego archiwum filmów.</source>
+            <translation>Ο δίσκος προέλευσης δεν περιέχει το αναφερόμενο αρχείο βίντεο.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Otwórz obraz płyty PS2 lub plik PAK z rundami z rozpakowanej płyty PS2.</source>
+            <translation>Ανοίξτε την εικόνα δίσκου PS2 ή ένα αρχείο PAK γύρων από εξαγμένα δεδομένα δίσκου PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazanego pliku RSV brakuje lub jest za duży.</source>
+            <translation>Το αναφερόμενο αρχείο RSV λείπει ή είναι υπερβολικά μεγάλο.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwany nagłówek bloku audio PS2 RSV.</source>
+            <translation>Μη υποστηριζόμενη κεφαλίδα μπλοκ ήχου PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura PS2 RSV.</source>
+            <translation>Μη υποστηριζόμενη δομή PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Wskazana klatka obrazu PS2 jest poza arkuszem.</source>
+            <translation>Το αναφερόμενο καρέ εικόνας PS2 βρίσκεται εκτός του φύλλου εικόνων.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Niepoprawne przesunięcia klatek PS2 RSV.</source>
+            <translation>Μη έγκυρες μετατοπίσεις καρέ PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nieobsługiwana struktura bloku audio PS2 RSV.</source>
+            <translation>Μη υποστηριζόμενη δομή μπλοκ ήχου PS2 RSV.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Brak znacznika końca klatki PS2 IPU.</source>
+            <translation>Λείπει ο δείκτης τέλους καρέ στο PS2 IPU.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów PS2.</source>
+            <translation>Το FFmpeg δεν δημιούργησε τα αποκωδικοποιημένα πολυμέσα PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się zapisać zdekodowanych mediów PS2.</source>
+            <translation>Δεν ήταν δυνατή η αποθήκευση των αποκωδικοποιημένων πολυμέσων PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów PS2.</source>
+            <translation>Δεν ήταν δυνατή η δημιουργία του φακέλου προσωρινής αποθήκευσης πολυμέσων PS2.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza.</source>
+            <translation>Ο αριθμός αποκωδικοποιημένων εικόνων PS2 δεν συμφωνεί με το ευρετήριο του φύλλου εικόνων.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Pytanie nie ma obsługiwanego odwołania do mediów PS2. Zaimportuj ponownie starsze wpisy z filmami.</source>
+            <translation>Αυτή η ερώτηση δεν έχει υποστηριζόμενη αναφορά σε πολυμέσα PS2. Εισαγάγετε ξανά τις παλαιότερες καταχωρίσεις βίντεο.</translation>
+        </message>
+        <message>
+            <location filename="../src/ps2_media.cpp" />
+            <source>Nie udało się utworzyć tymczasowego katalogu mediów.</source>
+            <translation>Δεν ήταν δυνατή η δημιουργία του προσωρινού φακέλου πολυμέσων.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Otwórz oryginalny obraz płyty PSP lub plik MERGED.QDB.</source>
+            <translation>Ανοίξτε την αρχική εικόνα δίσκου PSP ή το αρχείο MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Archiwum pytań PSP nie zawiera katalogu mediów.</source>
+            <translation>Το αρχείο ερωτήσεων του PSP δεν περιέχει φάκελο πολυμέσων.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie znaleziono klipu PSP do pytania w katalogu rozpakowanych danych.</source>
+            <translation>Το κλιπ της ερώτησης PSP δεν βρέθηκε στον φάκελο των εξαγμένων δεδομένων.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawna granica pakietu PSP PSMF.</source>
+            <translation>Μη έγκυρο όριο πακέτου PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek pakietu zbiorczego PSP PSMF.</source>
+            <translation>Μη έγκυρη κεφαλίδα μπλοκ PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięty pakiet PSP PSMF.</source>
+            <translation>Ελλιπές πακέτο PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawny nagłówek PES w PSP PSMF.</source>
+            <translation>Μη έγκυρη κεφαλίδα PES σε PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne dane PES w PSP PSMF.</source>
+            <translation>Μη έγκυρα δεδομένα PES σε PSP PSMF.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Klip PSP nie zawiera rozpoznanej ścieżki ATRAC3+.</source>
+            <translation>Το κλιπ PSP δεν περιέχει αναγνωρισμένο κομμάτι ήχου ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Ucięta ścieżka PSP ATRAC3+.</source>
+            <translation>Ελλιπές κομμάτι ήχου PSP ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Niepoprawne wyrównanie ramek PSP ATRAC3+.</source>
+            <translation>Μη έγκυρη στοίχιση πλαισίων PSP ATRAC3+.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nieobsługiwany nagłówek filmu do pytania.</source>
+            <translation>Μη υποστηριζόμενη κεφαλίδα βίντεο ερώτησης.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>Nie udało się utworzyć katalogu pamięci podręcznej mediów.</source>
+            <translation>Δεν ήταν δυνατή η δημιουργία φακέλου προσωρινής αποθήκευσης πολυμέσων.</translation>
+        </message>
+        <message>
+            <location filename="../src/source_movie.cpp" />
+            <source>FFmpeg nie utworzył zdekodowanych mediów.</source>
+            <translation>Το FFmpeg δεν δημιούργησε τα αποκωδικοποιημένα πολυμέσα.</translation>
+        </message>
+        <message>
+            <location filename="../src/media_tools.h" />
             <source>Do dekodowania mediów wymagany jest FFmpeg. Zainstaluj go i dodaj do PATH lub wskaż plik wykonywalny w ustawieniach budowania: Silnik mediów (FFmpeg).</source>
             <translation>Η αποκωδικοποίηση πολυμέσων απαιτεί το FFmpeg. Εγκαταστήστε το και προσθέστε το στο PATH ή επιλέξτε το εκτελέσιμο αρχείο στις ρυθμίσεις δημιουργίας: Μηχανή πολυμέσων (FFmpeg).</translation>
+        </message>
+    </context>
+    <context>
+        <name>ImportWizard</name>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pomiń i przejdź do edytora</source>
+            <translation>Παράλειψη και μετάβαση στον επεξεργαστή</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Obrazy lub filmy nadal brakujące po odzyskiwaniu: %1</source>
+            <translation>Εικόνες ή βίντεο που εξακολουθούν να λείπουν μετά την ανάκτηση: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z obrazem lub filmem do automatycznego odzyskania: %1</source>
+            <translation>Ερωτήσεις με εικόνα ή βίντεο για αυτόματη ανάκτηση: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z samą ścieżką muzyczną, której Studio jeszcze nie obsługuje: %1</source>
+            <translation>Ερωτήσεις με αυτόνομο μουσικό κομμάτι που το Studio δεν υποστηρίζει ακόμη: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z brakującym lub nieobsługiwanym obrazem albo filmem: %1</source>
+            <translation>Ερωτήσεις με εικόνα ή βίντεο που λείπει ή δεν υποστηρίζεται: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania uzupełnione automatycznie: %1</source>
+            <translation>Ερωτήσεις που συμπληρώθηκαν αυτόματα: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zmień przypisanie kategorii…</source>
+            <translation>Αλλαγή αντιστοίχισης κατηγοριών…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania z zachowaną kategorią gry: %1</source>
+            <translation>Ερωτήσεις που διατήρησαν την αρχική κατηγορία παιχνιδιού: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania i gry</source>
+            <translation>Ερωτήσεις και παιχνίδια</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importuj pytania</source>
+            <translation>Εισαγωγή ερωτήσεων</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
+            <translation>Επιλέξτε εικόνα δίσκου, αρχείο ερωτήσεων ή φάκελο αποσυμπιεσμένου παιχνιδιού PS3 ή Knowledge Is Power.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wklej ścieżkę lub przeciągnij plik albo folder</source>
+            <translation>Επικολλήστε μια διαδρομή ή σύρετε εδώ ένα αρχείο ή φάκελο</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Źródło pytań</source>
+            <translation>Πηγή ερωτήσεων</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz plik…</source>
+            <translation>Επιλογή αρχείου…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz folder…</source>
+            <translation>Επιλογή φακέλου…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
+            <translation>Για αποσυμπιεσμένο παιχνίδι PS2 ή PSP, επιλέξτε το ROUND.PAK ή το MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodaj do bieżącego projektu</source>
+            <translation>Προσθήκη στο τρέχον έργο</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Otwórz jako nowy projekt</source>
+            <translation>Άνοιγμα ως νέο έργο</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Miejsce importu</source>
+            <translation>Προορισμός εισαγωγής</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wstecz</source>
+            <translation>Πίσω</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Krok %1 z 3</source>
+            <translation>Βήμα %1 από 3</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Sprawdzanie źródła…</source>
+            <translation>Έλεγχος πηγής…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Ustawienia importu</source>
+            <translation>Ρυθμίσεις εισαγωγής</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Importowanie pytań…</source>
+            <translation>Εισαγωγή ερωτήσεων…</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Import zakończony</source>
+            <translation>Η εισαγωγή ολοκληρώθηκε</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Przejdź do edytora</source>
+            <translation>Μετάβαση στον επεξεργαστή</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dalej</source>
+            <translation>Επόμενο</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Wybierz istniejący plik lub folder z obsługiwaną grą.</source>
+            <translation>Επιλέξτε ένα υπάρχον αρχείο ερωτήσεων ή φάκελο υποστηριζόμενου παιχνιδιού.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekt zachowa wszystkie wersje językowe.</source>
+            <translation>Το έργο διατηρεί όλες τις γλωσσικές εκδόσεις.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Dodane pytania: %1</source>
+            <translation>Ερωτήσεις που προστέθηκαν: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Zaktualizowane pytania: %1</source>
+            <translation>Ερωτήσεις που ενημερώθηκαν: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Istniejące pytania zachowane bez zmian: %1</source>
+            <translation>Υπάρχουσες ερωτήσεις που διατηρήθηκαν χωρίς αλλαγές: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Pytania w bieżącej wersji wymagające mediów: %1</source>
+            <translation>Ερωτήσεις με πολυμέσα που λείπουν στην τρέχουσα γλώσσα: %1</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Projekty Question Studio</source>
+            <translation>Έργα Question Studio</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Aby zobaczyć tę wersję pytań, ustaw język pytań w projekcie na %1.</source>
+            <translation>Για να δείτε αυτή την έκδοση των ερωτήσεων, ορίστε τη γλώσσα ερωτήσεων του έργου σε %1.</translation>
+        </message>
+        <message>
+            <source>Pytania z klipem muzycznym do odzyskania: %1</source>
+            <translation>Ερωτήσεις με μουσικό απόσπασμα προς ανάκτηση: %1</translation>
+        </message>
+        <message>
+            <source>Pytania z brakującym klipem muzycznym: %1</source>
+            <translation>Ερωτήσεις χωρίς το απαραίτητο μουσικό απόσπασμα: %1</translation>
+        </message>
+    </context>
+    <context>
+        <name>MediaPreviewDialog</name>
+        <message>
+            <source>Odtwórz</source>
+            <translation>Αναπαραγωγή</translation>
+        </message>
+        <message>
+            <source>Pozycja odtwarzania</source>
+            <translation>Θέση αναπαραγωγής</translation>
+        </message>
+        <message>
+            <source>Zamknij</source>
+            <translation>Κλείσιμο</translation>
+        </message>
+        <message>
+            <source>Pauza</source>
+            <translation>Παύση</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie podglądu…</source>
+            <translation>Προετοιμασία προεπισκόπησης…</translation>
+        </message>
+        <message>
+            <source>Nie udało się odtworzyć tego pliku.</source>
+            <translation>Δεν ήταν δυνατή η αναπαραγωγή του αρχείου.</translation>
         </message>
     </context>
 </TS>

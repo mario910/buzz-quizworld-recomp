@@ -5,8 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 include(CTest)
-# Only Qt Base (+ Linguist at build time): the same Qt libraries BuzzSetup ships.
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Concurrent LinguistTools)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Concurrent LinguistTools MultimediaWidgets)
 
 # zlib inflates PSP .cso disc images (the repository's pinned submodule).
 set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -17,8 +16,8 @@ add_library(studio_core STATIC src/document.cpp src/document.h src/buzz_import.c
     src/disc_image.cpp src/disc_image.h src/legacy_import.cpp src/legacy_import.h
     src/ps4_pkg.cpp src/ps4_pkg.h src/kip_import.cpp src/kip_import.h src/ps3_source.cpp src/ps3_source.h
     src/project_media.cpp src/project_media.h src/media_tools.cpp src/media_tools.h
-    src/ps2_media.h src/ps2_media.cpp src/source_movie.h src/source_movie.cpp)
-target_link_libraries(studio_core PUBLIC Qt6::Core PRIVATE ZLIB::ZLIBSTATIC)
+    src/ps2_media.h src/ps2_media.cpp src/psp_media.h src/psp_media.cpp src/source_movie.h src/source_movie.cpp)
+target_link_libraries(studio_core PUBLIC Qt6::Core PRIVATE Qt6::Gui ZLIB::ZLIBSTATIC)
 # AES for PS4 packages: the system's CNG on Windows, libcrypto elsewhere.
 if(WIN32)
     target_link_libraries(studio_core PRIVATE bcrypt)
@@ -39,13 +38,14 @@ target_link_libraries(studio_app PUBLIC studio_build Qt6::Gui Qt6::Concurrent)
 if(WIN32)
     target_link_libraries(studio_app PRIVATE sapi ole32)
 endif()
-set(studio_ui src/main_window.cpp src/main_window.h)
+set(studio_ui src/main_window.cpp src/main_window.h src/import_wizard.cpp src/import_wizard.h
+    src/media_preview.cpp src/media_preview.h)
 if(WIN32)
     set(studio_icon studio.rc)
 endif()
 add_executable(BuzzQuestionStudio WIN32 src/main.cpp ${studio_ui} resources.qrc ${studio_icon})
 target_compile_definitions(BuzzQuestionStudio PRIVATE STUDIO_VERSION="${PROJECT_VERSION}")
-target_link_libraries(BuzzQuestionStudio PRIVATE studio_app Qt6::Widgets)
+target_link_libraries(BuzzQuestionStudio PRIVATE studio_app Qt6::MultimediaWidgets)
 if(MSVC)
     target_compile_options(studio_core PRIVATE /W4 /utf-8)
     target_compile_options(studio_build PRIVATE /W4 /utf-8)
@@ -73,7 +73,7 @@ if(BUILD_TESTING)
     target_link_libraries(studio_ps2_media_test PRIVATE studio_build Qt6::Test)
     add_test(NAME studio-ps2-media COMMAND studio_ps2_media_test)
     add_executable(studio_ui_test tests/ui_test.cpp ${studio_ui} resources.qrc)
-    target_link_libraries(studio_ui_test PRIVATE studio_app Qt6::Widgets Qt6::Test)
+    target_link_libraries(studio_ui_test PRIVATE studio_app Qt6::MultimediaWidgets Qt6::Test)
     target_include_directories(studio_ui_test PRIVATE src)
     if(MSVC)
         foreach(test studio_ui_test studio_controller_test studio_builder_test studio_document_test)

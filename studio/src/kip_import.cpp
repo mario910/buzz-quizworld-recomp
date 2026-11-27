@@ -15,6 +15,7 @@
 #include <QSaveFile>
 #include <QSet>
 #include <QStandardPaths>
+#include <algorithm>
 #include <memory>
 #include <zlib.h>
 
@@ -98,25 +99,71 @@ QMap<QString, QString> loadLoc(const QByteArray &bytes) {
     const auto lines = text.split(QStringLiteral("\r\n"));
     for (int i = 1; i < lines.size(); ++i) {
         const int tab = lines[i].indexOf('\t');
-        if (tab > 0)
-            out.insert(lines[i].left(tab), lines[i].mid(tab + 1));
+        if (tab <= 0)
+            continue;
+        const auto value = lines[i].mid(tab + 1);
+        const auto trimmed = value.trimmed();
+        if (!trimmed.isEmpty() && !(trimmed.startsWith("<Translate:") && trimmed.endsWith('>')))
+            out.insert(lines[i].left(tab), value);
     }
     return out;
 }
 
-QStringList languagesOf(const Source &source) {
-    QStringList codes;
+QMap<QString, QMap<QString, QString>> questionLocalizations(Source &source, const QMap<QString, QString> &tables) {
+    QMap<QString, QMap<QString, QString>> languages;
+    const auto trivia = rows(tables.value("KIP_Trivia_QuestionText"));
+    const auto finale = rows(tables.value("KIP_Finale_QuestionText"));
     for (const auto &f : source.list(locDir)) {
         const auto name = QFileInfo(f).fileName();
-        if (name.endsWith("_text.loc")) {
-            const auto code = languageCode(name.left(name.size() - 9));
-            if (!code.isEmpty())
-                codes << code;
-        }
+        if (!name.endsWith("_text.loc"))
+            continue;
+        const auto code = languageCode(name.chopped(9));
+        if (code.isEmpty() || languages.contains(code))
+            continue;
+        auto loc = loadLoc(source.read(f));
+        const auto translated = [&](const QVector<QStringList> &table) {
+            return std::any_of(table.cbegin(), table.cend(), [&](const QStringList &row) {
+                return row.size() > cAnswers + 3 &&
+                       std::all_of(row.cbegin() + cKey, row.cbegin() + cAnswers + 4,
+                                   [&](const QString &key) { return loc.contains(key); });
+            });
+        };
+        if (translated(trivia) || translated(finale) || translated(rows(tables.value("KIP_Trivia_QuestionText_" + code))))
+            languages.insert(code, std::move(loc));
     }
-    codes.removeDuplicates();
-    codes.sort();
-    return codes;
+    return languages;
+}
+
+QJsonArray packCategoryPath(const QJsonArray &sourceCategory) {
+    // The PS4 taxonomy runs seven levels deep. Its first three levels fit within
+    // Quiz World's custom-category budget. Keep the full original path on the question.
+    QJsonArray path;
+    for (int i = 0; i < std::min<qsizetype>(3, sourceCategory.size()); ++i)
+        path.append(sourceCategory[i]);
+    if (path.isEmpty())
+        path.append(QCoreApplication::translate("LegacyImport", "Wiedza ogólna"));
+    return path;
+}
+
+QJsonObject categoryLabels(const QJsonArray &path, const QMap<QString, QMap<QString, QString>> &localizations) {
+    QJsonObject labels;
+    for (auto it = localizations.cbegin(); it != localizations.cend(); ++it) {
+        QJsonArray names;
+        for (const auto &part : path) {
+            const auto key = part.toString();
+            names.append(it->value(key, key));
+        }
+        if (names.isEmpty()) {
+            if (it.key() == "pl")
+                names.append(QStringLiteral("Wiedza ogólna"));
+            else if (it.key().section('-', 0, 0) == "en")
+                names.append(QStringLiteral("General Knowledge"));
+            else
+                continue;
+        }
+        labels[it.key()] = names;
+    }
+    return labels;
 }
 
 // Stored or deflated entry of a ZIP held in memory.
@@ -188,7 +235,8 @@ SourceLanguages kipLanguages(const QString &path) {
     SourceLanguages result;
     try {
         Source source(path);
-        result.codes = languagesOf(source);
+        const auto tables = kipTextAssets(source.read(assetsPath, qint64(1) << 31));
+        result.codes = questionLocalizations(source, tables).keys();
         result.preferred = preferredLanguage(result.codes);
         if (result.codes.isEmpty())
             fail(tr("Brak plików językowych pytań."));
@@ -202,26 +250,29 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
     LoadResult out;
     try {
         Source source(path);
-        const auto codes = languagesOf(source);
-        const auto selected = requestedLanguage.isEmpty() ? preferredLanguage(codes) : languageCode(requestedLanguage);
-        if (!codes.contains(selected))
-            fail(QCoreApplication::translate("BuzzImport", "Źródło nie zawiera wybranego języka."));
         const auto tables = kipTextAssets(source.read(assetsPath, qint64(1) << 31));
         if (!tables.contains("KIP_Trivia_QuestionText"))
             fail(tr("Nie znaleziono tabel pytań w resources.assets."));
-        QMap<QString, QMap<QString, QString>> loc;
+        const auto loc = questionLocalizations(source, tables);
+        const auto codes = loc.keys();
+        const auto selected = requestedLanguage.isEmpty() ? preferredLanguage(codes) : languageCode(requestedLanguage);
+        if (!codes.contains(selected))
+            fail(QCoreApplication::translate("BuzzImport", "Źródło nie zawiera wybranego języka."));
         QMap<QString, QSet<QString>> kill;
+        QMap<QString, QSet<QString>> modeKill;
         for (const auto &code : codes) {
-            const auto file = locDir + code + "_text.loc";
-            if (!source.contains(file))
-                continue;
-            loc[code] = loadLoc(source.read(file));
             const auto killList = rows(tables.value("KIP_Trivia_KillList_" + code));
-            if (!killList.isEmpty())
-                for (const auto &id : killList[0])
+            for (const auto &line : killList)
+                for (const auto &id : line)
                     kill[code].insert(id);
+            for (const auto &prefix : {"KIP_Sorting_KillList_", "KIP_Linking_KillList_"}) {
+                const auto list = rows(tables.value(prefix + code));
+                for (const auto &line : list)
+                    for (const auto &id : line)
+                        modeKill[code].insert(id);
+            }
         }
-        // Pictures and the selected language's voice go to a cache, as Buzz imports do.
+        // Pictures and original voices for the retained language variants go to the cache.
         const QFileInfo input(path);
         const auto identity =
             (input.absoluteFilePath() + QString::number(input.size()) + input.lastModified().toString(Qt::ISODateWithMs))
@@ -257,21 +308,30 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
             }
             return extracted.value(entry);
         };
-        int voices = 0, missingVoices = 0;
-        auto voice = [&](const QString &code, const QString &key) -> QString {
-            if (code != selected || !voiceFolders.contains(code))
-                return {};
-            const auto file = voiceDir + voiceFolders[code] + '/' + code + '_' + key + ".wem";
-            if (!source.contains(file)) {
-                ++missingVoices;
-                return {};
+        int missingVoices = 0;
+        const auto attachVoices = [&](QJsonObject &variants, const QString &key, bool expectNarration) {
+            for (auto it = variants.begin(); it != variants.end(); ++it) {
+                const auto code = it.key();
+                const auto folder = voiceFolders.constFind(code);
+                if (folder == voiceFolders.cend())
+                    continue;
+                const auto name = code + '_' + key + ".wem";
+                const auto file = voiceDir + folder.value() + '/' + name;
+                if (!source.contains(file)) {
+                    missingVoices += expectNarration && code == selected;
+                    continue;
+                }
+                const auto target = cache.filePath(name);
+                if (!QFileInfo::exists(target))
+                    saveOnce(target, source.read(file));
+                auto variant = it.value().toObject();
+                variant["speech"] = target;
+                it.value() = variant;
             }
-            const auto target = cache.filePath(code + '_' + key + ".wem");
-            saveOnce(target, source.read(file));
-            ++voices;
-            return target;
         };
         QJsonArray questions;
+        const auto uncategorized = packCategoryPath({});
+        const auto uncategorizedLabels = categoryLabels({}, loc);
         auto add = [&](const QStringList &r, const QString &kind, const QString &onlyLanguage) {
             if (r.size() <= cAnswers + 3)
                 return;
@@ -283,14 +343,16 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
             QJsonObject q{{"id", r[cId]},
                           {"kind", kind},
                           {"category", category},
+                          {"source_pack_category_path", category.isEmpty() ? uncategorized : packCategoryPath(category)},
+                          {"source_category_labels", category.isEmpty() ? uncategorizedLabels
+                                                                       : categoryLabels(category, loc)},
                           {"difficulty", r.value(cDifficulty).isEmpty() ? "NORMAL" : r.value(cDifficulty)},
                           {"tags", QJsonArray::fromStringList(r.value(cTags).isEmpty()
                                                                   ? QStringList()
                                                                   : r.value(cTags).split("|~|"))},
                           {"image_frame", r.value(cFrame).isEmpty() ? QJsonValue() : QJsonValue(r.value(cFrame))}};
-            const auto image = r.value(cImage).isEmpty() ? QString() : picture(r.value(cImage));
-            if (!image.isEmpty())
-                q["image"] = image;
+            if (category.isEmpty())
+                q["source_section_key"] = "kip-general";
             QJsonObject langs;
             for (auto it = loc.cbegin(); it != loc.cend(); ++it) {
                 const auto &code = it.key();
@@ -303,33 +365,106 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
                 if (text.isEmpty() ||
                     std::any_of(answers.begin(), answers.end(), [](const QString &a) { return a.isEmpty(); }))
                     continue;
-                QJsonObject variant{{"question", text},
-                                    {"answers", QJsonArray::fromStringList(answers)},
-                                    {"correct_index", 0}};
-                if (!image.isEmpty())
-                    variant["image"] = image;
-                const auto speech = voice(code, key);
-                if (!speech.isEmpty())
-                    variant["speech"] = speech;
-                langs.insert(code, variant);
+                langs.insert(code, QJsonObject{{"question", text},
+                                               {"answers", QJsonArray::fromStringList(answers)},
+                                               {"correct_index", 0}});
             }
-            if (!langs.isEmpty()) {
+            if (langs.contains(selected)) {
+                const auto image = r.value(cImage).isEmpty() ? QString() : picture(r.value(cImage));
+                if (!image.isEmpty())
+                    q["image"] = image;
+                attachVoices(langs, key, true);
                 q["langs"] = langs;
                 questions << q;
             }
         };
         for (const auto &r : rows(tables.value("KIP_Trivia_QuestionText")))
             add(r, "trivia", {});
-        for (const auto &code : loc.keys())
-            for (const auto &r : rows(tables.value("KIP_Trivia_QuestionText_" + code)))
-                add(r, "local", code);
+        for (const auto &r : rows(tables.value("KIP_Trivia_QuestionText_" + selected)))
+            add(r, "local", selected);
         for (const auto &r : rows(tables.value("KIP_Finale_QuestionText")))
             add(r, "finale", {});
-        int skippedTypes = 0;
-        static const QRegularExpression other("^KIP_(Sorting|Linking)_QuestionText$");
-        for (auto it = tables.cbegin(); it != tables.cend(); ++it)
-            if (other.match(it.key()).hasMatch())
-                skippedTypes += rows(it.value()).size();
+        int adapted = 0, skippedTypes = 0;
+        const auto addMode = [&](const QString &table, const QString &onlyLanguage, bool sorting) {
+            const auto key = [](const QString &s) { return s.simplified().toCaseFolded(); };
+            for (const auto &row : rows(tables.value(table))) {
+                if (row.size() < (sorting ? 6 : 4)) {
+                    ++skippedTypes;
+                    continue;
+                }
+                const auto killed = [&](const QString &code) {
+                    const auto list = modeKill.constFind(code);
+                    return list != modeKill.cend() && (list->contains(row[cKey]) || list->contains(row[cId]));
+                };
+                const bool countThisLanguage = !killed(selected);
+                const auto left = row[sorting ? 3 : 2].split("|~|", Qt::SkipEmptyParts);
+                const auto right = row[sorting ? 5 : 3].split("|~|", Qt::SkipEmptyParts);
+                if (!sorting && left.size() != right.size()) {
+                    skippedTypes += countThisLanguage;
+                    continue;
+                }
+                QJsonObject variants;
+                for (auto lang = loc.cbegin(); lang != loc.cend(); ++lang) {
+                    const auto &code = lang.key();
+                    if ((!onlyLanguage.isEmpty() && code != onlyLanguage) || killed(code))
+                        continue;
+                    const auto text = lang->value(row[cKey]);
+                    const auto group = sorting ? lang->value(row[2]) : QString();
+                    if (text.isEmpty() || (sorting && group.isEmpty()))
+                        continue;
+                    // Sorting stores a list per group, linking stores parallel lists of paired keys.
+                    for (qsizetype i = 0; i < left.size(); ++i) {
+                        const auto item = lang->value(left[i]).trimmed();
+                        if (item.isEmpty() || (!sorting && left[i].right(2) != right[i].right(2)))
+                            continue;
+                        const auto answer = sorting ? item : lang->value(right[i]).trimmed();
+                        if (answer.isEmpty())
+                            continue;
+                        if (sorting && std::any_of(right.begin(), right.end(), [&](const QString &r) {
+                                return key(lang->value(r)) == key(answer);
+                            }))
+                            continue;
+                        if (!sorting && std::count_if(left.begin(), left.end(), [&](const QString &l) {
+                                return key(lang->value(l)) == key(item);
+                            }) != 1)
+                            continue;
+                        QSet<QString> used{key(answer)};
+                        QStringList answers{answer};
+                        for (const auto &r : right) {
+                            const auto other = lang->value(r).trimmed();
+                            const auto value = key(other);
+                            if (!value.isEmpty() && !used.contains(value)) {
+                                used.insert(value);
+                                answers << other;
+                                if (answers.size() == 4)
+                                    break;
+                            }
+                        }
+                        if (answers.size() == 4) {
+                            variants[code] = QJsonObject{
+                                {"question", text + (sorting ? "\n" + group + ":" : "\n" + item + " → …")},
+                                {"answers", QJsonArray::fromStringList(answers)}, {"correct_index", 0}};
+                            break;
+                        }
+                    }
+                }
+                if (variants.contains(selected)) {
+                    ++adapted;
+                    attachVoices(variants, row[cKey], false);
+                    questions << QJsonObject{{"id", row[cId]}, {"kind", sorting ? "sorting" : "linking"},
+                                             {"source_pack_category_path", uncategorized},
+                                             {"source_category_labels", uncategorizedLabels},
+                                             {"source_section_key", "kip-general"},
+                                             {"langs", variants}};
+                } else if (countThisLanguage)
+                    ++skippedTypes;
+            }
+        };
+        for (const bool sorting : {true, false}) {
+            const QString table = sorting ? "KIP_Sorting_QuestionText" : "KIP_Linking_QuestionText";
+            addMode(table, {}, sorting);
+            addMode(table + '_' + selected, selected, sorting);
+        }
         const auto json = QJsonDocument(QJsonObject{{"source", "Knowledge Is Power (" + source.contentId + ")"},
                                                     {"questions", questions}})
                               .toJson(QJsonDocument::Compact);
@@ -337,15 +472,14 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
         if (!out.ok())
             return out;
         out.document.title = QStringLiteral("Wiedza to Potęga");
+        if (adapted)
+            out.warnings << adaptedAnswersWarning(adapted);
         if (skippedTypes)
-            out.warnings << tr("Pominięto %1 pytań na sortowanie i łączenie — nie mają odpowiednika w Buzz!.")
-                                .arg(skippedTypes);
+            out.warnings << unsupportedAnswersWarning(skippedTypes);
         if (voiceFolders.contains(selected) && missingVoices)
             out.warnings << tr("%1 pytań nie ma nagrania lektora w pakiecie.").arg(missingVoices);
         if (!voiceFolders.contains(selected))
             out.warnings << tr("Gra ma nagrania lektora tylko po angielsku, polsku i rosyjsku.");
-        out.warnings << tr("Kategorie Wiedzy to Potęga trzeba przypisać do kategorii Quiz World przed budowaniem.");
-        Q_UNUSED(voices)
     } catch (const std::exception &e) {
         out.error = QString::fromUtf8(e.what());
         out.document.questions.clear();

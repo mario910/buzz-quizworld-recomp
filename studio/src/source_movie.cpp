@@ -1,8 +1,9 @@
 #include "source_movie.h"
-#include "disc_image.h"
 #include "media_tools.h"
 #include "pack_format.h"
 #include "ps3_source.h"
+#include "psp_media.h"
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QJsonArray>
@@ -13,7 +14,6 @@
 namespace studio {
 namespace {
 using namespace pack;
-constexpr int maxClip = 128 * 1024 * 1024;
 QJsonObject movie(const Question &q) {
     static const QRegularExpression sdi(R"(^[A-Z0-9_]+/QUESTIONASSETS/VIDEO/[0-9]+\.sdi$)",
                                         QRegularExpression::CaseInsensitiveOption);
@@ -24,33 +24,11 @@ QJsonObject movie(const Question &q) {
             continue;
         const auto entry = ref["entry"].toString();
         if ((ref["type"] == 2 && sdi.match(entry).hasMatch()) ||
-            (ref["type"] == "psp-video" && entry.endsWith(".pmf", Qt::CaseInsensitive)))
+            (ref["type"] == "psp-video" &&
+             (entry.endsWith(".pmf", Qt::CaseInsensitive) || entry.endsWith(".fmv", Qt::CaseInsensitive))))
             return ref;
     }
     return {};
-}
-
-QByteArray readPmf(const QString &source, const QString &entry) {
-    if (DiscImage::isDiscImage(source))
-        return DiscImage(source).read(entry, maxClip);
-    // A loose QDB keeps the movie under the same extracted locale/data root.
-    auto root = QFileInfo(source).dir();
-    if (QFileInfo(source).fileName().compare("MERGED.QDB", Qt::CaseInsensitive) != 0)
-        fail(QStringLiteral("Open the original PSP disc image or MERGED.QDB."));
-    if (root.dirName().compare("QUESTION_DATA", Qt::CaseInsensitive) != 0 && !root.cdUp())
-        fail(QStringLiteral("PSP question archive has no media directory."));
-    if (!root.cdUp())
-        fail(QStringLiteral("PSP question archive has no media directory."));
-    const QFileInfo info(entry);
-    const auto parent = root.canonicalPath();
-    const auto file = info.canonicalFilePath();
-    if (parent.isEmpty() || file.isEmpty() || !file.startsWith(parent + '/') ||
-        info.size() > maxClip)
-        fail(QStringLiteral("The PSP question clip was not found in the extracted data folder."));
-    QFile f(file);
-    if (!f.open(QIODevice::ReadOnly))
-        fail(f.errorString());
-    return f.readAll();
 }
 
 // PSMF audio is carried in MPEG-2 private PES packets. FFmpeg's MPEG-PS
@@ -63,27 +41,27 @@ QByteArray psmfAudio(const QByteArray &data, qint64 start, qint64 end, double &d
     const auto byte = [&](qint64 i) { return quint8(data[i]); };
     for (auto p = start; p + 4 <= end;) {
         if ((u32(data, p, true) >> 8) != 1)
-            fail(QStringLiteral("Invalid PSP PSMF packet boundary."));
+            fail(QCoreApplication::translate("MediaTools", "Niepoprawna granica pakietu PSP PSMF."));
         const auto code = byte(p + 3);
         if (code == 0xb9)
             break;
         if (code == 0xba) {
             if (p + 14 > end || (byte(p + 4) & 0xc0) != 0x40)
-                fail(QStringLiteral("Invalid PSP PSMF pack header."));
+                fail(QCoreApplication::translate("MediaTools", "Niepoprawny nagłówek pakietu zbiorczego PSP PSMF."));
             p += 14 + (byte(p + 13) & 7);
             continue;
         }
         if (p + 6 > end)
-            fail(QStringLiteral("Truncated PSP PSMF packet."));
+            fail(QCoreApplication::translate("MediaTools", "Ucięty pakiet PSP PSMF."));
         const auto next = p + 6 + u16(data, p + 4, true);
         if (next > end)
-            fail(QStringLiteral("Truncated PSP PSMF packet."));
+            fail(QCoreApplication::translate("MediaTools", "Ucięty pakiet PSP PSMF."));
         if (code == 0xbd || (code >= 0xe0 && code < 0xf0)) {
             if (p + 9 > next || (byte(p + 6) & 0xc0) != 0x80)
-                fail(QStringLiteral("Invalid PSP PSMF PES header."));
+                fail(QCoreApplication::translate("MediaTools", "Niepoprawny nagłówek PES w PSP PSMF."));
             const auto at = p + 9 + byte(p + 8);
             if (at > next)
-                fail(QStringLiteral("Invalid PSP PSMF PES payload."));
+                fail(QCoreApplication::translate("MediaTools", "Niepoprawne dane PES w PSP PSMF."));
             qint64 pts = -1;
             if ((byte(p + 7) & 0x80) && at >= p + 14)
                 pts = (qint64(byte(p + 9) & 0x0e) << 29) | (qint64(byte(p + 10)) << 22) |
@@ -101,7 +79,7 @@ QByteArray psmfAudio(const QByteArray &data, qint64 start, qint64 end, double &d
         p = next;
     }
     if (packets.size() < 8 || u16(packets, 0, true) != 0x0fd0)
-        fail(QStringLiteral("The PSP clip has no recognised ATRAC3+ track."));
+        fail(QCoreApplication::translate("MediaTools", "Klip PSP nie zawiera rozpoznanej ścieżki ATRAC3+."));
     const auto config = u16(packets, 2, true);
     const auto frame = 8 + (config & 0x3ff) * 8;
     QByteArray oma(96, '\0');
@@ -110,10 +88,10 @@ QByteArray psmfAudio(const QByteArray &data, qint64 start, qint64 end, double &d
     qToBigEndian(config, oma.data() + 34);
     const auto total = frame + 8;
     if (packets.size() % total != 0)
-        fail(QStringLiteral("Truncated PSP ATRAC3+ track."));
+        fail(QCoreApplication::translate("MediaTools", "Ucięta ścieżka PSP ATRAC3+."));
     for (qsizetype p = 0; p < packets.size(); p += total) {
         if (u16(packets, p, true) != 0x0fd0 || u16(packets, p + 2, true) != config)
-            fail(QStringLiteral("Invalid PSP ATRAC3+ frame alignment."));
+            fail(QCoreApplication::translate("MediaTools", "Niepoprawne wyrównanie ramek PSP ATRAC3+."));
         oma.append(packets.constData() + p + 8, frame);
     }
     if (audioPts >= 0 && videoPts >= 0)
@@ -128,7 +106,7 @@ void writeOnce(const QString &file, const QByteArray &bytes) {
 }
 } // namespace
 
-bool hasSourceQuestionMedia(const Question &q) { return !movie(q).isEmpty() || hasPs2Media(q); }
+bool hasSourceQuestionMedia(const Question &q) { return !movie(q).isEmpty() || hasPs2Media(q) || hasPspPicture(q); }
 
 QString sourceQuestionClipKey(const Question &q) {
     const auto ref = movie(q);
@@ -137,26 +115,30 @@ QString sourceQuestionClipKey(const Question &q) {
 
 Ps2Media decodeSourceQuestionMedia(const Question &q, const QString &ffmpeg, const std::atomic_bool *cancel) {
     const auto ref = movie(q);
-    if (ref.isEmpty())
-        return decodePs2Media(q, ffmpeg, cancel);
     try {
         checkCancelled(cancel);
+        if (ref.isEmpty())
+            return hasPspPicture(q) ? Ps2Media{recoverPspPicture(q), {}, {}} : decodePs2Media(q, ffmpeg, cancel);
         if (ffmpeg.isEmpty())
             fail(missingMediaFfmpeg());
         const auto source = ref["archive"].toString(), entry = ref["entry"].toString();
         const bool psp = ref["type"] == "psp-video";
-        const auto data = psp ? readPmf(source, entry) : ps3::readMovie(ref["source_path"].toString(), source, entry);
+        auto data = psp ? readPspAsset(ref)
+                        : ps3::readQuestionMedia(ref["source_path"].toString(), source, entry);
+        if (psp && data.startsWith("FMV "))
+            data.remove(0, 48); // Ultimate Music Quiz wraps its PSMF stream.
         check(data, 0, psp ? 16 : 80);
         const qint64 start = u32(data, psp ? 8 : 40, true);
         const qint64 size = psp ? u32(data, 12, true) : data.size() - start;
         if (start < (psp ? 16 : 80) || size <= 0 || start + size > data.size() ||
             (psp ? !data.startsWith("PSMF")
                  : (data.mid(64, 8) != "SDIVIDEO" || u32(data, 0, true) != 0 || u32(data, 48, true) != data.size())))
-            fail(QStringLiteral("Unsupported question movie header."));
+            fail(QCoreApplication::translate("MediaTools", "Nieobsługiwany nagłówek filmu do pytania."));
         const auto key = QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
         const QDir cache(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath("source-clips"));
         if (!QDir().mkpath(cache.absolutePath()))
-            fail(QStringLiteral("Could not create a media cache directory."));
+            fail(QCoreApplication::translate(
+                "MediaTools", "Nie udało się utworzyć katalogu pamięci podręcznej mediów."));
         const auto stem = cache.filePath((psp ? "pmf-v1-" : "sdi-v1-") + key);
         if (QFileInfo(stem + ".mp4").size() > 0 && QFileInfo(stem + ".png").size() > 0)
             return {stem + ".png", stem + ".mp4", {}};
@@ -183,7 +165,7 @@ Ps2Media decodeSourceQuestionMedia(const Question &q, const QString &ffmpeg, con
         runMedia(ffmpeg, base + QStringList{"-i", video, "-vf", "thumbnail=50", "-frames:v", "1", image}, cancel);
         for (const auto &pair : {qMakePair(video, stem + ".mp4"), qMakePair(image, stem + ".png")})
             if (!QFile::rename(pair.first, pair.second) && QFileInfo(pair.second).size() <= 0)
-                fail(QStringLiteral("FFmpeg did not produce the decoded media."));
+                fail(QCoreApplication::translate("MediaTools", "FFmpeg nie utworzył zdekodowanych mediów."));
         return {stem + ".png", stem + ".mp4", {}};
     } catch (const std::exception &e) {
         return {{}, {}, QString::fromUtf8(e.what())};

@@ -5,18 +5,28 @@
 #include <QVector>
 
 namespace studio {
+enum class QuestionContentType { Text, Picture, Video };
+
 struct Question {
-    QString id, text, category, topic, image, speech, video, ttsText, source, language = QStringLiteral("pl");
+    QString id, text, category, topic, image, speech, video, music, ttsText, source, language = QStringLiteral("pl");
     QStringList answers;
     int correct = 0, difficulty = 2, subjectId = 0, categoryId = 0;
     QJsonObject extra;
     QJsonObject translations;
+    QJsonArray sourceMedia() const;
+    QJsonObject sourceMusic() const;
+    bool usesMusic() const;
+    QuestionContentType contentType() const;
+    bool hasUnresolvedMusic() const;
+    bool hasUnresolvedVisualMedia() const;
+    bool hasUnresolvedSourceMedia() const;
     QStringList problems() const;
     QJsonObject json(const QString &baseDir = {}) const;
     QJsonObject localized(const QString &baseDir = {}) const;
     void loadLocalized(const QJsonObject &value);
     void switchLanguage(const QString &code);
     QStringList languages() const;
+    QStringList sourceCategoryPath() const;
 };
 // The project's own subjects and subcategories (ids from firstCustomCategory up,
 // never Quiz World ids). A subject has parent 0; a subcategory's parent is one of
@@ -27,9 +37,11 @@ inline bool isCustomCategory(int id) { return id >= firstCustomCategory; }
 struct CustomCategory {
     int id = 0, parent = 0;
     QJsonObject names; // language code -> name
-    QString name(const QString &language) const { return names.value(language).toString(); }
+    QString sourceKey{}, sourceName{};
+    QString name(const QString &language) const { return names.value(language).toString(sourceName); }
     bool operator==(const CustomCategory &other) const {
-        return id == other.id && parent == other.parent && names == other.names;
+        return id == other.id && parent == other.parent && names == other.names &&
+               sourceKey == other.sourceKey && sourceName == other.sourceName;
     }
 };
 struct Document {
@@ -56,6 +68,8 @@ struct LoadResult {
     // Where the project lives when it differs from the opened file (.buzzproject).
     QString projectPath;
     int duplicates = 0;
+    int sourcePacks = 0;
+    bool gameImport = false;
     bool ok() const { return error.isEmpty(); }
 };
 QString categoryName(int id);
@@ -63,11 +77,17 @@ QString categoryName(int id);
 // returns the incoming id -> id in `into`.
 QMap<int, int> mergeCustomCategories(Document &into, const QVector<CustomCategory> &incoming);
 int nextCustomCategoryId(const Document &document);
+int retainGameCategories(Document &document, qsizetype firstQuestion, const QString &sourceLanguage,
+                         QStringList &warnings);
 QString localPath(const QString &value, const QString &baseDir = {});
 LoadResult parseJson(const QByteArray &bytes, const QString &baseDir = {}, const QString &language = {});
 LoadResult loadDocument(const QString &path, const QString &language = {});
 bool saveDocument(const Document &document, const QString &path, QString *error, bool legacy = false);
 QByteArray serialize(const Document &document, const QString &baseDir = {}, bool legacy = false);
 Question newQuestion();
-Document exampleDocument();
+// Retain the source's correctness while adapting text answers to the four-choice format.
+bool adaptImportedAnswers(Question &question, const QList<int> &correctAnswers);
+QString adaptedAnswersWarning(int count);
+QString unsupportedAnswersWarning(int count);
+Document exampleDocument(const QString &language = QStringLiteral("pl"));
 } // namespace studio

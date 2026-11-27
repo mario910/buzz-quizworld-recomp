@@ -195,10 +195,11 @@ bool isMovieTemplate(const QByteArray &bytes) {
 QByteArray encodeMovie(const QByteArray &templateBytes, const QString &source, const QString &ffmpeg,
                        const std::atomic_bool *cancel) {
     if (!isMovieTemplate(templateBytes))
-        fail(QStringLiteral("The selected Quiz World template has no compatible SDI movie header."));
+        fail(QCoreApplication::translate(
+            "PackBuilder", "Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI."));
     QTemporaryDir temporary;
     if (!temporary.isValid())
-        fail(temporary.errorString());
+        throw MediaEnvironmentError(temporary.errorString());
     const auto esPath = temporary.filePath("video.m1v"), adxPath = temporary.filePath("audio.adx");
     const auto input = QStringList{"-nostdin", "-v", "error", "-y", "-protocol_whitelist", "file,pipe",
                                    "-i", QFileInfo(source).absoluteFilePath()};
@@ -206,10 +207,11 @@ QByteArray encodeMovie(const QByteArray &templateBytes, const QString &source, c
              input + QStringList{"-map", "0:v:0", "-an", "-sn",
                                  // Compute square-pixel dimensions from the display aspect ratio.
                                  // This also works on FFmpeg versions without scale=reset_sar.
-                                 "-vf", "scale='max(2,2*trunc(min(640,368*dar)/2))':"
+                                 // Resample before scaling so fps sees the input frame durations.
+                                 "-vf", "fps=30000/1001:start_time=0:eof_action=pass,"
+                                        "scale='max(2,2*trunc(min(640,368*dar)/2))':"
                                         "'max(2,2*trunc(min(368,640/dar)/2))',setsar=1,"
-                                        "pad=640:368:(ow-iw)/2:(oh-ih)/2,"
-                                        "fps=30000/1001",
+                                        "pad=640:368:(ow-iw)/2:(oh-ih)/2",
                                  "-frames:v", QString::number(MovieMaxFrames + 1), "-threads", "1",
                                  "-c:v", "mpeg1video", "-pix_fmt", "yuv420p", "-g", "1", "-bf", "0",
                                  "-q:v", "4", "-f", "mpeg1video", esPath},
@@ -225,20 +227,33 @@ QByteArray encodeMovie(const QByteArray &templateBytes, const QString &source, c
     }
     const int count = frames.size();
     if (!count || frames.front() != 0 || count > MovieMaxFrames)
-        fail(QStringLiteral("A question movie must contain video and be at most 30 seconds long."));
+        fail(QCoreApplication::translate(
+            "PackBuilder", "Film do pytania musi zawierać obraz i trwać najwyżej 30 sekund."));
     frames << es.size();
     const auto duration = QString::number(count * 1001.0 / 30000, 'f', 6);
-    runMedia(ffmpeg, input + QStringList{"-map", "0:a:0", "-vn", "-sn", "-af", "apad", "-t", duration,
-                                         "-ar", "48000", "-ac", "2", "-c:a", "adpcm_adx",
-                                         "-f", "adx", adxPath},
-             cancel, adxPath);
+    // Raw ADX has no timestamps. Bake any initial audio offset into the samples before muxing.
+    const QStringList adx{"-t", duration, "-ar", "48000", "-ac", "2", "-c:a", "adpcm_adx", "-f", "adx", adxPath};
+    try {
+        runMedia(ffmpeg, input + QStringList{"-map", "0:a:0", "-vn", "-sn", "-af",
+                                              "aresample=48000:async=1:first_pts=0,apad"} + adx,
+                 cancel, adxPath);
+    } catch (const std::runtime_error &e) {
+        checkCancelled(cancel);
+        if (!QByteArray(e.what()).contains("matches no streams"))
+            throw;
+        // Some discs, including Sports Quiz, keep narration in separate files.
+        // Quiz World's movie container still expects an ADX stream.
+        runMedia(ffmpeg, QStringList{"-nostdin", "-v", "error", "-y", "-f", "lavfi",
+                                    "-i", "anullsrc=r=48000:cl=stereo"} + adx, cancel, adxPath);
+    }
     const auto audio = readFile(adxPath);
     check(audio, 0, 20);
     const int adxHeader = u16(audio, 2, true) + 4;
     if (u16(audio, 0, true) != 0x8000 || adxHeader != AdxPairBytes ||
         audio.mid(4, 4) != QByteArray::fromHex("03120402") || u32(audio, 8, true) != 48000 ||
         audio.mid(adxHeader - 6, 6) != "(c)CRI" || audio.size() <= adxHeader)
-        fail(QStringLiteral("FFmpeg did not produce the expected stereo 48 kHz ADX stream."));
+        fail(QCoreApplication::translate(
+            "PackBuilder", "FFmpeg nie utworzył oczekiwanego strumienia stereo ADX 48 kHz."));
 
     // Reuse only the metadata packs from a movie in the user's template.
     const int start = u32(templateBytes, 40, true);
@@ -362,21 +377,74 @@ QByteArray unwrapWem(const QByteArray &bytes) {
     put(result, body.size(), 4);
     return result + body;
 }
-QByteArray encodeSpeech(const QString &source, const QString &ffmpeg, double gain,
-                        const std::atomic_bool *cancel) {
-    checkCancelled(cancel);
-    if (source.endsWith(".rsf", Qt::CaseInsensitive)) {
-        const auto bytes = readFile(source);
+QByteArray previewAudioWave(const QString &path) {
+    const auto bytes = readFile(path);
+    if (path.endsWith(".wem", Qt::CaseInsensitive))
+        return unwrapWem(bytes);
+
+    QByteArray frames;
+    int channels = 1, frameSize = 152;
+    if (!bytes.isEmpty() && quint8(bytes[0]) == 6) {
+        constexpr qsizetype blockSize = 65536, headerSize = 32;
+        if (!isStreamedMusic(bytes) || bytes.size() % blockSize)
+            fail(QCoreApplication::translate("PackBuilder", "Plik klipu muzycznego RSF jest uszkodzony."));
+        channels = 2;
+        frameSize = 384;
+        const auto length = u32(bytes, 20, true);
+        frames.reserve(length);
+        for (qsizetype start = 0; start < bytes.size(); start += blockSize) {
+            // Each 64 KiB chunk has its own header, ATRAC3 frames and trailing padding.
+            const auto size = u32(bytes, start + 8, true);
+            if (bytes[start] != 6 || !size || size % frameSize || size > blockSize - headerSize ||
+                frames.size() + size > length)
+                fail(QCoreApplication::translate("PackBuilder", "Plik klipu muzycznego RSF jest uszkodzony."));
+            frames.append(bytes.constData() + start + headerSize, size);
+        }
+        if (frames.size() != length)
+            fail(QCoreApplication::translate("PackBuilder", "Plik klipu muzycznego RSF jest uszkodzony."));
+    } else {
         validateSpeech(bytes);
-        return bytes;
+        frames = bytes.mid(32);
     }
+
+    QByteArray fmt;
+    for (auto [value, width] : {std::pair{0x270, 2}, {channels, 2}, {48000, 4},
+                                 {frameSize * 48000 / 1024, 4}, {frameSize, 2}, {0, 2}, {14, 2},
+                                 {1, 2}, {1024 * channels, 4}, {0, 2}, {0, 2}, {1, 2}, {0, 2}})
+        put(fmt, value, width);
+    QByteArray body("WAVEfmt ");
+    put(body, fmt.size(), 4);
+    body += fmt + "data";
+    put(body, frames.size(), 4);
+    body += frames;
+    QByteArray result("RIFF");
+    put(result, body.size(), 4);
+    return result + body;
+}
+namespace {
+QByteArray encodeAudio(const QString &source, const QString &ffmpeg, double gain, bool music,
+                       const std::atomic_bool *cancel) {
+    checkCancelled(cancel);
+    const auto validate = [music](const QByteArray &bytes) {
+        if (!music)
+            validateSpeech(bytes);
+        else if (!isStreamedMusic(bytes))
+            fail(QCoreApplication::translate("PackBuilder", "Plik klipu muzycznego RSF jest uszkodzony."));
+    };
     QFile original(source);
     if (!original.open(QIODevice::ReadOnly))
         fail(original.errorString());
+    if (source.endsWith(".rsf", Qt::CaseInsensitive) || (music && original.peek(1) == QByteArray(1, '\6'))) {
+        if (music && original.size() > maxMusicBytes)
+            validate({});
+        const auto bytes = readFile(source);
+        validate(bytes);
+        return bytes;
+    }
     if (original.size() > 512 * 1024 * 1024)
         fail(QCoreApplication::translate("PackBuilder", "Plik mediów przekracza 512 MB."));
     QCryptographicHash hash(QCryptographicHash::Sha256);
-    hash.addData("studio-atrac-v1:");
+    hash.addData(music ? "studio-streamed-atrac-v1:" : "studio-atrac-v1:");
     hash.addData(QByteArray::number(gain, 'g', 12));
     while (!original.atEnd()) {
         checkCancelled(cancel);
@@ -386,16 +454,18 @@ QByteArray encodeSpeech(const QString &source, const QString &ffmpeg, double gai
         hash.addData(block);
     }
     const auto cacheDir =
-        QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)).filePath("encoded-speech");
+        QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
+            .filePath(music ? "encoded-music" : "encoded-speech");
     const auto cached = QDir(cacheDir).filePath(QString::fromLatin1(hash.result().toHex()) + ".rsf");
     if (QFileInfo::exists(cached)) {
         auto bytes = readFile(cached);
-        validateSpeech(bytes);
+        validate(bytes);
         return bytes;
     }
     QTemporaryDir temp;
     if (!temp.isValid())
-        fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu roboczego mediów."));
+        throw MediaEnvironmentError(QCoreApplication::translate("PackBuilder",
+                                                               "Nie można utworzyć katalogu roboczego mediów."));
     const auto path = temp.filePath("audio.pcm");
     auto inputPath = source;
     if (source.endsWith(".wem", Qt::CaseInsensitive)) {
@@ -403,18 +473,21 @@ QByteArray encodeSpeech(const QString &source, const QString &ffmpeg, double gai
         const auto bytes = unwrapWem(readFile(source));
         QFile input(inputPath);
         if (!input.open(QIODevice::WriteOnly) || input.write(bytes) != bytes.size())
-            fail(input.errorString());
+            throw MediaEnvironmentError(input.errorString());
         input.close();
     }
+    const int channels = music ? 2 : 1;
     runMedia(ffmpeg,
              {"-v", "error", "-nostdin", "-y", "-protocol_whitelist", "file,pipe", "-i", inputPath, "-ac",
-              "1", "-ar", "48000", "-af", QString("volume=%1dB").arg(gain, 0, 'g', 12), "-f", "s16le", path},
+              QString::number(channels), "-ar", "48000", "-af", QString("volume=%1dB").arg(gain, 0, 'g', 12),
+              "-f", "s16le", path},
              cancel, path);
     QFile pcm(path);
-    if (!pcm.open(QIODevice::ReadOnly) || pcm.size() > 48000ll * 2 * 600)
+    if (!pcm.open(QIODevice::ReadOnly) || pcm.size() > 48000ll * channels * 2 * 600)
         fail(QCoreApplication::translate("PackBuilder", "Niepoprawny rozmiar nagrania PCM."));
-    const auto encoded = encodeAtracPcm(pcm.readAll(), cancel);
-    validateSpeech(encoded);
+    const auto raw = pcm.readAll();
+    const auto encoded = music ? encodeStreamedMusicPcm(raw, cancel) : encodeAtracPcm(raw, cancel);
+    validate(encoded);
     if (QDir().mkpath(cacheDir)) {
         QSaveFile out(cached);
         if (out.open(QIODevice::WriteOnly) && out.write(encoded) == encoded.size())
@@ -422,14 +495,20 @@ QByteArray encodeSpeech(const QString &source, const QString &ffmpeg, double gai
     }
     return encoded;
 }
+} // namespace
+
+QByteArray encodeSpeech(const QString &source, const QString &ffmpeg, double gain, const std::atomic_bool *cancel) {
+    return encodeAudio(source, ffmpeg, gain, false, cancel);
+}
+QByteArray encodeMusic(const QString &source, const QString &ffmpeg, const std::atomic_bool *cancel) {
+    return encodeAudio(source, ffmpeg, 0, true, cancel);
+}
 QByteArray pictureSheet(const QByteArray &templateBytes, const QStringList &images, const QString &ffmpeg,
-                        const std::atomic_bool *cancel) {
-    if (images.size() > 427)
-        fail(QCoreApplication::translate("PackBuilder",
-                                         "Paczka może zawierać najwyżej 427 różnych obrazków."));
+                        const std::atomic_bool *cancel, QHash<QString, QString> *invalidImages) {
     QTemporaryDir temp;
     if (!temp.isValid())
         fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu roboczego mediów."));
+    int framesWritten = 0;
     for (int i = 0; i <= images.size(); ++i) {
         checkCancelled(cancel);
         QImage canvas(640, 360, QImage::Format_RGB32);
@@ -438,17 +517,28 @@ QByteArray pictureSheet(const QByteArray &templateBytes, const QStringList &imag
             QImageReader reader(images[i - 1]);
             reader.setAutoTransform(true);
             auto image = reader.read();
-            if (image.isNull())
-                fail(QCoreApplication::translate("PackBuilder", "Nie można odczytać obrazka: ") +
-                     images[i - 1]);
+            if (image.isNull()) {
+                const auto message = QCoreApplication::translate("PackBuilder", "Nie można odczytać obrazka: ") +
+                                     images[i - 1];
+                if (!invalidImages)
+                    fail(message);
+                invalidImages->insert(images[i - 1], message);
+                continue;
+            }
             image = image.scaled(640, 360, Qt::KeepAspectRatio, Qt::SmoothTransformation);
             QPainter painter(&canvas);
             painter.drawImage((640 - image.width()) / 2, (360 - image.height()) / 2, image);
         }
+        if (framesWritten > 427)
+            fail(QCoreApplication::translate("PackBuilder",
+                                             "Paczka może zawierać najwyżej 427 różnych obrazków."));
         if (!canvas.scaled(640, 368, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-                 .save(temp.filePath(QString("f%1.ppm").arg(i, 5, 10, QLatin1Char('0'))), "PPM"))
+                 .save(temp.filePath(QString("f%1.ppm").arg(framesWritten, 5, 10, QLatin1Char('0'))), "PPM"))
             fail(QCoreApplication::translate("PackBuilder", "Nie można zapisać obrazu roboczego."));
+        ++framesWritten;
     }
+    if (framesWritten == 1 && !images.isEmpty())
+        return {};
     const auto output = temp.filePath("video.m1v");
     runMedia(ffmpeg, {"-v",         "error",
                       "-nostdin",   "-y",
@@ -467,7 +557,7 @@ QByteArray pictureSheet(const QByteArray &templateBytes, const QStringList &imag
     for (int p = elementary.indexOf(QByteArray::fromHex("000001b3")); p >= 0;
          p = elementary.indexOf(QByteArray::fromHex("000001b3"), p + 4))
         starts << p;
-    if (starts.size() != images.size() + 1)
+    if (starts.size() != framesWritten)
         fail(QCoreApplication::translate("PackBuilder", "Niepoprawna liczba klatek planszy obrazków."));
     QVector<QByteArray> frames;
     for (int i = 0; i < starts.size(); ++i) {

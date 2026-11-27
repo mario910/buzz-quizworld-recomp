@@ -1,5 +1,9 @@
 #include "controller.h"
+#include "buzz_import.h"
 #include "languages.h"
+#include "localization.h"
+#include "ps2_media.h"
+#include "psp_media.h"
 #include "ps3_source.h"
 #include "source_movie.h"
 #include "media_tools.h"
@@ -23,6 +27,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <algorithm>
 #include <functional>
+#include <utility>
 
 namespace {
 QString displaySource(const QString &source) {
@@ -34,7 +39,7 @@ bool textValid(const studio::Question &q) {
                q.answers.begin(), q.answers.end(), [](const QString &s) { return s.trimmed().isEmpty(); });
 }
 bool emptyTranslation(const QJsonObject &value) {
-    for (const auto &key : {"question", "image", "speech", "video", "topic", "tts_text"})
+    for (const auto &key : {"question", "image", "speech", "video", "music", "topic", "tts_text"})
         if (!value[key].toString().isEmpty())
             return false;
     for (const auto &answer : value["answers"].toArray())
@@ -71,6 +76,10 @@ QVariant QuestionModel::data(const QModelIndex &index, int role) const {
         return !q.image.isEmpty();
     case Audio:
         return !q.speech.isEmpty();
+    case Music:
+        return q.usesMusic();
+    case ContentType:
+        return int(q.contentType());
     case Valid:
         return textValid(q);
     case Source:
@@ -82,7 +91,7 @@ QVariant QuestionModel::data(const QModelIndex &index, int role) const {
 QHash<int, QByteArray> QuestionModel::roleNames() const {
     return {{Uid, "uid"},          {Title, "questionTitle"}, {Category, "categoryLabel"},
             {Difficulty, "level"}, {Image, "hasImage"},      {Audio, "hasAudio"},
-            {Valid, "isValid"},    {Source, "sourceLabel"}};
+            {Valid, "isValid"},    {Source, "sourceLabel"}, {ContentType, "contentType"}, {Music, "usesMusic"}};
 }
 void QuestionModel::reset(studio::Document value) {
     beginResetModel();
@@ -118,6 +127,8 @@ bool QuestionFilter::filterAcceptsRow(int row, const QModelIndex &) const {
         return false;
     if (kind == "audio" && q.speech.isEmpty())
         return false;
+    if (kind == "music" && !q.usesMusic())
+        return false;
     if (kind == "drafts" && textValid(q))
         return false;
     if (text.isEmpty())
@@ -125,8 +136,8 @@ bool QuestionFilter::filterAcceptsRow(int row, const QModelIndex &) const {
     return (q.text + " " + q.answers.join(' ') + " " + q.category + " " + q.id + " " + q.source)
         .contains(text, Qt::CaseInsensitive);
 }
-StudioController::StudioController(QObject *parent)
-    : QObject(parent), model_(this), filter_(this), history_(this) {
+StudioController::StudioController(QObject *parent, const QString &newProjectLanguage)
+    : QObject(parent), newProjectLanguage_(newProjectLanguage), model_(this), filter_(this), history_(this) {
     filter_.setSourceModel(&model_);
     filter_.setDynamicSortFilter(true);
     connect(&history_, &QUndoStack::indexChanged, this, &StudioController::historyChanged);
@@ -200,9 +211,12 @@ void StudioController::startPackJob(
                                             : tr("Paczka zbudowana; instalacja anulowana"));
         } else if (!result.ok()) {
             setStatus(tr("Operacja na paczce nie powiodła się"));
-            emit errorOccurred(result.error + (result.path.isEmpty()
-                                                   ? QString()
-                                                   : tr("\n\nZbudowany plik: ") + result.path));
+            if (!result.excluded.isEmpty())
+                emit packReviewRequired(lastBuild_);
+            else
+                emit errorOccurred(result.error + (result.path.isEmpty()
+                                                       ? QString()
+                                                       : tr("\n\nZbudowany plik: ") + result.path));
         } else {
             buildProgress_ = 100;
             setStatus(result.installedPath.isEmpty() ? tr("Paczka zbudowana i zweryfikowana")
@@ -224,6 +238,7 @@ void StudioController::buildPack(const QVariantMap &options, bool install) {
     request.runtimeRoot = studio::localPath(options["runtimeRoot"].toString());
     request.titleId = options["titleId"].toString();
     request.install = install;
+    request.skipInvalid = options["skipInvalid"].toBool();
     const auto before = model_.document.packExtra;
     auto after = before;
     after["number"] = request.number;
@@ -289,6 +304,10 @@ int StudioController::audioCount() const {
     return int(std::count_if(model_.document.questions.begin(), model_.document.questions.end(),
                              [](const studio::Question &q) { return !q.speech.isEmpty(); }));
 }
+int StudioController::musicCount() const {
+    return int(std::count_if(model_.document.questions.cbegin(), model_.document.questions.cend(),
+                             [](const studio::Question &q) { return q.usesMusic(); }));
+}
 QVariantList StudioController::categories() const {
     QMap<QString, int> counts;
     for (const auto &q : model_.document.questions)
@@ -307,13 +326,27 @@ QVariantMap StudioController::current() const {
     map["problems"] = q.problems();
     map["sourceLabel"] = displaySource(q.source);
     map["imageUrl"] = q.image.isEmpty() ? QString() : QUrl::fromLocalFile(q.image).toString();
-    map["canDecodeSourceMedia"] = studio::hasSourceQuestionMedia(q);
+    map["canDecodeSourceMedia"] = q.hasUnresolvedVisualMedia() && studio::hasSourceQuestionMedia(q);
+    map["canRecoverVideo"] = !QFileInfo(q.video).isFile() && !studio::sourceQuestionClipKey(q).isEmpty();
+    map["hasMusicClip"] = !q.music.isEmpty() && !q.hasUnresolvedMusic();
+    map["usesMusic"] = q.usesMusic();
+    map["canRecoverMusic"] = studio::hasBuzzSourceMusic(q);
+    map["canRecoverNarration"] = studio::hasPs2Narration(q) || studio::hasPspNarration(q);
     return map;
 }
 QVariantList StudioController::projectLanguages() const {
     return studio::languageChoices(model_.document.languages());
 }
 QVariantList StudioController::languageOptions() const { return studio::languageChoices(); }
+QVariantList StudioController::editingLanguageOptions() const {
+    QStringList codes;
+    for (const auto &entry : Localization::languages())
+        codes << entry.first;
+    for (const auto &code : model_.document.languages())
+        if (!codes.contains(code))
+            codes << code;
+    return studio::languageChoices(codes);
+}
 void StudioController::refreshTranslations() {
     setStatus(tr("Gotowe do tworzenia"));
     if (model_.rowCount())
@@ -321,21 +354,27 @@ void StudioController::refreshTranslations() {
                                 {QuestionModel::Source});
     notifyContent();
 }
-void StudioController::newProject(bool example) {
+void StudioController::newProject(bool example, const QString &exampleLanguage) {
     if (busy_)
         return;
     history_.clear();
-    model_.reset(example ? studio::exampleDocument() : studio::Document());
+    const auto sampleLanguage = exampleLanguage.isEmpty() ? newProjectLanguage_ : exampleLanguage;
+    model_.reset(example ? studio::exampleDocument(sampleLanguage) : studio::Document());
+    if (!example)
+        model_.document.language = newProjectLanguage_;
     if (!example)
         model_.document.title = tr("Moja paczka");
     selected_ = model_.rowCount() ? model_.document.questions[0].id : QString();
     projectPath_.clear();
     warnings_.clear();
+    lastImportedQuestions_.clear();
+    importedQuestionsWithGameCategory_ = 0;
+    emit projectReplaced();
     setFilter("", "", "");
     notifyContent();
     setStatus(example ? tr("Otworzono przykładowy projekt") : tr("Nowy projekt"));
 }
-void StudioController::prepareImport(const QUrl &url, bool append) {
+void StudioController::prepareImport(const QUrl &url, bool append, bool guided) {
     if (busy_ || !pendingImport_.isEmpty() || !url.isLocalFile())
         return;
     busy_ = true;
@@ -343,7 +382,7 @@ void StudioController::prepareImport(const QUrl &url, bool append) {
     setStatus(tr("Sprawdzanie języków źródła…"));
     const auto path = url.toLocalFile();
     auto *watcher = new QFutureWatcher<studio::SourceLanguages>(this);
-    connect(watcher, &QFutureWatcher<studio::SourceLanguages>::finished, this, [this, watcher, url, append] {
+    connect(watcher, &QFutureWatcher<studio::SourceLanguages>::finished, this, [this, watcher, url, append, guided] {
         const auto result = watcher->result();
         watcher->deleteLater();
         busy_ = false;
@@ -354,11 +393,17 @@ void StudioController::prepareImport(const QUrl &url, bool append) {
         } else if (!result.ok()) {
             setStatus(tr("Nie udało się wczytać pliku"));
             emit errorOccurred(result.error);
-        } else if (!result.project && result.codes.size() > 1) {
+        } else if (guided || (!result.project && result.codes.size() > 1)) {
             pendingImport_ = url;
             pendingAppend_ = append;
-            setStatus(tr("Wybierz język importu"));
-            emit importLanguageRequested(studio::languageChoices(result.codes), result.preferred);
+            if (!guided)
+                setStatus(tr("Wybierz język importu"));
+            const auto choices = studio::languageChoices(result.codes);
+            if (guided)
+                emit importSourcePrepared(choices, result.codes.contains(newProjectLanguage_)
+                    ? newProjectLanguage_ : result.preferred, result.project);
+            else
+                emit importLanguageRequested(choices, result.preferred);
         } else {
             openFile(url, append, result.project ? QString() : result.preferred);
         }
@@ -372,10 +417,12 @@ QString StudioController::addLicense(const QString &contentId, const QUrl &rap) 
     return {};
 }
 void StudioController::finishImport(const QString &language) {
+    finishImport(language, pendingAppend_);
+}
+void StudioController::finishImport(const QString &language, bool append) {
     if (pendingImport_.isEmpty())
         return;
     const auto url = pendingImport_;
-    const auto append = pendingAppend_;
     pendingImport_.clear();
     openFile(url, append, language);
 }
@@ -406,14 +453,19 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
             emit errorOccurred(result.error);
             return;
         }
-        warnings_ = result.warnings;
-        if (append && model_.rowCount()) {
+        const int previousCount = model_.rowCount();
+        const bool appending = append && (previousCount > 0 || dirty() || !projectPath_.isEmpty());
+        int updated = 0, unchanged = 0;
+        int keptCategories = 0;
+        QSet<QString> importedQuestions;
+        auto warnings = result.warnings;
+        if (appending) {
             auto before = model_.document;
             auto after = before;
             QMap<QString, int> ids;
             for (int i = 0; i < before.questions.size(); ++i)
                 ids.insert(before.questions[i].id, i);
-            int skipped = 0, merged = 0;
+            int merged = 0, restoredSpeech = 0;
             QMap<int, int> categories;
             try {
                 categories = studio::mergeCustomCategories(after, result.document.categories);
@@ -426,9 +478,14 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
                 q.categoryId = categories.value(q.categoryId, q.categoryId);
                 if (ids.contains(q.id)) {
                     auto &existing = after.questions[ids[q.id]];
+                    const auto sourceLabels = q.extra.value("source_category_labels");
+                    const bool refreshedLabels = existing.source == q.source && sourceLabels.isObject() &&
+                                                 existing.extra.value("source_category_labels") != sourceLabels;
+                    if (refreshedLabels)
+                        existing.extra["source_category_labels"] = sourceLabels;
                     auto variants = q.translations;
                     variants[q.language] = q.localized();
-                    bool changed = false;
+                    bool changed = false, attachedMedia = false, savedOrigins = false;
                     for (auto it = variants.constBegin(); it != variants.constEnd(); ++it) {
                         if (it.key() == existing.language && emptyTranslation(existing.localized())) {
                             existing.loadLocalized(it.value().toObject());
@@ -436,38 +493,94 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
                             changed = true;
                             continue;
                         }
-                        // Existing text/media always win; only entirely empty drafts are filled.
+                        // Only entirely empty drafts are replaced.
                         if (it.key() != existing.language &&
                             (!existing.translations.contains(it.key()) ||
                              emptyTranslation(existing.translations[it.key()].toObject()))) {
                             existing.translations[it.key()] = it.value();
                             changed = true;
+                            continue;
+                        }
+                        // The source voice is valid only for the same language and unchanged prompt.
+                        const bool active = it.key() == existing.language;
+                        auto current = active ? existing.localized() : existing.translations.value(it.key()).toObject();
+                        const auto imported = it.value().toObject();
+                        auto origins = current["source_rounds"].toArray();
+                        const auto incomingOrigins = imported["source_rounds"].toArray();
+                        const auto beforeOrigins = origins.size();
+                        for (const auto &origin : incomingOrigins)
+                            if (!origins.contains(origin))
+                                origins << origin;
+                        if (origins.size() != beforeOrigins) {
+                            current["source_rounds"] = origins;
+                            existing.translations[it.key()] = current;
+                            savedOrigins = true;
+                        }
+                        const auto speech = imported["speech"].toString();
+                        if (current["speech"].toString().isEmpty() && current["question"] == imported["question"] &&
+                            !speech.isEmpty() && QFileInfo(speech).isFile()) {
+                            current["speech"] = speech;
+                            existing.translations[it.key()] = current;
+                            if (active)
+                                existing.speech = speech;
+                            attachedMedia = true;
+                            ++restoredSpeech;
+                        }
+                        const auto music = imported["music"].toString();
+                        if (result.gameImport && !music.isEmpty() && current["question"] == imported["question"] &&
+                            !QFileInfo(current["music"].toString()).isFile() && QFileInfo(music).isFile()) {
+                            const auto refs = current["source_media"].toArray();
+                            if (std::any_of(refs.cbegin(), refs.cend(), [](const auto &ref) {
+                                    return ref.toObject().value("type") == 1;
+                                })) {
+                                current["music"] = music;
+                                existing.translations[it.key()] = current;
+                                if (active)
+                                    existing.music = music;
+                                attachedMedia = true;
+                            }
                         }
                     }
                     if (changed)
                         ++merged;
+                    if (changed || attachedMedia || savedOrigins || refreshedLabels)
+                        ++updated;
                     else
-                        ++skipped;
+                        ++unchanged;
                     continue;
                 }
                 q.switchLanguage(after.language);
+                importedQuestions.insert(q.id);
                 ids.insert(q.id, after.questions.size());
                 after.questions << q;
             }
-            after.refreshCategoryNames();
-            if (skipped)
-                warnings_ << QString(tr("Pominięto %1 istniejących identyfikatorów.")).arg(skipped);
+            if (result.gameImport)
+                keptCategories = studio::retainGameCategories(after, previousCount, result.document.language, warnings);
+            else
+                after.refreshCategoryNames();
+            if (unchanged)
+                warnings << tr("Pominięto %1 istniejących identyfikatorów.").arg(unchanged);
             if (merged)
-                warnings_ << tr("Dodano wersje językowe do %1 istniejących pytań.").arg(merged);
-            const auto selected = selected_;
-            history_.push(new Command(tr("Import pytań"), [this, before, after, selected](bool forward) {
-                model_.reset(forward ? after : before);
-                selected_ = selected;
-                notifyContent();
-            }));
+                warnings << tr("Dodano wersje językowe do %1 istniejących pytań.").arg(merged);
+            if (restoredSpeech)
+                warnings << tr("Uzupełnione nagrania lektora: %1.").arg(restoredSpeech);
+            if (after.questions.size() != previousCount || updated || before.categories != after.categories) {
+                const auto selected = selected_;
+                const auto importedSelection = selected.isEmpty() && !after.questions.isEmpty()
+                                                   ? after.questions.first().id : selected;
+                history_.push(new Command(tr("Import pytań"), [this, before, after, selected, importedSelection](bool forward) {
+                    model_.reset(forward ? after : before);
+                    selected_ = forward ? importedSelection : selected;
+                    notifyContent();
+                }));
+            }
         } else {
             history_.clear();
+            if (result.gameImport)
+                keptCategories = studio::retainGameCategories(result.document, 0, result.document.language, warnings);
             model_.reset(std::move(result.document));
+            for (const auto &q : std::as_const(model_.document.questions))
+                importedQuestions.insert(q.id);
             selected_ = model_.rowCount() ? model_.document.questions[0].id : QString();
             // Imported archives/JSON remain sources; Save As creates a Studio project.
             projectPath_ = !result.projectPath.isEmpty()                    ? result.projectPath
@@ -477,14 +590,19 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
                 history_.resetClean();
             else
                 history_.setClean();
+            emit projectReplaced();
             setFilter("", "", "");
         }
+        warnings_ = std::move(warnings);
+        importedQuestionsWithGameCategory_ = keptCategories;
+        lastImportedQuestions_ = std::move(importedQuestions);
         remember(path);
         notifyContent();
         setStatus(
             QString(tr("Wczytano %1 pytań%2"))
                 .arg(result.document.questions.size() ? result.document.questions.size() : model_.rowCount())
                 .arg(warnings_.isEmpty() ? QString() : tr(" · sprawdź uwagi importu")));
+        emit importFinished(model_.rowCount() - (appending ? previousCount : 0), updated, unchanged);
     });
     watcher->setFuture(QtConcurrent::run([path, language] { return studio::loadDocument(path, language); }));
 }
@@ -584,6 +702,11 @@ void StudioController::updateCurrent(const QVariantMap &patch) {
         q.subjectId = patch["subject"].toInt();
     if (patch.contains("category"))
         q.categoryId = patch["category"].toInt();
+    if (q.subjectId != before.subjectId || q.categoryId != before.categoryId || q.category != before.category) {
+        const auto original = before.sourceCategoryPath();
+        if (!original.isEmpty() && !q.extra["source_category_path"].isArray())
+            q.extra["source_category_path"] = QJsonArray::fromStringList(original);
+    }
     if (patch.contains("correct_index"))
         q.correct = std::clamp(patch["correct_index"].toInt(), 0, 3);
     if (patch.contains("tts_text"))
@@ -649,6 +772,72 @@ QVariantList StudioController::packCategories() const {
                                    {"names", c.names.toVariantMap()}};
     return out;
 }
+bool StudioController::hasImportedSections(bool latestOnly) const {
+    const auto &questions = model_.document.questions;
+    return std::any_of(questions.cbegin(), questions.cend(), [&](const studio::Question &question) {
+        return (!latestOnly || lastImportedQuestions_.contains(question.id)) &&
+               !question.sourceCategoryPath().isEmpty();
+    });
+}
+
+QVector<studio::ImportedSection> StudioController::importedSections(bool latestOnly) const {
+    QMap<QString, studio::ImportedSection> sections;
+    for (const auto &question : model_.document.questions) {
+        if (latestOnly && !lastImportedQuestions_.contains(question.id))
+            continue;
+        const auto path = question.sourceCategoryPath();
+        if (path.isEmpty())
+            continue;
+        auto key = QJsonArray::fromStringList(path);
+        key.prepend(question.source);
+        auto &section = sections[QString::fromUtf8(QJsonDocument(key).toJson(QJsonDocument::Compact))];
+        if (!section.questions) {
+            section.game = question.source;
+            section.path = path;
+        }
+        ++section.questions;
+    }
+    return sections.values();
+}
+
+int StudioController::assignImportedSection(const QString &game, const QStringList &section, int subject, int category,
+                                           const QString &subjectName, bool latestOnly) {
+    if (busy_ || section.isEmpty() || subject <= 0 || category <= 0 || subject == category)
+        return 0;
+    const auto before = model_.document;
+    if (studio::isCustomCategory(subject) || studio::isCustomCategory(category)) {
+        const auto *root = before.customCategory(subject);
+        const auto *child = before.customCategory(category);
+        if (!root || root->parent || !child || child->parent != subject)
+            return 0;
+    }
+    const auto name = studio::isCustomCategory(subject) ? before.categoryLabel(subject) : subjectName;
+    auto after = before;
+    int changed = 0;
+    for (auto &q : after.questions) {
+        if (q.source != game || (latestOnly && !lastImportedQuestions_.contains(q.id)))
+            continue;
+        if (q.subjectId == subject && q.categoryId == category)
+            continue;
+        const auto original = q.sourceCategoryPath();
+        if (original.size() < section.size() || original.first(section.size()) != section)
+            continue;
+        if (!q.extra["source_category_path"].isArray())
+            q.extra["source_category_path"] = QJsonArray::fromStringList(original);
+        q.extra["category_override"] = true;
+        q.subjectId = subject;
+        q.categoryId = category;
+        q.category = name;
+        ++changed;
+    }
+    if (changed) {
+        history_.push(new Command(tr("Zbiorcze przypisanie kategorii"), [this, before, after](bool forward) {
+            model_.reset(forward ? after : before);
+            notifyContent();
+        }));
+    }
+    return changed;
+}
 void StudioController::setPackCategories(const QVariantList &list) {
     if (busy_)
         return;
@@ -657,6 +846,10 @@ void StudioController::setPackCategories(const QVariantList &list) {
     for (const auto &value : list) {
         const auto map = value.toMap();
         studio::CustomCategory c{map["id"].toInt(), map["parent"].toInt(), {}};
+        if (const auto *original = model_.document.customCategory(c.id); original && original->parent == c.parent) {
+            c.sourceKey = original->sourceKey;
+            c.sourceName = original->sourceName;
+        }
         const auto names = map["names"].toMap();
         for (auto it = names.cbegin(); it != names.cend(); ++it) {
             const auto name = it.value().toString().simplified().left(studio::customCategoryNameLimit);
@@ -714,6 +907,11 @@ void StudioController::setPackLanguage(const QString &value) {
     const auto code = studio::languageCode(value);
     if (busy_ || code.isEmpty() || code == model_.document.language)
         return;
+    if (model_.document.questions.isEmpty() && projectPath_.isEmpty() && !dirty()) {
+        model_.document.switchLanguage(code);
+        notifyContent();
+        return;
+    }
     const auto before = model_.document;
     auto after = before;
     after.switchLanguage(code);
@@ -725,22 +923,12 @@ void StudioController::setPackLanguage(const QString &value) {
     }));
     setStatus(tr("Język pytań: %1").arg(studio::languageName(code)));
 }
-void StudioController::openAudio() {
-    const int row = model_.find(selected_);
-    if (row >= 0 && !model_.document.questions[row].speech.isEmpty())
-        QDesktopServices::openUrl(QUrl::fromLocalFile(model_.document.questions[row].speech));
-}
-void StudioController::openVideo() {
-    const int row = model_.find(selected_);
-    if (row >= 0 && !model_.document.questions[row].video.isEmpty())
-        QDesktopServices::openUrl(QUrl::fromLocalFile(model_.document.questions[row].video));
-}
-void StudioController::decodeSourceMedia() {
+void StudioController::decodeSourceMedia(bool playVideo) {
     const auto row = model_.find(selected_);
     if (busy_ || row < 0)
         return;
     const auto q = model_.document.questions[row];
-    if (!studio::hasSourceQuestionMedia(q))
+    if (playVideo ? studio::sourceQuestionClipKey(q).isEmpty() : !studio::hasSourceQuestionMedia(q))
         return;
     const auto ffmpeg = studio::configuredMediaFfmpeg();
     if (ffmpeg.isEmpty()) {
@@ -751,7 +939,7 @@ void StudioController::decodeSourceMedia() {
     setStatus(tr("Dekodowanie mediów źródłowych…"));
     emit busyChanged();
     auto *watcher = new QFutureWatcher<studio::Ps2Media>(this);
-    connect(watcher, &QFutureWatcher<studio::Ps2Media>::finished, this, [this, watcher, q] {
+    connect(watcher, &QFutureWatcher<studio::Ps2Media>::finished, this, [this, watcher, q, playVideo] {
         const auto decoded = watcher->result();
         watcher->deleteLater();
         busy_ = false;
@@ -764,11 +952,14 @@ void StudioController::decodeSourceMedia() {
         const auto before = current();
         if (selected_ == q.id && before.value("language").toString() == q.language) {
             QVariantMap patch;
-            if (before.value("image").toString().isEmpty())
+            if (before.value("image").toString().isEmpty() && !decoded.image.isEmpty())
                 patch["image"] = decoded.image;
-            if (before.value("video").toString().isEmpty() && !decoded.video.isEmpty())
+            if (!QFileInfo(before.value("video").toString()).isFile() && !decoded.video.isEmpty())
                 patch["video"] = decoded.video;
-            updateCurrent(patch);
+            if (!patch.isEmpty())
+                updateCurrent(patch);
+            if (playVideo && !decoded.video.isEmpty())
+                emit currentVideoRecovered(decoded.video);
         }
         setStatus(decoded.video.isEmpty() ? tr("Obraz zdekodowany.") : tr("Film zdekodowany."));
     });
@@ -776,7 +967,120 @@ void StudioController::decodeSourceMedia() {
         return studio::decodeSourceQuestionMedia(q, ffmpeg);
     }));
 }
-bool StudioController::decodeAllSourceClips() {
+void StudioController::recoverCurrentMusic(bool narration) {
+    const auto row = model_.find(selected_);
+    if (busy_ || row < 0)
+        return;
+    const auto question = model_.document.questions[row];
+    if (narration ? !(studio::hasPs2Narration(question) || studio::hasPspNarration(question))
+                  : !studio::hasBuzzSourceMusic(question))
+        return;
+
+    busy_ = true;
+    setStatus(tr("Odzyskiwanie mediów z gry…"));
+    emit busyChanged();
+    auto *watcher = new QFutureWatcher<QPair<studio::Question, QStringList>>(this);
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, row, question, narration] {
+        const auto [recovered, warnings] = watcher->result();
+        watcher->deleteLater();
+        const bool resolved = narration ? !recovered.speech.isEmpty()
+                                        : !recovered.music.isEmpty() && !recovered.hasUnresolvedMusic();
+        if (resolved) {
+            edit(row, question, recovered, tr("Odzyskaj media z gry"));
+            setStatus(tr("Uzupełniono media (%1).").arg(1));
+        }
+        busy_ = false;
+        emit busyChanged();
+        if (!resolved) {
+            const auto error = warnings.value(0, narration ? tr("Nie udało się zdekodować mediów źródłowych.")
+                : QCoreApplication::translate("BuzzImport", "Nie udało się odzyskać klipu muzycznego."));
+            setStatus(error);
+            emit errorOccurred(error);
+        } else if (selected_ == question.id && current().value("language").toString() == question.language) {
+            if (narration)
+                emit currentNarrationRecovered(recovered.speech);
+            else
+                emit currentMusicRecovered(recovered.music);
+        }
+    });
+    watcher->setFuture(QtConcurrent::run([question, narration] {
+        QVector<studio::Question> selected{question};
+        QStringList warnings;
+        if (narration) {
+            auto &q = selected.first();
+            try {
+                q.speech = studio::hasPspNarration(question) ? studio::recoverPspNarration(question)
+                                                           : studio::recoverPs2Narration(question);
+                q.translations[q.language] = q.localized();
+            } catch (const std::exception &e) {
+                warnings << QString::fromUtf8(e.what());
+            }
+        } else {
+            studio::recoverBuzzMusic(selected, warnings);
+        }
+        return qMakePair(selected.first(), warnings);
+    }));
+}
+bool StudioController::hasUnresolvedSourceMedia() const {
+    return std::any_of(model_.document.questions.cbegin(), model_.document.questions.cend(),
+                       [](const auto &q) { return q.hasUnresolvedSourceMedia(); });
+}
+bool StudioController::hasRecoverableSourceMedia() const {
+    const auto &questions = model_.document.questions;
+    return std::any_of(questions.cbegin(), questions.cend(), [](const auto &question) {
+        return studio::hasBuzzSourceMusic(question) ||
+               (question.hasUnresolvedVisualMedia() &&
+                (studio::hasSourceQuestionMedia(question) || studio::hasBuzzSourcePicture(question)));
+    });
+}
+QFuture<studio::BuildReadiness> StudioController::checkBuildReadiness() const {
+    return QtConcurrent::run([document = model_.document] { return studio::checkBuildReadiness(document); });
+}
+
+QString StudioController::currentBuildProblem() const {
+    const int row = model_.find(selected_);
+    return row < 0 ? QString() : studio::preflightBuildProblem(model_.document.questions.at(row));
+}
+
+bool StudioController::hasQuestion(const QString &id) const { return model_.find(id) >= 0; }
+
+bool StudioController::packNeedsFfmpeg() const {
+    return std::any_of(model_.document.questions.cbegin(), model_.document.questions.cend(), [](const auto &q) {
+        const bool usesFfmpeg = !q.image.isEmpty() || !q.video.isEmpty() ||
+                                studio::hasPspNarration(q) ||
+                                (!q.speech.isEmpty() && !q.speech.endsWith(".rsf", Qt::CaseInsensitive)) ||
+                                (!q.music.isEmpty() && !q.music.endsWith(".rsf", Qt::CaseInsensitive));
+        return usesFfmpeg && q.problems().isEmpty();
+    });
+}
+QVariantList StudioController::unresolvedMediaQuestions() const {
+    QVariantList questions;
+    for (const auto &q : model_.document.questions)
+        if (q.hasUnresolvedSourceMedia())
+            questions << QVariantMap{{"id", q.id}, {"text", q.text}, {"missingMusic", q.hasUnresolvedMusic()}};
+    return questions;
+}
+studio::SourceMediaStatus StudioController::sourceMediaStatus(const QString &language, bool latestOnly) const {
+    studio::SourceMediaStatus status;
+    for (auto question : model_.document.questions) {
+        if (latestOnly && !lastImportedQuestions_.contains(question.id))
+            continue;
+        if (!language.isEmpty())
+            question.switchLanguage(language);
+        const bool visual = question.hasUnresolvedVisualMedia(), music = question.hasUnresolvedMusic();
+        const bool visualRecoverable = visual &&
+            (studio::hasSourceQuestionMedia(question) || studio::hasBuzzSourcePicture(question));
+        const bool musicRecoverable = music && studio::hasBuzzSourceMusic(question);
+        status.pending += visual || music;
+        status.recoverable += visualRecoverable || musicRecoverable;
+        status.visualRecoverable += visualRecoverable;
+        status.musicRecoverable += musicRecoverable;
+        status.unavailable += visual && !visualRecoverable;
+        status.musicMissing += music;
+    }
+    return status;
+}
+bool StudioController::recoverSourceMedia(const QString &selectedLanguage, bool latestOnly) {
     if (busy_)
         return false;
     struct Target {
@@ -789,111 +1093,149 @@ bool StudioController::decodeAllSourceClips() {
     };
     auto before = model_.document;
     QMap<QString, Job> jobs;
+    QVector<studio::Question> stills, music;
+    QList<Target> pictureTargets, musicTargets;
     for (qsizetype row = 0; row < before.questions.size(); ++row) {
         const auto &source = before.questions.at(row);
+        if (latestOnly && !lastImportedQuestions_.contains(source.id))
+            continue;
         auto languages = source.translations.keys();
         if (!languages.contains(source.language))
             languages << source.language;
         for (const auto &language : languages) {
+            if (!selectedLanguage.isEmpty() && language != selectedLanguage)
+                continue;
             auto q = source;
             q.switchLanguage(language);
-            if (!q.video.isEmpty())
+            if (studio::hasBuzzSourceMusic(q)) {
+                music << q;
+                musicTargets << Target{row, language};
+            }
+            if (!q.hasUnresolvedVisualMedia())
                 continue;
             const auto key = studio::sourceQuestionClipKey(q);
-            if (key.isEmpty())
+            if (key.isEmpty()) {
+                if (studio::hasPs2Media(q) || studio::hasBuzzSourcePicture(q) || studio::hasPspPicture(q)) {
+                    stills << std::move(q);
+                    pictureTargets << Target{row, language};
+                }
                 continue;
+            }
             auto i = jobs.find(key);
             if (i == jobs.end())
                 i = jobs.insert(key, Job{std::move(q), {}});
             i->targets << Target{row, language};
         }
     }
-    if (jobs.isEmpty()) {
-        setStatus(tr("Nie ma klipów oczekujących na dekodowanie."));
+    if (jobs.isEmpty() && stills.isEmpty() && music.isEmpty()) {
+        setStatus(tr("Nie znaleziono mediów do odzyskania."));
+        emit sourceMediaRecoveryFinished({});
         return false;
     }
     const auto ffmpeg = studio::configuredMediaFfmpeg();
-    if (ffmpeg.isEmpty()) {
-        emit errorOccurred(studio::missingMediaFfmpeg());
+    if (ffmpeg.isEmpty() && music.isEmpty()) {
+        emit mediaFfmpegRequired();
         return false;
     }
     struct Result {
         studio::Document after;
         QStringList errors;
-        int decoded = 0, failed = 0;
+        int decoded = 0;
     };
-    const auto cancel = clipCancel_ = std::make_shared<std::atomic_bool>(false);
-    clipPercent_ = 0;
+    const auto cancel = sourceMediaCancel_ = std::make_shared<std::atomic_bool>(false);
+    sourceMediaPercent_ = 0;
     const auto dispatcher = QCoreApplication::instance();
     const QPointer<StudioController> guard(this);
-    const auto total = int(jobs.size());
+    const auto total = (ffmpeg.isEmpty() ? 0 : int(jobs.size()) + !stills.isEmpty()) + !music.isEmpty();
     busy_ = true;
-    setStatus(tr("Dekodowanie klipów…"));
+    setStatus(tr("Odzyskiwanie mediów z gry…"));
     emit busyChanged();
     auto *watcher = new QFutureWatcher<Result>(this);
     connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, before, cancel] {
         const auto result = watcher->result();
         watcher->deleteLater();
-        clipCancel_.reset();
+        sourceMediaCancel_.reset();
         if (result.decoded) {
             const auto after = result.after;
-            history_.push(new Command(tr("Zdekoduj wszystkie klipy"), [this, before, after](bool forward) {
+            history_.push(new Command(tr("Odzyskaj media z gry"), [this, before, after](bool forward) {
                 model_.reset(forward ? after : before);
                 notifyContent();
             }));
         }
         busy_ = false;
         emit busyChanged();
-        emit clipBatchFinished();
-        setStatus((cancel->load() ? tr("Anulowano. Przypisano film do %1 pytań.")
-                                 : tr("Przypisano film do %1 pytań. Nieudane klipy: %2."))
-                      .arg(result.decoded).arg(result.failed));
-        if (result.failed)
-            emit errorOccurred(tr("Nie udało się zdekodować %1 klipów.\n\n%2")
-                                   .arg(result.failed).arg(result.errors.join("\n\n")));
+        setStatus(tr("Uzupełniono media (%1).").arg(result.decoded));
+        if (!cancel->load())
+            emit sourceMediaRecoveryFinished(result.errors);
+        else
+            emit sourceMediaRecoveryCancelled();
     });
-    watcher->setFuture(QtConcurrent::run([before, jobs, ffmpeg, cancel, guard, dispatcher, total] {
+    watcher->setFuture(QtConcurrent::run([before, jobs, stills = std::move(stills), pictureTargets, ffmpeg,
+                                         music = std::move(music), musicTargets, cancel, guard, dispatcher, total]() mutable {
         Result result;
         result.after = before;
         int done = 0;
+        const auto report = [&] {
+            QMetaObject::invokeMethod(dispatcher, [guard, cancel, done = ++done, total] {
+                if (guard && guard->sourceMediaCancel_ == cancel) {
+                    guard->sourceMediaPercent_ = int(100ll * done / total);
+                    emit guard->sourceMediaProgress(done, total);
+                }
+            }, Qt::QueuedConnection);
+        };
+        QSet<QPair<qsizetype, QString>> updated;
+        const auto attach = [&](const Target &target, const auto &setMedia) {
+            auto &q = result.after.questions[target.row];
+            const auto active = q.language;
+            q.switchLanguage(target.language);
+            setMedia(q);
+            q.translations[q.language] = q.localized();
+            q.switchLanguage(active);
+            updated.insert({target.row, target.language});
+        };
+        if (!music.isEmpty() && !cancel->load()) {
+            studio::recoverBuzzMusic(music, result.errors, cancel.get());
+            for (qsizetype i = 0; i < music.size(); ++i)
+                if (!music[i].music.isEmpty() && !music[i].hasUnresolvedMusic())
+                    attach(musicTargets[i], [&](auto &q) { q.music = music[i].music; });
+            report();
+        }
+        if (!ffmpeg.isEmpty() && !stills.isEmpty() && !cancel->load()) {
+            studio::importPs2Pictures(stills, ffmpeg, result.errors, cancel.get(), true);
+            studio::recoverBuzzPictures(stills, ffmpeg, result.errors, cancel.get());
+            studio::recoverPspPictures(stills, result.errors, cancel.get());
+            for (qsizetype i = 0; i < stills.size(); ++i)
+                if (!stills[i].image.isEmpty())
+                    attach(pictureTargets[i], [&](auto &q) { q.image = stills[i].image; });
+            report();
+        }
         for (const auto &job : jobs) {
-            if (cancel->load())
+            if (ffmpeg.isEmpty() || cancel->load())
                 break;
             const auto media = studio::decodeSourceQuestionMedia(job.question, ffmpeg, cancel.get());
             if (cancel->load())
                 break;
             if (media.video.isEmpty()) {
-                ++result.failed;
                 if (result.errors.size() < 5)
                     result.errors << job.question.text + ": " + media.error.left(300);
             } else {
-                for (const auto &target : job.targets) {
-                    auto &q = result.after.questions[target.row];
-                    const auto active = q.language;
-                    q.switchLanguage(target.language);
-                    q.video = media.video;
-                    if (q.image.isEmpty())
+                for (const auto &target : job.targets)
+                    attach(target, [&](auto &q) {
                         q.image = media.image;
-                    q.translations[q.language] = q.localized();
-                    q.switchLanguage(active);
-                    ++result.decoded;
-                }
+                        q.video = media.video;
+                    });
             }
-            QMetaObject::invokeMethod(dispatcher, [guard, cancel, done = ++done, total] {
-                if (guard && guard->clipCancel_ == cancel) {
-                    guard->clipPercent_ = int(100ll * done / total);
-                    emit guard->clipProgress(done, total);
-                }
-            }, Qt::QueuedConnection);
+            report();
         }
+        result.decoded = updated.size();
         return result;
     }));
     return true;
 }
 
-void StudioController::cancelSourceClips() {
-    if (clipCancel_) {
-        clipCancel_->store(true);
+void StudioController::cancelSourceMediaRecovery() {
+    if (sourceMediaCancel_) {
+        sourceMediaCancel_->store(true);
         setStatus(tr("Anulowanie…"));
     }
 }

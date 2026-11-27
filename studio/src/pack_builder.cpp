@@ -4,6 +4,7 @@
 #include "languages.h"
 #include "pack_codec.h"
 #include "ps3_source.h"
+#include "psp_media.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -19,9 +20,10 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
+#include <algorithm>
 #include <cmath>
 #include <future>
-#include <mutex>
+#include <utility>
 
 namespace studio {
 using namespace pack;
@@ -147,6 +149,8 @@ void validateFile(Archive &archive, const QString &name, const QByteArray &bytes
         validateSdi(bytes);
     if (name.endsWith(".rsf") && name.contains("/SPEECH/"))
         validateRsfSpeech(bytes);
+    if (name.endsWith(".rsf") && name.contains("/MUSIC/STREAMED/") && !isStreamedMusic(bytes))
+        fail(QCoreApplication::translate("PackBuilder", "Plik klipu muzycznego RSF jest uszkodzony."));
     if (!name.endsWith(".qak"))
         return;
     QMap<QString, int> pictureCounts;
@@ -174,10 +178,9 @@ void validateFile(Archive &archive, const QString &name, const QByteArray &bytes
             for (int j = 0; j < count; ++j) {
                 const auto p = offset + j * 16;
                 const int type = quint8(bytes[p + 12]);
-                const auto file = language + "/QUESTIONASSETS/" + (type == 1 ? "MUSIC/STREAMED/" : "VIDEO/") +
-                                  (type == 3 ? QString("pics001.sdi")
-                                             : QString::number(1000000ll + u32(bytes, p + 4)) +
-                                                   (type == 1 ? ".rsf" : ".sdi"));
+                const auto file = type == 1 ? musicEntry(language, u32(bytes, p + 4))
+                    : language + "/QUESTIONASSETS/VIDEO/" + (type == 3 ? QString("pics001.sdi")
+                              : QString::number(1000000ll + u32(bytes, p + 4)) + ".sdi");
                 if (!archive.entries.contains(file))
                     fail(QCoreApplication::translate("PackBuilder", "Brak mediów wskazanych przez pytanie."));
                 if (type == 3) {
@@ -192,14 +195,25 @@ void validateFile(Archive &archive, const QString &name, const QByteArray &bytes
         }
     }
 }
-bool emptyLanguage(const Question &q) {
-    if (!q.text.trimmed().isEmpty() || !q.speech.isEmpty() || !q.image.isEmpty() || !q.video.isEmpty() ||
-        !q.ttsText.isEmpty())
+bool missingBuildLanguage(const Question &q) {
+    if (!q.text.trimmed().isEmpty() || !q.speech.isEmpty() || !q.image.isEmpty() || !q.video.isEmpty() || !q.music.isEmpty() ||
+        !q.ttsText.isEmpty() || q.hasUnresolvedSourceMedia())
         return false;
     for (const auto &a : q.answers)
         if (!a.trimmed().isEmpty())
             return false;
     return true;
+}
+QString buildContentProblem(const Question &question) {
+    const auto problems = question.problems();
+    if (!problems.isEmpty())
+        return problems.join(' ');
+    const auto text = QStringList{question.text, question.topic} + question.answers;
+    if (std::any_of(text.cbegin(), text.cend(), [](const QString &line) {
+            return std::any_of(line.cbegin(), line.cend(), unsupportedPackCharacter);
+        }))
+        return QCoreApplication::translate("PackBuilder", "Tekst zawiera znak nieobsługiwany przez grę (np. emoji).");
+    return {};
 }
 void validateGenerated(const QString &path, const QString &language, const QVector<Question> &source,
                        const QMap<QString, quint32> &ids, int expectedPack, const std::atomic_bool *cancel) {
@@ -227,6 +241,8 @@ void validateGenerated(const QString &path, const QString &language, const QVect
             actual.difficulty != q.difficulty || actual.answers[actual.correct] != q.answers[q.correct])
             fail(QCoreApplication::translate("PackBuilder",
                                              "Treść lub poprawna odpowiedź zmieniła się podczas zapisu."));
+        if (!q.music.isEmpty() && actual.sourceMusic().isEmpty())
+            fail(QCoreApplication::translate("PackBuilder", "W zapisanym pytaniu brakuje odwołania do klipu muzycznego."));
     }
     Q_UNUSED(categories);
 }
@@ -297,22 +313,71 @@ QVariantMap BuildResult::map() const {
             {"number", number},
             {"questions", questions},
             {"skipped", skipped},
+            {"excluded", excluded},
             {"rounds", rounds},
             {"categories", categories},
             {"pictures", pictures},
             {"movies", movies},
             {"cancelled", cancelled}};
 }
+QString preflightBuildProblem(const Question &question) {
+    if (const auto problem = buildContentProblem(question); !problem.isEmpty())
+        return problem;
+    // The source keys can be resolved against a Quiz World template during the build.
+    const bool allowsFallback = !question.extra["category_override"].toBool();
+    const bool lacksSubject = question.subjectId <= 0 &&
+                              (!allowsFallback || question.extra["source_subject_key"].toString().isEmpty());
+    const bool lacksCategory = question.categoryId <= 0 &&
+                               (!allowsFallback || question.extra["source_category_key"].toString().isEmpty());
+    return lacksSubject || lacksCategory
+               ? QCoreApplication::translate("PackBuilder", "Wybierz kategorię i podkategorię dla tego pytania.")
+               : QString();
+}
+
+BuildReadiness checkBuildReadiness(const Document &document) {
+    BuildReadiness result;
+    const auto language = languageCode(document.language);
+    QSet<QString> identities;
+    for (auto question : document.questions) {
+        question.switchLanguage(language);
+        if (missingBuildLanguage(question)) {
+            ++result.missingLanguage;
+            continue;
+        }
+        const auto reason = identities.contains(question.id)
+                                ? QCoreApplication::translate("PackBuilder", "Powtórzony identyfikator pytania: ") + question.id
+                                : preflightBuildProblem(question);
+        if (!reason.isEmpty()) {
+            result.issues << BuildQuestionIssue{question.id, question.text, reason};
+            continue;
+        }
+        identities.insert(question.id);
+        ++result.ready;
+    }
+    return result;
+}
+
 BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                       std::atomic_bool *externalCancel) {
     BuildResult result;
     result.number = request.number;
     std::atomic_bool localCancel{false};
     auto *cancel = externalCancel ? externalCancel : &localCancel;
-    bool mediaFailure = false;
     auto report = [&](int percent, const QString &message) {
         if (progress)
             progress(percent, message);
+    };
+    auto exclude = [&](const Question &question, const QString &reason) {
+        if (!request.skipInvalid)
+            fail(QCoreApplication::translate("PackBuilder", "Pytanie %1: %2").arg(question.id, reason));
+        result.excluded << QVariantMap{{"id", question.id}, {"text", question.text}, {"reason", reason}};
+    };
+    auto requireQuestions = [&](const QVector<Question> &questions) {
+        if (!questions.isEmpty())
+            return;
+        if (!result.excluded.isEmpty())
+            fail(QCoreApplication::translate("PackBuilder", "Żadne pytanie nie jest gotowe do zbudowania paczki."));
+        fail(QCoreApplication::translate("PackBuilder", "Brak pytań w wybranym języku do zbudowania."));
     };
     try {
         checkCancelled(cancel);
@@ -370,41 +435,222 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                                              "To nie jest obsługiwany szablon Quiz World PACK0100."));
         QVector<Question> questions;
         QSet<QString> identities;
-        QStringList images, movies;
-        QSet<int> roots;
         for (auto q : request.document.questions) {
+            checkCancelled(cancel);
             q.switchLanguage(code);
-            if (emptyLanguage(q)) {
+            if (missingBuildLanguage(q)) {
                 ++result.skipped;
                 continue;
             }
-            if (identities.contains(q.id))
-                fail(QCoreApplication::translate("PackBuilder", "Powtórzony identyfikator pytania: ") + q.id);
-            identities.insert(q.id);
-            if (!cats.contains(q.subjectId) || cats[q.subjectId].parent)
-                q.subjectId = keys.value(q.extra["source_subject_key"].toString());
-            if (!cats.contains(q.categoryId) || cats[q.categoryId].parent != q.subjectId)
-                q.categoryId = keys.value(q.extra["source_category_key"].toString());
-            if (!q.problems().isEmpty())
-                fail(QCoreApplication::translate("PackBuilder", "Pytanie %1: %2")
-                         .arg(q.id, q.problems().join(" ")));
-            if (!cats.contains(q.subjectId) || cats[q.subjectId].parent || !cats.contains(q.categoryId) ||
-                cats[q.categoryId].parent != q.subjectId)
-                fail(
-                    QCoreApplication::translate(
-                        "PackBuilder", "Pytanie %1 wymaga mapowania kategorii na wybrany szablon Quiz World.")
-                        .arg(q.id));
-            roots.insert(q.subjectId);
-            if (!q.video.isEmpty()) {
-                if (!movies.contains(q.video))
-                    movies << q.video;
-            } else if (!q.image.isEmpty() && !images.contains(q.image)) {
-                images << q.image;
+            if (identities.contains(q.id)) {
+                exclude(q, QCoreApplication::translate("PackBuilder", "Powtórzony identyfikator pytania: ") + q.id);
+                continue;
             }
+            if (!q.extra["category_override"].toBool()) {
+                if (!cats.contains(q.subjectId) || cats[q.subjectId].parent)
+                    q.subjectId = keys.value(q.extra["source_subject_key"].toString());
+                if (!cats.contains(q.categoryId) || cats[q.categoryId].parent != q.subjectId)
+                    q.categoryId = keys.value(q.extra["source_category_key"].toString());
+            }
+            if (const auto problem = buildContentProblem(q); !problem.isEmpty()) {
+                exclude(q, problem);
+                continue;
+            }
+            if (!cats.contains(q.subjectId) || cats[q.subjectId].parent || !cats.contains(q.categoryId) ||
+                cats[q.categoryId].parent != q.subjectId) {
+                exclude(q, QCoreApplication::translate(
+                    "PackBuilder", "Pytanie %1 wymaga mapowania kategorii na wybrany szablon Quiz World.").arg(q.id));
+                continue;
+            }
+            identities.insert(q.id);
             questions << q;
         }
-        if (questions.isEmpty())
-            fail(QCoreApplication::translate("PackBuilder", "Brak pytań w wybranym języku do zbudowania."));
+        requireQuestions(questions);
+
+        const auto ffmpeg = request.ffmpeg.isEmpty() ? defaultFfmpeg() : request.ffmpeg;
+        const double gain = request.document.packExtra["speech_gain_db"].toDouble(0);
+        if (!std::isfinite(gain) || gain < -24 || gain > 24)
+            fail(QCoreApplication::translate("PackBuilder",
+                                             "Wzmocnienie nagrań musi mieścić się w zakresie −24…24 dB."));
+        report(5, QCoreApplication::translate("PackBuilder", "Kodowanie nagrań…"));
+        const auto sourceNarrationErrors = recoverPspNarrationsForBuild(questions, cancel);
+        if (!sourceNarrationErrors.isEmpty()) {
+            questions.removeIf([&](const Question &q) {
+                const auto error = sourceNarrationErrors.constFind(q.id);
+                if (error == sourceNarrationErrors.constEnd())
+                    return false;
+                exclude(q, *error);
+                return true;
+            });
+            requireQuestions(questions);
+        }
+        const auto pending = std::as_const(questions).constData();
+        const int questionCount = questions.size();
+        std::vector<QByteArray> audio(questionCount);
+        std::vector<QString> audioErrors(questionCount);
+        std::atomic_int nextJob{0}, done{0};
+        std::atomic_bool stopJobs{false};
+        const int workers = std::min(questionCount, std::clamp(QThread::idealThreadCount() - 1, 1, 8));
+        std::vector<std::future<void>> tasks;
+        for (int w = 0; w < workers; ++w)
+            tasks.push_back(std::async(std::launch::async, [&] {
+                while (!cancel->load() && !stopJobs.load()) {
+                    const int i = nextJob.fetch_add(1);
+                    if (i >= questionCount)
+                        return;
+                    try {
+                        if (!pending[i].speech.isEmpty())
+                            audio[i] = encodeSpeech(pending[i].speech, ffmpeg, gain, cancel);
+                    } catch (const MediaEnvironmentError &) {
+                        stopJobs.store(true);
+                        throw;
+                    } catch (const std::runtime_error &e) {
+                        checkCancelled(cancel);
+                        audioErrors[i] = QString::fromUtf8(e.what());
+                        if (!request.skipInvalid)
+                            stopJobs.store(true);
+                    }
+                    const int complete = done.fetch_add(1) + 1;
+                    report(5 + 55 * complete / questionCount,
+                           QCoreApplication::translate("PackBuilder", "Nagrania: %1 / %2")
+                               .arg(complete).arg(questionCount));
+                }
+            }));
+        for (auto &task : tasks)
+            task.get();
+        checkCancelled(cancel);
+        QHash<QString, QByteArray> audioById;
+        QVector<Question> withAudio;
+        for (int i = 0; i < questionCount; ++i) {
+            if (!audioErrors[i].isEmpty()) {
+                exclude(questions[i], audioErrors[i]);
+                continue;
+            }
+            if (!audio[i].isEmpty())
+                audioById.insert(questions[i].id, std::move(audio[i]));
+            withAudio << std::move(questions[i]);
+        }
+        questions = std::move(withAudio);
+        requireQuestions(questions);
+
+        Entries entries;
+        QHash<QString, QByteArray> musicClips;
+        QHash<QString, QString> musicErrors;
+        questions.removeIf([&](const Question &q) {
+            if (q.music.isEmpty())
+                return false;
+            checkCancelled(cancel);
+            if (!musicClips.contains(q.music) && !musicErrors.contains(q.music)) {
+                try {
+                    musicClips.insert(q.music, encodeMusic(q.music, ffmpeg, cancel));
+                } catch (const MediaEnvironmentError &) {
+                    throw;
+                } catch (const std::exception &e) {
+                    checkCancelled(cancel);
+                    musicErrors.insert(q.music, QString::fromUtf8(e.what()));
+                }
+            }
+            if (musicClips.contains(q.music))
+                return false;
+            exclude(q, musicErrors.value(q.music));
+            return true;
+        });
+        requireQuestions(questions);
+        QStringList moviePaths, movies;
+        QSet<QString> seenMovies;
+        for (const auto &q : questions) {
+            if (!q.video.isEmpty() && !seenMovies.contains(q.video)) {
+                seenMovies.insert(q.video);
+                moviePaths << q.video;
+            }
+        }
+        auto movieAsset = [&](const QString &path) {
+            return FirstMovieAsset + (request.number - 101) * MovieAssetsPerPack + movies.indexOf(path);
+        };
+        if (!moviePaths.isEmpty()) {
+            const auto prefix = language + "/QUESTIONASSETS/VIDEO/";
+            QByteArray movieTemplate;
+            for (auto it = archive.entries.lowerBound(prefix);
+                 it != archive.entries.cend() && it.key().startsWith(prefix); ++it) {
+                checkCancelled(cancel);
+                if (!it.key().endsWith(".sdi") || !it.key().at(prefix.size()).isDigit())
+                    continue;
+                auto candidate = archive.read(it.key());
+                if (isMovieTemplate(candidate)) {
+                    movieTemplate = std::move(candidate);
+                    break;
+                }
+            }
+            if (movieTemplate.isEmpty())
+                fail(QCoreApplication::translate(
+                    "PackBuilder", "Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI."));
+            qsizetype movieBytes = 0;
+            QHash<QString, QString> invalidMovies;
+            for (qsizetype i = 0; i < moviePaths.size(); ++i) {
+                checkCancelled(cancel);
+                const auto &path = moviePaths[i];
+                report(60 + int(12 * i / moviePaths.size()),
+                       QCoreApplication::translate("PackBuilder", "Kodowanie filmu do pytania %1 z %2…")
+                           .arg(i + 1).arg(moviePaths.size()));
+                QByteArray bytes;
+                try {
+                    bytes = encodeMovie(movieTemplate, path, ffmpeg, cancel);
+                } catch (const MediaEnvironmentError &) {
+                    throw;
+                } catch (const std::runtime_error &error) {
+                    checkCancelled(cancel);
+                    const auto reason = QFileInfo(path).fileName() + ": " + QString::fromUtf8(error.what());
+                    if (!request.skipInvalid)
+                        fail(reason);
+                    invalidMovies.insert(path, reason);
+                    continue;
+                }
+                movieBytes += bytes.size();
+                if (movieBytes > 256 * 1024 * 1024)
+                    fail(QCoreApplication::translate(
+                        "PackBuilder", "Filmy do pytań przekraczają limit 256 MiB na paczkę."));
+                if (movies.size() >= MovieAssetsPerPack)
+                    fail(QCoreApplication::translate("PackBuilder", "Paczka zawiera za dużo różnych filmów do pytań."));
+                movies << path;
+                entries << qMakePair(prefix + QString::number(1000000ll + movieAsset(path)) + ".sdi", std::move(bytes));
+            }
+            questions.removeIf([&](const Question &q) {
+                const auto it = invalidMovies.constFind(q.video);
+                if (it == invalidMovies.cend())
+                    return false;
+                exclude(q, it.value());
+                return true;
+            });
+        }
+        QStringList images;
+        QSet<QString> seenImages;
+        for (const auto &q : questions) {
+            if (q.video.isEmpty() && !q.image.isEmpty() && !seenImages.contains(q.image)) {
+                seenImages.insert(q.image);
+                images << q.image;
+            }
+        }
+        if (!images.isEmpty()) {
+            report(73, QCoreApplication::translate("PackBuilder", "Tworzenie planszy obrazków…"));
+            const auto sheet = language + "/QUESTIONASSETS/VIDEO/pics002.sdi";
+            QHash<QString, QString> invalidImages;
+            auto bytes = pictureSheet(archive.read(sheet), images, ffmpeg, cancel,
+                                      request.skipInvalid ? &invalidImages : nullptr);
+            if (!bytes.isEmpty())
+                entries << qMakePair(language + "/QUESTIONASSETS/VIDEO/pics001.sdi", std::move(bytes));
+            images.removeIf([&](const QString &path) { return invalidImages.contains(path); });
+            questions.removeIf([&](const Question &q) {
+                const auto it = invalidImages.constFind(q.image);
+                if (!q.video.isEmpty() || it == invalidImages.cend())
+                    return false;
+                exclude(q, it.value());
+                return true;
+            });
+        }
+        requireQuestions(questions);
+        QSet<int> roots;
+        for (const auto &q : questions)
+            roots.insert(q.subjectId);
         auto usedRoots = roots.values();
         std::sort(usedRoots.begin(), usedRoots.end(), [&](int a, int b) {
             return cats[a].round == cats[b].round ? a < b : cats[a].round < cats[b].round;
@@ -445,117 +691,33 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         for (auto id : remap)
             if (cats.contains(id))
                 fail(QCoreApplication::translate("PackBuilder", "Baza kategorii koliduje z szablonem gry."));
-        if (images.size() > 427)
-            fail(QCoreApplication::translate("PackBuilder",
-                                             "Paczka może zawierać najwyżej 427 różnych obrazków."));
-        const auto ffmpeg = request.ffmpeg.isEmpty() ? defaultFfmpeg() : request.ffmpeg;
-        Entries entries;
-        auto movieAsset = [&](const QString &path) {
-            return FirstMovieAsset + (request.number - 101) * MovieAssetsPerPack + movies.indexOf(path);
-        };
-        if (!images.isEmpty()) {
-            report(5, QCoreApplication::translate("PackBuilder", "Tworzenie planszy obrazków…"));
-            const auto sheet = language + "/QUESTIONASSETS/VIDEO/pics002.sdi";
-            entries << qMakePair(language + "/QUESTIONASSETS/VIDEO/pics001.sdi",
-                                 pictureSheet(archive.read(sheet), images, ffmpeg, cancel));
-        }
-        if (!movies.isEmpty()) {
-            if (movies.size() > MovieAssetsPerPack)
-                fail(QStringLiteral("Too many distinct question movies in one pack."));
-            const auto prefix = language + "/QUESTIONASSETS/VIDEO/";
-            QByteArray movieTemplate;
-            for (auto it = archive.entries.lowerBound(prefix);
-                 it != archive.entries.cend() && it.key().startsWith(prefix); ++it) {
-                checkCancelled(cancel);
-                if (!it.key().endsWith(".sdi") || !it.key().at(prefix.size()).isDigit())
-                    continue;
-                auto candidate = archive.read(it.key());
-                if (isMovieTemplate(candidate)) {
-                    movieTemplate = std::move(candidate);
-                    break;
-                }
-            }
-            if (movieTemplate.isEmpty())
-                fail(QStringLiteral("The selected Quiz World template has no compatible SDI movie header."));
-            qsizetype movieBytes = 0;
-            for (qsizetype i = 0; i < movies.size(); ++i) {
-                checkCancelled(cancel);
-                const auto &path = movies[i];
-                report(8, QCoreApplication::translate("PackBuilder", "Encoding question movie %1 of %2…")
-                              .arg(i + 1).arg(movies.size()));
-                try {
-                    auto bytes = encodeMovie(movieTemplate, path, ffmpeg, cancel);
-                    movieBytes += bytes.size();
-                    if (movieBytes > 256 * 1024 * 1024)
-                        fail(QStringLiteral("Question movies exceed the 256 MiB pack limit."));
-                    entries << qMakePair(prefix + QString::number(1000000ll + movieAsset(path)) + ".sdi",
-                                         std::move(bytes));
-                } catch (const std::exception &error) {
-                    checkCancelled(cancel);
-                    fail(QFileInfo(path).fileName() + ": " + QString::fromUtf8(error.what()));
-                }
-            }
-        }
-        report(10, QCoreApplication::translate("PackBuilder", "Kodowanie nagrań…"));
-        std::vector<QByteArray> audio(questions.size());
-        std::atomic_int nextJob{0}, done{0};
-        std::mutex errorMutex;
-        QString firstError;
-        const double gain = request.document.packExtra["speech_gain_db"].toDouble(0);
-        if (!std::isfinite(gain) || gain < -24 || gain > 24)
-            fail(QCoreApplication::translate("PackBuilder",
-                                             "Wzmocnienie nagrań musi mieścić się w zakresie −24…24 dB."));
-        const int workers =
-            std::min<int>(questions.size(), std::clamp(QThread::idealThreadCount() - 1, 1, 8));
-        std::vector<std::future<void>> tasks;
-        for (int w = 0; w < workers; ++w)
-            tasks.push_back(std::async(std::launch::async, [&] {
-                for (;;) {
-                    if (cancel->load())
-                        return;
-                    const int i = nextJob.fetch_add(1);
-                    if (i >= questions.size())
-                        return;
-                    try {
-                        if (!questions[i].speech.isEmpty())
-                            audio[i] = encodeSpeech(questions[i].speech, ffmpeg, gain, cancel);
-                        const int complete = done.fetch_add(1) + 1;
-                        report(10 + 65 * complete / questions.size(),
-                               QCoreApplication::translate("PackBuilder", "Nagrania: %1 / %2")
-                                   .arg(complete)
-                                   .arg(questions.size()));
-                    } catch (const std::exception &e) {
-                        std::lock_guard<std::mutex> lock(errorMutex);
-                        if (!cancel->load()) {
-                            firstError = QCoreApplication::translate("PackBuilder", "Pytanie %1: %2")
-                                             .arg(questions[i].id, QString::fromUtf8(e.what()));
-                            mediaFailure = true;
-                            cancel->store(true);
-                        }
-                        return;
-                    }
-                }
-            }));
-        for (auto &task : tasks)
-            task.get();
-        if (!firstError.isEmpty())
-            fail(firstError);
-        checkCancelled(cancel);
         const auto speechBase = language + "/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/";
         QMap<QString, quint32> speech;
         bool silence = false;
         for (int i = 0; i < questions.size(); ++i) {
-            speech[questions[i].id] = request.number * 100000 + (audio[i].isEmpty() ? 0 : i + 1);
-            if (audio[i].isEmpty())
+            const auto &id = questions[i].id;
+            const auto recording = audioById.take(id);
+            speech[id] = request.number * 100000 + (recording.isEmpty() ? 0 : i + 1);
+            if (recording.isEmpty())
                 silence = true;
             else
-                entries << qMakePair(
-                    speechBase + QString::number(6000000000ll + speech[questions[i].id]) + ".rsf", audio[i]);
+                entries << qMakePair(speechBase + QString::number(6000000000ll + speech[id]) + ".rsf", recording);
         }
         if (silence)
             entries << qMakePair(speechBase + QString::number(6000000000ll + request.number * 100000) +
                                      ".rsf",
                                  silentSpeech());
+        QHash<QString, int> musicAssets;
+        for (const auto &q : questions) {
+            if (q.music.isEmpty() || musicAssets.contains(q.music))
+                continue;
+            checkCancelled(cancel);
+            if (musicAssets.size() >= MusicAssetsPerPack)
+                fail(QCoreApplication::translate("PackBuilder", "Paczka zawiera za dużo różnych klipów muzycznych."));
+            const int asset = FirstMusicAsset + (request.number - 101) * MusicAssetsPerPack + musicAssets.size();
+            musicAssets.insert(q.music, asset);
+            entries << qMakePair(musicEntry(language, asset), musicClips.take(q.music));
+        }
         report(78, QCoreApplication::translate("PackBuilder", "Zapisywanie pytań i planów rund…"));
         QMap<int, QPair<int, int>> counts;
         QMap<int, QString> files;
@@ -576,7 +738,8 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                 if (q.subjectId == root)
                     group << q;
             std::stable_sort(group.begin(), group.end(), [](const Question &a, const Question &b) {
-                return (!a.image.isEmpty() || !a.video.isEmpty()) && b.image.isEmpty() && b.video.isEmpty();
+                return (!a.image.isEmpty() || !a.video.isEmpty() || !a.music.isEmpty()) &&
+                         b.image.isEmpty() && b.video.isEmpty() && b.music.isEmpty();
             });
             QVector<RoundQuestion> round;
             for (const auto &q : group) {
@@ -586,6 +749,7 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                         answers << q.answers[i];
                 const int movie = q.video.isEmpty() ? 0 : movieAsset(q.video);
                 const int slot = movie || q.image.isEmpty() ? 0 : images.indexOf(q.image) + 1;
+                const int music = musicAssets.value(q.music);
                 const auto id = quint32(++nextQuestion);
                 ids[q.id] = id;
                 round << RoundQuestion{
@@ -593,9 +757,9 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                     q.text,      q.topic.isEmpty() ? request.document.packExtra["topic"].toString() : q.topic,
                     answers,     q.difficulty,
                     remap[root], remap[q.categoryId],
-                    slot, movie};
+                    slot, movie, music};
                 for (int c : {root, q.categoryId}) {
-                    if (slot || movie)
+                    if (slot || movie || music)
                         ++counts[c].first;
                     else
                         ++counts[c].second;
@@ -711,7 +875,7 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         report(100, QCoreApplication::translate("PackBuilder", "Paczka gotowa."));
     } catch (const std::exception &e) {
         result.error = QString::fromUtf8(e.what());
-        result.cancelled = cancel->load() && !mediaFailure;
+        result.cancelled = cancel->load();
     }
     return result;
 }

@@ -9,14 +9,25 @@ struct BuildRequest {
     QString templatePath, outputDirectory, ffmpeg, runtimeRoot, titleId = "BCES00647";
     int number = 103, categoryBase = 700;
     bool install = false;
+    bool skipInvalid = false;
 };
 struct BuildResult {
     QString error, path, installedPath, backupPath, language, sha256;
     int number = 0, questions = 0, skipped = 0, rounds = 0, categories = 0, pictures = 0, movies = 0;
     bool cancelled = false;
+    QVariantList excluded;
     bool ok() const { return error.isEmpty(); }
     QVariantMap map() const;
 };
+struct BuildQuestionIssue {
+    QString id, text, reason;
+};
+struct BuildReadiness {
+    int ready = 0, missingLanguage = 0;
+    QVector<BuildQuestionIssue> issues;
+};
+QString preflightBuildProblem(const Question &question);
+BuildReadiness checkBuildReadiness(const Document &document);
 BuildResult buildPack(const BuildRequest &request, const pack::Progress &progress = {},
                       std::atomic_bool *cancel = nullptr);
 BuildResult installPack(const QString &source, const QString &runtimeRoot, const QString &titleId,

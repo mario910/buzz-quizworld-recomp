@@ -17,8 +17,13 @@ class QProgressBar;
 class QPushButton;
 class QRadioButton;
 class QStackedWidget;
+class ImportWizard;
 class Localization;
 class StudioController;
+namespace studio {
+struct BuildQuestionIssue;
+struct FfmpegInstallation;
+}
 
 // Qt Widgets interface of Buzz! Question Studio (the same Qt modules as
 // BuzzSetup). All state lives in StudioController; the window is rebuilt when
@@ -48,17 +53,27 @@ class MainWindow final : public QMainWindow {
     Localization &i18n;
     QString categoryFilter, kindFilter;
     bool loading = false, allowClose = false;
+    bool buildAfterMediaRecovery = false;
+    QStringList mediaRecoveryErrors;
     int editorTab = 0;
     QPointer<QDialog> visibleDialog;
+    QPointer<ImportWizard> importWizard;
+    QVariantMap reviewBuildOptions;
+    QStringList reviewQuestionIds;
+    QString reviewLanguage;
+    int reviewIndex = -1;
     // Widgets of the current build (recreated on language changes).
     QWidget *overlay = nullptr;
     QLabel *packTitle = nullptr, *saveState = nullptr, *statusText = nullptr, *footerCount = nullptr,
            *countText = nullptr, *readyChip = nullptr, *sourceText = nullptr, *imageName = nullptr,
-           *imageThumb = nullptr, *speechName = nullptr, *videoName = nullptr, *mediaNote = nullptr, *issues = nullptr, *idText = nullptr,
+           *imageThumb = nullptr, *speechName = nullptr, *videoName = nullptr, *mediaNote = nullptr, *musicNote = nullptr,
+           *issues = nullptr, *idText = nullptr,
            *overlayText = nullptr, *warningText = nullptr, *emptyTitle = nullptr, *emptyText = nullptr;
     QPushButton *languageButton = nullptr, *clearButton = nullptr, *undoButton = nullptr, *redoButton = nullptr,
-                *imageRemove = nullptr, *speechOpen = nullptr, *speechRemove = nullptr, *videoOpen = nullptr, *videoRemove = nullptr, *overlayCancel = nullptr,
-                *buildButton = nullptr, *imageButton = nullptr, *decodeMediaButton = nullptr;
+                *imageRemove = nullptr, *speechPlay = nullptr, *speechRemove = nullptr, *videoPlay = nullptr,
+                *videoRemove = nullptr, *musicPlay = nullptr, *overlayCancel = nullptr,
+                *buildButton = nullptr, *imageButton = nullptr, *decodeMediaButton = nullptr,
+                *importWarningsButton = nullptr, *recoverMediaButton = nullptr;
     QList<QPushButton *> filterButtons, tabButtons, busyDisabled;
     QListWidget *categories = nullptr;
     QListView *questionList = nullptr;
@@ -71,6 +86,9 @@ class MainWindow final : public QMainWindow {
     QStackedWidget *pages = nullptr, *editorPages = nullptr;
     QWidget *preview = nullptr, *emptyState = nullptr;
     QFrame *warningBar = nullptr;
+    QWidget *buildReviewPanel = nullptr;
+    QLabel *buildReviewTitle = nullptr, *buildReviewReason = nullptr;
+    QPushButton *previousReviewButton = nullptr, *nextReviewButton = nullptr;
     QProgressBar *overlayProgress = nullptr;
 
     void buildUi();
@@ -90,18 +108,33 @@ class MainWindow final : public QMainWindow {
     void guard(const std::function<void()> &action);
     void save(const std::function<void()> &done = {});
     void saveAs(const std::function<void()> &done = {});
-    void chooseOpen(bool append);
+    void chooseProject();
+    void openImportWizard(const QString &sourcePath = {}, bool preferAppend = true);
+    void openImportedCategories(bool latestOnly, QWidget *parent);
     void showError(const QString &message);
     void showWarnings();
     void showImportLanguages(const QVariantList &choices, const QString &preferred);
     void askLicense(const QUrl &source, bool append, const QString &contentId, const QString &message);
     void showPackResult(const QVariantMap &result);
+    void showBuildIssues(const QVector<studio::BuildQuestionIssue> &questionsToFix);
+    QWidget *buildReviewControls();
+    bool refreshBuildReview(const QString &selectedId);
+    int nextReviewIndex(int index, int direction) const;
+    void moveBuildReview(int direction);
+    void clearBuildReview();
     void openInstall(const QString &source);
     void renamePack();
     QString languageLabel(const QString &code) const;
     void confirmDelete();
     void showAbout();
-    void decodeAllClips();
+    void recoverSourceMedia();
+    void previewMedia(const char *field, const QString &title, bool video = false);
+    void playMedia(const QString &path, const QString &title, bool video = false);
+    bool chooseMediaFfmpeg(QWidget *parent = nullptr);
+    bool browseMediaFfmpeg(QWidget *parent = nullptr);
+    bool installMediaFfmpeg(const studio::FfmpegInstallation &installation, QWidget *parent);
+    void showUnresolvedMedia(const QStringList &errors);
+    void editReportedQuestion(const QString &id);
     void showDialog(QDialog *dialog);
     QVariantMap current() const;
 };

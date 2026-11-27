@@ -31,7 +31,7 @@
 - RoundSetup: AddGame(name,id,'1P/4P/8PPACKSPECIFIC','MaxNPlayers',0,-1,1,1,4) ids N000..N002; AddGamePlanRounds(game,roundType,n);
   AddRound(id,game,group,roundType,'SUBJECT_x','PACK000N','<subject>_<roundtype>','RoundPlanNonAsset|RoundPlanFinalCountdown','NULL_EVENT_PLAN',6,0,1|2,'9023942..') 13 args, ids N300..N455 (39 for 18/23).
 - RoundPackages: PackageData.NewPackage(file); AddRoundFile(n,0,file,file) — same API as QW.
-- Categories: QTV only AddQuestionCategoryItem(115,'UNCATEGORISED','QC_UNCATEGORISED',67) (4 args, after ClearAll). QW uses 8 args, ids 116..436 with packid 100.
+- Categories: QTV only AddQuestionCategoryItem(115,'UNCATEGORISED','QC_UNCATEGORISED',67) (4 args, after ClearAll). QW uses 8 args, ids 116..436 with packid 100. For Quiz TV's placeholder rows, Studio uses the pack title from AddPackInfo and the round's subject from AddRound. It resolves the original labels from the pack's NAMEDTEXT and, if needed, from the language archive in USRDIR/GAME.
 - QW still registers natives AddRound (0x150CC0, separate from AddRoundNew), AddGame, AddGamePlanRounds; QW gamesetup.clu still defines ChannelHopper/Music/Knowledge/TVCinema/Sport/LifestyleGame*, and RoundPlanNonAsset/FinalCountdown scripts exist => legacy Quiz TV pack support likely. NULL_EVENT_PLAN, SUBJECT_* keys not present in QW.
 
 ## Counts (questions; see question_counts.txt, question_ids.txt)
