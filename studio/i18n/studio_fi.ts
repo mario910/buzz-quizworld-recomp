@@ -3276,6 +3276,10 @@ Rakennettu tiedosto: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Kloonaa vain ääniä, joiden kloonaamiseen sinulla on lupa.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>OmniVoicen mallipainot on tarkoitettu ei-kaupalliseen käyttöön. Higgs Audio 2 -tokenisaattorilla on oma lisenssi.</translation>
         </message>

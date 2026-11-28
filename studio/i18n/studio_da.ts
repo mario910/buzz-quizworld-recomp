@@ -3276,6 +3276,10 @@ Bygget fil: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Klon kun stemmer, du har tilladelse til at klone.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>OmniVoice-modellens vægte er til ikke-kommerciel brug. Higgs Audio 2-tokenizeren har en separat licens.</translation>
         </message>

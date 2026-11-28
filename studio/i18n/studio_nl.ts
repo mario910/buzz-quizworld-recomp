@@ -3276,6 +3276,10 @@ Gebouwd bestand: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Kloon alleen stemmen waarvoor je toestemming hebt.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>De modelgewichten van OmniVoice zijn bedoeld voor niet-commercieel gebruik. De Higgs Audio 2-tokenizer heeft een eigen licentie.</translation>
         </message>

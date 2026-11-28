@@ -3276,6 +3276,10 @@ Sestavený soubor: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Klonujte pouze hlasy, které máte svolení klonovat.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>Váhy modelu OmniVoice jsou určeny pro nekomerční použití. Tokenizátor Higgs Audio 2 má vlastní licenci.</translation>
         </message>

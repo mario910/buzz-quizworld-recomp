@@ -3276,6 +3276,10 @@ Archivo creado: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Clona solo voces que tengas permiso para clonar.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>Los pesos de OmniVoice son para uso no comercial. El tokenizador Higgs Audio 2 tiene una licencia propia.</translation>
         </message>

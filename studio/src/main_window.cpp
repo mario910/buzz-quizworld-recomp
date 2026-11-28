@@ -2451,7 +2451,8 @@ void MainWindow::openOmniVoice() {
         .toHtmlEscaped() + QStringLiteral(
         " <a href=\"https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/README.md#license\">OmniVoice</a>"
         " · <a href=\"https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/audio_tokenizer/LICENSE\">Higgs Audio 2</a>");
-    auto *licenseNotice = label(licenseText, "muted");
+    auto *licenseNotice = label(licenseText + "<br>" +
+        V("Klonuj tylko głosy, na których klonowanie masz zgodę.").toHtmlEscaped(), "muted");
     licenseNotice->setTextFormat(Qt::RichText);
     licenseNotice->setOpenExternalLinks(true);
     licenseNotice->setWordWrap(true);
@@ -2516,6 +2517,8 @@ void MainWindow::openOmniVoice() {
     const auto code = [language] { return language->currentData().toString(); };
     const auto draft = [=] { return studio::VoiceProfile{reference->text(), transcript->toPlainText()}; };
     const auto drafts = std::make_shared<QMap<QString, studio::VoiceProfile>>();
+    const auto installedSamples = std::make_shared<QSet<QString>>();
+    const auto mayGenerate = [=] { return installedSamples->contains(code()) || voicePermission->isChecked(); };
     const auto tried = std::make_shared<QSet<QString>>();
     const auto missing = std::make_shared<int>();
     const auto work = std::make_shared<bool>(false);
@@ -2525,7 +2528,7 @@ void MainWindow::openOmniVoice() {
     const auto update = [=] {
         const bool active = !*work && !*resolving, hasReference = draft().ready();
         const bool hasPython = QFileInfo(python->text()).isExecutable();
-        const bool ready = active && hasPython && hasReference && voicePermission->isChecked();
+        const bool ready = active && hasPython && hasReference && mayGenerate();
         const bool managed = !studio::managedOmniVoicePython().isEmpty();
         const bool offerInstall = studio::canInstallOmniVoice();
         install->setText(managed ? V("Skonfiguruj ponownie OmniVoice…")
@@ -2535,7 +2538,8 @@ void MainWindow::openOmniVoice() {
         setup->setVisible(offerInstall && !managed);
         for (auto *widget : QList<QWidget *>{language, choosePython, fromGame, fromFile, transcript, speech})
             widget->setEnabled(active);
-        voicePermission->setEnabled(active && hasReference);
+        voicePermission->setVisible(hasReference && !installedSamples->contains(code()));
+        voicePermission->setEnabled(active);
         profileSave->setEnabled(active && hasReference);
         const bool hasText = !speech->toPlainText().trimmed().isEmpty();
         listen->setEnabled(ready && hasText);
@@ -2640,6 +2644,8 @@ void MainWindow::openOmniVoice() {
         const auto path = QFileDialog::getOpenFileName(dialog, V("Wybierz nagranie…"), {},
             T("Nagranie WAV (*.wav)") + ";;" + V("Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)"));
         if (!path.isEmpty()) {
+            installedSamples->remove(code());
+            voicePermission->setChecked(false);
             reference->setText(path);
             transcript->clear();
             transcript->setFocus();
@@ -2667,6 +2673,11 @@ void MainWindow::openOmniVoice() {
                 return;
             }
             if (profile.ready()) {
+                if (automatic)
+                    installedSamples->insert(selectedLanguage);
+                else
+                    installedSamples->remove(selectedLanguage);
+                voicePermission->setChecked(false);
                 reference->setText(profile.recording);
                 transcript->setPlainText(profile.transcript);
                 if (speech->toPlainText().trimmed().isEmpty())
@@ -2720,7 +2731,7 @@ void MainWindow::openOmniVoice() {
     };
     connect(profileSave, &QPushButton::clicked, dialog, saveProfile);
     const auto start = [=](StudioController::NarrationScope scope) {
-        if (!voicePermission->isChecked())
+        if (!mayGenerate())
             return;
         if (QFileInfo(reference->text()).suffix().compare("wav", Qt::CaseInsensitive) != 0 &&
             studio::configuredMediaFfmpeg().isEmpty() && !chooseMediaFfmpeg(dialog))

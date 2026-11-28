@@ -3276,6 +3276,10 @@ Izgrađena datoteka: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Kloniraj samo glasove za koje imaš dopuštenje.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>Težine modela OmniVoice namijenjene su nekomercijalnoj upotrebi. Tokenizator Higgs Audio 2 ima zasebnu licencu.</translation>
         </message>

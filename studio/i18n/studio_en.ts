@@ -3825,6 +3825,10 @@ Built file: </translation>
     <context>
         <name>OmniVoice</name>
         <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Use only voices you have permission to clone.</translation>
+        </message>
+        <message>
             <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
             <translation>The OmniVoice weights are for noncommercial use. The Higgs Audio 2 tokenizer has a separate license.</translation>
         </message>

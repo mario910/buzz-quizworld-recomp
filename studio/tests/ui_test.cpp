@@ -259,19 +259,20 @@ class UiTest final : public QObject {
         const auto polishSample = reference->text();
         QVERIFY(QFileInfo(polishSample).isFile());
         QVERIFY(!studio::omniVoiceProfile("pl").ready());
-        QVERIFY(permission->isEnabled() && !permission->isChecked() && !preview->isEnabled());
-        permission->setChecked(true);
-        QVERIFY(preview->isEnabled());
+        QVERIFY(!permission->isVisible() && !permission->isChecked() && preview->isEnabled());
 
         language->setCurrentIndex(language->findData("en"));
         QTRY_VERIFY(language->isEnabled());
         QCOMPARE(transcript->toPlainText(), QString("Which sample is from the installed game?"));
         QVERIFY(reference->text() != polishSample && QFileInfo(reference->text()).isFile());
-        QVERIFY(!permission->isChecked() && !preview->isEnabled());
+        QVERIFY(!permission->isVisible() && !permission->isChecked() && preview->isEnabled());
         language->setCurrentIndex(language->findData("hr"));
         QTRY_VERIFY(language->isEnabled());
         QVERIFY(reference->text().isEmpty());
         QCOMPARE(controller.totalCount(), 0);
+        language->setCurrentIndex(language->findData("pl"));
+        QCOMPARE(reference->text(), polishSample);
+        QVERIFY(!permission->isVisible() && preview->isEnabled());
 
         QVERIFY(studio::saveOmniVoiceProfile("pl", {polishSample, "Własna transkrypcja."}).ok());
         dialog->reject();
@@ -281,6 +282,12 @@ class UiTest final : public QObject {
         QVERIFY(dialog);
         QCOMPARE(find<QPlainTextEdit>(*dialog, "omniVoiceTranscript")->toPlainText(),
                  QString("Własna transkrypcja."));
+        permission = find<QCheckBox>(*dialog, "omniVoicePermission");
+        preview = find<QPushButton>(*dialog, "omniVoicePreview");
+        QVERIFY(permission && preview);
+        QVERIFY(permission->isVisible() && !permission->isChecked() && !preview->isEnabled());
+        permission->setChecked(true);
+        QVERIFY(preview->isEnabled());
     }
     void mediaErrorsUseInterfaceLanguage_data() {
         QTest::addColumn<QString>("language");

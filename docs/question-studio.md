@@ -438,8 +438,10 @@ terms. Studio links both licenses before setup. [Third-party notices](../THIRD_P
    one narrated question in that language. To use a different reference,
    choose **Use imported narration** or select an audio file.
    A clean 3–10 second recording works well. Check that the transcript matches
-   what the speaker says. Confirm that you have permission to clone the voice
-   before generating narration, including with samples from the installed game.
+   what the speaker says and use only voices you have permission to clone.
+   Studio asks for confirmation when you use an imported recording, an audio
+   file or a saved profile. You can use the automatically selected sample
+   directly.
    The FFmpeg installed with OmniVoice converts game formats such as RSF and
    WEM and can also encode generated narration when building the pack.
 2. Use **Preview voice** to hear the current text. **Save profile** remembers
