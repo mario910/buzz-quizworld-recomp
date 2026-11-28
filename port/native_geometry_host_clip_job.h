@@ -163,17 +163,12 @@ template<bool Deferred, bool Bounded = false> struct GeometryClipArithmetic {
 template<bool Bounded>
 inline v8 geometry_clip_reciprocal_estimate(v8 w)
 {
-    // For each of the 32 FREST fractions, base >= step. The 19-bit
-    // interpolation coordinate is below 2^19, so base*2^19 cannot borrow.
     const v8 seed = v8_frest(w);
-    const v8 low = _mm256_slli_epi32(_mm256_and_si256(seed, v8_set(0x007ffc00)), 9);
-    const v8 product = _mm256_mullo_epi32(_mm256_and_si256(seed, v8_set(1023)),
-        _mm256_and_si256(w, v8_set(0x7ffff)));
-    const v8 fraction = _mm256_srli_epi32(_mm256_sub_epi32(low, product), 9);
-    const v8 normal = Bounded ? v8_set(~0u) : _mm256_cmpgt_epi32(
-        _mm256_and_si256(seed, v8_set(0x7f800000)), _mm256_setzero_si256());
-    return _mm256_and_si256(normal,
-        _mm256_or_si256(_mm256_and_si256(seed, v8_set(0xff800000)), fraction));
+    const v8 estimate = geometry_interpolate_estimate(w, seed);
+    if constexpr (Bounded) return estimate;
+    const v8 normal = _mm256_cmpgt_epi32(_mm256_and_si256(seed, v8_set(0x7f800000)),
+        _mm256_setzero_si256());
+    return _mm256_and_si256(normal, estimate);
 }
 #endif
 template<bool Deferred, bool NativeReciprocal = false, bool Bounded = false>
@@ -186,11 +181,16 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
         if constexpr (Bounded) {
             // A finite FMA consumes an intermediate zero only as an addend.
             // Repair its sign before exposing the final row to reciprocal or clipping.
-            auto value=_mm256_castsi256_ps(v8_set(params.row[axis][3]));
-            for (unsigned i=0;i<3;++i)
-                value=_mm256_fmadd_ps(_mm256_castsi256_ps(position.component[i]),
-                    _mm256_castsi256_ps(v8_set(params.row[axis][i])),value);
-            return geometry_bounded_finish(value);
+            const float32x4_t coefficients = vreinterpretq_f32_u32(vld1q_u32(params.row[axis]));
+            auto dot = [&](uint32x4_t x, uint32x4_t y, uint32x4_t z) {
+                float32x4_t sum = vdupq_laneq_f32(coefficients, 3);
+                sum = vfmaq_laneq_f32(sum, vreinterpretq_f32_u32(x), coefficients, 0);
+                sum = vfmaq_laneq_f32(sum, vreinterpretq_f32_u32(y), coefficients, 1);
+                return vfmaq_laneq_f32(sum, vreinterpretq_f32_u32(z), coefficients, 2);
+            };
+            const auto& v = position.component;
+            return geometry_bounded_finish({dot(v[0].lo, v[1].lo, v[2].lo),
+                                            dot(v[0].hi, v[1].hi, v[2].hi)});
         }
 #endif
         v8 value = fp.fma(position.component[0], v8_set(params.row[axis][0]), v8_set(params.row[axis][3]));
@@ -301,8 +301,16 @@ inline bool project_geometry_host_inputs(const spu_context& c, const GeometryJob
     v8 common_flags = v8_set(~0u);
 #endif
     v8 combined_flags = _mm256_setzero_si256();
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    const auto* positions = &data.at(input, position, 0);
+#pragma clang loop unroll_count(2)
+#endif
     for (unsigned first = 0; first < input.vertices; first += 8) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        const auto& position_data = positions[first / 8];
+#else
         const auto& position_data = data.at(input, position, first / 8);
+#endif
         auto value = [&] {
             // A strict published-output audit cannot use an approximate
             // reciprocal: a one-bit coordinate change can alter culling.

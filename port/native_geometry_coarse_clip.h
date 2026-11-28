@@ -32,9 +32,15 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
     for(unsigned axis=0;axis<3;++axis){lo[axis]=_mm256_set1_ps(0x1p30f);hi[axis]=_mm256_set1_ps(-0x1p30f);}
 #if !(BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))
     v8 outside=_mm256_setzero_si256();
+#else
+    const auto* positions = &data.at(recipe, field, 0);
 #endif
     for(unsigned block=0;block<recipe.blocks_per_field;++block) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        const auto& value = positions[block];
+#else
         const auto& value=data.at(recipe,field,block);
+#endif
         for(unsigned axis=0;axis<3;++axis) {
             const auto bits=value.component[axis];
 #if !(BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))

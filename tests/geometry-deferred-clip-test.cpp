@@ -16,6 +16,8 @@ static void compare_reciprocal_estimates()
 {
     for (uint32_t fraction : spu_frest_fraction_lut)
         assert((fraction >> 10) >= (fraction & 1023));
+    for (uint32_t fraction : spu_frsqest_fraction_lut)
+        assert((fraction >> 10) >= (fraction & 1023));
     for (unsigned first = 0; first < (1u << 23); first += 8) {
         uint32_t words[8], bounded[8];
         for (unsigned lane = 0; lane < 8; ++lane) {
@@ -31,6 +33,9 @@ static void compare_reciprocal_estimates()
         const v8 got_bounded = geometry_clip_reciprocal_estimate<true>(b);
         assert(!memcmp(&got,&want,sizeof(v8)));
         assert(!memcmp(&got_bounded,&want_bounded,sizeof(v8)));
+        const v8 root = geometry_inverse_sqrt_estimate(w);
+        const v8 expected_root = v8_fi(w, v8_frsqest(w));
+        assert(!memcmp(&root, &expected_root, sizeof(v8)));
     }
     puts("PASS all 8388608 mantissas against FREST/FI in checked and bounded projections");
 }

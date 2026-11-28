@@ -214,7 +214,11 @@ inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
 #endif
     if (direction) {
         v8 length = mul(a, a); length = madd(b, b, length); length = madd(d, d, length);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        const v8 inverse = geometry_inverse_sqrt_estimate(length);
+#else
         const v8 inverse = v8_fi(length, v8_frsqest(length));
+#endif
         a = v8_fm(a, inverse); b = v8_fm(b, inverse); d = v8_fm(d, inverse);
     }
     value.component[0] = _mm256_and_si256(a, mask);
@@ -388,10 +392,12 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
         for (unsigned semantic=0;semantic<3;++semantic) {
             if (!geometry_host_capture_field<Phase>(semantic+1) || recipe.field[semantic]==16 ||
                 (semantic && e.position_only())) continue;
-            for (unsigned first = 0; first < input.vertices; first += 8) {
-                const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
-                const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
-                transform(semantic,first,mask);
+            unsigned first = 0;
+            for (; first + 8 <= input.vertices; first += 8)
+                transform(semantic, first, v8_set(~0u));
+            if (first < input.vertices) {
+                const v8 mask = _mm256_cmpgt_epi32(v8_set(input.vertices - first), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+                transform(semantic, first, mask);
             }
         }
 #else
@@ -401,7 +407,7 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
             for (unsigned semantic = 0; semantic < 3; ++semantic) {
                 if(!geometry_host_capture_field<Phase>(semantic+1))continue;
                 if (recipe.field[semantic] == 16 || (semantic && e.position_only())) continue;
-                transform(semantic,first,mask);
+                transform(semantic, first, mask);
             }
         }
 #endif

@@ -2,6 +2,26 @@
 #include "native_geometry_host_data.h"
 
 namespace buzz {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+// Both SPU estimate tables satisfy base >= step for every fraction. With
+// a 19-bit coordinate, FI therefore cannot borrow from the seed exponent.
+// The caller handles zero-exponent results when its seed permits them.
+inline v8 geometry_interpolate_estimate(v8 input, v8 seed)
+{
+    const v8 low = _mm256_slli_epi32(_mm256_and_si256(seed, v8_set(0x007ffc00)), 9);
+    const v8 product = _mm256_mullo_epi32(_mm256_and_si256(seed, v8_set(1023)),
+        _mm256_and_si256(input, v8_set(0x7ffff)));
+    const v8 fraction = _mm256_srli_epi32(_mm256_sub_epi32(low, product), 9);
+    return _mm256_or_si256(_mm256_and_si256(seed, v8_set(0xff800000)), fraction);
+}
+
+inline v8 geometry_inverse_sqrt_estimate(v8 input)
+{
+    // FRSQEST has a nonzero result exponent for every input exponent.
+    return geometry_interpolate_estimate(input, v8_frsqest(input));
+}
+#endif
+
 inline bool geometry_object_matrix_bounded(const uint32_t* coefficients)
 {
     for (unsigned i=0;i<12;++i)

@@ -19,6 +19,24 @@ string(REPLACE "_mm_setcsr(saved_mxcsr);" "buzz_arm_fp_restore(saved_fp);" job_t
 # descriptor and owns deferred clearing, cache inputs and publication.
 option(BUZZ_SPURS_DIRECT_INPUTS "Stage the 21-entry geometry DMA list without lookahead" OFF)
 if(BUZZ_SPURS_DIRECT_INPUTS)
+    function(buzz_replace_android_job_transfer original replacement)
+        string(FIND "${job_text}" "${original}" first)
+        string(FIND "${job_text}" "${original}" last REVERSE)
+        if(first LESS 0 OR NOT first EQUAL last)
+            message(FATAL_ERROR "Android SPURS adapter requires exactly one SDK transfer: ${original}")
+        endif()
+        string(REPLACE "${original}" "${replacement}" updated "${job_text}")
+        set(job_text "${updated}" PARENT_SCOPE)
+    endfunction()
+    buzz_replace_android_job_transfer(
+        "memcpy(ls + from, vm_base + ea_bin + from, size_bin - from);"
+        "buzz_spurs_copy_job_image(ls + from, vm_base + ea_bin + from, size_bin - from, image_id);")
+    buzz_replace_android_job_transfer(
+        "memset(ls + size_bin, 0, io_ls - size_bin);"
+        "buzz_spurs_zero_job_region(ls + size_bin, io_ls - size_bin, image_id);")
+    buzz_replace_android_job_transfer(
+        "memset(ls + from, 0, margin - from);"
+        "buzz_spurs_zero_job_region(ls + from, margin - from, image_id);")
     set(loop "    for (uint32_t i = 0; i < n_dma; i++) {")
     set(anchor "    uint32_t io_cur = io_ls, io_used = 0;
 ${loop}")

@@ -1,6 +1,7 @@
 #include "../port/spurs_geometry_input_copy.h"
 #include "geometry-test-memory.h"
 #include <cassert>
+#include <initializer_list>
 #include <cstdio>
 
 // Each SPURS size is a 15-bit byte count. End both spans immediately before
@@ -57,6 +58,17 @@ int main()
         for (unsigned i = 0; i < capacity; ++i) {
             if ((i >= context && i < context + 20) || (i >= descriptor && i < descriptor + 256)) continue;
             assert(ls[i] == (clear && i >= context ? 0 : 0xa5));
+        }
+    }
+    for (int family : {40, 41}) {
+        for (unsigned size : {0u, 1u, 255u, 256u, 257u, 383u, 384u, 385u, 639u, 640u, 641u}) {
+            auto* out = destination_end - size;
+            out[-1] = 0xa5;
+            buzz_spurs_copy_job_image(out, source_end - size, size, family);
+            assert(out[-1] == 0xa5 && !memcmp(out, source_end - size, size));
+            buzz_spurs_zero_job_region(out, size, family);
+            assert(out[-1] == 0xa5);
+            for (unsigned i = 0; i < size; ++i) assert(out[i] == 0);
         }
     }
     assert(VirtualFree(memory, 0, MEM_RELEASE));

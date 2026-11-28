@@ -146,3 +146,18 @@ static inline void buzz_spurs_geometry_io_context256(
     context[2] = (uint8_t)(io >> 8);
     context[3] = (uint8_t)io;
 }
+
+// The SDK computes the reusable prefix, region bounds and deferred-zero
+// cursor. Specialize only the live byte counts of the image-41 transfers.
+static inline void buzz_spurs_copy_job_image(uint8_t* dst, const uint8_t* src, uint32_t bytes, int image)
+{
+    if (image == 41 && bytes == 640) __builtin_memcpy_inline(dst, src, 640);
+    else memcpy(dst, src, bytes);
+}
+
+static inline void buzz_spurs_zero_job_region(uint8_t* dst, uint32_t bytes, int image)
+{
+    if (image == 41 && bytes == 256) __builtin_memset_inline(dst, 0, 256);
+    else if (image == 41 && bytes == 384) __builtin_memset_inline(dst, 0, 384);
+    else memset(dst, 0, bytes);
+}
