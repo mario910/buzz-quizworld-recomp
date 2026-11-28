@@ -2158,11 +2158,6 @@ Projects link to media files. App-side pack building and portable archives are l
             <translation>Invalid audio length (10-minute limit).</translation>
         </message>
         <message>
-            <location filename="../src/pack_builder.cpp" line="46" />
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>The template does not contain the active project language. Choose a PACK0100 archive in that language.</translation>
-        </message>
-        <message>
             <location filename="../src/pack_builder.cpp" line="77" />
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>The pack file changed while being copied.</translation>
@@ -2767,8 +2762,8 @@ Projects link to media files. App-side pack building and portable archives are l
         </message>
         <message>
             <location filename="../src/main_window.cpp" line="110" />
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Quiz World template — PACK0100 in the selected language</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>To play, select %1 in Quiz World. Question and recording language: %2.</translation>
         </message>
         <message>
             <location filename="../src/main_window.cpp" line="116" />

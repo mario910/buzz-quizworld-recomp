@@ -1833,10 +1833,6 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Μη έγκυρη διάρκεια ήχου (όριο 10 λεπτών).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Το πρότυπο δεν περιέχει την ενεργή γλώσσα του έργου. Επιλέξτε ένα αρχείο PACK0100 σε αυτήν τη γλώσσα.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Το αρχείο του πακέτου άλλαξε κατά την αντιγραφή.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Δημιουργήστε πακέτο για την ενεργή γλώσσα. Οι ερωτήσεις χωρίς αυτήν την έκδοση θα παραλειφθούν· οι ημιτελείς ερωτήσεις πρέπει να ολοκληρωθούν πριν από τη δημιουργία.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Πρότυπο Quiz World — PACK0100 στην επιλεγμένη γλώσσα</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Για να παίξετε, επιλέξτε %1 στο Quiz World. Γλώσσα ερωτήσεων και ηχογραφήσεων: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

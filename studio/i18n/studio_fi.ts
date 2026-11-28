@@ -1833,10 +1833,6 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
             <translation>Virheellinen äänen pituus (10 minuutin raja).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Malli ei sisällä projektin aktiivista kieltä. Valitse tämänkielinen PACK0100-arkisto.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Paketin tiedosto muuttui kopioinnin aikana.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
             <translation>Rakenna paketti aktiiviselle kielelle. Kysymykset ilman tätä kieliversiota ohitetaan; keskeneräiset kysymykset on täydennettävä ennen rakentamista.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Quiz World -malli — PACK0100 valitulla kielellä</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Valitse Quiz Worldissa pelikieleksi %1. Kysymysten ja äänitteiden kieli: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

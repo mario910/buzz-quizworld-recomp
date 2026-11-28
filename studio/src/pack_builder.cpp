@@ -39,22 +39,30 @@ QString customInternalName(int id) {
     }
     return "Own" + letters;
 }
-QString languageFolder(Archive &archive, const QString &code) {
-    QString exact, base;
+int slotPreference(const QString &slot, const QString &contentCode) {
+    const auto code = languageCode(slot);
+    if (code == contentCode)
+        return 3;
+    const auto base = code.section('-', 0, 0);
+    if (base == contentCode.section('-', 0, 0))
+        return 2;
+    return base == "en" ? 1 : 0;
+}
+QString languageFolder(const Archive &archive, const QString &code) {
+    QString result;
+    int best = -1;
     for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it) {
-        if (!it.key().endsWith("/SCRIPTS/GENERATED/questioncategories.clu"))
+        const auto folder = it.key().section('/', 0, 0);
+        if (folder.size() != 3 || it.key() != folder + "/SCRIPTS/GENERATED/questioncategories.clu")
             continue;
-        const auto folder = it.key().section('/', 0, 0), normalized = languageCode(folder);
-        if (normalized == code)
-            exact = folder;
-        if (normalized.section('-', 0, 0) == code.section('-', 0, 0))
-            base = folder;
+        const auto preference = slotPreference(folder, code);
+        if (preference > best) {
+            result = folder;
+            best = preference;
+        }
     }
-    const auto result = exact.isEmpty() ? base : exact;
-    if (result.size() != 3)
-        fail(QCoreApplication::translate(
-            "PackBuilder",
-            "Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku."));
+    if (result.isEmpty())
+        fail(QCoreApplication::translate("PackBuilder", "To nie jest obsługiwany szablon Quiz World PACK0100."));
     return result;
 }
 QString digestFile(const QString &path) {
@@ -301,6 +309,16 @@ bool isSupportedTitleId(const QString &titleId) {
     return titleIds.contains(titleId);
 }
 } // namespace
+QString templateGameLanguage(const QString &path, const QString &contentLanguage) {
+    if (QFileInfo(path).isFile()) {
+        try {
+            return languageCode(languageFolder(Archive(path), languageCode(contentLanguage)));
+        } catch (const std::runtime_error &) {
+            // The builder reports the specific archive error when the user builds.
+        }
+    }
+    return {};
+}
 QVariantMap BuildResult::map() const {
     return {{"error", error},
             {"path", path},
@@ -1030,18 +1048,22 @@ QVariantMap suggestBuildSettings(const QString &language) {
         options["runtimeRoot"] = QString();
     if (!QFileInfo(options["ffmpeg"].toString()).isFile())
         options["ffmpeg"] = defaultFfmpeg();
-    const auto sameLanguage = [&language](const QString &file) {
-        return languageCode(QFileInfo(file).fileName().left(3)).section('-', 0, 0) ==
-               language.section('-', 0, 0);
-    };
-    const auto offerTemplates = [&](const QString &folder, bool replace) {
-        for (const auto &file : QDir(folder).entryInfoList({"*PACK0100.PAK"}, QDir::Files)) {
-            if (!sameLanguage(file.fileName()))
-                continue;
-            const auto current = options["templatePath"].toString();
-            if (replace || current.isEmpty() || !sameLanguage(current))
-                options["templatePath"] = file.absoluteFilePath();
+    const auto contentCode = languageCode(language);
+    bool gameTemplateFound = false;
+    const auto offerTemplates = [&](const QString &folder, bool fromGame) {
+        if (gameTemplateFound)
             return;
+        const QDir dir(folder);
+        const auto current = options["templatePath"].toString();
+        int best = current.isEmpty() || (fromGame && QFileInfo(current).absoluteDir() != dir)
+                       ? -1 : slotPreference(QFileInfo(current).fileName().left(3), contentCode);
+        for (const auto &file : dir.entryInfoList({"*PACK0100.PAK"}, QDir::Files, QDir::Name)) {
+            const auto preference = slotPreference(file.fileName().left(3), contentCode);
+            if (preference > best) {
+                best = preference;
+                options["templatePath"] = file.absoluteFilePath();
+            }
+            gameTemplateFound = fromGame;
         }
     };
     // The game BuzzSetup started us for wins over remembered settings.

@@ -1833,10 +1833,6 @@ Los proyectos enlazan a archivos de medios. La creación de packs en la aplicaci
             <translation>Duración de audio no válida (límite de 10 minutos).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>La plantilla no contiene el idioma activo del proyecto. Elige un archivo PACK0100 en ese idioma.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>El archivo del pack cambió mientras se copiaba.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Los proyectos enlazan a archivos de medios. La creación de packs en la aplicaci
             <translation>Crea un pack para el idioma activo. Las preguntas sin esa versión se omitirán; las preguntas incompletas deben completarse antes de crear el pack.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Plantilla de Quiz World: PACK0100 en el idioma seleccionado</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Para jugar, selecciona %1 en Quiz World. Idioma de las preguntas y grabaciones: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

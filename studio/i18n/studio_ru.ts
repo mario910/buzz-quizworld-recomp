@@ -1833,10 +1833,6 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Неверная длина звука (лимит — 10 минут).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Шаблон не содержит активного языка проекта. Выберите архив PACK0100 на этом языке.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Файл пакета изменился во время копирования.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Сборка пакета для активного языка. Вопросы без этой версии будут пропущены; незавершённые вопросы нужно дополнить перед сборкой.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Шаблон Quiz World — PACK0100 на выбранном языке</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Чтобы сыграть, выберите в Quiz World язык %1. Язык вопросов и записей: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

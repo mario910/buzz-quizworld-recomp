@@ -1833,10 +1833,6 @@ Prosjekter lenker til mediefiler. Bygging av pakker i programmet og flyttbare ar
             <translation>Ugyldig lydlengde (grense på 10 minutter).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Malen inneholder ikke det aktive prosjektspråket. Velg et PACK0100-arkiv på det språket.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Pakkefilen ble endret under kopieringen.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Prosjekter lenker til mediefiler. Bygging av pakker i programmet og flyttbare ar
             <translation>Bygg en pakke for det aktive språket. Spørsmål uten den versjonen hoppes over; ufullstendige spørsmål må fullføres før bygging.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Quiz World-mal — PACK0100 på det valgte språket</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Velg %1 i Quiz World for å spille. Språk for spørsmål og opptak: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

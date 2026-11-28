@@ -1833,10 +1833,6 @@ I progetti collegano i file multimediali. La creazione di pacchetti nell'app e g
             <translation>Durata audio non valida (limite di 10 minuti).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Il modello non contiene la lingua attiva del progetto. Scegli un archivio PACK0100 in quella lingua.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Il file del pacchetto è cambiato durante la copia.</translation>
         </message>
@@ -2331,8 +2327,8 @@ I progetti collegano i file multimediali. La creazione di pacchetti nell'app e g
             <translation>Crea un pacchetto per la lingua attiva. Le domande senza quella versione verranno saltate; le domande incomplete vanno completate prima della creazione.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Modello Quiz World — PACK0100 nella lingua selezionata</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Per giocare, seleziona %1 in Quiz World. Lingua delle domande e delle registrazioni: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>
