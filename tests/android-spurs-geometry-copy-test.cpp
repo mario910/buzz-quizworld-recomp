@@ -48,6 +48,17 @@ int main()
             assert(ls[i] == (clear && i >= context ? 0 : 0xa5));
         }
     }
+    for (int clear = 0; clear <= 1; ++clear) {
+        memset(ls, 0xa5, capacity);
+        buzz_spurs_geometry_io_context256(ls + context, source_end - 256, clear, 0x12345678);
+        assert(!memcmp(ls + descriptor, source_end - 256, 256));
+        const uint8_t first[20] = {0x12,0x34,0x56,0x78};
+        assert(!memcmp(ls + context, first, sizeof(first)));
+        for (unsigned i = 0; i < capacity; ++i) {
+            if ((i >= context && i < context + 20) || (i >= descriptor && i < descriptor + 256)) continue;
+            assert(ls[i] == (clear && i >= context ? 0 : 0xa5));
+        }
+    }
     assert(VirtualFree(memory, 0, MEM_RELEASE));
     puts("PASS all 32768 DMA copy lengths, guarded descriptor source and both context clear modes");
 }

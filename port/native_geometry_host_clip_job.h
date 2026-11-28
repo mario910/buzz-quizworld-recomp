@@ -76,10 +76,30 @@ inline bool read_geometry_host_clip_parameters(const spu_context& c, const Geome
         projected[component] = v8_fma(scale_b, column, v8_fm(v8_set(origin[component]), scale_a));
         projected[component] = _mm256_blend_epi32(projected[component], v8_set(origin[component]), 0x88);
     }
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    static constexpr uint8_t identity[64] = {
+        0x3f,0x80,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
+        0,0,0,0, 0x3f,0x80,0,0, 0,0,0,0, 0,0,0,0,
+        0,0,0,0, 0,0,0,0, 0x3f,0x80,0,0, 0,0,0,0,
+        0,0,0,0, 0,0,0,0, 0,0,0,0, 0x3f,0x80,0,0};
+    bool ordinary_identity = !memcmp(c.ls + 0xcd30, identity, sizeof(identity));
+    for (const v8& column : projected) {
+        const v8 magnitude = _mm256_and_si256(column,v8_set(0x7fffffff));
+        ordinary_identity &= vmaxvq_u32(vmaxq_u32(magnitude.lo,magnitude.hi)) < 0x7f000000;
+    }
+#endif
     GeometryHostClipParameters params;
     for (unsigned component = 0; component < 4; ++component) {
-        v8 composed = v8_fm(projected[0], v8_set(matrix[0][component]));
-        for (unsigned axis = 1; axis < 4; ++axis) composed = v8_fma(projected[axis], v8_set(matrix[axis][component]), composed);
+        v8 composed;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        if (ordinary_identity) composed = v8_fm(projected[component],v8_set(0x3f800000));
+        else
+#endif
+        {
+            composed = v8_fm(projected[0], v8_set(matrix[0][component]));
+            for (unsigned axis = 1; axis < 4; ++axis)
+                composed = v8_fma(projected[axis], v8_set(matrix[axis][component]), composed);
+        }
         uint32_t rows[4]; _mm_storeu_si128(reinterpret_cast<__m128i*>(rows), _mm256_castsi256_si128(composed));
         params.row[0][component] = rows[2]; params.row[1][component] = rows[0];
         params.row[2][component] = rows[1]; params.row[3][component] = rows[3];
@@ -139,6 +159,23 @@ template<bool Deferred, bool Bounded = false> struct GeometryClipArithmetic {
 #endif
     }
 };
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+template<bool Bounded>
+inline v8 geometry_clip_reciprocal_estimate(v8 w)
+{
+    // For each of the 32 FREST fractions, base >= step. The 19-bit
+    // interpolation coordinate is below 2^19, so base*2^19 cannot borrow.
+    const v8 seed = v8_frest(w);
+    const v8 low = _mm256_slli_epi32(_mm256_and_si256(seed, v8_set(0x007ffc00)), 9);
+    const v8 product = _mm256_mullo_epi32(_mm256_and_si256(seed, v8_set(1023)),
+        _mm256_and_si256(w, v8_set(0x7ffff)));
+    const v8 fraction = _mm256_srli_epi32(_mm256_sub_epi32(low, product), 9);
+    const v8 normal = Bounded ? v8_set(~0u) : _mm256_cmpgt_epi32(
+        _mm256_and_si256(seed, v8_set(0x7f800000)), _mm256_setzero_si256());
+    return _mm256_and_si256(normal,
+        _mm256_or_si256(_mm256_and_si256(seed, v8_set(0xff800000)), fraction));
+}
+#endif
 template<bool Deferred, bool NativeReciprocal = false, bool Bounded = false>
 inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     const GeometryHostClipParameters& params, const GeometryHostSoA8& position)
@@ -181,7 +218,11 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
         reciprocal = _mm256_castps_si256(_mm256_div_ps(_mm256_set1_ps(1.0f), _mm256_castsi256_ps(w)));
 #endif
     } else {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        const v8 estimate = geometry_clip_reciprocal_estimate<Bounded>(w);
+#else
         const v8 estimate = v8_fi(w, v8_frest(w));
+#endif
         reciprocal = fp.fma(fp.fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
     }
     const v8 x = _mm256_xor_si256(sign, fp.fm(row(0), reciprocal));

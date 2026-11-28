@@ -7,7 +7,11 @@
 static __attribute__((noinline)) void buzz_spurs_geometry_variable_copy(
     uint8_t* dst,const uint8_t* src,uint32_t size)
 {
-    if (size>=1024) {
+    if (size>=512) {
+        while (size>=1024) {
+            __builtin_memcpy_inline(dst,src,1024);
+            dst+=1024; src+=1024; size-=1024;
+        }
         while (size>=512) {
             __builtin_memcpy_inline(dst,src,512);
             dst+=512; src+=512; size-=512;
@@ -90,6 +94,16 @@ static inline uint32_t buzz_spurs_stage_geometry_inputs(
             cursor+=64;
             continue;
         }
+        if (i==1 && size==48) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,48);
+            cursor+=48;
+            continue;
+        }
+        if (i==8 && size==240) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,240);
+            cursor+=240;
+            continue;
+        }
         buzz_spurs_geometry_input_copy(ls + cursor, vm + ea, size);
         cursor+=size;
         const uint32_t padding=(-size)&15u;
@@ -112,4 +126,23 @@ static inline void buzz_spurs_geometry_descriptor256(
         memset(ls+descriptor+256, 0, ls_size-descriptor-256);
     }
     __builtin_memcpy_inline(ls+descriptor, source, 256);
+}
+
+// In the SDK's 64-byte context + 1024-byte descriptor window, only bytes
+// [64,320) are copied. The cache pointers at offsets 4..19 are zero even
+// when LS clearing is disabled. Keep the fixed zero ranges inline on ARM.
+static inline void buzz_spurs_geometry_io_context256(
+    uint8_t* context, const uint8_t* source, int clear, uint32_t io)
+{
+    if (clear) {
+        __builtin_memset_inline(context, 0, 64);
+        __builtin_memset_inline(context + 320, 0, 768);
+    } else {
+        memset(context + 4, 0, 16);
+    }
+    __builtin_memcpy_inline(context + 64, source, 256);
+    context[0] = (uint8_t)(io >> 24);
+    context[1] = (uint8_t)(io >> 16);
+    context[2] = (uint8_t)(io >> 8);
+    context[3] = (uint8_t)io;
 }

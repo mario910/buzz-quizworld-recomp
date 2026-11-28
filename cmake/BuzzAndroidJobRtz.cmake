@@ -36,16 +36,27 @@ ${loop}")
 ${loop}" job_text "${job_text}")
     set(descriptor_stage "    if (ls_zero) memset(ls + ctx_ls, 0, SPU_LS_SIZE - ctx_ls);
     memcpy(ls + desc_ls, vm_base + job_ea, dsz);")
-    string(FIND "${job_text}" "${descriptor_stage}" first)
-    string(FIND "${job_text}" "${descriptor_stage}" last REVERSE)
+    set(context_pointers "    ls32(ls, ctx_ls + JC_IO_BUFFER, io_ls);
+    for (int i = 0; i < 4; i++)
+        ls32(ls, ctx_ls + JC_CACHE_BUFFER + (uint32_t)i * 4u, cache_ls[i]);")
+    set(anchor "${descriptor_stage}
+
+${context_pointers}")
+    string(FIND "${job_text}" "${anchor}" first)
+    string(FIND "${job_text}" "${anchor}" last REVERSE)
     if(first LESS 0 OR NOT first EQUAL last)
-        message(FATAL_ERROR "Android descriptor staging requires the audited SDK copy")
+        message(FATAL_ERROR "Android context staging requires the audited SDK copy and pointer stores")
     endif()
-    string(REPLACE "${descriptor_stage}" "    if (image_id == 41 && n_dma == 21 && dsz == 256) {
-        buzz_spurs_geometry_descriptor256(ls, ctx_ls, desc_ls, SPU_LS_SIZE, vm_base + job_ea, ls_zero);
+    string(REPLACE "${anchor}" "    if (image_id == 41 && n_dma == 21 && dsz == 256 && !n_cache &&
+        desc_ls - ctx_ls == 64 && SPU_LS_SIZE - desc_ls == 1024) {
+        buzz_spurs_geometry_io_context256(ls + ctx_ls, vm_base + job_ea, ls_zero, io_ls);
     } else {
-        if (ls_zero) memset(ls + ctx_ls, 0, SPU_LS_SIZE - ctx_ls);
-        memcpy(ls + desc_ls, vm_base + job_ea, dsz);
+        if (image_id == 41 && n_dma == 21 && dsz == 256) {
+            buzz_spurs_geometry_descriptor256(ls, ctx_ls, desc_ls, SPU_LS_SIZE, vm_base + job_ea, ls_zero);
+        } else {
+            ${descriptor_stage}
+        }
+        ${context_pointers}
     }" job_text "${job_text}")
 endif()
 file(CONFIGURE OUTPUT "${spurs_job_source}" CONTENT "${job_text}" @ONLY)

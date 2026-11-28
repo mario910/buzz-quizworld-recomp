@@ -105,7 +105,11 @@ static inline v8 v8_lookup32(const uint32_t* table, v8 index)
     const uint8x16x4_t high = {{vld1q_u8(bytes+64),vld1q_u8(bytes+80),vld1q_u8(bytes+96),vld1q_u8(bytes+112)}};
     auto lookup = [&](uint32x4_t words) {
         const auto offsets = vreinterpretq_u8_u32(vaddq_u32(vmulq_u32(words,vdupq_n_u32(0x04040404)),vdupq_n_u32(0x03020100)));
+#if BUZZ_GEOMETRY_MOBILE_KERNELS
+        return vreinterpretq_u32_u8(vqtbx4q_u8(vqtbl4q_u8(low,offsets), high, vsubq_u8(offsets, vdupq_n_u8(64))));
+#else
         return vreinterpretq_u32_u8(vorrq_u8(vqtbl4q_u8(low,offsets),vqtbl4q_u8(high,vsubq_u8(offsets,vdupq_n_u8(64)))));
+#endif
     };
     return {lookup(index.lo),lookup(index.hi)};
 #else
@@ -160,7 +164,11 @@ static inline v8 v8_fi(v8 a, v8 b)
     const v8 low = _mm256_slli_epi32(base, 19);
     const v8 product = _mm256_mullo_epi32(step, y);
     const v8 bias = v8_set(0x80000000u);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    const v8 borrow = {vcgtq_u32(product.lo,low.lo), vcgtq_u32(product.hi,low.hi)};
+#else
     const v8 borrow = _mm256_cmpgt_epi32(_mm256_xor_si256(product, bias), _mm256_xor_si256(low, bias));
+#endif
     const v8 difference = _mm256_sub_epi32(low, product);
     v8 fraction = _mm256_blendv_epi8(_mm256_srli_epi32(difference, 9), _mm256_srli_epi32(difference, 8), borrow);
     fraction = _mm256_and_si256(fraction, v8_set(0x7fffff));

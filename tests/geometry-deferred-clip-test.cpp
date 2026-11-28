@@ -11,8 +11,35 @@ static volatile uint32_t checksum;
 template<bool Deferred> __attribute__((noinline)) static GeometryHostSoA8 project(
     const GeometryHostClipParameters& p,const GeometryHostSoA8& v)
 {return geometry_host_clip8_impl<Deferred>(p,v);}
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+static void compare_reciprocal_estimates()
+{
+    for (uint32_t fraction : spu_frest_fraction_lut)
+        assert((fraction >> 10) >= (fraction & 1023));
+    for (unsigned first = 0; first < (1u << 23); first += 8) {
+        uint32_t words[8], bounded[8];
+        for (unsigned lane = 0; lane < 8; ++lane) {
+            const unsigned mantissa = first + lane;
+            const uint32_t sign = (mantissa & 1u) << 31;
+            words[lane] = sign | (((mantissa >> 4) & 255u) << 23) | mantissa;
+            bounded[lane] = sign | ((97u + (mantissa % 61u)) << 23) | mantissa;
+        }
+        const v8 w = _mm256_loadu_si256(reinterpret_cast<const v8*>(words));
+        const v8 b = _mm256_loadu_si256(reinterpret_cast<const v8*>(bounded));
+        const v8 want = v8_fi(w,v8_frest(w)), want_bounded = v8_fi(b,v8_frest(b));
+        const v8 got = geometry_clip_reciprocal_estimate<false>(w);
+        const v8 got_bounded = geometry_clip_reciprocal_estimate<true>(b);
+        assert(!memcmp(&got,&want,sizeof(v8)));
+        assert(!memcmp(&got_bounded,&want_bounded,sizeof(v8)));
+    }
+    puts("PASS all 8388608 mantissas against FREST/FI in checked and bounded projections");
+}
+#endif
 int main(int argc,char**) {
     buzz_test_enter_rtz();
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    compare_reciprocal_estimates();
+#endif
     const uint32_t corner[]={0,0x80000000,1,0x807fffff,0x800000,0x80800000,
         0x3f800000,0xbf800000,0x7f7ffffe,0x7f7fffff,0xff7fffff,0x7f800000,0xff800000,0x7fffffff,0xffffffff};
     GeometryHostClipParameters p{};GeometryHostSoA8 v{};
