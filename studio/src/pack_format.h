@@ -12,7 +12,7 @@
 #include <optional>
 #include <stdexcept>
 
-// Bounds-checked stored ZIP and PS2 BPAK reader and binary primitives.
+// Bounds-checked ZIP and PS2 BPAK reader and binary primitives.
 namespace studio::pack {
 [[noreturn]] inline void fail(const QString &message) { throw std::runtime_error(message.toStdString()); }
 inline void check(const QByteArray &b, qint64 off, qint64 size) {
@@ -63,7 +63,9 @@ inline quint32 crc32(const QByteArray &b) {
 struct Entry {
     quint32 offset = 0, size = 0, crc = 0;
     quint16 method = 0, flags = 0;
+    quint32 compressedSize = 0;
 };
+QByteArray inflateZipMember(const QByteArray &bytes, qsizetype size);
 class Archive {
     QFile disk;
     QBuffer memory;
@@ -162,7 +164,8 @@ class Archive {
             entry.crc = u32(central, p + 16);
             entry.method = u16(central, p + 10);
             entry.flags = u16(central, p + 8);
-            if (u32(central, p + 20) != entry.size && entry.method == 0)
+            entry.compressedSize = u32(central, p + 20);
+            if (entry.compressedSize != entry.size && entry.method == 0)
                 fail(QCoreApplication::translate("BuzzImport", "Niezgodny rozmiar wpisu ZIP."));
             entries.insert(name, entry);
             p += 46 + n + extra + comment;
@@ -171,13 +174,15 @@ class Archive {
 
   public:
     QByteArray read(const QString &name) { return readWithChecksum(name, std::nullopt); }
+    QByteArray readDeflated(const QString &name) { return readWithChecksum(name, std::nullopt, true); }
 
     // One published PS2 disc stores an incorrect CRC for a known asset.
-    QByteArray readWithChecksum(const QString &name, std::optional<quint32> correctedChecksum) {
+    QByteArray readWithChecksum(const QString &name, std::optional<quint32> correctedChecksum,
+                                bool allowDeflate = false) {
         if (!entries.contains(name))
             fail(QCoreApplication::translate("BuzzImport", "Brak pliku %1.").arg(name));
         const auto e = entries[name];
-        if (e.method || (e.flags & 1))
+        if ((e.method && !(allowDeflate && e.method == 8)) || (e.flags & 1))
             fail(QCoreApplication::translate("BuzzImport",
                                              "Obsługiwane są nieszyfrowane paczki ZIP bez kompresji."));
         if (e.size > 512u * 1024u * 1024u)
@@ -195,10 +200,12 @@ class Archive {
         if (head.mid(0, 4) != QByteArray("PK\3\4", 4))
             fail(QCoreApplication::translate("BuzzImport", "Uszkodzony nagłówek ZIP."));
         const auto start = qint64(e.offset) + 30 + u16(head, 26) + u16(head, 28);
-        if (start + e.size > file.size())
+        if (start + e.compressedSize > file.size())
             fail(QCoreApplication::translate("BuzzImport", "Ucięte archiwum paczki."));
         file.seek(start);
-        const auto b = file.read(e.size);
+        auto b = file.read(e.compressedSize);
+        if (e.method == 8)
+            b = inflateZipMember(b, e.size);
         if (b.size() != e.size || crc32(b) != correctedChecksum.value_or(e.crc))
             fail(QCoreApplication::translate("BuzzImport", "Błędna suma kontrolna: %1.").arg(name));
         return b;

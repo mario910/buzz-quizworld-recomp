@@ -13,6 +13,7 @@
 #include <optional>
 
 namespace studio {
+struct VoiceProfile;
 struct ImportedSection {
     QString game;
     QStringList path;
@@ -73,6 +74,7 @@ class StudioController final : public QObject {
     Q_PROPERTY(int buildProgress READ buildProgress NOTIFY buildProgressChanged)
     Q_PROPERTY(QVariantMap lastBuild READ lastBuild NOTIFY buildProgressChanged)
   public:
+    enum class NarrationScope { Preview, Question, Missing };
     explicit StudioController(QObject *parent = nullptr, const QString &newProjectLanguage = QStringLiteral("pl"));
     ~StudioController() override;
     QAbstractItemModel *questions() { return &filter_; }
@@ -165,6 +167,12 @@ class StudioController final : public QObject {
     int sourceMediaRecoveryPercent() const { return sourceMediaPercent_; }
     Q_INVOKABLE void generateAudio(const QUrl &destination, const QString &text, const QString &voice,
                                    int rate);
+    std::optional<studio::Question> omniVoiceQuestion(const QString &language) const;
+    std::optional<studio::Question> omniVoiceSourceQuestion(const QString &language) const;
+    int missingNarrationCount(const QString &language) const;
+    bool startOmniVoice(const QString &language, const studio::VoiceProfile &profile,
+                        NarrationScope scope, const QString &text = {});
+    void cancelOmniVoice();
     Q_INVOKABLE void recover();
     // Remembers the user's PS3 .rap license; returns an error message or empty.
     Q_INVOKABLE QString addLicense(const QString &contentId, const QUrl &rap);
@@ -180,6 +188,8 @@ class StudioController final : public QObject {
     void currentMusicRecovered(const QString &path);
     void currentNarrationRecovered(const QString &path);
     void currentVideoRecovered(const QString &path);
+    void omniVoiceProgress(int done, int total);
+    void omniVoiceFinished(const QString &preview, int written, int total, bool cancelled, const QStringList &errors);
     void mediaFfmpegRequired();
     void historyChanged();
     void busyChanged();
@@ -209,6 +219,7 @@ class StudioController final : public QObject {
     mutable bool voicesLoaded_ = false;
     std::shared_ptr<std::atomic_bool> buildCancel_;
     std::shared_ptr<std::atomic_bool> sourceMediaCancel_;
+    std::shared_ptr<std::atomic_bool> omniVoiceCancel_;
     int sourceMediaPercent_ = 0;
     int buildProgress_ = 0;
     QVariantMap lastBuild_;

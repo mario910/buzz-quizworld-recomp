@@ -1,6 +1,7 @@
 #include "media_tools.h"
 #include "pack_format.h"
 #include <QElapsedTimer>
+#include <QJsonDocument>
 #include <QProcess>
 #include <QStorageInfo>
 #include <QSysInfo>
@@ -19,6 +20,32 @@ QString directoryFromEnvironment(const char *variable, const QString &relative) 
 #endif
 } // namespace
 
+QString managedOmniVoiceManifest() {
+    const auto root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    return root.isEmpty() ? QString() : QDir(root).filePath("omnivoice/runtime.json");
+}
+
+QJsonObject managedOmniVoiceRuntime() {
+    QFile manifest(managedOmniVoiceManifest());
+    return manifest.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(manifest.read(16384)).object() : QJsonObject();
+}
+
+QString managedMediaFfmpeg() {
+    const auto path = managedOmniVoiceRuntime().value("ffmpeg").toString();
+    if (QFileInfo(path).isExecutable())
+        return path;
+    const auto local = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (local.isEmpty())
+        return {};
+    QFile manifest(QDir(local).filePath("omnivoice/environment-v1/ffmpeg-path"));
+    if (manifest.open(QIODevice::ReadOnly)) {
+        const auto legacy = QString::fromUtf8(manifest.read(4096)).trimmed();
+        if (QFileInfo(legacy).isExecutable())
+            return legacy;
+    }
+    return {};
+}
+
 QString findMediaFfmpeg() {
     const auto besideStudio = QStandardPaths::findExecutable("ffmpeg", {QCoreApplication::applicationDirPath()});
     if (!besideStudio.isEmpty())
@@ -31,12 +58,13 @@ QString findMediaFfmpeg() {
     QStringList directories{directoryFromEnvironment("LOCALAPPDATA", "Microsoft/WinGet/Links"),
                             directoryFromEnvironment("ProgramFiles", "WinGet/Links")};
     directories.removeAll(QString());
-    return directories.isEmpty() ? QString() : QStandardPaths::findExecutable("ffmpeg.exe", directories);
+    const auto installed = directories.isEmpty() ? QString() : QStandardPaths::findExecutable("ffmpeg.exe", directories);
 #elif defined(Q_OS_MACOS)
-    return QStandardPaths::findExecutable("ffmpeg", {"/opt/homebrew/bin", "/usr/local/bin"});
+    const auto installed = QStandardPaths::findExecutable("ffmpeg", {"/opt/homebrew/bin", "/usr/local/bin"});
 #else
-    return QStandardPaths::findExecutable("ffmpeg", {"/usr/bin", "/usr/local/bin", "/bin"});
+    const auto installed = QStandardPaths::findExecutable("ffmpeg", {"/usr/bin", "/usr/local/bin", "/bin"});
 #endif
+    return installed.isEmpty() ? managedMediaFfmpeg() : installed;
 }
 
 bool verifyMediaFfmpeg(const QString &executable) {

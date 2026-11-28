@@ -733,7 +733,7 @@ SourceLanguages ps3Languages(const QString &path) {
     return result;
 }
 
-LoadResult importPs3(const QString &path, const QString &language, bool extractSpeech) {
+LoadResult importPs3(const QString &path, const QString &language, bool extractSpeech, bool narrationSample) {
     try {
         auto source = openSource(path);
         // The Buzz importer reports errors as text; keep the content ID of a
@@ -751,7 +751,8 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
             };
         }
         auto result = importBuzzPacks(source.packs, language, extractSpeech,
-                                      source.title.isEmpty() ? QFileInfo(path).completeBaseName() : source.title);
+                                      source.title.isEmpty() ? QFileInfo(path).completeBaseName() : source.title,
+                                      narrationSample);
         result.license = *license;
         if (!result.ok() && result.license.isEmpty() && !source.titleId.isEmpty())
             result.error.prepend(source.titleId + '\n');

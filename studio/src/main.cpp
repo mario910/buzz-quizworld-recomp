@@ -132,8 +132,10 @@ int main(int argc, char **argv) {
             previous(type, context, message);
     });
     StudioController studio(nullptr, localization.language());
-    if (args.contains("--demo") || args.contains("--smoke"))
-        studio.newProject(true);
+    if (args.contains("--demo") || args.contains("--smoke")) {
+        const int demoLanguage = args.indexOf("--demo-language");
+        studio.newProject(true, demoLanguage >= 0 ? args.value(demoLanguage + 1) : QString());
+    }
     const int open = args.indexOf("--open");
     if (open >= 0 && open + 1 < args.size())
         studio.openFile(QUrl::fromLocalFile(args[open + 1]));
@@ -145,6 +147,8 @@ int main(int argc, char **argv) {
         window.setEditorTab(1);
     if (args.contains("--tts"))
         window.openTts();
+    if (args.contains("--show-omnivoice"))
+        window.openOmniVoice();
     if (args.contains("--show-languages"))
         window.openProjectLanguages();
     if (args.contains("--show-categories")) // After --open has loaded the project.

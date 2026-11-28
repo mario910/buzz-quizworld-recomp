@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 include(CTest)
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Concurrent LinguistTools MultimediaWidgets)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Widgets Concurrent LinguistTools MultimediaWidgets Network)
 
 # zlib inflates PSP .cso disc images (the repository's pinned submodule).
 set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -13,7 +13,7 @@ set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(ZLIB_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(../third_party/zlib zlib EXCLUDE_FROM_ALL)
 add_library(studio_core STATIC src/document.cpp src/document.h src/buzz_import.cpp src/buzz_import.h src/languages.cpp src/languages.h
-    src/disc_image.cpp src/disc_image.h src/legacy_import.cpp src/legacy_import.h
+    src/disc_image.cpp src/disc_image.h src/pack_format.cpp src/legacy_import.cpp src/legacy_import.h
     src/ps4_pkg.cpp src/ps4_pkg.h src/kip_import.cpp src/kip_import.h src/ps3_source.cpp src/ps3_source.h
     src/project_media.cpp src/project_media.h src/media_tools.cpp src/media_tools.h
     src/ps2_media.h src/ps2_media.cpp src/psp_media.h src/psp_media.cpp src/source_movie.h src/source_movie.cpp)
@@ -29,14 +29,18 @@ target_include_directories(studio_core PUBLIC src)
 add_library(studio_build STATIC src/pack_format.h src/pack_codec.h src/pack_codec.cpp
     src/pack_media.h src/pack_media.cpp src/pack_atrac.cpp src/pack_builder.h src/pack_builder.cpp)
 target_link_libraries(studio_build PUBLIC studio_core Qt6::Gui)
-add_library(studio_app STATIC src/controller.cpp src/controller.h src/tts.cpp src/tts.h src/localization.cpp src/localization.h)
+add_library(studio_app STATIC src/controller.cpp src/controller.h src/tts.cpp src/tts.h
+    src/omnivoice.cpp src/omnivoice.h src/omnivoice_runtime.cpp src/omnivoice_runtime.h
+    src/localization.cpp src/localization.h)
 file(GLOB studio_catalogs CONFIGURE_DEPENDS i18n/studio_*.ts)
 qt_add_translation(studio_translations ${studio_catalogs})
 qt_add_resources(studio_app studio_translations PREFIX "/i18n"
     BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${studio_translations})
-target_link_libraries(studio_app PUBLIC studio_build Qt6::Gui Qt6::Concurrent)
+qt_add_resources(studio_app studio_tts PREFIX "/tts"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/resources" FILES resources/omnivoice.py)
+target_link_libraries(studio_app PUBLIC studio_build Qt6::Gui Qt6::Concurrent PRIVATE Qt6::Network)
 if(WIN32)
-    target_link_libraries(studio_app PRIVATE sapi ole32)
+    target_link_libraries(studio_app PRIVATE sapi ole32 dxgi)
 endif()
 set(studio_ui src/main_window.cpp src/main_window.h src/import_wizard.cpp src/import_wizard.h
     src/media_preview.cpp src/media_preview.h)
@@ -90,4 +94,4 @@ endif()
 install(TARGETS BuzzQuestionStudio RUNTIME DESTINATION bin)
 install(FILES resources/buzz-question-studio.desktop DESTINATION share/applications)
 install(FILES resources/studio.svg DESTINATION share/icons/hicolor/scalable/apps RENAME buzz-question-studio.svg)
-install(FILES ../LICENSE DESTINATION share/licenses/BuzzQuestionStudio)
+install(FILES ../LICENSE ../THIRD_PARTY_NOTICES.md DESTINATION share/licenses/BuzzQuestionStudio)

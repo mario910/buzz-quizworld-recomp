@@ -23,7 +23,8 @@ QT_SOURCES = {
 STUDIO_FILES = ("BuzzQuestionStudio.exe", "imageformats/qjpeg.dll", "imageformats/qgif.dll",
                 "Qt6Multimedia.dll", "Qt6MultimediaWidgets.dll", "multimedia/windowsmediaplugin.dll")
 # Studio was deployed against these; they must be the very files BuzzSetup ships.
-SHARED_QT = ("Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "platforms/qwindows.dll")
+SHARED_QT = ("Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Widgets.dll",
+             "platforms/qwindows.dll", "tls/qschannelbackend.dll")
 PORT_PATHS = (
     "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
     "Launch-Buzz.sh", "requirements.txt", "cmake", "config", "docs", "launcher", "port", "scripts",

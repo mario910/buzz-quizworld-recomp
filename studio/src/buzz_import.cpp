@@ -345,7 +345,7 @@ QString namedTextHash(const QString &key) {
 }
 
 void importArchive(Archive &archive, const BuzzPack &source, const QString &selected, bool extractSpeech,
-                   const QString &title, Tally &tally, Document &document) {
+                   const QString &title, Tally &tally, Document &document, bool narrationSample) {
     const auto languages = archiveLanguages(archive);
     if (!languages.contains(selected))
         return;
@@ -544,6 +544,13 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
                                                cache);
                 } else if (kind == 2)
                     q.topic = string(word(tr + 4));
+            }
+            if (narrationSample) {
+                if (!q.speech.isEmpty() && !q.text.trimmed().isEmpty()) {
+                    document.questions << q;
+                    return;
+                }
+                continue;
             }
             if (!adaptImportedAnswers(q, correctAnswers)) {
                 tally.unsupported.insert(id, UnsupportedAnswer::CannotAdapt);
@@ -843,7 +850,7 @@ SourceLanguages buzzLanguages(const QString &path) {
 }
 
 LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &requestedLanguage, bool extractSpeech,
-                           const QString &title) {
+                           const QString &title, bool narrationSample) {
     LoadResult out;
     try {
         Tally tally;
@@ -869,7 +876,10 @@ LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &reques
                 continue;
             found = true;
             ++out.sourcePacks;
-            importArchive(*archive, source, selected, extractSpeech, title, tally, out.document);
+            importArchive(*archive, source, selected, extractSpeech || narrationSample, title, tally, out.document,
+                          narrationSample);
+            if (narrationSample && !out.document.questions.isEmpty())
+                break;
         }
         if (packs.isEmpty())
             fail(QCoreApplication::translate("BuzzImport", "Brak baz pytań QAK w paczce."));

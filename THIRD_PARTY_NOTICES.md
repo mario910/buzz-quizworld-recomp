@@ -25,6 +25,27 @@ either, or the following separately licensed components.
 Other notices in upstream files remain in place. Tool dependencies installed
 by pip have their own licenses; they are not vendored by this repository.
 
+## Optional OmniVoice narration
+
+| Component | License and attribution |
+| --- | --- |
+| OmniVoice 0.2.1 Python package, Han Zhu and the k2-fsa contributors | Apache-2.0. See the [published package](https://pypi.org/project/omnivoice/0.2.1/) and [upstream source license](https://github.com/k2-fsa/OmniVoice/blob/master/LICENSE). |
+| Pretrained `k2-fsa/OmniVoice` weights, Han Zhu and the k2-fsa contributors | CC BY-NC for noncommercial use. The [pinned model card](https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/README.md#license) does not specify a CC license version. See the [maintainer's clarification](https://huggingface.co/k2-fsa/OmniVoice/discussions/37). |
+| Higgs Audio 2 tokenizer, Boson AI USA, Inc. | [Boson Higgs Audio 2 Community License Agreement](https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/audio_tokenizer/LICENSE), incorporating the [Meta Llama 3 Community License](https://www.llama.com/llama3/license/) and [acceptable use policy](https://www.llama.com/llama3/use-policy/). Section 2 of the Boson agreement requires expanded permission above its 100,000 annual active user threshold. |
+
+OmniVoice is an opt-in download from upstream. BuzzSetup and the Studio
+distributions contain the integration code. Users obtain the Python package,
+model and tokenizer in their own local environment, with the upstream tokenizer
+license in the model snapshot. Use the downloaded model for noncommercial
+narration and clone only voices you have permission to use.
+
+Built with Higgs Materials licensed from Boson AI USA, Inc., Copyright Boson AI
+USA, Inc., All Rights Reserved and Meta Llama 3 licensed under the Meta Llama 3
+Community License, Copyright Meta Platforms, Inc., All Rights Reserved.
+Built with Meta Llama 3.
+
+## Other optional dependencies
+
 The built-in PS3 importer uses PyCryptodome (BSD/public-domain components;
 [upstream license](https://www.pycryptodome.org/src/license)) for AES, Python's
 standard library for hashing/TAR/zlib, and the MIT SDK's existing PKG keystream

@@ -22,7 +22,7 @@ struct BuzzPack {
 LoadResult importBuzz(const QString &path, const QString &language = {}, bool extractSpeech = true);
 // Imports every pack that holds the selected language (all packs of a disc or DLC).
 LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &language, bool extractSpeech,
-                           const QString &title);
+                           const QString &title, bool narrationSample = false);
 BuzzPack buzzFilePack(const QString &path);
 SourceLanguages buzzLanguages(const QString &path);
 QStringList buzzArchiveLanguages(pack::Archive &archive);

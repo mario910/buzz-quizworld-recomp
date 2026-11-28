@@ -1,6 +1,10 @@
 #include "controller.h"
 #include "pack_codec.h"
 #include "media_tools.h"
+#include "omnivoice.h"
+#include "omnivoice_runtime.h"
+#include "pack_builder.h"
+#include "pack_media.h"
 #include "tts.h"
 #include <QAbstractItemModelTester>
 #include <QFile>
@@ -485,6 +489,166 @@ class ControllerTest final : public QObject {
         QVERIFY(!studio::synthesizeSpeech("Pytanie?", "studio-nonexistent-voice", 0, path).ok());
         QVERIFY(output.open(QIODevice::ReadOnly));
         QCOMPARE(output.readAll(), QByteArray("keep existing audio"));
+    }
+    void omniVoiceProfilesAndMissingCountsFollowQuestionLanguage() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto cleanup = qScopeGuard([] { QSettings().remove("omnivoice"); });
+        const auto wav = temp.filePath("game-narration.wav");
+        QFile recording(wav);
+        QVERIFY(recording.open(QIODevice::WriteOnly));
+        QVERIFY(recording.write("reference sample") > 0);
+        recording.close();
+
+        auto document = studio::exampleDocument();
+        auto &question = document.questions.first();
+        question.source = "Buzz! Quiz World";
+        question.speech = wav;
+        const auto id = question.id;
+        const auto project = temp.filePath("source.buzz.json");
+        QString saveError;
+        QVERIFY2(studio::saveDocument(document, project, &saveError), qPrintable(saveError));
+        StudioController c;
+        c.openFile(QUrl::fromLocalFile(project));
+        QTRY_VERIFY(!c.busy());
+        const int missingInPolish = c.missingNarrationCount("pl");
+        c.setPackLanguage("en");
+        c.select(id);
+        c.updateCurrent({{"question", "Which city is the capital?"}});
+        QCOMPARE(c.missingNarrationCount("en"), 1);
+        QCOMPARE(c.missingNarrationCount("pl"), missingInPolish);
+        QCOMPARE(c.missingNarrationCount("hr"), 0);
+        QVERIFY(c.omniVoiceQuestion("pl"));
+        QCOMPARE(c.omniVoiceQuestion("pl")->speech, wav);
+        const auto gameNarrator = c.omniVoiceSourceQuestion("pl");
+        QVERIFY(gameNarrator);
+        QCOMPARE(studio::omniVoiceReference(*gameNarrator).path, wav);
+        QVERIFY(!c.omniVoiceSourceQuestion("en"));
+
+        const auto polish = studio::saveOmniVoiceProfile("pl", {wav, "Pytanie po polsku."});
+        const auto english = studio::saveOmniVoiceProfile("en", {wav, "Question in English."});
+        QVERIFY(polish.ok() && english.ok());
+        QCOMPARE(polish.path, english.path);
+        QVERIFY(polish.path != wav && QFileInfo(polish.path).isFile());
+        QCOMPARE(studio::omniVoiceProfile("pl").transcript, QString("Pytanie po polsku."));
+        QCOMPARE(studio::omniVoiceProfile("en").transcript, QString("Question in English."));
+        QVERIFY(!studio::omniVoiceProfile("hr").ready());
+        QVERIFY(!c.startOmniVoice("hr", studio::omniVoiceProfile("hr"), StudioController::NarrationScope::Missing));
+    }
+    void omniVoiceBatchAttachesOnlyMissingTargetLanguage() {
+        const auto python = qEnvironmentVariable("BUZZ_TEST_OMNIVOICE_PYTHON");
+        const auto reference = QDir::fromNativeSeparators(qEnvironmentVariable("BUZZ_TEST_OMNIVOICE_REFERENCE"));
+        if (python.isEmpty() || reference.isEmpty())
+            QSKIP("Set OmniVoice Python and reference WAV to exercise the local model.");
+        const auto cleanup = qScopeGuard([] { QSettings().remove("omnivoice"); });
+        const auto profile = studio::saveOmniVoiceProfile(
+            "pl", {reference, "This is a clear sample for testing the quiz narrator. Listen carefully to the next question."});
+        QVERIFY2(profile.ok(), qPrintable(profile.error));
+        studio::setOmniVoicePython(python);
+
+        StudioController c;
+        c.newProject(true);
+        const auto id = c.current()["id"].toString();
+        c.addQuestion();
+        const auto missingId = c.current()["id"].toString();
+        c.updateCurrent({{"question", "Ile boków ma sześciokąt?"}, {"tts_text", "Ile boków ma sześciokąt?"}});
+        auto *questions = c.questions();
+        for (int i = 0; i < questions->rowCount(); ++i) {
+            const auto rowId = questions->index(i, 0).data(QuestionModel::Uid).toString();
+            if (rowId != missingId) {
+                c.select(rowId);
+                c.updateCurrent({{"speech", reference}});
+            }
+        }
+        c.setPackLanguage("en");
+        c.select(missingId);
+        c.updateCurrent({{"question", "How many sides has a hexagon?"}});
+        QCOMPARE(c.missingNarrationCount("en"), 1);
+        QCOMPARE(c.missingNarrationCount("pl"), 1);
+
+        QSignalSpy done(&c, &StudioController::omniVoiceFinished);
+        const auto polishProfile = studio::omniVoiceProfile("pl");
+        QVERIFY(c.startOmniVoice("pl", polishProfile, StudioController::NarrationScope::Missing));
+        QTRY_COMPARE_WITH_TIMEOUT(done.count(), 1, 180000);
+        const auto result = done.first();
+        QVERIFY2(result[4].toStringList().isEmpty(), qPrintable(result[4].toStringList().join('\n')));
+        QCOMPARE(result[1].toInt(), 1);
+        QCOMPARE(result[2].toInt(), 1);
+        QVERIFY(c.current()["speech"].toString().isEmpty());
+        QVERIFY(QFileInfo(c.omniVoiceQuestion("pl")->speech).size() > 44);
+        QCOMPARE(c.missingNarrationCount("pl"), 0);
+        c.undo();
+        QCOMPARE(c.missingNarrationCount("pl"), 1);
+        c.redo();
+        QCOMPARE(c.missingNarrationCount("pl"), 0);
+        c.select(id);
+        QCOMPARE(c.omniVoiceQuestion("pl")->speech, reference);
+
+        QVERIFY(c.startOmniVoice("pl", polishProfile, StudioController::NarrationScope::Preview, "To jest próbka głosu."));
+        QTRY_COMPARE_WITH_TIMEOUT(done.count(), 2, 180000);
+        const auto preview = done.last();
+        QVERIFY2(preview[4].toStringList().isEmpty(), qPrintable(preview[4].toStringList().join('\n')));
+        QVERIFY(QFileInfo(preview[0].toString()).size() > 44);
+        QVERIFY(QFile::remove(preview[0].toString()));
+        QCOMPARE(c.omniVoiceQuestion("pl")->speech, reference);
+    }
+    void omniVoiceRocmHardwareDetection() {
+        using namespace studio::omnivoice;
+        QVERIFY(supportsWindowsRadeon("AMD Radeon RX 9070 XT", {}));
+        QVERIFY(supportsWindowsRadeon("AMD Radeon PRO W7900 Dual Slot", {}));
+        QVERIFY(supportsWindowsRadeon("AMD Radeon(TM) 890M Graphics", "AMD Ryzen AI 9 HX 370"));
+        QVERIFY(!supportsWindowsRadeon("AMD Radeon RX 6600 XT", {}));
+        QVERIFY(!supportsWindowsRadeon("AMD Radeon RX 7700 XT", "AMD Ryzen 7 7700X"));
+        QVERIFY(!supportsWindowsRadeon("AMD Radeon(TM) Graphics", "AMD Ryzen 7 7700X"));
+        QVERIFY(supportsLinuxRadeon("vendor_id 4098\ngfx_target_version 120001\n"));
+        QVERIFY(supportsLinuxRadeon("gfx_target_version 110000\nvendor_id 4098\n"));
+        QVERIFY(!supportsLinuxRadeon("gfx_target_version 103003\nvendor_id 4098\n"));
+        QVERIFY(!supportsLinuxRadeon("gfx_target_version 120001\nvendor_id 4318\n"));
+        QVERIFY(!supportsLinuxRadeon("vendor_id 4098\ngfx_target_version 0\n"));
+    }
+    void omniVoiceSetupAndPreparedGame() {
+        const auto game = qEnvironmentVariable("BUZZ_TEST_OMNIVOICE_GAME_DIR");
+        const auto language = qEnvironmentVariable("BUZZ_TEST_OMNIVOICE_GAME_LANGUAGE");
+        if (game.isEmpty() || language.isEmpty())
+            QSKIP("Set the prepared game directory and language to exercise OmniVoice setup and game audio.");
+        if (qEnvironmentVariableIsSet("BUZZ_TEST_OMNIVOICE_INSTALL_FOR_STUDIO")) {
+            QStandardPaths::setTestModeEnabled(false);
+            QCoreApplication::setOrganizationName("BuzzRecomp");
+            QCoreApplication::setApplicationName("QuestionStudio");
+        }
+        studio::setGameDirectory(game);
+        const auto reset = qScopeGuard([] {
+            studio::setGameDirectory({});
+            QCoreApplication::setOrganizationName("BuzzStudioTests");
+            QCoreApplication::setApplicationName("ControllerTests");
+            QStandardPaths::setTestModeEnabled(true);
+        });
+        const auto profile = studio::omniVoiceInstalledProfile(language);
+        QVERIFY(profile.ready());
+        qInfo() << "Found prepared game narration:" << QFileInfo(profile.recording).suffix();
+        const std::atomic_bool cancel(false);
+        const auto progress = [](int stage) { qInfo() << "Setup stage:" << stage; };
+        const bool expectFallback = qEnvironmentVariableIsSet("BUZZ_TEST_OMNIVOICE_EXPECT_ROCM_FALLBACK");
+        const auto engine = expectFallback
+            ? studio::omnivoice::installRuntime(cancel, progress, studio::omnivoice::Backend::Rocm)
+            : studio::installOmniVoice(cancel, progress);
+        QVERIFY2(engine.ok() && !engine.path.isEmpty(), qPrintable(engine.error));
+        QCOMPARE(studio::managedOmniVoicePython(), engine.path);
+        qInfo() << "Selected OmniVoice backend:" << studio::managedOmniVoiceBackend();
+        if (expectFallback)
+            QCOMPARE(studio::managedOmniVoiceBackend(), QString("cpu"));
+        const QTemporaryDir output;
+        QVERIFY(output.isValid());
+        const auto wave = output.filePath("voice.wav");
+        const auto ffmpeg = studio::managedMediaFfmpeg();
+        QVERIFY(studio::verifyMediaFfmpeg(ffmpeg));
+        const auto question = studio::exampleDocument(language).questions.first().text;
+        const auto result = studio::generateOmniVoice(engine.path, ffmpeg, language, profile,
+                                                       {{question, wave}}, &cancel, {});
+        QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join('\n')));
+        QCOMPARE(result.written.size(), 1);
+        QVERIFY(QFileInfo(wave).size() > 44);
+        QVERIFY(!studio::pack::encodeSpeech(wave, ffmpeg, 0, &cancel).isEmpty());
     }
     void generatesWaveWithInstalledLocalVoiceAndSupportsUndo() {
         const auto voices = studio::speechVoices();

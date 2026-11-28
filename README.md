@@ -119,6 +119,12 @@ Create your own question packs for **Pack Game** with Buzz! Question Studio, the
 
 Media and languages vary by edition. *Brain Bender* on PSP was also checked and contains puzzle minigames without a quiz question bank. For supported files, DLC licenses, FFmpeg setup and media limitations, see the [Question Studio guide](docs/question-studio.md).
 
+### Generate narration offline
+
+Choose **… → OmniVoice…** to add optional local text-to-speech. Studio installs the OmniVoice 0.2.1 package and downloads the multilingual `k2-fsa/OmniVoice` checkpoint and its Higgs Audio 2 tokenizer when you confirm setup. The first install needs several GB. You can preview a voice, narrate one question, or fill missing narration for a language in one pass. When the installed game has a matching voice, Studio can select a reference recording for you.
+
+The OmniVoice code is Apache-2.0. The downloaded model weights are licensed for noncommercial use under CC BY-NC, and the tokenizer has separate Boson and Meta terms. The weights and reference recordings stay outside the BuzzSetup release. Clone only voices you have permission to use. [OmniVoice model card](https://huggingface.co/k2-fsa/OmniVoice#license) · [Question Studio setup](docs/question-studio.md#local-voice-cloning-with-omnivoice) · [Third-party notices](THIRD_PARTY_NOTICES.md#optional-omnivoice-narration).
+
 ![Question Studio showing an illustrated multiple-choice question imported from the PS2 release of Buzz! The Mega Quiz](docs/screenshots/question-studio-preview.png)
 
 *An imported Mega Quiz question in the player preview, with its picture and all four answers.*
@@ -140,4 +146,10 @@ If you run into a problem, include your OS, game region, BuzzSetup version and t
 
 The project uses [PS3Recomp](https://github.com/sp00nznet/ps3recomp) and pins the [Buzz SDK fork](https://github.com/mario910/ps3recomp). [Build from source](docs/development.md#build-from-source) · [Command-line preparation](docs/game-import.md) · [Documentation](docs/README.md) · [Release notes](docs/releases/README.md) · [Contributing](CONTRIBUTING.md).
 
-Thanks to Ned Heller / sp00nznet and the PS3Recomp contributors, and to the FFmpeg, PPSSPP, stb and zlib authors. Buzz! and PlayStation are trademarks of their respective owners. This is an unofficial project independent of Sony and Relentless Software. The repository's MIT license covers its source code. Your locally built game contains material under separate licenses. [Third-party notices](THIRD_PARTY_NOTICES.md).
+## Credits
+
+Thanks to Ned Heller / sp00nznet and the PS3Recomp contributors, and to the FFmpeg, PPSSPP, stb and zlib authors. Optional narration uses OmniVoice by Han Zhu and the k2-fsa contributors. [OmniVoice paper](https://arxiv.org/abs/2604.00688).
+
+Built with Higgs Materials licensed from Boson AI USA, Inc., Copyright Boson AI USA, Inc., All Rights Reserved and Meta Llama 3 licensed under the Meta Llama 3 Community License, Copyright Meta Platforms, Inc., All Rights Reserved. Built with Meta Llama 3. [Tokenizer license](https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/audio_tokenizer/LICENSE) · [Meta Llama 3 license](https://www.llama.com/llama3/license/).
+
+Buzz! and PlayStation are trademarks of their respective owners. This is an unofficial project independent of Sony and Relentless Software. The repository's MIT license covers its source code. Your locally built game contains material under separate licenses. [Third-party notices](THIRD_PARTY_NOTICES.md).

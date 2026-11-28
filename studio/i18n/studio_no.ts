@@ -3273,4 +3273,203 @@ Bygget fil: </translation>
             <translation>Kunne ikke spille av denne filen.</translation>
         </message>
     </context>
+    <context>
+        <name>OmniVoice</name>
+        <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Klon bare stemmer du har tillatelse til å klone.</translation>
+        </message>
+        <message>
+            <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
+            <translation>Modellvektene til OmniVoice er for ikke-kommersiell bruk. Higgs Audio 2-tokenisatoren har en egen lisens.</translation>
+        </message>
+        <message>
+            <source>Mam zgodę na klonowanie tego głosu.</source>
+            <translation>Jeg har tillatelse til å klone denne stemmen.</translation>
+        </message>
+        <message>
+            <source>W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.</source>
+            <translation>Avhengig av grafikkortet kan installasjonsprogrammet også laste ned CUDA- eller ROCm-pakker.</translation>
+        </message>
+        <message>
+            <source>Skonfiguruj ponownie OmniVoice…</source>
+            <translation>Konfigurer OmniVoice på nytt…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy (%1).</source>
+            <translation>OmniVoice er klar (%1).</translation>
+        </message>
+        <message>
+            <source>Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku.</source>
+            <translation>Installasjonsprogrammet laster ned flere GB med data. Du trenger også flere GB ledig diskplass.</translation>
+        </message>
+        <message>
+            <source>Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.</source>
+            <translation>Studio oppretter sitt eget Python-miljø, installerer OmniVoice, PyTorch og FFmpeg og laster ned modellfilene. Vanlige brukerrettigheter er tilstrekkelig. Etter installasjonen kan du generere tale uten nett.</translation>
+        </message>
+        <message>
+            <source>Zainstaluj OmniVoice</source>
+            <translation>Installer OmniVoice</translation>
+        </message>
+        <message>
+            <source>Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline.</source>
+            <translation>Den første installasjonen laster ned flere GB. Deretter kan tale genereres uten nett.</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie środowiska OmniVoice…</source>
+            <translation>Klargjør OmniVoice-miljøet…</translation>
+        </message>
+        <message>
+            <source>Instalowanie pakietów OmniVoice…</source>
+            <translation>Installerer OmniVoice-pakker…</translation>
+        </message>
+        <message>
+            <source>Pobieranie i sprawdzanie modelu OmniVoice…</source>
+            <translation>Laster ned og kontrollerer OmniVoice-modellen…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy.</source>
+            <translation>OmniVoice er klar.</translation>
+        </message>
+        <message>
+            <source>Anulowano instalację OmniVoice.</source>
+            <translation>Installasjonen av OmniVoice ble avbrutt.</translation>
+        </message>
+        <message>
+            <source>Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.</source>
+            <translation>Kunne ikke installere OmniVoice. Du kan prøve igjen.</translation>
+        </message>
+        <message>
+            <source>Anulowanie instalacji…</source>
+            <translation>Avbryter installasjonen…</translation>
+        </message>
+        <message>
+            <source>Instalacja OmniVoice już trwa w innym oknie.</source>
+            <translation>OmniVoice installeres allerede i et annet vindu.</translation>
+        </message>
+        <message>
+            <source>OmniVoice — lokalny lektor</source>
+            <translation>OmniVoice — lokal opplesning</translation>
+        </message>
+        <message>
+            <source>Wybierz Python…</source>
+            <translation>Velg Python…</translation>
+        </message>
+        <message>
+            <source>Wybierz interpreter Python z zainstalowanym OmniVoice.</source>
+            <translation>Velg Python-tolken der OmniVoice er installert.</translation>
+        </message>
+        <message>
+            <source>OmniVoice wymaga osobnego środowiska Python. Przy pierwszym użyciu pobierze wagi modelu.</source>
+            <translation>OmniVoice bruker et eget Python-miljø. Modellvektene lastes ned ved første bruk.</translation>
+        </message>
+        <message>
+            <source>Użyj lektora z importu</source>
+            <translation>Bruk importert opplesning</translation>
+        </message>
+        <message>
+            <source>Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.</source>
+            <translation>En prøve ble valgt fra det installerte spillet. Kontroller transkripsjonen.</translation>
+        </message>
+        <message>
+            <source>Brak próbki w przygotowanej grze dla tego języka.</source>
+            <translation>Det klargjorte spillet har ingen prøve på dette språket.</translation>
+        </message>
+        <message>
+            <source>Wybierz nagranie…</source>
+            <translation>Velg opptak…</translation>
+        </message>
+        <message>
+            <source>Nagranie referencyjne</source>
+            <translation>Referanseopptak</translation>
+        </message>
+        <message>
+            <source>Transkrypcja nagrania</source>
+            <translation>Transkripsjon av opptaket</translation>
+        </message>
+        <message>
+            <source>Tekst do przeczytania</source>
+            <translation>Tekst som skal leses opp</translation>
+        </message>
+        <message>
+            <source>Zapisz profil</source>
+            <translation>Lagre profil</translation>
+        </message>
+        <message>
+            <source>Odsłuchaj próbkę</source>
+            <translation>Lytt til prøve</translation>
+        </message>
+        <message>
+            <source>Generuj dla pytania</source>
+            <translation>Generer for spørsmålet</translation>
+        </message>
+        <message>
+            <source>Uzupełnij brakującego lektora (%1)</source>
+            <translation>Fyll inn manglende opplesning (%1)</translation>
+        </message>
+        <message>
+            <source>Uzupełnianie dotyczy pytań z całego projektu w wybranym języku.</source>
+            <translation>Genereringen omfatter hele prosjektet på det valgte språket.</translation>
+        </message>
+        <message>
+            <source>Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</source>
+            <translation>Lydfiler (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</translation>
+        </message>
+        <message>
+            <source>Zaimportuj pytanie z lektorem w wybranym języku.</source>
+            <translation>Importer et spørsmål med opplesning på det valgte språket.</translation>
+        </message>
+        <message>
+            <source>Sprawdź, czy transkrypcja odpowiada nagraniu.</source>
+            <translation>Kontroller at transkripsjonen stemmer med opptaket.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odczytać lektora z gry.</source>
+            <translation>Kunne ikke lese opplesningen fra spillet.</translation>
+        </message>
+        <message>
+            <source>Zapisano profil dla tego języka.</source>
+            <translation>Profilen er lagret for dette språket.</translation>
+        </message>
+        <message>
+            <source>Anulowano. Zapisane nagrania: %1 z %2.</source>
+            <translation>Avbrutt. Lagret %1 av %2 opptak.</translation>
+        </message>
+        <message>
+            <source>Zapisane nagrania: %1 z %2.</source>
+            <translation>Lagret %1 av %2 opptak.</translation>
+        </message>
+        <message>
+            <source>Dodaj nagranie referencyjne i wpisz jego transkrypcję.</source>
+            <translation>Legg til et referanseopptak og skriv inn transkripsjonen.</translation>
+        </message>
+        <message>
+            <source>Nie można odczytać nagrania referencyjnego.</source>
+            <translation>Kunne ikke lese referanseopptaket.</translation>
+        </message>
+        <message>
+            <source>Nie można zapisać lokalnego profilu lektora.</source>
+            <translation>Kunne ikke lagre den lokale stemmeprofilen.</translation>
+        </message>
+        <message>
+            <source>Nie znaleziono lektora wybranego pytania.</source>
+            <translation>Fant ingen opplesning for det valgte spørsmålet.</translation>
+        </message>
+        <message>
+            <source>Nie można przygotować lokalnego zadania OmniVoice.</source>
+            <translation>Kunne ikke klargjøre den lokale OmniVoice-oppgaven.</translation>
+        </message>
+        <message>
+            <source>Nie można uruchomić OmniVoice.</source>
+            <translation>Kunne ikke starte OmniVoice.</translation>
+        </message>
+        <message>
+            <source>OmniVoice nie wygenerował wszystkich nagrań. Sprawdź instalację i nagranie referencyjne.</source>
+            <translation>OmniVoice kunne ikke generere alle opptakene. Kontroller installasjonen og referanseopptaket.</translation>
+        </message>
+        <message>
+            <source>Uzupełnij lektora (OmniVoice)</source>
+            <translation>Fyll inn opplesning (OmniVoice)</translation>
+        </message>
+    </context>
 </TS>

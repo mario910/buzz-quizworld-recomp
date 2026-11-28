@@ -1,6 +1,9 @@
 #include "controller.h"
 #include "localization.h"
 #include "main_window.h"
+#include "omnivoice.h"
+#include "pack_codec.h"
+#include "pack_media.h"
 #include "source_movie.h"
 #include <QAction>
 #include <QApplication>
@@ -18,7 +21,9 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -155,6 +160,134 @@ class UiTest final : public QObject {
         const auto path = temp.filePath("rounds.buzz.json");
         QVERIFY(controller.saveFile(QUrl::fromLocalFile(path)));
         QCOMPARE(studio::loadDocument(path).document.roundPlans(), expected);
+    }
+    void opensOptionalOmniVoiceInTheQuestionLanguage() {
+        QSettings().remove("omnivoice");
+        Localization localization(nullptr, "en");
+        StudioController controller;
+        controller.newProject(true, "pl");
+        MainWindow window(controller, localization);
+        window.show();
+        auto *action = window.findChild<QAction *>("openOmniVoice");
+        QVERIFY(action);
+        action->trigger();
+        auto *dialog = find<QDialog>(window, "omniVoiceDialog");
+        QVERIFY(dialog && dialog->isVisible());
+        QCOMPARE(dialog->windowTitle(), QString("OmniVoice — local narration"));
+        auto *language = find<QComboBox>(*dialog, "omniVoiceLanguage");
+        auto *speech = find<QPlainTextEdit>(*dialog, "omniVoiceText");
+        auto *batch = find<QPushButton>(*dialog, "omniVoiceBatch");
+        auto *preview = find<QPushButton>(*dialog, "omniVoicePreview");
+        QVERIFY(language && speech && batch && preview);
+        QCOMPARE(language->currentData().toString(), QString("pl"));
+        QVERIFY(language->findData("hr") >= 0);
+        QVERIFY(language->findData("no") >= 0);
+        QCOMPARE(speech->toPlainText(), controller.current()["question"].toString());
+        QVERIFY(batch->text().startsWith("Fill missing narration"));
+        QVERIFY(!batch->isEnabled() && !preview->isEnabled());
+        if (studio::canInstallOmniVoice()) {
+            auto *install = find<QPushButton>(*dialog, "omniVoiceInstall");
+            auto *progress = dialog->findChild<QProgressBar *>();
+            QVERIFY(install && progress);
+            QTRY_VERIFY(install->isVisible() && install->isEnabled());
+            QCOMPARE(install->text(), QString("Install OmniVoice…"));
+            install->click();
+            auto *confirmation = find<QMessageBox>(*dialog, "omniVoiceInstallConfirmation");
+            QVERIFY(confirmation && confirmation->isVisible());
+            QVERIFY(confirmation->text().contains("several GB") && confirmation->text().contains("disk space"));
+            for (const auto &item : {"Python", "OmniVoice", "PyTorch", "FFmpeg", "model files", "CUDA", "ROCm"})
+                QVERIFY(confirmation->informativeText().contains(item));
+            QVERIFY(confirmation->informativeText().contains("noncommercial"));
+            QVERIFY(confirmation->informativeText().contains("audio_tokenizer/LICENSE"));
+            QCOMPARE(confirmation->defaultButton()->text(), QString("Cancel"));
+            QCOMPARE(confirmation->escapeButton(), confirmation->defaultButton());
+            QVERIFY(!progress->isVisible());
+            QTest::keyClick(confirmation, Qt::Key_Return);
+            QTRY_VERIFY(!find<QMessageBox>(*dialog, "omniVoiceInstallConfirmation"));
+            QVERIFY(install->isEnabled() && !progress->isVisible());
+        }
+        language->setCurrentIndex(language->findData("hr"));
+        QVERIFY(speech->toPlainText().isEmpty());
+        QVERIFY(!controller.busy());
+    }
+    void omniVoiceDefaultsToThePreparedGameEvenWithoutImportedQuestions() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto previousGame = studio::gameDirectory();
+        const auto cleanup = qScopeGuard([previousGame] {
+            studio::setGameDirectory(previousGame);
+            QSettings().remove("omnivoice");
+        });
+        QSettings().remove("omnivoice");
+        const QDir disc(temp.filePath("runtime/disc/PS3_GAME"));
+        QVERIFY(disc.mkpath("USRDIR/PACK0100"));
+        QFile sfo(disc.filePath("PARAM.SFO"));
+        QVERIFY(sfo.open(QIODevice::WriteOnly));
+        QVERIFY(sfo.write(QByteArray("\0PSF", 4) + QByteArray(16, '\0')) > 0);
+        sfo.close();
+        const auto makePack = [&](const QString &language, const QString &transcript) {
+            using namespace studio::pack;
+            const auto round = writeRound("sample", language, 100, 1, 1,
+                {{1, 42, transcript, {}, {"A", "B", "C", "D"}, 2, 235, 237}});
+            const auto prefix = language + "/ROUNDS/sample";
+            writeArchive(disc.filePath("USRDIR/PACK0100/" + language + "PACK0100.PAK"),
+                {{prefix + ".qak", round.little}, {prefix + ".hdr", round.header}, {prefix + ".hst", round.stream},
+                 {language + "/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/6000000042.rsf", silentSpeech()}});
+        };
+        makePack("POL", "Próbka z zainstalowanej gry?");
+        makePack("ENG", "Which sample is from the installed game?");
+        studio::setGameDirectory(temp.path());
+        studio::setOmniVoicePython(QCoreApplication::applicationFilePath());
+
+        Localization localization(nullptr, "en");
+        StudioController controller;
+        controller.newProject(false, "pl");
+        MainWindow window(controller, localization);
+        window.show();
+        window.openOmniVoice();
+        auto *dialog = find<QDialog>(window, "omniVoiceDialog");
+        QVERIFY(dialog);
+        auto *language = find<QComboBox>(*dialog, "omniVoiceLanguage");
+        auto *transcript = find<QPlainTextEdit>(*dialog, "omniVoiceTranscript");
+        auto *reference = find<QLineEdit>(*dialog, "omniVoiceReference");
+        auto *permission = find<QCheckBox>(*dialog, "omniVoicePermission");
+        auto *preview = find<QPushButton>(*dialog, "omniVoicePreview");
+        QVERIFY(language && transcript && reference && permission && preview);
+        QTRY_VERIFY(language->isEnabled());
+        QCOMPARE(language->currentData().toString(), QString("pl"));
+        QCOMPARE(transcript->toPlainText(), QString("Próbka z zainstalowanej gry?"));
+        const auto polishSample = reference->text();
+        QVERIFY(QFileInfo(polishSample).isFile());
+        QVERIFY(!studio::omniVoiceProfile("pl").ready());
+        QVERIFY(!permission->isVisible() && !permission->isChecked() && preview->isEnabled());
+
+        language->setCurrentIndex(language->findData("en"));
+        QTRY_VERIFY(language->isEnabled());
+        QCOMPARE(transcript->toPlainText(), QString("Which sample is from the installed game?"));
+        QVERIFY(reference->text() != polishSample && QFileInfo(reference->text()).isFile());
+        QVERIFY(!permission->isVisible() && !permission->isChecked() && preview->isEnabled());
+        language->setCurrentIndex(language->findData("hr"));
+        QTRY_VERIFY(language->isEnabled());
+        QVERIFY(reference->text().isEmpty());
+        QCOMPARE(controller.totalCount(), 0);
+        language->setCurrentIndex(language->findData("pl"));
+        QCOMPARE(reference->text(), polishSample);
+        QVERIFY(!permission->isVisible() && preview->isEnabled());
+
+        QVERIFY(studio::saveOmniVoiceProfile("pl", {polishSample, "Własna transkrypcja."}).ok());
+        dialog->reject();
+        QTRY_VERIFY(!find<QDialog>(window, "omniVoiceDialog"));
+        window.openOmniVoice();
+        dialog = find<QDialog>(window, "omniVoiceDialog");
+        QVERIFY(dialog);
+        QCOMPARE(find<QPlainTextEdit>(*dialog, "omniVoiceTranscript")->toPlainText(),
+                 QString("Własna transkrypcja."));
+        permission = find<QCheckBox>(*dialog, "omniVoicePermission");
+        preview = find<QPushButton>(*dialog, "omniVoicePreview");
+        QVERIFY(permission && preview);
+        QVERIFY(permission->isVisible() && !permission->isChecked() && !preview->isEnabled());
+        permission->setChecked(true);
+        QVERIFY(preview->isEnabled());
     }
     void mediaErrorsUseInterfaceLanguage_data() {
         QTest::addColumn<QString>("language");

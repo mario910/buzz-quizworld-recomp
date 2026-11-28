@@ -3273,4 +3273,203 @@ Archivo creado: </translation>
             <translation>No se pudo reproducir este archivo.</translation>
         </message>
     </context>
+    <context>
+        <name>OmniVoice</name>
+        <message>
+            <source>Klonuj tylko głosy, na których klonowanie masz zgodę.</source>
+            <translation>Clona solo voces que tengas permiso para clonar.</translation>
+        </message>
+        <message>
+            <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
+            <translation>Los pesos de OmniVoice son para uso no comercial. El tokenizador Higgs Audio 2 tiene una licencia propia.</translation>
+        </message>
+        <message>
+            <source>Mam zgodę na klonowanie tego głosu.</source>
+            <translation>Tengo permiso para clonar esta voz.</translation>
+        </message>
+        <message>
+            <source>W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.</source>
+            <translation>Según la tarjeta gráfica, el instalador también puede descargar paquetes de CUDA o ROCm.</translation>
+        </message>
+        <message>
+            <source>Skonfiguruj ponownie OmniVoice…</source>
+            <translation>Volver a configurar OmniVoice…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy (%1).</source>
+            <translation>OmniVoice está listo (%1).</translation>
+        </message>
+        <message>
+            <source>Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku.</source>
+            <translation>El instalador descargará varios GB de datos. También necesitarás varios GB de espacio libre en disco.</translation>
+        </message>
+        <message>
+            <source>Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.</source>
+            <translation>Studio creará su propio entorno de Python, instalará OmniVoice, PyTorch y FFmpeg y descargará los archivos del modelo. Bastan los permisos de un usuario estándar. Después de la instalación podrás generar voz sin conexión.</translation>
+        </message>
+        <message>
+            <source>Zainstaluj OmniVoice</source>
+            <translation>Instalar OmniVoice</translation>
+        </message>
+        <message>
+            <source>Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline.</source>
+            <translation>La primera instalación descarga varios GB. Después se puede generar voz sin conexión.</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie środowiska OmniVoice…</source>
+            <translation>Preparando el entorno de OmniVoice…</translation>
+        </message>
+        <message>
+            <source>Instalowanie pakietów OmniVoice…</source>
+            <translation>Instalando los paquetes de OmniVoice…</translation>
+        </message>
+        <message>
+            <source>Pobieranie i sprawdzanie modelu OmniVoice…</source>
+            <translation>Descargando y comprobando el modelo de OmniVoice…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy.</source>
+            <translation>OmniVoice está listo.</translation>
+        </message>
+        <message>
+            <source>Anulowano instalację OmniVoice.</source>
+            <translation>Se canceló la instalación de OmniVoice.</translation>
+        </message>
+        <message>
+            <source>Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.</source>
+            <translation>No se pudo instalar OmniVoice. Puedes volver a intentarlo.</translation>
+        </message>
+        <message>
+            <source>Anulowanie instalacji…</source>
+            <translation>Cancelando la instalación…</translation>
+        </message>
+        <message>
+            <source>Instalacja OmniVoice już trwa w innym oknie.</source>
+            <translation>La instalación de OmniVoice ya está en curso en otra ventana.</translation>
+        </message>
+        <message>
+            <source>OmniVoice — lokalny lektor</source>
+            <translation>OmniVoice — narración local</translation>
+        </message>
+        <message>
+            <source>Wybierz Python…</source>
+            <translation>Elegir Python…</translation>
+        </message>
+        <message>
+            <source>Wybierz interpreter Python z zainstalowanym OmniVoice.</source>
+            <translation>Elige el intérprete de Python que tiene OmniVoice instalado.</translation>
+        </message>
+        <message>
+            <source>OmniVoice wymaga osobnego środowiska Python. Przy pierwszym użyciu pobierze wagi modelu.</source>
+            <translation>OmniVoice requiere un entorno de Python independiente. Los pesos del modelo se descargan la primera vez.</translation>
+        </message>
+        <message>
+            <source>Użyj lektora z importu</source>
+            <translation>Usar narración importada</translation>
+        </message>
+        <message>
+            <source>Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.</source>
+            <translation>Se eligió una muestra del juego instalado. Comprueba la transcripción.</translation>
+        </message>
+        <message>
+            <source>Brak próbki w przygotowanej grze dla tego języka.</source>
+            <translation>No hay una muestra para este idioma en el juego preparado.</translation>
+        </message>
+        <message>
+            <source>Wybierz nagranie…</source>
+            <translation>Elegir grabación…</translation>
+        </message>
+        <message>
+            <source>Nagranie referencyjne</source>
+            <translation>Grabación de referencia</translation>
+        </message>
+        <message>
+            <source>Transkrypcja nagrania</source>
+            <translation>Transcripción de la grabación</translation>
+        </message>
+        <message>
+            <source>Tekst do przeczytania</source>
+            <translation>Texto para leer</translation>
+        </message>
+        <message>
+            <source>Zapisz profil</source>
+            <translation>Guardar perfil</translation>
+        </message>
+        <message>
+            <source>Odsłuchaj próbkę</source>
+            <translation>Escuchar una muestra</translation>
+        </message>
+        <message>
+            <source>Generuj dla pytania</source>
+            <translation>Generar para la pregunta</translation>
+        </message>
+        <message>
+            <source>Uzupełnij brakującego lektora (%1)</source>
+            <translation>Generar la narración que falta (%1)</translation>
+        </message>
+        <message>
+            <source>Uzupełnianie dotyczy pytań z całego projektu w wybranym języku.</source>
+            <translation>La generación por lotes abarca todo el proyecto en el idioma seleccionado.</translation>
+        </message>
+        <message>
+            <source>Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</source>
+            <translation>Archivos de audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</translation>
+        </message>
+        <message>
+            <source>Zaimportuj pytanie z lektorem w wybranym języku.</source>
+            <translation>Importa una pregunta con narración en el idioma seleccionado.</translation>
+        </message>
+        <message>
+            <source>Sprawdź, czy transkrypcja odpowiada nagraniu.</source>
+            <translation>Comprueba que la transcripción coincide con la grabación.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odczytać lektora z gry.</source>
+            <translation>No se pudo leer la narración del juego.</translation>
+        </message>
+        <message>
+            <source>Zapisano profil dla tego języka.</source>
+            <translation>Perfil guardado para este idioma.</translation>
+        </message>
+        <message>
+            <source>Anulowano. Zapisane nagrania: %1 z %2.</source>
+            <translation>Cancelado. Se guardaron %1 de %2 grabaciones.</translation>
+        </message>
+        <message>
+            <source>Zapisane nagrania: %1 z %2.</source>
+            <translation>Se guardaron %1 de %2 grabaciones.</translation>
+        </message>
+        <message>
+            <source>Dodaj nagranie referencyjne i wpisz jego transkrypcję.</source>
+            <translation>Añade una grabación de referencia y escribe su transcripción.</translation>
+        </message>
+        <message>
+            <source>Nie można odczytać nagrania referencyjnego.</source>
+            <translation>No se pudo leer la grabación de referencia.</translation>
+        </message>
+        <message>
+            <source>Nie można zapisać lokalnego profilu lektora.</source>
+            <translation>No se pudo guardar el perfil de voz local.</translation>
+        </message>
+        <message>
+            <source>Nie znaleziono lektora wybranego pytania.</source>
+            <translation>No se encontró narración para la pregunta seleccionada.</translation>
+        </message>
+        <message>
+            <source>Nie można przygotować lokalnego zadania OmniVoice.</source>
+            <translation>No se pudo preparar la tarea local de OmniVoice.</translation>
+        </message>
+        <message>
+            <source>Nie można uruchomić OmniVoice.</source>
+            <translation>No se pudo iniciar OmniVoice.</translation>
+        </message>
+        <message>
+            <source>OmniVoice nie wygenerował wszystkich nagrań. Sprawdź instalację i nagranie referencyjne.</source>
+            <translation>OmniVoice no pudo generar todas las grabaciones. Comprueba la instalación y la grabación de referencia.</translation>
+        </message>
+        <message>
+            <source>Uzupełnij lektora (OmniVoice)</source>
+            <translation>Completar narración (OmniVoice)</translation>
+        </message>
+    </context>
 </TS>
