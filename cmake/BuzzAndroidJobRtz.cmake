@@ -34,6 +34,19 @@ ${loop}")
         io_cur += io_used;
     } else
 ${loop}" job_text "${job_text}")
+    set(descriptor_stage "    if (ls_zero) memset(ls + ctx_ls, 0, SPU_LS_SIZE - ctx_ls);
+    memcpy(ls + desc_ls, vm_base + job_ea, dsz);")
+    string(FIND "${job_text}" "${descriptor_stage}" first)
+    string(FIND "${job_text}" "${descriptor_stage}" last REVERSE)
+    if(first LESS 0 OR NOT first EQUAL last)
+        message(FATAL_ERROR "Android descriptor staging requires the audited SDK copy")
+    endif()
+    string(REPLACE "${descriptor_stage}" "    if (image_id == 41 && n_dma == 21 && dsz == 256) {
+        buzz_spurs_geometry_descriptor256(ls, ctx_ls, desc_ls, SPU_LS_SIZE, vm_base + job_ea, ls_zero);
+    } else {
+        if (ls_zero) memset(ls + ctx_ls, 0, SPU_LS_SIZE - ctx_ls);
+        memcpy(ls + desc_ls, vm_base + job_ea, dsz);
+    }" job_text "${job_text}")
 endif()
 file(CONFIGURE OUTPUT "${spurs_job_source}" CONTENT "${job_text}" @ONLY)
 get_target_property(sdk_sources ps3recomp_runtime SOURCES)

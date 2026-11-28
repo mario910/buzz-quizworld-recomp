@@ -34,6 +34,20 @@ int main()
         buzz_spurs_geometry_input_copy(destination, source, size);
         assert(!memcmp(destination, source, size) && destination[-1] == 0xa5);
     }
+    // The 256-byte geometry descriptor ends exactly at the source guard.
+    // Its context and reserved suffix must obey the SDK clear mode.
+    const unsigned descriptor = capacity - 1024;
+    const unsigned context = descriptor - 64;
+    auto* ls = destination_end - capacity;
+    for (int clear = 0; clear <= 1; ++clear) {
+        memset(ls, 0xa5, capacity);
+        buzz_spurs_geometry_descriptor256(ls, context, descriptor, capacity, source_end - 256, clear);
+        assert(!memcmp(ls + descriptor, source_end - 256, 256));
+        for (unsigned i = 0; i < capacity; ++i) {
+            if (i >= descriptor && i < descriptor + 256) continue;
+            assert(ls[i] == (clear && i >= context ? 0 : 0xa5));
+        }
+    }
     assert(VirtualFree(memory, 0, MEM_RELEASE));
-    puts("PASS all 32768 DMA copy lengths, exact source and destination ends");
+    puts("PASS all 32768 DMA copy lengths, guarded descriptor source and both context clear modes");
 }

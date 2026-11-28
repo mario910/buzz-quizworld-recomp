@@ -184,10 +184,17 @@ inline bool cull_geometry_host_triangles(const spu_context& c, const GeometryJob
             area = v8_fs(v8_fm(v8_fs(x[1],x[0]),v8_fs(y[2],y[0])),v8_fm(v8_fs(y[1],y[0]),v8_fs(x[2],x[0])));
         }
         v8 back = _mm256_setzero_si256();
-        if (params.mode != 1)
-            back = _mm256_and_si256(_mm256_and_si256(v8_fcgt(_mm256_xor_si256(area,v8_set(params.winding)),_mm256_setzero_si256()),
+        if (params.mode != 1) {
+            const v8 oriented=_mm256_xor_si256(area,v8_set(params.winding));
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+            const v8 positive=_mm256_cmpgt_epi32(oriented,v8_set(0x007fffff));
+#else
+            const v8 positive=v8_fcgt(oriented,_mm256_setzero_si256());
+#endif
+            back = _mm256_and_si256(_mm256_and_si256(positive,
                 v8_clgt(v8_set(0x80000000),_mm256_or_si256(_mm256_or_si256(flags[0],flags[1]),flags[2]))),
                 _mm256_srai_epi32(_mm256_and_si256(_mm256_and_si256(packed[0],packed[1]),packed[2]),31));
+        }
         // The original FNMS uses boolean float masks. Its low-bit truth
         // table is exactly common || (back && enabled), including -MAX.
         const v8 drop = _mm256_or_si256(early_drop, _mm256_or_si256(v8_fcmeq(area,_mm256_setzero_si256()), back));

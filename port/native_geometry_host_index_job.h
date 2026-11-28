@@ -116,6 +116,9 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
         const auto* codes = bytes + 8 + flags;
         if ((codes[0] >> 6) != 3) return reject("host index initial triangle");
         uint16_t sequential = 0, a = 0, b = 0, d = 0;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+#pragma clang loop unroll_count(4)
+#endif
         for (unsigned triangle = 0; triangle < triangles; ++triangle) {
             const unsigned code = (codes[triangle / 4] >> (6 - triangle % 4 * 2)) & 3;
             if (code == 0) b = d;
@@ -175,14 +178,29 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
     unsigned flag_cursor = 0, explicit_cursor = 0, packed_cursor = packed, bit_count = 0, reservoir = 0, maximum = 0;
 #endif
     bool valid = true;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    unsigned flag_bits=0;
+#endif
     auto reference = [&]() __attribute__((always_inline)) -> uint16_t {
         if (flag_cursor >= flags * 8) { valid = false; return 0; }
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        if (!(flag_cursor&7)) flag_bits=bytes[8+flag_cursor/8];
+        const bool explicit_value=flag_bits&0x80u;
+        flag_bits <<= 1;
+#else
         const bool explicit_value = (bytes[8 + flag_cursor / 8] >> (7 - flag_cursor % 8)) & 1;
+#endif
         ++flag_cursor;
         if (!explicit_value) {
-            const uint16_t value = sequential++;
-            maximum = value > maximum ? value : maximum;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+            // Sequential references increase monotonically up to index_count.
+            // Include their last value once after decoding the whole mesh.
+            return sequential++;
+#else
+            const uint16_t value=sequential++;
+            maximum=value>maximum ? value : maximum;
             return value;
+#endif
         }
         if (explicit_cursor >= deltas) { valid = false; return 0; }
 #if BUZZ_GEOMETRY_INDEX_BATCHED
@@ -198,9 +216,12 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
         auto& value = carry[explicit_cursor++ & 7]; value = uint16_t(value + raw - bias);
         maximum = value > maximum ? value : maximum; return value;
     };
+    if ((bytes[8+flags]>>6)!=3) return reject("host index initial triangle");
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+#pragma clang loop unroll_count(4)
+#endif
     for (unsigned triangle = 0; triangle < triangles; ++triangle) {
         const unsigned code = (bytes[8 + flags + triangle / 4] >> (6 - triangle % 4 * 2)) & 3;
-        if (triangle == 0 && code != 3) return reject("host index initial triangle");
         if (code == 0) b = d;
         else if (code == 1) a = d;
         else if (code == 2) { const uint16_t old = a; a = b; b = old; }
@@ -213,6 +234,9 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
     }
     for (unsigned triangle = triangles; triangle < ((triangles + 7) & ~7u); ++triangle)
         for (auto& component : output.component) component[triangle] = 0;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    if (sequential && unsigned(sequential-1)>maximum) maximum=sequential-1;
+#endif
     output.triangles = triangles; output.maximum_index = maximum; output.ready = true;
     if (reason) *reason = nullptr; return true;
 }

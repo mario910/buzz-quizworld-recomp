@@ -173,11 +173,19 @@ inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
     // A bounded matrix (2^30) and direction (2^20) keep the squared length
     // below 2^106. Normalization still uses the complete SPU reciprocal path.
     const auto mul = [](v8 a, v8 b) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        if constexpr (BoundedDirection) return _mm256_castps_si256(_mm256_mul_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b)));
+#else
         if constexpr (BoundedDirection) return geometry_bounded_mul(a,b);
+#endif
         return v8_fm(a,b);
     };
     const auto madd = [](v8 a, v8 b, v8 c) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        if constexpr (BoundedDirection) return _mm256_castps_si256(_mm256_fmadd_ps(_mm256_castsi256_ps(a),_mm256_castsi256_ps(b),_mm256_castsi256_ps(c)));
+#else
         if constexpr (BoundedDirection) return geometry_bounded_fma(a,b,c);
+#endif
         return v8_fma(a,b,c);
     };
     const v8 x = value.component[0], y = value.component[1], z = value.component[2], w = value.component[3];
@@ -196,6 +204,14 @@ inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
     if (!direction) a = madd(w, matrix[3], a);
     b = madd(x, matrix[4], b);
     d = madd(y, matrix[9], d);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    // The bounded dot products feed only finite FMAs before normalization.
+    if constexpr (BoundedDirection) {
+        a=geometry_bounded_finish(_mm256_castsi256_ps(a));
+        b=geometry_bounded_finish(_mm256_castsi256_ps(b));
+        d=geometry_bounded_finish(_mm256_castsi256_ps(d));
+    }
+#endif
     if (direction) {
         v8 length = mul(a, a); length = madd(b, b, length); length = madd(d, d, length);
         const v8 inverse = v8_fi(length, v8_frsqest(length));

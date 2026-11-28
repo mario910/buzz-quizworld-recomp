@@ -145,6 +145,17 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
 {
     GeometryClipArithmetic<Deferred,Bounded> fp;
     auto row = [&](unsigned axis) __attribute__((always_inline)) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        if constexpr (Bounded) {
+            // A finite FMA consumes an intermediate zero only as an addend.
+            // Repair its sign before exposing the final row to reciprocal or clipping.
+            auto value=_mm256_castsi256_ps(v8_set(params.row[axis][3]));
+            for (unsigned i=0;i<3;++i)
+                value=_mm256_fmadd_ps(_mm256_castsi256_ps(position.component[i]),
+                    _mm256_castsi256_ps(v8_set(params.row[axis][i])),value);
+            return geometry_bounded_finish(value);
+        }
+#endif
         v8 value = fp.fma(position.component[0], v8_set(params.row[axis][0]), v8_set(params.row[axis][3]));
         value = fp.fma(position.component[1], v8_set(params.row[axis][1]), value);
         return fp.fma(position.component[2], v8_set(params.row[axis][2]), value);

@@ -30,13 +30,17 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
         if(!ordinary(params.minimum[axis]) || !ordinary(params.maximum[axis]))return false;
     __m256 lo[3],hi[3];
     for(unsigned axis=0;axis<3;++axis){lo[axis]=_mm256_set1_ps(0x1p30f);hi[axis]=_mm256_set1_ps(-0x1p30f);}
+#if !(BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))
     v8 outside=_mm256_setzero_si256();
+#endif
     for(unsigned block=0;block<recipe.blocks_per_field;++block) {
         const auto& value=data.at(recipe,field,block);
         for(unsigned axis=0;axis<3;++axis) {
             const auto bits=value.component[axis];
+#if !(BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))
             outside=_mm256_or_si256(outside,_mm256_cmpgt_epi32(
                 _mm256_and_si256(bits,v8_set(0x7fffffff)),v8_set(0x4e800000)));
+#endif
             const auto v=_mm256_castsi256_ps(bits);
 #if defined(__aarch64__)
             lo[axis]={vminq_f32(lo[axis].lo,v.lo),vminq_f32(lo[axis].hi,v.hi)};
@@ -46,12 +50,17 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
 #endif
         }
     }
+#if !(BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))
     if(_mm256_movemask_ps(_mm256_castsi256_ps(outside)))return false;
+#endif
     double minimum[3],maximum[3];
     for(unsigned axis=0;axis<3;++axis) {
 #if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
         minimum[axis]=vminvq_f32(vminq_f32(lo[axis].lo,lo[axis].hi));
         maximum[axis]=vmaxvq_f32(vmaxq_f32(hi[axis].lo,hi[axis].hi));
+        // FMIN and FMAX propagate NaNs. Either a NaN or an out-of-range
+        // coordinate makes at least one ordered endpoint check fail.
+        if (!(minimum[axis]>=-0x1p30 && maximum[axis]<=0x1p30)) return false;
 #elif defined(__AVX2__) && !defined(__aarch64__)
         __m128 l = _mm_min_ps(_mm256_castps256_ps128(lo[axis]), _mm256_extractf128_ps(lo[axis],1));
         __m128 h = _mm_max_ps(_mm256_castps256_ps128(hi[axis]), _mm256_extractf128_ps(hi[axis],1));

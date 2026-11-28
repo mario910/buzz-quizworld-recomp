@@ -8,6 +8,10 @@ static __attribute__((noinline)) void buzz_spurs_geometry_variable_copy(
     uint8_t* dst,const uint8_t* src,uint32_t size)
 {
     if (size>=1024) {
+        while (size>=512) {
+            __builtin_memcpy_inline(dst,src,512);
+            dst+=512; src+=512; size-=512;
+        }
         while (size>=128) {
             __builtin_memcpy_inline(dst,src,128);
             dst+=128; src+=128; size-=128;
@@ -65,12 +69,28 @@ static inline uint32_t buzz_spurs_stage_geometry_inputs(
         if (!size || !ea) continue;
         if ((uint64_t)cursor + size > ls_size) break;
         // These slots have stable sizes in this job family. Always check the live descriptor.
-        if (i==0 && size==208) __builtin_memcpy_inline(ls+cursor,vm+ea,208);
-        else if ((i==1 || i==20) && size==32) __builtin_memcpy_inline(ls+cursor,vm+ea,32);
-        else if ((i==2 || i==16) && size==16) __builtin_memcpy_inline(ls+cursor,vm+ea,16);
-        else if (i==14 && size==128) __builtin_memcpy_inline(ls+cursor,vm+ea,128);
-        else if (i==15 && size==64) __builtin_memcpy_inline(ls+cursor,vm+ea,64);
-        else buzz_spurs_geometry_input_copy(ls + cursor, vm + ea, size);
+        if (i==0 && size==208) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,208);
+            cursor+=208;
+            continue;
+        } else if ((i==1 || i==20) && size==32) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,32);
+            cursor+=32;
+            continue;
+        } else if ((i==2 || i==16) && size==16) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,16);
+            cursor+=16;
+            continue;
+        } else if (i==14 && size==128) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,128);
+            cursor+=128;
+            continue;
+        } else if (i==15 && size==64) {
+            __builtin_memcpy_inline(ls+cursor,vm+ea,64);
+            cursor+=64;
+            continue;
+        }
+        buzz_spurs_geometry_input_copy(ls + cursor, vm + ea, size);
         cursor+=size;
         const uint32_t padding=(-size)&15u;
         if (padding) {
@@ -79,4 +99,17 @@ static inline uint32_t buzz_spurs_stage_geometry_inputs(
         }
     }
     return cursor - io;
+}
+
+/* The SDK parks the job context immediately before the descriptor at the
+ * top of LS. Only the 256-byte geometry descriptor takes this path. */
+static inline void buzz_spurs_geometry_descriptor256(
+    uint8_t* ls, uint32_t context, uint32_t descriptor, uint32_t ls_size,
+    const uint8_t* source, int clear)
+{
+    if (clear) {
+        memset(ls+context, 0, descriptor-context);
+        memset(ls+descriptor+256, 0, ls_size-descriptor-256);
+    }
+    __builtin_memcpy_inline(ls+descriptor, source, 256);
 }

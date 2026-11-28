@@ -386,7 +386,7 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzSpuJobReturn` | `false` | `false` | `false` |
 | `buzzIndexPrepare` | `false` | `false` | `false` |
 | `buzzGeometryIndexSequential` | `false` | `false` | `true` |
-| `buzzGeometryIndexBatched` | `false` | `false` | `false` |
+| `buzzGeometryIndexBatched` | `false` | `false` | `true` |
 | `buzzSpursPoolLayout` | `false` | `false` | `false` |
 | `buzzSpursDirectInputs` | `false` | `false` | `true` |
 | `buzzNeonIndexOutput` | `false` | `false` | `true` |

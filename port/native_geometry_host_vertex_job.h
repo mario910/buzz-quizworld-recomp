@@ -119,13 +119,25 @@ inline bool prepare_geometry_host_vertex_tail(const spu_context& c, const Geomet
     tail.ready = true; result = tail; if (reason) *reason = nullptr; return true;
 }
 
-#if defined(__AVX2__)
+#if defined(__AVX2__) || (BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__))
 // Write eight complete position/normal records. Transposing within both
 // 128-bit halves forms vertices (0,4), (1,5), (2,6), (3,7) in four registers.
 template<unsigned Stride>
 inline void geometry_host_store_position_normal8(const GeometryHostSoA8& position,
     const GeometryHostSoA8& normal, uint8_t* destination)
 {
+#if defined(__aarch64__)
+    const v8 packed = v8_bswap(geometry_host_cmp8(normal));
+    const v8 x=v8_bswap(position.component[0]), y=v8_bswap(position.component[1]), z=v8_bswap(position.component[2]);
+    auto store_four=[](uint8_t* base, uint32x4_t x,uint32x4_t y,uint32x4_t z,uint32x4_t n) {
+        const uint32x4x4_t fields={{x,y,z,n}};
+        alignas(16) uint32_t records[16];
+        vst4q_u32(records,fields);
+        for (unsigned i=0;i<4;++i) memcpy(base+i*Stride,records+4*i,16);
+    };
+    store_four(destination,x.lo,y.lo,z.lo,packed.lo);
+    store_four(destination+4*Stride,x.hi,y.hi,z.hi,packed.hi);
+#else
     const v8 xy0 = _mm256_unpacklo_epi32(position.component[0], position.component[1]);
     const v8 xy1 = _mm256_unpackhi_epi32(position.component[0], position.component[1]);
     const v8 packed = geometry_host_cmp8(normal);
@@ -140,6 +152,7 @@ inline void geometry_host_store_position_normal8(const GeometryHostSoA8& positio
         _mm_storeu_si128(reinterpret_cast<__m128i*>(destination + (i + 4) * Stride),
             _mm256_extracti128_si256(records[i], 1));
     }
+#endif
 }
 
 template<unsigned Stride>
@@ -181,7 +194,11 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
     // Admission proves every byte of each output record is defined.
     unsigned first = 0;
 #if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
-    if (output.stride==16 && output.fields==2 && output.field[1].offset==12 &&
+    if (output.stride==20 && output.fields==3 && output.field[1].storage==6 &&
+        output.field[1].offset==12 && output.field[2].offset==16 &&
+        output.field[2].storage==3 && output.field[2].components==2)
+        first=emit_geometry_host_position_normal_blocks<20>(input,data,output,destination);
+    else if (output.stride==16 && output.fields==2 && output.field[1].offset==12 &&
         output.field[1].storage==6 && !(uintptr_t(destination)&3)) {
         for (; first+8<=input.vertices;first+=8) {
             const auto& position=data.at(input,0,first/8);
