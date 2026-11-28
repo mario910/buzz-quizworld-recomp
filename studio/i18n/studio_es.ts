@@ -363,6 +363,11 @@
             <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
             <translation>La exportación a JSON omite los fragmentos musicales. Crea un paquete .edat en Studio.</translation>
         </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Zmieniony plan rund wymaga paczki .edat. Zbuduj ją w Studio.</source>
+            <translation>Un plan de rondas personalizado requiere un paquete .edat. Créalo en Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -1654,6 +1659,126 @@ Los proyectos enlazan a archivos de medios. La creación de packs en la aplicaci
         <message>
             <source>Odtwórz</source>
             <translation>Reproducir</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund…</source>
+            <translation>Planes de rondas…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund</source>
+            <translation>Planes de rondas</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Tryb gry</source>
+            <translation>Modo de juego</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Solo</source>
+            <translation>En solitario</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 4 graczy</source>
+            <translation>Hasta 4 jugadores</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 8 graczy</source>
+            <translation>Hasta 8 jugadores</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Typ rundy</source>
+            <translation>Tipo de ronda</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Liczba pytań</source>
+            <translation>Número de preguntas</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Domyślna</source>
+            <translation>Predeterminado</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj rundę</source>
+            <translation>Añadir ronda</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Usuń rundę</source>
+            <translation>Eliminar ronda</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W górę</source>
+            <translation>Subir</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W dół</source>
+            <translation>Bajar</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przywróć domyślne</source>
+            <translation>Restaurar valores por defecto</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Szybki palec</source>
+            <translation>Dedo rápido</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zatrzymaj zegar</source>
+            <translation>Para el reloj</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Na krawędzi</source>
+            <translation>Al borde</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdobywanie punktów</source>
+            <translation>Suma puntos</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podaj bombę</source>
+            <translation>Pasa la bomba</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kto pierwszy</source>
+            <translation>El dedo más rápido</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bitwa na torty</source>
+            <translation>Guerra de tartas</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kradzież punktów</source>
+            <translation>Roba puntos</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Obstawianie</source>
+            <translation>Apuesta</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odliczanie finałowe</source>
+            <translation>Cuenta atrás final</translation>
         </message>
     </context>
     <context>

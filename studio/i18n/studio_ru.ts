@@ -363,6 +363,11 @@
             <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
             <translation>При экспорте в JSON музыкальные фрагменты пропускаются. Соберите пакет .edat в Studio.</translation>
         </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Zmieniony plan rund wymaga paczki .edat. Zbuduj ją w Studio.</source>
+            <translation>Для изменённого плана раундов нужен пакет .edat. Соберите его в Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -1654,6 +1659,126 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
         <message>
             <source>Odtwórz</source>
             <translation>Воспроизвести</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund…</source>
+            <translation>Планы раундов…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund</source>
+            <translation>Планы раундов</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Tryb gry</source>
+            <translation>Режим игры</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Solo</source>
+            <translation>Одиночный</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 4 graczy</source>
+            <translation>До 4 игроков</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 8 graczy</source>
+            <translation>До 8 игроков</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Typ rundy</source>
+            <translation>Тип раунда</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Liczba pytań</source>
+            <translation>Количество вопросов</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Domyślna</source>
+            <translation>По умолчанию</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj rundę</source>
+            <translation>Добавить раунд</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Usuń rundę</source>
+            <translation>Удалить раунд</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W górę</source>
+            <translation>Вверх</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W dół</source>
+            <translation>Вниз</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przywróć domyślne</source>
+            <translation>Восстановить по умолчанию</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Szybki palec</source>
+            <translation>Быстрый палец</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zatrzymaj zegar</source>
+            <translation>Останови часы</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Na krawędzi</source>
+            <translation>На грани</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdobywanie punktów</source>
+            <translation>Набор очков</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podaj bombę</source>
+            <translation>Передай бомбу</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kto pierwszy</source>
+            <translation>Самый быстрый палец</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bitwa na torty</source>
+            <translation>Битва тортами</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kradzież punktów</source>
+            <translation>Кража очков</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Obstawianie</source>
+            <translation>Ставки</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odliczanie finałowe</source>
+            <translation>Финальный отсчёт</translation>
         </message>
     </context>
     <context>

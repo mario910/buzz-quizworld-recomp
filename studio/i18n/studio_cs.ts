@@ -363,6 +363,11 @@
             <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
             <translation>Export do JSON vynechává hudební ukázky. Sestavte ve Studiu balíček .edat.</translation>
         </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Zmieniony plan rund wymaga paczki .edat. Zbuduj ją w Studio.</source>
+            <translation>Upravený plán kol vyžaduje balíček .edat. Vytvořte ho ve Studiu.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -1654,6 +1659,126 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
         <message>
             <source>Odtwórz</source>
             <translation>Přehrát</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund…</source>
+            <translation>Plán kol…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund</source>
+            <translation>Plán kol</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Tryb gry</source>
+            <translation>Herní režim</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Solo</source>
+            <translation>Sólo</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 4 graczy</source>
+            <translation>Až 4 hráči</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 8 graczy</source>
+            <translation>Až 8 hráčů</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Typ rundy</source>
+            <translation>Typ kola</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Liczba pytań</source>
+            <translation>Počet otázek</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Domyślna</source>
+            <translation>Výchozí</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj rundę</source>
+            <translation>Přidat kolo</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Usuń rundę</source>
+            <translation>Odebrat kolo</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W górę</source>
+            <translation>Nahoru</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W dół</source>
+            <translation>Dolů</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przywróć domyślne</source>
+            <translation>Obnovit výchozí</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Szybki palec</source>
+            <translation>Rychlý prst</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zatrzymaj zegar</source>
+            <translation>Zastav hodiny</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Na krawędzi</source>
+            <translation>Na hraně</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdobywanie punktów</source>
+            <translation>Sbírání bodů</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podaj bombę</source>
+            <translation>Podej bombu</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kto pierwszy</source>
+            <translation>Nejrychlejší prst</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bitwa na torty</source>
+            <translation>Dortová bitva</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kradzież punktów</source>
+            <translation>Krádež bodů</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Obstawianie</source>
+            <translation>Sázej</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odliczanie finałowe</source>
+            <translation>Závěrečný odpočet</translation>
         </message>
     </context>
     <context>

@@ -809,6 +809,18 @@ void StudioController::setPackTitle(const QString &title) {
         notifyContent();
     }));
 }
+void StudioController::setRoundPlans(const studio::RoundPlans &plans) {
+    if (busy_ || roundPlans() == plans)
+        return;
+    auto draft = model_.document;
+    draft.setRoundPlans(plans);
+    const auto before = model_.document.packExtra.value("round_plans"), after = draft.packExtra.value("round_plans");
+    if (before != after)
+        history_.push(new Command(QCoreApplication::translate("Main", "Plan rund"), [this, before, after](bool forward) {
+            model_.document.packExtra.insert("round_plans", forward ? after : before);
+            notifyContent();
+        }));
+}
 QVariantList StudioController::packCategories() const {
     QVariantList out;
     for (const bool subjects : {true, false})

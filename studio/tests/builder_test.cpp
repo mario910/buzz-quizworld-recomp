@@ -1074,6 +1074,50 @@ class BuilderTest final : public QObject {
             QCOMPARE(actual.read(name), expected.read(name));
         QCOMPARE(bytes(r.path), bytes(fixture("build-reference.pak")));
     }
+    void writesEditedRoundPlansAndRegistersTheirTypes() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        auto req = request(temp.path());
+        auto plans = studio::defaultRoundPlans();
+        plans["1p"][0].questionCount = 2;
+        plans["1p"][1] = {"StopTheClockChallenge", 4};
+        plans["1p"].append({"TriggerFinger", 7});
+        plans["4p"].swapItemsAt(0, 1);
+        plans["4p"].removeAt(2);
+        plans["4p"].last().questionCount = 5;
+        plans["8p"][0] = {"PieFight", 6};
+        plans["8p"].insert(2, {"BetIt"});
+        req.document.setRoundPlans(plans);
+        QCOMPARE(req.document.roundPlans(), plans);
+        const auto result = studio::buildPack(req);
+        QVERIFY2(result.ok(), qPrintable(result.error));
+        Archive archive(result.path);
+        const auto setup = readLua(archive.read("ENG/SCRIPTS/GENERATED/roundsetup.clu"));
+        studio::RoundPlans generated;
+        QMap<QString, QSet<QString>> registered;
+        const auto constant = [&](qsizetype at) { return setup.constants.at(setup.code.at(at) >> 14); };
+        const auto mode = [](const QVariant &game) { return game.toString().right(2); };
+        for (qsizetype i = 0; i < setup.code.size(); ++i) {
+            if ((setup.code[i] & 63) != 5) // GETGLOBAL begins a generated call.
+                continue;
+            const auto function = constant(i).toString();
+            if (function == "AddGamePlanRounds") {
+                generated[mode(constant(i + 1))].append({constant(i + 2).toString(), constant(i + 3).toInt()});
+            } else if (function == "AddRoundNew") {
+                registered[mode(constant(i + 2))].insert(constant(i + 4).toString());
+            }
+        }
+        auto expected = plans;
+        expected["8p"].last().questionCount = 8; // Keep the pack's default finale count.
+        QCOMPARE(generated, expected);
+        for (auto it = plans.cbegin(); it != plans.cend(); ++it) {
+            QSet<QString> types;
+            for (const auto &round : it.value())
+                types.insert(round.type);
+            QCOMPARE(registered.value(it.key()), types);
+        }
+        QVERIFY_EXCEPTION_THROWN(studio::serialize(req.document, {}, true), std::runtime_error);
+    }
     void recoversMusicFromQuizWorldIsoAndBuildsItSeparatelyFromNarration() {
         QTemporaryDir temp;
         QVERIFY(temp.isValid());

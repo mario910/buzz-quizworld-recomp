@@ -363,6 +363,11 @@
             <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
             <translation>JSON-export utelämnar musikklipp. Bygg ett .edat-paket i Studio.</translation>
         </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Zmieniony plan rund wymaga paczki .edat. Zbuduj ją w Studio.</source>
+            <translation>En ändrad rundplan kräver ett .edat-paket. Bygg det i Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -1654,6 +1659,126 @@ Projekt länkar till mediefiler. Paketbygge i programmet och portabla arkiv komm
         <message>
             <source>Odtwórz</source>
             <translation>Spela upp</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund…</source>
+            <translation>Rundplaner…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund</source>
+            <translation>Rundplaner</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Tryb gry</source>
+            <translation>Spelläge</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Solo</source>
+            <translation>Solo</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 4 graczy</source>
+            <translation>Upp till 4 spelare</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 8 graczy</source>
+            <translation>Upp till 8 spelare</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Typ rundy</source>
+            <translation>Rundtyp</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Liczba pytań</source>
+            <translation>Antal frågor</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Domyślna</source>
+            <translation>Standard</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj rundę</source>
+            <translation>Lägg till runda</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Usuń rundę</source>
+            <translation>Ta bort runda</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W górę</source>
+            <translation>Flytta upp</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W dół</source>
+            <translation>Flytta ned</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przywróć domyślne</source>
+            <translation>Återställ standard</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Szybki palec</source>
+            <translation>Avtryckarfinger</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zatrzymaj zegar</source>
+            <translation>Stoppa klockan</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Na krawędzi</source>
+            <translation>På gränsen</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdobywanie punktów</source>
+            <translation>Samla poäng</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podaj bombę</source>
+            <translation>Skicka bomben</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kto pierwszy</source>
+            <translation>Snabbaste fingret</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bitwa na torty</source>
+            <translation>Tårtkastning</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kradzież punktów</source>
+            <translation>Stjäl poäng</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Obstawianie</source>
+            <translation>Satsa</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odliczanie finałowe</source>
+            <translation>Sista nedräkningen</translation>
         </message>
     </context>
     <context>

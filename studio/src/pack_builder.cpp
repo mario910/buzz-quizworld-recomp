@@ -247,13 +247,7 @@ void validateGenerated(const QString &path, const QString &language, const QVect
     Q_UNUSED(categories);
 }
 QVector<Call> roundSetup(int number, const QString &dir, const QMap<QString, QString> &games,
-                         const QVector<QPair<QString, QString>> &categories) {
-    const QMap<QString, QStringList> plans{
-        {"1p", {"TriggerFinger", "TriggerFinger", "TriggerFinger"}},
-        {"4p",
-         {"PointBuilder", "PassTheBomb", "FastestFingerFirst", "PieFight", "PointStealerMix", "BetIt",
-          "FinalCountdown"}},
-        {"8p", {"PointBuilder", "TriggerFinger", "BetIt", "FinalCountdown"}}};
+                         const QVector<QPair<QString, QString>> &categories, const RoundPlans &plans) {
     const QMap<QString, QString> kinds{
         {"1p", "1PPACKSPECIFIC"}, {"4p", "4PPACKSPECIFIC"}, {"8p", "8PPACKSPECIFIC"}};
     const QMap<QString, QString> maxPlayers{
@@ -269,13 +263,17 @@ QVector<Call> roundSetup(int number, const QString &dir, const QMap<QString, QSt
         calls << Call{{"AddGame"},
                       {games[mode], number * 1000 + i++, kinds[mode], maxPlayers[mode], 0, -1, 1, 0, 4}};
     for (const auto &mode : {QString("1p"), QString("4p"), QString("8p")})
-        for (const auto &type : plans[mode])
-            calls << Call{{"AddGamePlanRounds"}, {games[mode], type, type == "FinalCountdown" ? 8 : 0}};
+        for (const auto &round : plans[mode]) {
+            // Zero lets Quiz World use the round's rules. Keep the stock pack finale's explicit limit.
+            const int count = round.questionCount > 0 ? round.questionCount : (round.type == "FinalCountdown" ? 8 : 0);
+            calls << Call{{"AddGamePlanRounds"}, {games[mode], round.type, count}};
+        }
     int roundId = number * 1000 + 300;
     for (const auto &category : categories)
         for (const auto &mode : {QString("1p"), QString("4p"), QString("8p")}) {
             QSet<QString> seen;
-            for (const auto &type : plans[mode]) {
+            for (const auto &round : plans[mode]) {
+                const auto &type = round.type;
                 if (seen.contains(type))
                     continue;
                 seen.insert(type);
@@ -804,7 +802,8 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         }
         entries << qMakePair(gen + "/questioncategories.clu", script(categoryCalls));
         entries << qMakePair(gen + "/roundsetup.clu",
-                             script(roundSetup(request.number, dir, games, roundCategories)));
+                             script(roundSetup(request.number, dir, games, roundCategories,
+                                               request.document.roundPlans())));
         packages.prepend(Call{{"IncludeScript"}, {"Generated/RoundSetup"}});
         entries << qMakePair(gen + "/roundpackages.clu", script(packages))
                 << qMakePair(gen + "/addpackinfo.clu", writeLua(info));

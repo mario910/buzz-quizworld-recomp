@@ -39,6 +39,7 @@ class MainWindow final : public QMainWindow {
     Q_INVOKABLE void openProjectLanguages();
     // The project's own subjects and subcategories, named per content language.
     Q_INVOKABLE void openPackCategories();
+    Q_INVOKABLE void openRoundPlans();
     void setEditorTab(int tab);
     // The window with any open dialog drawn over it (for --screenshot).
     QImage capture();

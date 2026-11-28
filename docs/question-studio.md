@@ -269,6 +269,16 @@ categories in the category base range. Own categories have not yet been checked
 in the game's category chooser with players; the buzzpack JSON export refuses
 them.
 
+## Round plans
+
+Open **… → Round plans…** to edit the solo, up to four players, and up to eight
+players plans independently. Select a round to change its type or question
+count, move it, add another round after it, or remove it. **Default** uses the
+pack's usual question count for that round. Some rounds can end early under
+their normal rules. Each mode needs at least one round.
+**Restore defaults** resets the selected mode. Studio saves the plans in the
+project and uses them when building an `.edat` pack.
+
 ## Project format
 
 Save projects as `name.buzz.json`. The root has `format: "buzz-question-studio"`,

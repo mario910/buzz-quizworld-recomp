@@ -44,6 +44,19 @@ struct CustomCategory {
                sourceKey == other.sourceKey && sourceName == other.sourceName;
     }
 };
+struct RoundPlanEntry {
+    QString type;
+    int questionCount = 0; // Use the pack's default for this round type.
+    bool operator==(const RoundPlanEntry &other) const {
+        return type == other.type && questionCount == other.questionCount;
+    }
+};
+// Pack scripts store numbers as 32-bit floats.
+constexpr int maxRoundQuestionCount = 1 << 24;
+using RoundPlans = QMap<QString, QList<RoundPlanEntry>>;
+const RoundPlans &defaultRoundPlans();
+QStringList roundTypesForMode(const QString &mode);
+
 struct Document {
     // Title and description of the active language; other languages in titles/descriptions.
     QString title = QStringLiteral("Moja paczka"), description, language = QStringLiteral("pl");
@@ -52,6 +65,8 @@ struct Document {
     QVector<CustomCategory> categories;
     QVector<Question> questions;
     QStringList languages() const;
+    RoundPlans roundPlans() const;
+    void setRoundPlans(const RoundPlans &plans);
     void switchLanguage(const QString &code);
     const CustomCategory *customCategory(int id) const;
     // Display name of a Quiz World or custom category in the active language.
