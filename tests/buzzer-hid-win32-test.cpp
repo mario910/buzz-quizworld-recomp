@@ -141,6 +141,22 @@ int main(){try {
     send(a,{8});check(fake_buttons[0]==8&&fake_online[1],"Reconnect reclaims original slot");
     buzz_hid_host_shutdown();check(!buzz_hid_host_registered()&&!fake_online[0]&&!fake_online[1]&&remove_count==2,"Teardown removes only own joystick/gamepad registrations");
     fake_bad_caps=true;buzz_hid_host_message(window,WM_CREATE,0,0);check(!fake_online[0]&&!fake_online[1],"Incomplete descriptors are rejected");buzz_hid_host_shutdown();fake_bad_caps=false;
+    // This exercises receiver discovery and routing with the standard HID
+    // layout; it is not a capture of the Logitech hardware's descriptor.
+    const auto logitech=device_handle(6);
+    fake_device(a)->online=false;
+    fake_device(b)->online=false;
+    fake_devices.push_back({logitech,0x046d,0xc220,L"receiver-C"});
+    buzz_hid_host_message(window,WM_CREATE,0,0);
+    send(logitech,{2});check(fake_online[0]&&!fake_online[1]&&fake_buttons[0]==2,"Logitech alone uses the first available slot");
+    buzz_hid_host_shutdown();
+    fake_devices[2].online=true;
+    buzz_hid_host_message(window,WM_CREATE,0,0);
+    send(a,{1});send(logitech,{1u<<19});
+    check(fake_online[0]&&fake_online[1]&&fake_buttons[0]==1&&fake_buttons[1]==(1u<<19),"Sony and Logitech route independently");
+    buzz_hid_host_shutdown();
+    fake_devices.pop_back();
+    fake_devices[0].online=true;
     // DualShock 4 (USB) and DualSense (Bluetooth): read through the same
     // registration, published as XInput-style buttons, never as receivers.
     const auto ds4=device_handle(4),ds5=device_handle(5);

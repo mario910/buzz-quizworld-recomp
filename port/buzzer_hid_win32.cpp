@@ -23,7 +23,7 @@ namespace {
 struct Device {
     HANDLE handle=nullptr;
     std::wstring key;
-    unsigned product=0,report_bytes=0,max_buttons=0;
+    unsigned vendor=0,product=0,report_bytes=0,max_buttons=0;
     std::vector<DWORD> preparsed;
     buzz_hid::Layout layout;
     bool active=false,faulted=false;
@@ -77,7 +77,7 @@ bool device_key(HANDLE handle,std::wstring& key) {
 bool identify(HANDLE handle,Device& candidate) {
     RID_DEVICE_INFO info{};
     if(!buzzers_enabled||!device_info(handle,info)||!buzz_hid::supported(info.hid.dwVendorId,info.hid.dwProductId))return false;
-    candidate.handle=handle;candidate.product=info.hid.dwProductId;
+    candidate.handle=handle;candidate.vendor=info.hid.dwVendorId;candidate.product=info.hid.dwProductId;
     return device_key(handle,candidate.key);
 }
 bool identify_pad(HANDLE handle,Pad& candidate) {
@@ -140,11 +140,12 @@ void add(Device candidate) {
     if(slot<0)for(unsigned i=0;i<devices.size();++i)if(!devices[i].active){slot=int(i);break;}
     if(slot<0||!capabilities(candidate)) {
         if(ignored.size()<256)ignored.insert(candidate.handle);
-        fprintf(stderr,"[buzz-hid] ignored supported VID/PID: %s\n",slot<0?"two receiver slots already occupied":"unsupported/invalid HID capabilities");return;
+        fprintf(stderr,"[buzz-hid] ignored receiver %04x:%04x: %s\n",candidate.vendor,candidate.product,slot<0?"two receiver slots already occupied":"unsupported/invalid HID capabilities");return;
     }
     candidate.active=true;devices[unsigned(slot)]=std::move(candidate);
     buzz_input_physical_state(unsigned(slot),0,true);
-    fprintf(stderr,"[buzz-hid] receiver %d connected: 054c:%04x -> P%d-P%d (hardware-unverified)\n",slot+1,devices[unsigned(slot)].product,slot*4+1,slot*4+4);
+    const auto& d=devices[unsigned(slot)];
+    fprintf(stderr,"[buzz-hid] receiver %d connected: %04x:%04x -> P%d-P%d (hardware-unverified)\n",slot+1,d.vendor,d.product,slot*4+1,slot*4+4);
 }
 void rescan() {
     UINT count=0;if(GetRawInputDeviceList(nullptr,&count,sizeof(RAWINPUTDEVICELIST))==UINT(-1)||count>4096)return;

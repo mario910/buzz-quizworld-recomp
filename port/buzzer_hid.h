@@ -11,7 +11,8 @@ namespace buzz_hid {
 constexpr uint32_t button_mask=0xfffff;
 constexpr size_t max_report_bytes=1024,max_usages=256,max_reports=8;
 constexpr bool supported(uint32_t vendor,uint32_t product) {
-    return vendor==0x054c&&(product==0x0002||product==0x1000);
+    return (vendor==0x054c&&(product==0x0002||product==0x1000))||
+           (vendor==0x046d&&product==0xc220);
 }
 inline bool usages_to_buttons(const uint16_t* usages,size_t count,uint32_t& output) {
     if(count>max_usages||(!usages&&count))return false;
