@@ -533,6 +533,24 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         questions = std::move(withAudio);
         requireQuestions(questions);
 
+        if (!QDir().mkpath(request.outputDirectory))
+            fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu wyjściowego."));
+        const auto outputRoot =
+            QDir::fromNativeSeparators(QFileInfo(request.outputDirectory).canonicalFilePath());
+        if (outputRoot.isEmpty())
+            fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu wyjściowego."));
+        if (QRegularExpression("/(dev_hdd0|dev_bdvd|PS3_GAME/USRDIR)(/|$)",
+                               QRegularExpression::CaseInsensitiveOption)
+                .match(outputRoot)
+                .hasMatch())
+            fail(QCoreApplication::translate(
+                "PackBuilder",
+                "Buduj poza katalogami danych gry. Do instalacji użyj instalatora z kopią zapasową."));
+        QTemporaryDir temporary(QDir(outputRoot).filePath(".studio-build-XXXXXX"));
+        if (!temporary.isValid())
+            fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu roboczego paczki."));
+        const auto candidate = temporary.filePath(language + dir + ".edat");
+        ArchiveWriter writer(candidate);
         Entries entries;
         QHash<QString, QByteArray> musicClips;
         QHash<QString, QString> musicErrors;
@@ -575,20 +593,29 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                 checkCancelled(cancel);
                 if (!it.key().endsWith(".sdi") || !it.key().at(prefix.size()).isDigit())
                     continue;
-                auto candidate = archive.read(it.key());
-                if (isMovieTemplate(candidate)) {
-                    movieTemplate = std::move(candidate);
+                auto sourceMovie = archive.read(it.key());
+                if (isMovieTemplate(sourceMovie)) {
+                    movieTemplate = std::move(sourceMovie);
                     break;
                 }
             }
             if (movieTemplate.isEmpty())
                 fail(QCoreApplication::translate(
                     "PackBuilder", "Wybrany szablon Quiz World nie zawiera zgodnego nagłówka filmu SDI."));
-            qsizetype movieBytes = 0;
             QHash<QString, QString> invalidMovies;
             for (qsizetype i = 0; i < moviePaths.size(); ++i) {
                 checkCancelled(cancel);
                 const auto &path = moviePaths[i];
+                const auto rejectMovie = [&](const QString &message) {
+                    const auto reason = QFileInfo(path).fileName() + ": " + message;
+                    if (!request.skipInvalid)
+                        fail(reason);
+                    invalidMovies.insert(path, reason);
+                };
+                if (movies.size() >= MovieAssetsPerPack) {
+                    rejectMovie(QCoreApplication::translate("PackBuilder", "Paczka zawiera za dużo różnych filmów do pytań."));
+                    continue;
+                }
                 report(60 + int(12 * i / moviePaths.size()),
                        QCoreApplication::translate("PackBuilder", "Kodowanie filmu do pytania %1 z %2…")
                            .arg(i + 1).arg(moviePaths.size()));
@@ -599,20 +626,11 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
                     throw;
                 } catch (const std::runtime_error &error) {
                     checkCancelled(cancel);
-                    const auto reason = QFileInfo(path).fileName() + ": " + QString::fromUtf8(error.what());
-                    if (!request.skipInvalid)
-                        fail(reason);
-                    invalidMovies.insert(path, reason);
+                    rejectMovie(QString::fromUtf8(error.what()));
                     continue;
                 }
-                movieBytes += bytes.size();
-                if (movieBytes > 256 * 1024 * 1024)
-                    fail(QCoreApplication::translate(
-                        "PackBuilder", "Filmy do pytań przekraczają limit 256 MiB na paczkę."));
-                if (movies.size() >= MovieAssetsPerPack)
-                    fail(QCoreApplication::translate("PackBuilder", "Paczka zawiera za dużo różnych filmów do pytań."));
                 movies << path;
-                entries << qMakePair(prefix + QString::number(1000000ll + movieAsset(path)) + ".sdi", std::move(bytes));
+                writer.add(prefix + QString::number(1000000ll + movieAsset(path)) + ".sdi", bytes);
             }
             questions.removeIf([&](const Question &q) {
                 const auto it = invalidMovies.constFind(q.video);
@@ -827,17 +845,6 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
             if (it.key().startsWith(language + "/") && it.key().contains("/DATA/"))
                 entries << qMakePair(it.key(), archive.read(it.key()));
         checkCancelled(cancel);
-        if (!QDir().mkpath(request.outputDirectory))
-            fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu wyjściowego."));
-        const auto outputRoot =
-            QDir::fromNativeSeparators(QFileInfo(request.outputDirectory).canonicalFilePath());
-        if (QRegularExpression("/(dev_hdd0|dev_bdvd|PS3_GAME/USRDIR)(/|$)",
-                               QRegularExpression::CaseInsensitiveOption)
-                .match(outputRoot)
-                .hasMatch())
-            fail(QCoreApplication::translate(
-                "PackBuilder",
-                "Buduj poza katalogami danych gry. Do instalacji użyj instalatora z kopią zapasową."));
         const auto folder = QDir(outputRoot).filePath(dir);
         if (!QDir().mkpath(folder))
             fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu paczki."));
@@ -845,12 +852,12 @@ BuildResult buildPack(const BuildRequest &request, const Progress &progress,
         if (QFileInfo(path).exists() &&
             QFileInfo(path).canonicalFilePath() == QFileInfo(request.templatePath).canonicalFilePath())
             fail(QCoreApplication::translate("PackBuilder", "Katalog wyjściowy nadpisałby szablon gry."));
-        QTemporaryDir temporary(QDir(outputRoot).filePath(".studio-build-XXXXXX"));
-        if (!temporary.isValid())
-            fail(QCoreApplication::translate("PackBuilder", "Nie można utworzyć katalogu roboczego paczki."));
-        const auto candidate = temporary.filePath(language + dir + ".edat");
         report(85, QCoreApplication::translate("PackBuilder", "Zapisywanie archiwum EDAT…"));
-        writeArchive(candidate, entries);
+        for (const auto &entry : entries) {
+            checkCancelled(cancel);
+            writer.add(entry.first, entry.second);
+        }
+        writer.commit();
         report(90, QCoreApplication::translate("PackBuilder", "Walidacja zapisanej paczki…"));
         validateGenerated(candidate, language, questions, ids, request.number, cancel);
         checkCancelled(cancel);

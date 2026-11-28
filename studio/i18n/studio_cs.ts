@@ -2052,6 +2052,11 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
             <translation>Řeč RSF musí být mono ATRAC3 48 kHz s rámci o 152 bajtech.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Neplatný soubor hlasového záznamu RSF.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Neplatná šablona listu obrázků SDI.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Sestavený soubor: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Vyberte obraz disku, soubor s otázkami nebo rozbalenou složku hry pro PS3 či Knowledge Is Power.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Vyberte obraz disku, soubor s otázkami nebo složku s rozbalenou hrou.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Sestavený soubor: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>U rozbalené hry pro PS2 nebo PSP vyberte ROUND.PAK nebo MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>U rozbalené hry pro PSP vyberte soubor MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Zkopírovat zprávu o importu</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

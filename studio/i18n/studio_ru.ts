@@ -2052,6 +2052,11 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Озвучка RSF должна быть в формате моно ATRAC3, 48 кГц, с кадрами по 152 байта.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Некорректный файл озвучки RSF.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Неверный шаблон листа картинок SDI.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Zbudowany plik: </source>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Выберите образ диска, файл с вопросами или распакованную папку игры для PS3 либо «Знание — сила».</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Выберите образ диска, файл вопросов или папку распакованной игры.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Zbudowany plik: </source>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Для распакованной игры PS2 или PSP выберите ROUND.PAK или MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Для распакованной игры PSP выберите файл MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Копировать отчёт об импорте</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

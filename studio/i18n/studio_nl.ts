@@ -2052,6 +2052,11 @@ Projecten verwijzen naar mediabestanden. Pakketten bouwen in de app en draagbare
             <translation>RSF-spraak moet mono ATRAC3 op 48 kHz zijn met frames van 152 bytes.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Ongeldig RSF-bestand voor de gesproken tekst.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Ongeldig sjabloon voor SDI-afbeeldingsblad.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Gebouwd bestand: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Kies een schijfimage, een vragenbestand of een uitgepakte gamemap van PS3 of Knowledge Is Power.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Kies een schijfkopie, een vragenbestand of een uitgepakte gamemap.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Gebouwd bestand: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Kies voor een uitgepakte PS2- of PSP-game ROUND.PAK of MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Kies bij een uitgepakte PSP-game het bestand MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Importrapport kopiëren</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

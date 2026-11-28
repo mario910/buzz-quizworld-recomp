@@ -6,13 +6,17 @@
 #include <QVector>
 
 namespace studio {
-// Read-only ISO 9660 reader for PS2/PSP disc images (.iso) and PSP compressed
+// Read-only ISO 9660 reader for PlayStation disc images (.iso) and PSP compressed
 // images (.cso, CISO v1). Only directory records and file extents are read;
 // nothing is extracted to disk.
 class DiscImage {
   public:
-    struct File {
+    struct Extent {
         qint64 offset = 0, size = 0;
+    };
+    struct File {
+        qint64 size = 0;
+        QVector<Extent> extents;
     };
     explicit DiscImage(const QString &path);
     DiscImage(const DiscImage &) = delete;
@@ -21,6 +25,7 @@ class DiscImage {
     const QMap<QString, File> &files() const { return files_; }
     bool contains(const QString &path) const { return files_.contains(path.toUpper()); }
     QByteArray read(const QString &path, qint64 limit = 256 * 1024 * 1024);
+    QByteArray readFile(const File &file, qint64 offset, qint64 size);
     QByteArray readAt(qint64 offset, qint64 size); // Logical bytes, including for CSO.
     static bool isDiscImage(const QString &path);
 

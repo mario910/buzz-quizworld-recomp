@@ -28,8 +28,6 @@ const QString assetsPath = QStringLiteral("Media/resources.assets");
 const QString locDir = QStringLiteral("Media/StreamingAssets/Localisation/");
 const QString imagesPath = QStringLiteral("Media/StreamingAssets/QuestionImages/QuestionImages.bytes");
 const QString voiceDir = QStringLiteral("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/");
-// Voice exists only in these languages.
-const QMap<QString, QString> voiceFolders{{"en", "English(UK)"}, {"pl", "Polish"}, {"ru", "Russian"}};
 // Trivia table columns (21, tab separated). Answer 1 is the correct answer.
 constexpr int cId = 0, cKey = 1, cAnswers = 2, cCategory = 6, cImage = 15, cFrame = 16, cTags = 17, cDifficulty = 18;
 
@@ -96,7 +94,7 @@ QMap<QString, QString> loadLoc(const QByteArray &bytes) {
     else
         text = QString::fromUtf16(reinterpret_cast<const char16_t *>(bytes.constData()), bytes.size() / 2);
     QMap<QString, QString> out;
-    const auto lines = text.split(QStringLiteral("\r\n"));
+    const auto lines = text.remove('\r').split('\n');
     for (int i = 1; i < lines.size(); ++i) {
         const int tab = lines[i].indexOf('\t');
         if (tab <= 0)
@@ -308,20 +306,38 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
             }
             return extracted.value(entry);
         };
+        // Regional editions and their language updates ship different banks. Match
+        // the locale and question key in the WEM name independently of the folder.
+        QMap<QString, QHash<QString, QString>> voices;
+        for (const auto &file : source.list(voiceDir)) {
+            const QFileInfo info(file);
+            if (info.suffix().compare("wem", Qt::CaseInsensitive) != 0)
+                continue;
+            const auto stem = info.completeBaseName();
+            for (qsizetype split = stem.lastIndexOf('_'); split > 0; split = stem.lastIndexOf('_', split - 1)) {
+                const auto code = languageCode(stem.left(split));
+                if (!loc.contains(code))
+                    continue;
+                auto &bank = voices[code];
+                const auto key = stem.mid(split + 1).toCaseFolded();
+                // Preserve the UK bank for the original unqualified English locale.
+                if (!bank.contains(key) || (code == "en" && file.startsWith(voiceDir + "English(UK)/")))
+                    bank.insert(key, file);
+                break;
+            }
+        }
         int missingVoices = 0;
         const auto attachVoices = [&](QJsonObject &variants, const QString &key, bool expectNarration) {
             for (auto it = variants.begin(); it != variants.end(); ++it) {
                 const auto code = it.key();
-                const auto folder = voiceFolders.constFind(code);
-                if (folder == voiceFolders.cend())
-                    continue;
-                const auto name = code + '_' + key + ".wem";
-                const auto file = voiceDir + folder.value() + '/' + name;
-                if (!source.contains(file)) {
+                const auto bank = voices.constFind(code);
+                const auto file = bank == voices.cend() ? QString() : bank->value(key.toCaseFolded());
+                if (file.isEmpty()) {
                     missingVoices += expectNarration && code == selected;
                     continue;
                 }
-                const auto target = cache.filePath(name);
+                const auto target = cache.filePath("voice-" + QString::fromLatin1(
+                    QCryptographicHash::hash(file.toUtf8(), QCryptographicHash::Sha256).toHex()) + ".wem");
                 if (!QFileInfo::exists(target))
                     saveOnce(target, source.read(file));
                 auto variant = it.value().toObject();
@@ -476,10 +492,8 @@ LoadResult importKip(const QString &path, const QString &requestedLanguage) {
             out.warnings << adaptedAnswersWarning(adapted);
         if (skippedTypes)
             out.warnings << unsupportedAnswersWarning(skippedTypes);
-        if (voiceFolders.contains(selected) && missingVoices)
+        if (missingVoices)
             out.warnings << tr("%1 pytań nie ma nagrania lektora w pakiecie.").arg(missingVoices);
-        if (!voiceFolders.contains(selected))
-            out.warnings << tr("Gra ma nagrania lektora tylko po angielsku, polsku i rosyjsku.");
     } catch (const std::exception &e) {
         out.error = QString::fromUtf8(e.what());
         out.document.questions.clear();

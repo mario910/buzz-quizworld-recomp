@@ -2052,6 +2052,11 @@ Os projetos fazem ligação a ficheiros multimédia. A criação de pacotes na a
             <translation>A fala RSF tem de ser ATRAC3 mono a 48 kHz com fotogramas de 152 bytes.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Ficheiro de narração RSF inválido.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Modelo de folha de imagens SDI inválido.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Ficheiro criado: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Escolha uma imagem de disco, um ficheiro de perguntas ou uma pasta extraída de um jogo PS3 ou Saber é Poder.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Escolhe uma imagem de disco, um ficheiro de perguntas ou uma pasta de jogo extraída.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Ficheiro criado: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Para um jogo PS2 ou PSP extraído, selecione ROUND.PAK ou MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Para um jogo PSP extraído, escolhe o ficheiro MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Copiar relatório de importação</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

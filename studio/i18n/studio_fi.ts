@@ -2052,6 +2052,11 @@ Projektit linkittävät mediatiedostoihin. Pakettien rakentaminen sovelluksessa 
             <translation>RSF-puheen on oltava mono-ATRAC3-muodossa, 48 kHz, 152 tavun kehyksin.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Virheellinen RSF-äänitetiedosto.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Virheellinen SDI-kuva-arkin malli.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Rakennettu tiedosto: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Valitse levykuva, kysymystiedosto tai PS3- tai Knowledge Is Power -pelin purettu kansio.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Valitse levykuva, kysymystiedosto tai purettu pelikansio.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Rakennettu tiedosto: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Jos PS2- tai PSP-peli on purettu, valitse ROUND.PAK tai MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Valitse puretusta PSP-pelistä tiedosto MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Kopioi tuontiraportti</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

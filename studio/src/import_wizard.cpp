@@ -1,6 +1,8 @@
 #include "import_wizard.h"
 #include "controller.h"
 #include "languages.h"
+#include "legacy_import.h"
+#include <QClipboard>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDir>
@@ -8,6 +10,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QGuiApplication>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMimeData>
@@ -36,6 +39,8 @@ QString importFile(const QString &path) {
     if (info.isFile())
         return info.absoluteFilePath();
     if (info.isDir()) {
+        if (studio::isLegacySource(info.absoluteFilePath()))
+            return info.absoluteFilePath();
         const QDir folder(info.absoluteFilePath());
         for (const auto *name : {"PS3_GAME/PARAM.SFO", "PARAM.SFO", "Media/resources.assets", "resources.assets"})
             if (const QFileInfo candidate(folder.filePath(name)); candidate.isFile())
@@ -72,7 +77,7 @@ ImportWizard::ImportWizard(StudioController &studio, bool preferAppend,
     sourcePage_ = new QWidget;
     auto *sourceColumn = new QVBoxLayout(sourcePage_);
     sourceColumn->setContentsMargins(0, 0, 0, 0);
-    sourceColumn->addWidget(textLabel(tr("Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP."), "muted"));
+    sourceColumn->addWidget(textLabel(tr("Wybierz obraz płyty, plik pytań lub rozpakowany folder gry."), "muted"));
     sourcePath_ = new QLineEdit;
     sourcePath_->setObjectName("importSourcePath");
     sourcePath_->setPlaceholderText(tr("Wklej ścieżkę lub przeciągnij plik albo folder"));
@@ -87,7 +92,7 @@ ImportWizard::ImportWizard(StudioController &studio, bool preferAppend,
     sources->addWidget(folder);
     sources->addStretch();
     sourceColumn->addLayout(sources);
-    sourceColumn->addWidget(textLabel(tr("Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB."), "muted"));
+    sourceColumn->addWidget(textLabel(tr("Z rozpakowanej gry PSP wybierz plik MERGED.QDB."), "muted"));
     sourceColumn->addStretch();
     pages_->addWidget(sourcePage_);
     connect(file, &QPushButton::clicked, this, [this] {
@@ -176,6 +181,10 @@ ImportWizard::ImportWizard(StudioController &studio, bool preferAppend,
     error_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     error_->hide();
     column->addWidget(error_);
+    copyReport_ = new QPushButton(tr("Kopiuj raport importu"));
+    copyReport_->setObjectName("copyImportReport");
+    column->addWidget(copyReport_, 0, Qt::AlignLeft);
+    connect(copyReport_, &QPushButton::clicked, this, &ImportWizard::copyReport);
     progress_ = new QProgressBar;
     progress_->setRange(0, 0);
     column->addWidget(progress_);
@@ -198,13 +207,14 @@ ImportWizard::ImportWizard(StudioController &studio, bool preferAppend,
     buttons->addWidget(build_);
     buttons->addWidget(next_);
     column->addLayout(buttons);
-    for (auto *button : {file, folder, cancel_, back_, recover_, build_})
+    for (auto *button : {file, folder, cancel_, back_, recover_, build_, copyReport_})
         button->setAutoDefault(false);
     connect(cancel_, &QPushButton::clicked, this, &ImportWizard::reject);
     connect(back_, &QPushButton::clicked, this, &ImportWizard::back);
     connect(next_, &QPushButton::clicked, this, &ImportWizard::next);
     connect(sourcePath_, &QLineEdit::textChanged, this, [this](const QString &path) {
         error_->hide();
+        copyReport_->hide();
         next_->setEnabled(!path.trimmed().isEmpty());
     });
     connect(recover_, &QPushButton::clicked, this, [this] {
@@ -234,9 +244,11 @@ bool ImportWizard::working() const { return stage_ == Stage::Checking || stage_ 
 void ImportWizard::setStage(Stage stage) {
     stage_ = stage;
     error_->hide();
+    importError_.clear();
     const bool source = stage == Stage::Source || stage == Stage::Checking;
     const bool done = stage == Stage::Summary;
     const bool recovering = stage == Stage::Recovering;
+    copyReport_->setVisible(done);
     const bool offerRecovery = done && !recoveryAttempted_ && studio_.sourceMediaStatus(mediaLanguage(), true).recoverable > 0;
     const bool checkingLicense = stage == Stage::License && beforeLicense_ == Stage::Checking;
     step_->setText(tr("Krok %1 z 3").arg(source || checkingLicense ? 1 : done || recovering ? 3 : 2));
@@ -290,6 +302,7 @@ void ImportWizard::checkSource() {
         return;
     }
     source_ = QUrl::fromLocalFile(filename);
+    importLanguage_.clear();
     sourceName_->setText(QFileInfo(QDir::cleanPath(path)).fileName());
     sourceName_->setToolTip(QDir::toNativeSeparators(filename));
     setStage(Stage::Checking);
@@ -352,9 +365,27 @@ bool ImportWizard::showImportError(const QString &message) {
     if (!working())
         return false;
     setStage(stage_ == Stage::Checking ? Stage::Source : Stage::Review);
-    error_->setText(message);
+    importError_ = message;
+    const auto lines = message.split('\n');
+    error_->setText(lines.size() > 5 ? lines.mid(0, 5).join('\n') + "\n…" : message);
     error_->show();
+    copyReport_->show();
     return true;
+}
+
+void ImportWizard::copyReport() const {
+    QStringList report{"Buzz! Question Studio " + QCoreApplication::applicationVersion(), sourceName_->text()};
+    const auto language = stage_ == Stage::Summary ? mediaLanguage() : importLanguage_;
+    if (!language.isEmpty())
+        report << mainText("Język pytań") + " — " + studio::languageName(language);
+    if (!importError_.isEmpty()) {
+        report << importError_;
+    } else {
+        for (const auto &text : {summary_->text(), mediaSummary_->text(), mediaResult_->text(), warnings_->toPlainText()})
+            if (!text.isEmpty())
+                report << text;
+    }
+    QGuiApplication::clipboard()->setText(report.join("\n\n"));
 }
 
 bool ImportWizard::requestLicense(const QString &contentId, const QString &message) {

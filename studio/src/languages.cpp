@@ -19,7 +19,7 @@ namespace studio {
 QString languageCode(const QString &value) {
     static const QMap<QString, QString> aliases = {
         {"pol", "pl"}, {"eng", "en"}, {"fre", "fr"}, {"fra", "fr"}, {"ger", "de"}, {"deu", "de"},
-        {"spa", "es"}, {"ita", "it"}, {"dut", "nl"}, {"nld", "nl"}, {"por", "pt"}, {"bra", "pt-BR"},
+        {"spa", "es"}, {"ita", "it"}, {"dut", "nl"}, {"nld", "nl"}, {"por", "pt"}, {"prt", "pt"}, {"bra", "pt-BR"},
         {"rus", "ru"}, {"swe", "sv"}, {"dan", "da"}, {"nor", "no"}, {"fin", "fi"}, {"gre", "el"},
         {"grc", "el"}, {"cro", "hr"}, {"ell", "el"}, {"cze", "cs"}, {"ces", "cs"}, {"hun", "hu"},
         {"tur", "tr"}, {"jpn", "ja"}, {"chi", "zh"}, {"zho", "zh"}, {"kor", "ko"}, {"usa", "en-US"},

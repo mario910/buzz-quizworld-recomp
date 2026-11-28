@@ -4,6 +4,7 @@
 #include "source_movie.h"
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
@@ -160,6 +161,12 @@ class UiTest final : public QObject {
         QVERIFY(std::any_of(labels.cbegin(), labels.cend(), [](const QLabel *label) {
             return label->isVisible() && label->text() == "Images or videos still missing after recovery: 1";
         }));
+        auto *copy = find<QPushButton>(*wizard, "copyImportReport");
+        QVERIFY(copy && copy->isVisible());
+        QCOMPARE(copy->text(), QString("Copy import report"));
+        QTest::mouseClick(copy, Qt::LeftButton);
+        const auto report = QApplication::clipboard()->text();
+        QVERIFY(report.contains("Images or videos still missing after recovery: 1"));
         QTest::mouseClick(next, Qt::LeftButton);
         QTRY_VERIFY(!find<QDialog>(window, "importWizard"));
         auto *play = find<QPushButton>(window, "previewVideo");

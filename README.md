@@ -114,7 +114,7 @@ Create your own question packs for **Pack Game** with Buzz! Question Studio, the
 | --- | --- |
 | PS2 | *The Music Quiz* (UK and Europe), *The Big Quiz* (Europe and Australia v2.00), *The Mega Quiz* (Europe, Poland and USA), *Hollywood Quiz* (Poland and Finland), *The Pop Quiz*, *The Schools Quiz* and *The Sports Quiz*. |
 | PSP | *Master Quiz* (Europe and USA), *Brain of the UK*, *Brain of the World*, *Danske Genier / Norgesmester*, *Quiz World* (European UMD and European and US PSN editions), and *The Ultimate Music Quiz* (Europe and Australia). |
-| PS3 | *Buzz! Quiz TV* (Polish Special Edition, BCES00305) and *Buzz! Quiz World* (base question packs). |
+| PS3 | *Buzz! Quiz TV* (Europe BCES00098, USA BCUS98145, Polish Special Edition BCES00305), *Buzz! Quiz World* (European base question packs, including BCES00644), *Brain of the UK* (BCES00347), *Brain of... / Brain of the World* (BCES00364), and *The Ultimate Music Quiz* (BCES00828). |
 | PS4 | *Knowledge Is Power / Wiedza to Potęga* (CUSA09557), imported directly from a supported PKG. |
 
 Media and languages vary by edition. *Brain Bender* on PSP was also checked and contains puzzle minigames without a quiz question bank. For supported files, DLC licenses, FFmpeg setup and media limitations, see the [Question Studio guide](docs/question-studio.md).

@@ -2052,6 +2052,11 @@ Projekt länkar till mediefiler. Paketbygge i programmet och portabla arkiv komm
             <translation>RSF-tal måste vara mono ATRAC3 med 48 kHz och 152-byte-bildrutor.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Ogiltig RSF-fil för uppläsning.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Ogiltig mall för SDI-bildark.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Byggd fil: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Välj en skivavbild, en frågefil eller en uppackad spelmapp för PS3 eller Knowledge Is Power.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Välj en skivavbild, en frågefil eller en uppackad spelmapp.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Byggd fil: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>För ett uppackat PS2- eller PSP-spel väljer du ROUND.PAK eller MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>För ett uppackat PSP-spel väljer du filen MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Kopiera importrapport</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

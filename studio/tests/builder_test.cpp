@@ -72,15 +72,15 @@ class BuilderTest final : public QObject {
         return result + body;
     }
     // Minimal ISO 9660 image holding the given files (nested directories allowed).
-    static QByteArray isoImage(const QMap<QString, QByteArray> &files) {
+    static QByteArray isoImage(const QMap<QString, QByteArray> &files, const QString &splitFile = {}) {
         QVector<QByteArray> sectors(18, QByteArray(2048, '\0'));
-        auto record = [](quint32 extent, quint32 size, bool directory, const QByteArray &name) {
+        auto record = [](quint32 extent, quint32 size, bool directory, const QByteArray &name, bool more = false) {
             QByteArray r(33, '\0');
             qToLittleEndian<quint32>(extent, r.data() + 2);
             qToBigEndian<quint32>(extent, r.data() + 6);
             qToLittleEndian<quint32>(size, r.data() + 10);
             qToBigEndian<quint32>(size, r.data() + 14);
-            r[25] = directory ? 2 : 0;
+            r[25] = directory ? 2 : more ? char(0x80) : 0;
             r[28] = 1;
             r[31] = 1;
             r[32] = char(name.size());
@@ -107,10 +107,18 @@ class BuilderTest final : public QObject {
                         body += record(sub.first, sub.second, true, child.toLatin1());
                     }
                 } else {
-                    const auto start = quint32(sectors.size());
-                    for (qint64 at = 0; at < std::max<qint64>(1, it.value().size()); at += 2048)
+                    auto start = quint32(sectors.size());
+                    const auto name = (rest + ";1").toLatin1();
+                    const bool split = it.key() == splitFile && it->size() > 2048;
+                    const int firstExtentSize = split ? 2048 : 0;
+                    if (split) {
+                        body += record(start, firstExtentSize, false, name, true);
+                        sectors << it->left(firstExtentSize) << QByteArray(2048, '\xff');
+                        start = quint32(sectors.size());
+                    }
+                    for (qint64 at = firstExtentSize; at < std::max<qint64>(1, it.value().size()); at += 2048)
                         sectors << it.value().mid(at, 2048).leftJustified(2048, '\0');
-                    body += record(start, quint32(it.value().size()), false, (rest + ";1").toLatin1());
+                    body += record(start, quint32(it.value().size() - firstExtentSize), false, name);
                 }
             }
             sectors[self] = body.leftJustified(2048, '\0');
@@ -330,6 +338,7 @@ class BuilderTest final : public QObject {
         QVERIFY(root.mkpath("Media/StreamingAssets/QuestionImages"));
         QVERIFY(root.mkpath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/Polish"));
         QVERIFY(root.mkpath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/English(UK)"));
+        QVERIFY(root.mkpath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/PatchVoice"));
         // 21-column trivia rows: id, text key, 4 answer keys, category path, ..., image, frame, tags, difficulty.
         auto row = [](const QString &id, const QString &key, const QString &image, const QString &difficulty) {
             QStringList r(21);
@@ -383,6 +392,9 @@ class BuilderTest final : public QObject {
         for (auto &line : placeholder)
             line = line.section('\t', 0, 0) + "\t<Translate: " + line.section('\t', 0, 0) + '>';
         QVERIFY(write(root.filePath("Media/StreamingAssets/Localisation/cs_text.loc"), utf16Loc(placeholder)));
+        const auto hu = QStringList{"TRV00001\tMelyik a helyes válasz?", "TRV00001_A1\tEgy", "TRV00001_A2\tKettő",
+                                    "TRV00001_A3\tHárom", "TRV00001_A4\tNégy"};
+        QVERIFY(write(root.filePath("Media/StreamingAssets/Localisation/hu_text.loc"), utf16Loc(hu)));
         const QByteArray jpeg = QByteArray("\xff\xd8\xff\xe0 fake jpeg ").repeated(40);
         QVERIFY(write(root.filePath("Media/StreamingAssets/QuestionImages/QuestionImages.bytes"),
                       deflatedZip("Pic1.jpg", jpeg)));
@@ -392,9 +404,16 @@ class BuilderTest final : public QObject {
                       "RIFF English voice"));
         QVERIFY(write(root.filePath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/Polish/pl_LSS1.wem"),
                       "RIFF sorting voice"));
+        QVERIFY(write(root.filePath("Media/StreamingAssets/Audio/GeneratedSoundBanks/PS4/PatchVoice/hu_TRV00001.wem"),
+                      "RIFF Hungarian voice"));
         const auto assetsPath = root.filePath("Media/resources.assets");
         QVERIFY(studio::isKipSource(assetsPath));
-        QCOMPARE(studio::kipLanguages(assetsPath).codes, QStringList({"en", "pl"}));
+        QCOMPARE(studio::kipLanguages(assetsPath).codes, QStringList({"en", "hu", "pl"}));
+        const auto hungarian = studio::importKip(assetsPath, "hu");
+        QVERIFY2(hungarian.ok(), qPrintable(hungarian.error));
+        QCOMPARE(hungarian.document.questions.size(), 1);
+        QCOMPARE(hungarian.document.questions.first().text, QString("Melyik a helyes válasz?"));
+        QCOMPARE(bytes(hungarian.document.questions.first().speech), QByteArray("RIFF Hungarian voice"));
         const auto r = studio::importKip(assetsPath, "pl");
         QVERIFY2(r.ok(), qPrintable(r.error));
         // TRV00003 is on the Polish kill list; the local question is Polish only.
@@ -555,7 +574,8 @@ class BuilderTest final : public QObject {
         checkPs2(studio::importLegacy(temp.filePath("POLROUND.PAK")));
         QCOMPARE(studio::legacyLanguages(temp.filePath("POLROUND.PAK")).codes, QStringList{"pl"});
         // The same archive on PS2 discs: plain ISO and compressed CSO.
-        const auto iso = isoImage({{"SYSTEM.CNF", "BOOT2 = cdrom0:\\SCES_546.90;1\n"},
+        const QByteArray discConfig = "BOOT2 = cdrom0:\\SCES_546.90;1\n";
+        const auto iso = isoImage({{"SYSTEM.CNF", discConfig},
                                    {"POL/POLROUND.PAK", bytes(temp.filePath("POLROUND.PAK"))}});
         QVERIFY(write(temp.filePath("ps2.iso"), iso));
         QVERIFY(write(temp.filePath("ps2.cso"), csoImage(iso)));
@@ -564,6 +584,15 @@ class BuilderTest final : public QObject {
             checkPs2(r);
             QCOMPARE(r.document.questions[0].source, QString("Buzz! Mega Quiz"));
         }
+        const auto extracted = temp.filePath("ps2-folder");
+        QVERIFY(QDir().mkpath(extracted + "/PoL"));
+        QVERIFY(write(extracted + "/system.cnf", discConfig));
+        QVERIFY(write(extracted + "/PoL/polround.pak", bytes(temp.filePath("POLROUND.PAK"))));
+        QVERIFY(studio::isLegacySource(extracted));
+        QCOMPARE(studio::legacyLanguages(extracted).codes, QStringList{"pl"});
+        const auto folderImport = studio::importLegacy(extracted, "pl");
+        checkPs2(folderImport);
+        QCOMPARE(folderImport.document.questions[0].source, QString("Buzz! Mega Quiz"));
 
         // PSP Master Quiz: MERGED.QDB (24-byte records) + MERGED.TXT lines.
         QVERIFY(QDir().mkpath(temp.filePath("psp/POLISH")));
@@ -974,27 +1003,62 @@ class BuilderTest final : public QObject {
         for (const QString &name : {QString("recent_first"), QString("recent_final")}) {
             const auto base = "POL/ROUNDS/" + name;
             auto round = writeRound(name, "POL", 2, 1, 1, {{21, 0, "Question?", {}, {"A", "B", "C", "D"}, 2, 115, 115}});
-            patch(round.little, 4, 1002, 2);
-            questions << qMakePair(base + ".hdr", round.header) << qMakePair(base + ".hst", round.stream)
-                      << qMakePair(base + ".qak", round.little);
+            patch(round.little, 4, name == "recent_first" ? 1001 : 1002, 2);
+            questions << qMakePair(base + ".hdr", round.header) << qMakePair(base + ".hst", round.stream);
+            if (name == "recent_first") {
+                questions << qMakePair(base + ".kaq", swapRound(round.little));
+                patch(round.little, 4, 1000, 2);
+            }
+            questions << qMakePair(base + ".qak", round.little);
+            if (name == "recent_first")
+                questions << qMakePair(QString("POL/ROUNDS/unsupported.qak"), round.little);
         }
         const auto questionsPath = temp.filePath("POLPACK0002.PAK");
         const auto gamePath = temp.filePath("POL.PAK");
         writeArchive(questionsPath, questions);
         writeArchive(gamePath, named("SUBJECT_RECENTMUSIC", "Recent music"));
         const auto iso = temp.filePath("quiz-tv.iso");
+        const auto questionPack = QStringLiteral("PS3_GAME/USRDIR/PACK0002/POLPACK0002.PAK");
+        QVERIFY(QFileInfo(questionsPath).size() > 2048);
         QVERIFY(write(iso, isoImage({{"PS3_GAME/PARAM.SFO", paramSfo("Quiz TV")},
-                                     {"PS3_GAME/USRDIR/PACK0002/POLPACK0002.PAK", bytes(questionsPath)},
-                                     {"PS3_GAME/USRDIR/GAME/POL.PAK", bytes(gamePath)}})));
+                                     {questionPack, bytes(questionsPath)},
+                                     {"PS3_GAME/USRDIR/GAME/POL.PAK", bytes(gamePath)}}, questionPack)));
         auto imported = studio::ps3::importPs3(iso, "pl", false);
         QVERIFY2(imported.ok(), qPrintable(imported.error));
         QCOMPARE(imported.document.questions.size(), 1);
         auto &question = imported.document.questions.first();
         QCOMPARE(question.sourceCategoryPath(), (QStringList{"Music quiz", "Recent music"}));
         QCOMPARE(question.localized()["source_rounds"].toArray().size(), 2);
+        QVERIFY(imported.warnings.join('\n').contains("unsupported.qak (QAK 1000"));
         QCOMPARE(studio::retainGameCategories(imported.document, 0, "pl", imported.warnings), 1);
         QCOMPARE(imported.document.categoryLabel(question.subjectId), QString("Music quiz"));
         QCOMPARE(imported.document.categoryLabel(question.categoryId), QString("Recent music"));
+        const auto unsupported = temp.filePath("unsupported.pak");
+        writeArchive(unsupported, {{"POL/ROUNDS/unsupported.qak", questions.last().second.left(4)}});
+        const auto failure = studio::importBuzz(unsupported, "pl", false);
+        QVERIFY(!failure.ok());
+        QVERIFY(failure.error.contains("unsupported.pak / POL/ROUNDS/unsupported.qak"));
+    }
+    void previewsLegacyRsfNarrationAndConvertsItForQuizWorld() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto music = encodeStreamedMusicPcm(QByteArray(4096, '\0'), nullptr);
+        const auto legacy = QByteArray::fromHex("06000101bb800001000000c0000000c0000000c0000000c00000000000000000")
+                            + music.mid(32, 192);
+        const auto path = temp.filePath("brain-narration.rsf");
+        QVERIFY(write(path, legacy));
+        const auto wave = previewAudioWave(path);
+        QCOMPARE(u16(wave, 22), 1u);
+        QCOMPARE(u16(wave, 32), 192u);
+        QVERIFY(wave.endsWith(legacy.mid(32)));
+        const auto ffmpeg = studio::defaultFfmpeg();
+        if (!ffmpeg.isEmpty()) {
+            const auto encoded = encodeSpeech(path, ffmpeg, 0, nullptr);
+            validateRsfSpeech(encoded);
+            QCOMPARE(u32(encoded, 16, true), 152u);
+        }
+        QVERIFY(write(path, legacy.chopped(1)));
+        QVERIFY_EXCEPTION_THROWN(previewAudioWave(path), std::runtime_error);
     }
     void matchesReferencePackEveryEntryAndByte() {
         QTemporaryDir temp;
@@ -1567,8 +1631,8 @@ class BuilderTest final : public QObject {
         QTemporaryDir temp;
         const auto path = temp.filePath("POLROUND.PAK");
         const QByteArray adt = "Id\tResource\tQuestion\tRight Answer\tWrong Answer\tWrong Answer\tWrong Answer\n"
-                               "71\t123\tPierwsze pytanie?\tA\tB\tC\tD\n"
-                               "72\t123\tDrugie pytanie?\tA\tB\tC\tD\n"
+                               "71\t123\tCo jest na obrazku?\tA\tB\tC\tD\n"
+                               "72\t123\tCo jest na obrazku?\tA\tB\tC\tD\n"
                                "73\t456\tTrzecie pytanie?\tA\tB\tC\tD\n";
         constexpr int table = 0x17c, media = table + 24, questions = media + 60, links = questions + 108;
         QByteArray qak(links + 12, '\0');

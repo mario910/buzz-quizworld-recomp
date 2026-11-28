@@ -2052,6 +2052,11 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <translation>Η ομιλία RSF πρέπει να είναι μονοφωνική ATRAC3 στα 48 kHz με καρέ 152 byte.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Μη έγκυρο αρχείο ηχογράφησης RSF.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Μη έγκυρο πρότυπο φύλλου εικόνων SDI.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Zbudowany plik: </source>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Επιλέξτε εικόνα δίσκου, αρχείο ερωτήσεων ή φάκελο αποσυμπιεσμένου παιχνιδιού PS3 ή Knowledge Is Power.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Επιλέξτε εικόνα δίσκου, αρχείο ερωτήσεων ή φάκελο αποσυμπιεσμένου παιχνιδιού.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Zbudowany plik: </source>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Για αποσυμπιεσμένο παιχνίδι PS2 ή PSP, επιλέξτε το ROUND.PAK ή το MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Για αποσυμπιεσμένο παιχνίδι PSP, επιλέξτε το αρχείο MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Αντιγραφή αναφοράς εισαγωγής</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

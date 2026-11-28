@@ -427,8 +427,25 @@ const QRegularExpression packName("^([A-Za-z]{3})PACK(\\d{4})\\.(PAK|EDAT|SDAT)$
                                   QRegularExpression::CaseInsensitiveOption);
 
 struct Source {
-    QString title;
+    QString title, titleId;
     QVector<BuzzPack> packs;
+};
+
+class DiscFileRange final : public RangeDevice {
+  public:
+    DiscFileRange(std::shared_ptr<DiscImage> disc, DiscImage::File file)
+        : RangeDevice(file.size), disc_(std::move(disc)), file_(std::move(file)) {
+        open(QIODevice::ReadOnly);
+    }
+
+  protected:
+    QByteArray readRange(qint64 offset, qint64 length) override {
+        return disc_->readFile(file_, offset, length);
+    }
+
+  private:
+    std::shared_ptr<DiscImage> disc_;
+    DiscImage::File file_;
 };
 
 BuzzPack makePack(const QString &label, const QString &fileName, const QString &identity,
@@ -487,21 +504,23 @@ Source fromPackage(const QString &path) {
 }
 
 Source fromDisc(const QString &path) {
-    DiscImage disc(path);
+    auto disc = std::make_shared<DiscImage>(path);
     Source source;
-    if (disc.contains("PS3_GAME/PARAM.SFO"))
-        source.title = paramSfo(disc.read("PS3_GAME/PARAM.SFO", 64 * 1024)).value("TITLE");
-    auto file = std::make_shared<QFile>(path);
+    if (disc->contains("PS3_GAME/PARAM.SFO")) {
+        const auto metadata = paramSfo(disc->read("PS3_GAME/PARAM.SFO", 64 * 1024));
+        source.title = metadata.value("TITLE");
+        source.titleId = metadata.value("TITLE_ID");
+    }
     static const QRegularExpression inPack("^PS3_GAME/USRDIR/PACK\\d{4}/([^/]+)$");
-    for (auto it = disc.files().cbegin(); it != disc.files().cend(); ++it) {
+    for (auto it = disc->files().cbegin(); it != disc->files().cend(); ++it) {
         const auto match = inPack.match(it.key());
         if (!match.hasMatch() || !packName.match(match.captured(1)).hasMatch())
             continue;
         const auto entry = it.value();
         source.packs << makePack(
             QFileInfo(path).absoluteFilePath() + ":" + it.key(), match.captured(1), fileIdentity(path) + it.key(),
-            [path, entry] {
-                return std::make_unique<FileRange>(openFile(path), entry.offset, entry.size);
+            [disc, entry] {
+                return std::make_unique<DiscFileRange>(disc, entry);
             },
             {QFileInfo(path).absolutePath()}, true);
     }
@@ -518,8 +537,11 @@ Source fromFolder(const QString &path) {
     QStringList files;
     if (info.fileName().compare("PARAM.SFO", Qt::CaseInsensitive) == 0) {
         QFile sfo(path);
-        if (sfo.open(QIODevice::ReadOnly))
-            source.title = paramSfo(sfo.read(64 * 1024)).value("TITLE");
+        if (sfo.open(QIODevice::ReadOnly)) {
+            const auto metadata = paramSfo(sfo.read(64 * 1024));
+            source.title = metadata.value("TITLE");
+            source.titleId = metadata.value("TITLE_ID");
+        }
         QDirIterator packs(info.absoluteDir().filePath("USRDIR"), QDir::Dirs | QDir::NoDotAndDotDot);
         while (packs.hasNext()) {
             const QDir dir(packs.next());
@@ -731,6 +753,8 @@ LoadResult importPs3(const QString &path, const QString &language, bool extractS
         auto result = importBuzzPacks(source.packs, language, extractSpeech,
                                       source.title.isEmpty() ? QFileInfo(path).completeBaseName() : source.title);
         result.license = *license;
+        if (!result.ok() && result.license.isEmpty() && !source.titleId.isEmpty())
+            result.error.prepend(source.titleId + '\n');
         if (result.ok() && result.sourcePacks > 1)
             result.warnings.prepend(
                 tr("Zaimportowano pytania ze wszystkich paczek w wybranym języku (%1 plików).").arg(result.sourcePacks));
@@ -753,11 +777,11 @@ std::unique_ptr<pack::Archive> openGameLanguageArchive(const QString &sourcePath
         return {};
     const auto fileName = language.toUpper() + ".PAK";
     if (sourcePath.endsWith(".iso", Qt::CaseInsensitive) && DiscImage::isDiscImage(sourcePath)) {
-        const DiscImage disc(sourcePath);
+        auto disc = std::make_shared<DiscImage>(sourcePath);
         const auto path = "PS3_GAME/USRDIR/GAME/" + fileName;
-        const auto file = disc.files().constFind(path);
-        if (file != disc.files().cend())
-            return std::make_unique<Archive>(std::make_unique<FileRange>(openFile(sourcePath), file->offset, file->size));
+        const auto file = disc->files().constFind(path);
+        if (file != disc->files().cend())
+            return std::make_unique<Archive>(std::make_unique<DiscFileRange>(disc, *file));
     } else {
         const QFileInfo source(sourcePath);
         if (source.fileName().compare("PARAM.SFO", Qt::CaseInsensitive) == 0) {

@@ -2052,6 +2052,11 @@ Das Projekt speichert Verweise auf Medien. Paketerstellung in der App und portab
             <translation>Eine RSF-Aufnahme muss Mono-ATRAC3 mit 48 kHz und 152-Byte-Frames sein.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Ungültige RSF-Sprachaufnahme.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Ungültige SDI-Bilderbogen-Vorlage.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Erstellte Datei: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Wähle ein Disc-Abbild, eine Fragendatei oder einen entpackten Spielordner für PS3 oder Wissen ist Macht.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Wähle ein Disc-Abbild, eine Fragendatei oder einen entpackten Spielordner.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Erstellte Datei: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Wähle bei einem entpackten PS2- oder PSP-Spiel ROUND.PAK oder MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Wähle bei einem entpackten PSP-Spiel die Datei MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Importbericht kopieren</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

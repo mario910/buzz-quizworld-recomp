@@ -57,17 +57,46 @@ Reference reference(const Question &q) {
 class IsoExtent final : public ps3::RangeDevice {
   public:
     IsoExtent(std::unique_ptr<DiscImage> image, DiscImage::File extent)
-        : RangeDevice(extent.size), image_(std::move(image)), base_(extent.offset) {}
+        : RangeDevice(extent.size), image_(std::move(image)), file_(std::move(extent)) {}
   protected:
     QByteArray readRange(qint64 offset, qint64 length) override {
-        return image_->readAt(base_ + offset, length);
+        return image_->readFile(file_, offset, length);
     }
   private:
     std::unique_ptr<DiscImage> image_;
-    qint64 base_;
+    DiscImage::File file_;
 };
 
 } // namespace
+
+QString ps2DiscFile(const QString &root, const QString &path) {
+    QDir directory(root);
+    const auto parts = path.split('/');
+    for (qsizetype i = 0; i < parts.size(); ++i) {
+        const auto &part = parts[i];
+        if (part.isEmpty() || part == "." || part == ".." || part.contains('\\') || part.contains(':'))
+            return {};
+        const bool last = i == parts.size() - 1;
+        const QFileInfo exact(directory.filePath(part));
+        if (!exact.isSymLink() && (last ? exact.isFile() : exact.isDir())) {
+            if (last)
+                return exact.absoluteFilePath();
+            directory.setPath(exact.absoluteFilePath());
+            continue;
+        }
+        const auto names = directory.entryInfoList((last ? QDir::Files : QDir::Dirs) |
+                                                    QDir::NoDotAndDotDot | QDir::NoSymLinks);
+        const auto match = std::find_if(names.cbegin(), names.cend(), [&](const QFileInfo &file) {
+            return file.fileName().compare(part, Qt::CaseInsensitive) == 0;
+        });
+        if (match == names.cend())
+            return {};
+        if (last)
+            return match->absoluteFilePath();
+        directory.setPath(match->absoluteFilePath());
+    }
+    return {};
+}
 
 std::unique_ptr<Archive> openPs2Archive(const QString &sourcePath, const QString &path) {
     std::unique_ptr<Archive> archive;
@@ -78,6 +107,11 @@ std::unique_ptr<Archive> openPs2Archive(const QString &sourcePath, const QString
             fail(QCoreApplication::translate("MediaTools", "Płyta źródłowa nie zawiera wskazanego archiwum filmów."));
         const auto extent = it.value();
         archive = std::make_unique<Archive>(std::make_unique<IsoExtent>(std::move(disc), extent));
+    } else if (QFileInfo(sourcePath).isDir()) {
+        const auto file = ps2DiscFile(sourcePath, path);
+        if (file.isEmpty())
+            fail(QCoreApplication::translate("MediaTools", "Płyta źródłowa nie zawiera wskazanego archiwum filmów."));
+        archive = std::make_unique<Archive>(file);
     } else {
         // A loose language PAK is one directory below the extracted disc root.
         const QFileInfo source(sourcePath);
@@ -477,7 +511,8 @@ int importPs2Pictures(QVector<Question> &questions, const QString &ffmpeg, QStri
             if (ffmpeg.isEmpty())
                 continue;
             const auto frameCount = u32(rsv, 12);
-            const auto sequence = sheet->keys();
+            // Reject an unsupported sheet once, before trying individual frames.
+            makeIpu(rsv, {}, false, nullptr);
             const auto key = QString::fromLatin1(QCryptographicHash::hash(rsv, QCryptographicHash::Sha256).toHex());
             QDir cache(QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
                            .filePath("ps2-media/hollywood-rsv-v1-" + key));
@@ -485,35 +520,76 @@ int importPs2Pictures(QVector<Question> &questions, const QString &ffmpeg, QStri
                 fail(QCoreApplication::translate(
                     "MediaTools", "Nie udało się utworzyć katalogu pamięci podręcznej mediów PS2."));
             const auto image = [&](int frame) { return cache.filePath(QString::number(frame) + ".png"); };
+            const auto warnFrame = [&](int frame, const QString &error) {
+                const auto row = sheet->value(frame).first();
+                warnings << QStringLiteral("%1:%2 [%3] · %4\n%5")
+                                .arg(ref.path, ref.entry, QString::number(frame), questions[row].id, error);
+            };
             QList<int> pending;
-            for (int frame : sequence)
-                if (quint32(frame) < frameCount && QFileInfo(image(frame)).size() <= 0)
+            for (auto i = sheet->cbegin(); i != sheet->cend(); ++i) {
+                const int frame = i.key();
+                if (quint32(frame) >= frameCount)
+                    warnFrame(frame, QCoreApplication::translate("MediaTools", "Wskazana klatka obrazu PS2 jest poza arkuszem."));
+                else if (QFileInfo(image(frame)).size() <= 0)
                     pending << frame;
-            if (!pending.isEmpty()) {
+            }
+            const auto decode = [&](auto &&self, const QList<int> &frames) -> void {
+                checkCancelled(cancel);
                 QTemporaryDir temp(cache.filePath("decode-XXXXXX"));
                 if (!temp.isValid())
-                    fail(temp.errorString());
-                const auto stream = makeIpu(rsv, pending, false, nullptr);
-                QFile file(temp.filePath("sheet.ipu"));
-                if (!file.open(QIODevice::WriteOnly) || file.write(stream) != stream.size() || !file.flush())
-                    fail(file.errorString());
-                file.close();
-                const QStringList base{"-nostdin", "-v", "error", "-xerror", "-f", "ipu", "-i", file.fileName(),
-                                       "-threads", "1", "-start_number", "0"};
-                const QStringList output{temp.filePath("frame-%05d.png")};
+                    throw MediaEnvironmentError(temp.errorString());
+                QStringList files;
                 try {
-                    runMedia(ffmpeg, base + QStringList{"-fps_mode", "passthrough"} + output, cancel);
+                    const auto stream = makeIpu(rsv, frames, false, nullptr);
+                    QFile file(temp.filePath("sheet.ipu"));
+                    if (!file.open(QIODevice::WriteOnly) || file.write(stream) != stream.size() || !file.flush())
+                        throw MediaEnvironmentError(file.errorString());
+                    file.close();
+                    const QStringList base{"-nostdin", "-v", "error", "-xerror", "-f", "ipu", "-i", file.fileName(),
+                                           "-threads", "1", "-start_number", "0"};
+                    const QStringList output{temp.filePath("frame-%05d.png")};
+                    try {
+                        runMedia(ffmpeg, base + QStringList{"-fps_mode", "passthrough"} + output, cancel);
+                    } catch (const std::exception &e) {
+                        if (!QByteArray(e.what()).contains("Unrecognized option 'fps_mode'"))
+                            throw;
+                        runMedia(ffmpeg, base + QStringList{"-vsync", "0"} + output, cancel);
+                    }
+                    files = QDir(temp.path()).entryList({"frame-*.png"}, QDir::Files, QDir::Name);
+                    if (files.size() != frames.size())
+                        fail(QCoreApplication::translate(
+                            "MediaTools", "Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza."));
+                } catch (const MediaEnvironmentError &) {
+                    throw;
                 } catch (const std::exception &e) {
-                    if (!QByteArray(e.what()).contains("Unrecognized option 'fps_mode'"))
+                    checkCancelled(cancel);
+                    const auto error = QString::fromUtf8(e.what());
+                    if (error.contains("Unknown input format:") || error.contains("Unknown encoder") ||
+                        error.contains("Unrecognized option") || error == QCoreApplication::translate(
+                            "PackBuilder", "Silnik mediów przekroczył limit czasu lub długości nagrania (10 minut)."))
                         throw;
-                    runMedia(ffmpeg, base + QStringList{"-vsync", "0"} + output, cancel);
+                    // Never assign output by position after a partial decode. Split the
+                    // request until the bad frame is isolated and good frames can be named.
+                    if (frames.size() == 1) {
+                        warnFrame(frames.first(), error);
+                    } else {
+                        const auto half = frames.size() / 2;
+                        self(self, frames.mid(0, half));
+                        self(self, frames.mid(half));
+                    }
+                    return;
                 }
-                const auto files = QDir(temp.path()).entryList({"frame-*.png"}, QDir::Files, QDir::Name);
-                if (files.size() != pending.size())
-                    fail(QCoreApplication::translate(
-                        "MediaTools", "Liczba zdekodowanych obrazków PS2 nie zgadza się z indeksem arkusza."));
-                for (qsizetype i = 0; i < pending.size(); ++i)
-                    publish(temp.filePath(files[i]), image(pending[i]));
+                for (qsizetype i = 0; i < frames.size(); ++i)
+                    publish(temp.filePath(files[i]), image(frames[i]));
+            };
+            if (!pending.isEmpty()) {
+                try {
+                    decode(decode, pending);
+                } catch (const std::exception &e) {
+                    if (cancel && cancel->load())
+                        break;
+                    warnings << ref.path + ": " + QString::fromUtf8(e.what());
+                }
             }
             for (auto i = sheet->cbegin(); i != sheet->cend(); ++i) {
                 const auto path = image(i.key());

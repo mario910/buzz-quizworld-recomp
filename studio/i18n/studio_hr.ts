@@ -2052,6 +2052,11 @@ Projekti sadrže poveznice na medijske datoteke. Izgradnja paketa u aplikaciji i
             <translation>RSF govor mora biti mono ATRAC3 na 48 kHz s okvirima od 152 bajta.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Neispravna RSF datoteka naracije.</translation>
+        </message>
+        <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
             <translation>Neispravan predložak SDI lista slika.</translation>
         </message>
@@ -2979,8 +2984,8 @@ Izgrađena datoteka: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Odaberite sliku diska, datoteku s pitanjima ili raspakiranu mapu igre za PS3 ili Knowledge Is Power.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Odaberite sliku diska, datoteku s pitanjima ili mapu raspakirane igre.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3009,13 @@ Izgrađena datoteka: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Za raspakiranu igru za PS2 ili PSP odaberite ROUND.PAK ili MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Za raspakiranu PSP igru odaberite datoteku MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Kopiraj izvješće o uvozu</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

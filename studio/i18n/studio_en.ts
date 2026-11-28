@@ -2468,6 +2468,11 @@ Projects link to media files. App-side pack building and portable archives are l
             <translation>RSF speech must be mono ATRAC3 at 48 kHz with 152-byte frames.</translation>
         </message>
         <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Invalid RSF narration file.</translation>
+        </message>
+        <message>
             <location filename="../src/pack_media.cpp" line="88" />
             <location filename="../src/pack_media.cpp" line="160" />
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
@@ -3528,8 +3533,8 @@ Built file: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Choose a disc image, a question file, or an extracted PS3 or Knowledge Is Power game folder.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Choose a disc image, a question file, or an extracted game folder.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3553,8 +3558,13 @@ Built file: </translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>For an extracted PS2 or PSP game, choose ROUND.PAK or MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>For an extracted PSP game, choose the MERGED.QDB file.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Copy import report</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

@@ -1,5 +1,7 @@
 #pragma once
 #include "pack_format.h"
+#include <QSaveFile>
+#include <QSet>
 #include <QVariant>
 #include <QVector>
 
@@ -54,6 +56,17 @@ RoundBytes writeRound(const QString &name, const QString &language, int pack, in
                       const QVector<RoundQuestion> &questions);
 QByteArray swapRound(const QByteArray &little);
 using Entries = QVector<QPair<QString, QByteArray>>;
+class ArchiveWriter {
+    QSaveFile file_;
+    QByteArray central_;
+    QSet<QString> names_;
+    void write(const QByteArray &bytes);
+
+  public:
+    explicit ArchiveWriter(const QString &path);
+    void add(const QString &path, const QByteArray &data);
+    void commit();
+};
 void writeArchive(const QString &path, const Entries &entries);
 QByteArray namedIndex(const QStringList &lines);
 } // namespace studio::pack
