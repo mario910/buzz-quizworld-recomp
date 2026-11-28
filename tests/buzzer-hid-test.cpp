@@ -7,8 +7,9 @@ void check(bool ok){if(!ok)throw std::runtime_error("HID usage/report contract r
 }
 int main(){try {
     using namespace buzz_hid;
-    check(supported(0x054c,0x0002)&&supported(0x054c,0x1000));
+    check(supported(0x054c,0x0002)&&supported(0x054c,0x1000)&&supported(0x046d,0xc220));
     check(!supported(0x054c,0x0268)&&!supported(0x1234,0x0002));
+    check(!supported(0x046d,0xc221)&&!supported(0x054c,0xc220)&&!supported(0x046d,0x1000));
     uint32_t output=123;
     for(uint16_t u=1;u<=20;++u){check(usages_to_buttons(&u,1,output));check(output==(1u<<(u-1)));}
     uint16_t all[20];for(unsigned i=0;i<20;++i)all[i]=uint16_t(i+1);

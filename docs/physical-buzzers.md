@@ -1,7 +1,9 @@
 # Physical Buzz receivers (Windows, hardware-unverified)
 
 The Windows game now has an experimental, default-enabled host HID provider
-for original Sony receivers: wired `054c:0002` and wireless `054c:1000`.
+for original Buzz receivers: Sony wired `054c:0002`, Sony wireless
+`054c:1000`, and Logitech wireless `046d:c220`. The Logitech ID is
+recognized, but its physical HID layout and button mapping are not verified.
 It is **hardware-unverified**: a working receiver is not available locally.
 Synthetic tests are not a claim of a tested physical match or successful radio
 pairing. Linux host HID integration, receiver LEDs and other vendor/product IDs
@@ -11,7 +13,7 @@ are not implemented by this provider yet.
 
 Plug in a receiver normally; no special/exclusive driver replacement is used.
 The game registers joystick/gamepad RawInput collections for its own window and
-accepts input only from the two supported IDs with valid button capabilities.
+accepts input only from the listed IDs with valid button capabilities.
 Wireless handsets must already be paired with their receiver.
 
 Receiver 1 maps to players 1-4. Receiver 2 maps to players 5-8 and requires the
@@ -93,6 +95,9 @@ Device IDs and button numbering were checked against the Linux project's
 and [Buzz mapping documentation](https://raw.githubusercontent.com/torvalds/linux/master/drivers/hid/hid-sony.c).
 These are protocol facts; no Linux driver code or report descriptor is copied
 into the port.
+RPCS3 [lists the Logitech ID under Buzz controllers](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Cell/lv2/sys_usbd.cpp)
+for USB passthrough. Its wider Sony passthrough ranges are not evidence that
+every ID in those ranges is a Buzz receiver or shares the host HID layout.
 
 Windows integration follows Microsoft's [RawInput lifecycle](https://learn.microsoft.com/en-us/windows/win32/inputdev/using-raw-input),
 [HID report size/ID contract](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/hidpi/ns-hidpi-_hidp_caps)

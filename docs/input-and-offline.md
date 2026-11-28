@@ -125,7 +125,8 @@ the next free one. The log shows `[buzz-hid] DualShock 4 controller 1 connected
 Tools such as DS4Windows that add a virtual Xbox pad without hiding the real
 one would give two pads for one controller; hide the real pad there, or start
 the game with `BUZZ_SONY_PADS=0`. The PS4 USB wireless adapter (054C:0BA0) is
-not supported yet. Buzz! receiver detection (054C:0002/1000) is unchanged.
+not supported yet. Buzz! receiver detection is separate; see
+[Physical Buzz receivers](physical-buzzers.md) for the supported USB IDs.
 
 Mappings support START, BACK, A, B, X, Y, LB, RB, LB+RB (either bumper), LS, RS and D-pad directions.
 The default matches RPCS3 and PCSX2: red is either bumper, L1/LB or R1/RB (`LB+RB`), and the four colours follow
