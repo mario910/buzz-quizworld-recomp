@@ -182,12 +182,15 @@ inline bool decode_geometry_host_indices_uncached(const spu_context& c, const Ge
     unsigned flag_bits=0;
 #endif
     auto reference = [&]() __attribute__((always_inline)) -> uint16_t {
-        if (flag_cursor >= flags * 8) { valid = false; return 0; }
 #if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
-        if (!(flag_cursor&7)) flag_bits=bytes[8+flag_cursor/8];
+        if (!(flag_cursor & 7)) {
+            if (flag_cursor >= flags * 8) { valid = false; return 0; }
+            flag_bits = bytes[8 + flag_cursor / 8];
+        }
         const bool explicit_value=flag_bits&0x80u;
         flag_bits <<= 1;
 #else
+        if (flag_cursor >= flags * 8) { valid = false; return 0; }
         const bool explicit_value = (bytes[8 + flag_cursor / 8] >> (7 - flag_cursor % 8)) & 1;
 #endif
         ++flag_cursor;

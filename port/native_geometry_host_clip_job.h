@@ -180,7 +180,6 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
 #if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
         if constexpr (Bounded) {
             // A finite FMA consumes an intermediate zero only as an addend.
-            // Repair its sign before exposing the final row to reciprocal or clipping.
             const float32x4_t coefficients = vreinterpretq_f32_u32(vld1q_u32(params.row[axis]));
             auto dot = [&](uint32x4_t x, uint32x4_t y, uint32x4_t z) {
                 float32x4_t sum = vdupq_laneq_f32(coefficients, 3);
@@ -189,8 +188,10 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
                 return vfmaq_laneq_f32(sum, vreinterpretq_f32_u32(z), coefficients, 2);
             };
             const auto& v = position.component;
-            return geometry_bounded_finish({dot(v[0].lo, v[1].lo, v[2].lo),
-                                            dot(v[0].hi, v[1].hi, v[2].hi)});
+            const __m256 sum{dot(v[0].lo, v[1].lo, v[2].lo),
+                             dot(v[0].hi, v[1].hi, v[2].hi)};
+            // W feeds a bitwise estimate. XYZ feed finite products which repair zero.
+            return axis == 3 ? geometry_bounded_finish(sum) : _mm256_castps_si256(sum);
         }
 #endif
         v8 value = fp.fma(position.component[0], v8_set(params.row[axis][0]), v8_set(params.row[axis][3]));
@@ -223,7 +224,20 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
 #else
         const v8 estimate = v8_fi(w, v8_frest(w));
 #endif
-        reciprocal = fp.fma(fp.fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        if constexpr (Bounded) {
+            // The admitted W interval gives a normal, nonzero seed and reciprocal.
+            const auto refine = [](uint32x4_t seed, uint32x4_t input) {
+                const auto value = vreinterpretq_f32_u32(seed);
+                const auto residual = vfmsq_f32(vdupq_n_f32(1.0f), value, vreinterpretq_f32_u32(input));
+                return vreinterpretq_u32_f32(vfmaq_f32(value, residual, value));
+            };
+            reciprocal = {refine(estimate.lo, w.lo), refine(estimate.hi, w.hi)};
+        } else
+#endif
+        {
+            reciprocal = fp.fma(fp.fnms(estimate, w, v8_set(0x3f800000)), estimate, estimate);
+        }
     }
     const v8 x = _mm256_xor_si256(sign, fp.fm(row(0), reciprocal));
     const v8 y = _mm256_xor_si256(sign, fp.fm(row(1), reciprocal));
@@ -243,8 +257,18 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
     flags = _mm256_or_si256(flags, _mm256_and_si256(greater(x, v8_set(params.maximum[0])), v8_set(0x10)));
     flags = _mm256_or_si256(flags, _mm256_and_si256(greater(y, v8_set(params.maximum[1])), v8_set(8)));
     flags = _mm256_or_si256(flags, _mm256_and_si256(greater(z, v8_set(params.maximum[2])), v8_set(4)));
-    const v8 cx = _mm256_and_si256(v8_cflts3(x), v8_set(params.quantization_mask));
-    const v8 cy = _mm256_and_si256(v8_cflts3(y), v8_set(params.quantization_mask));
+    const auto fixed = [](v8 value) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        // FCVTZS with three fractional bits saturates signed overflow. The
+        // admitted projection has only finite coordinates, including zeros.
+        if constexpr (Bounded)
+            return v8{vreinterpretq_u32_s32(vcvtq_n_s32_f32(vreinterpretq_f32_u32(value.lo), 3)),
+                      vreinterpretq_u32_s32(vcvtq_n_s32_f32(vreinterpretq_f32_u32(value.hi), 3))};
+#endif
+        return v8_cflts3(value);
+    };
+    const v8 cx = _mm256_and_si256(fixed(x), v8_set(params.quantization_mask));
+    const v8 cy = _mm256_and_si256(fixed(y), v8_set(params.quantization_mask));
     v8 packed = _mm256_or_si256(_mm256_slli_epi32(cx, 16), _mm256_and_si256(cy, v8_set(65535)));
 #if BUZZ_GEOMETRY_MOBILE_KERNELS
     // Positive normal and extended SPU words sort above the largest
@@ -253,8 +277,12 @@ inline __attribute__((always_inline)) GeometryHostSoA8 geometry_host_clip8_impl(
 #else
     const v8 positive_w = greater(w, _mm256_setzero_si256());
 #endif
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    packed = {vsliq_n_u32(packed.lo, positive_w.lo, 31), vsliq_n_u32(packed.hi, positive_w.hi, 31)};
+#else
     packed = _mm256_or_si256(_mm256_and_si256(packed, v8_set(0x7fffffff)),
         _mm256_and_si256(positive_w, v8_set(0x80000000)));
+#endif
     if constexpr (Deferred) {
         if (!fp.valid()) return geometry_host_clip8_impl<false>(params,position);
     }

@@ -12,7 +12,7 @@ static __attribute__((noinline)) void buzz_spurs_geometry_variable_copy(
             __builtin_memcpy_inline(dst,src,1024);
             dst+=1024; src+=1024; size-=1024;
         }
-        while (size>=512) {
+        if (size>=512) {
             __builtin_memcpy_inline(dst,src,512);
             dst+=512; src+=512; size-=512;
         }
@@ -24,13 +24,12 @@ static __attribute__((noinline)) void buzz_spurs_geometry_variable_copy(
         return;
     }
     // Copy unlisted small aligned lengths in fixed-size pieces.
-    if (size>256 || (size&15u)) {
+    if (size&15u) {
         memcpy(dst,src,size);
         return;
     }
-    if (size==256) {
-        __builtin_memcpy_inline(dst,src,256);
-        return;
+    if (size&256u) {
+        __builtin_memcpy_inline(dst,src,256); dst+=256; src+=256;
     }
     // Each set bit contributes one disjoint chunk of the requested length.
     if (size&128) { __builtin_memcpy_inline(dst,src,128); dst+=128; src+=128; }

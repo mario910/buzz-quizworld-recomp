@@ -13,6 +13,9 @@ namespace buzz {
 // carry lanes modulo 65536. The caller admits widths 2..11 and a full block.
 // Loading ahead is permitted only inside the declared payload; the final
 // block uses a zero-padded local copy, not surrounding LS memory.
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+__attribute__((always_inline))
+#endif
 inline void geometry_host_index_delta8(const uint8_t* source, unsigned available,
     unsigned width, unsigned bias, uint16_t* carry)
 {

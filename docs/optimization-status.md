@@ -24,6 +24,10 @@ menu and Turnip: reference29 19.52 FPS, deferred-clip 19.42 FPS; P95 78.14 versu
 is not achieved by this profile. A faster isolated kernel does not establish
 higher game FPS. Private traces/APKs remain outside Git.
 
+## Android mobile CPU geometry and SPURS
+
+The EU 1.00 mobile CPU profile uses ARM64 projection, index decoding and SPURS DMA copy optimizations qualified on 19,508 saved jobs. The [replay results from 29c8a85](android-geometry-spurs-after-29c8a85.md) include CPU timings, remaining hotspots and the decisions for all 26 trials.
+
 ## Steam Deck scoped audio arithmetic experiment
 
 `tools/build-linux.py build --media-cpu --audio-x86-rtz` enables checked native

@@ -8,11 +8,13 @@ namespace buzz {
 // The caller handles zero-exponent results when its seed permits them.
 inline v8 geometry_interpolate_estimate(v8 input, v8 seed)
 {
-    const v8 low = _mm256_slli_epi32(_mm256_and_si256(seed, v8_set(0x007ffc00)), 9);
-    const v8 product = _mm256_mullo_epi32(_mm256_and_si256(seed, v8_set(1023)),
-        _mm256_and_si256(input, v8_set(0x7ffff)));
-    const v8 fraction = _mm256_srli_epi32(_mm256_sub_epi32(low, product), 9);
-    return _mm256_or_si256(_mm256_and_si256(seed, v8_set(0xff800000)), fraction);
+    const auto interpolate = [](uint32x4_t word, uint32x4_t estimate) {
+        const auto base = vshlq_n_u32(vandq_u32(estimate, vdupq_n_u32(0x007ffc00)), 9);
+        const auto delta = vmlsq_u32(base, vandq_u32(estimate, vdupq_n_u32(1023)),
+                                     vandq_u32(word, vdupq_n_u32(0x7ffff)));
+        return vsriq_n_u32(estimate, delta, 9);
+    };
+    return {interpolate(input.lo, seed.lo), interpolate(input.hi, seed.hi)};
 }
 
 inline v8 geometry_inverse_sqrt_estimate(v8 input)

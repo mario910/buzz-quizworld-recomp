@@ -12,6 +12,42 @@ template<bool Deferred> __attribute__((noinline)) static GeometryHostSoA8 projec
     const GeometryHostClipParameters& p,const GeometryHostSoA8& v)
 {return geometry_host_clip8_impl<Deferred>(p,v);}
 #if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+static void compare_bounded_projection()
+{
+    // Use identity XYZ rows and constant, admitted W. Exercise the fixed-point
+    // conversion on both sides of the saturation threshold and at signed zero.
+    const uint32_t inputs[] = {
+        0, 0x80000000, 1, 0x807fffff, 0x3e000000, 0xbe000000,
+        0x4d7fffff, 0x4d800000, 0x4d800001, 0xcd7fffff, 0xcd800000, 0xcd800001
+    };
+    GeometryHostClipParameters p{};
+    for (unsigned axis = 0; axis < 3; ++axis) {
+        p.row[axis][axis] = 0x3f800000;
+        p.minimum[axis] = 0xbf800000;
+        p.maximum[axis] = 0x3f800000;
+    }
+    for (unsigned exponent = 98; exponent <= 156; ++exponent) {
+        for (uint32_t sign : {0u, 0x80000000u}) {
+            for (uint32_t fraction : {0u, 0x007fffffu}) {
+                p.row[3][3] = sign | (exponent << 23) | fraction;
+                for (unsigned offset = 0; offset < 12; ++offset) {
+                    p.quantization_mask = offset & 1 ? 0xfffffffcu : 0xfffffffeu;
+                    GeometryHostSoA8 position{};
+                    for (unsigned axis = 0; axis < 3; ++axis) {
+                        uint32_t words[8];
+                        for (unsigned lane = 0; lane < 8; ++lane)
+                            words[lane] = inputs[(offset + axis + lane) % 12];
+                        position.component[axis] = _mm256_loadu_si256(reinterpret_cast<const v8*>(words));
+                    }
+                    const auto checked = geometry_host_clip8_impl<false>(p, position);
+                    const auto bounded = geometry_host_clip8_impl<false, false, true>(p, position);
+                    assert(!memcmp(&checked, &bounded, sizeof(checked)));
+                }
+            }
+        }
+    }
+    puts("PASS bounded projection against checked projection at signed zero and fixed-point saturation");
+}
 static void compare_reciprocal_estimates()
 {
     for (uint32_t fraction : spu_frest_fraction_lut)
@@ -43,6 +79,7 @@ static void compare_reciprocal_estimates()
 int main(int argc,char**) {
     buzz_test_enter_rtz();
 #if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    compare_bounded_projection();
     compare_reciprocal_estimates();
 #endif
     const uint32_t corner[]={0,0x80000000,1,0x807fffff,0x800000,0x80800000,
