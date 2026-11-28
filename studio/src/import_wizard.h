@@ -45,6 +45,7 @@ class ImportWizard final : public QDialog {
     void startImport();
     void chooseLicense();
     void showSummary(int added, int updated, int unchanged);
+    void copyReport() const;
     QString mediaLanguage() const;
     void updateMediaSummary();
     void finishRecovery(const QStringList &errors);
@@ -56,7 +57,7 @@ class ImportWizard final : public QDialog {
     std::function<void(const std::function<void()> &)> guard_;
     Stage stage_ = Stage::Source, beforeLicense_ = Stage::Checking;
     QUrl source_;
-    QString preferred_, importLanguage_, license_;
+    QString preferred_, importLanguage_, license_, importError_;
     bool wholeProject_ = false, pending_ = false, languageChosen_ = false, append_ = false;
     bool recoveryAttempted_ = false;
     int beforeRecovery_ = 0;
@@ -68,5 +69,5 @@ class ImportWizard final : public QDialog {
     QComboBox *destination_, *language_;
     QPlainTextEdit *warnings_;
     QProgressBar *progress_;
-    QPushButton *back_, *next_, *cancel_, *recover_, *build_, *assignCategories_;
+    QPushButton *back_, *next_, *cancel_, *recover_, *build_, *assignCategories_, *copyReport_;
 };

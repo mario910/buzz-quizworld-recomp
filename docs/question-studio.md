@@ -115,7 +115,7 @@ the user chooses another language. The example opens in the selected question la
   Multiple correct text answers can become one correct combination. Picture
   answers and questions without a usable answer set are skipped with a count.
 - PS3 sources are read in place without unpacking the whole disc or package:
-  - Decrypted disc images (`.iso`) of Quiz TV, Quiz World and Brain of...: every
+  - Decrypted disc images (`.iso`) of Quiz TV, Quiz World, Brain of..., and The Ultimate Music Quiz: every
     `PS3_GAME/USRDIR/PACKnnnn/<LANG>PACKnnnn.PAK` in the chosen language is
     imported at once. An image whose files are still encrypted is reported.
   - PSN packages (`.pkg`, e.g. the Quiz TV Comedy/Horror/Sci-Fi/Video Games
@@ -268,6 +268,16 @@ Own and Quiz World categories share the pack's limit of 99
 categories in the category base range. Own categories have not yet been checked
 in the game's category chooser with players; the buzzpack JSON export refuses
 them.
+
+## Round plans
+
+Open **… → Round plans…** to edit the solo, up to four players, and up to eight
+players plans independently. Select a round to change its type or question
+count, move it, add another round after it, or remove it. **Default** uses the
+pack's usual question count for that round. Some rounds can end early under
+their normal rules. Each mode needs at least one round.
+**Restore defaults** resets the selected mode. Studio saves the plans in the
+project and uses them when building an `.edat` pack.
 
 ## Project format
 

@@ -1,5 +1,6 @@
 #include "ps2_media.h"
 #include "pack_format.h"
+#include "pack_codec.h"
 #include <QJsonArray>
 #include <QtTest>
 
@@ -89,6 +90,23 @@ class Ps2MediaTest final : public QObject {
         const auto result = studio::makePs2Ipu(rsv(true, 29), std::nullopt, &pcm);
         QCOMPARE(result.mid(16), first + next);
         QCOMPARE(pcm.size(), 2 * 801 * 4);
+    }
+    void reportsAnOutOfRangePictureWithItsQuestionId() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto pack = QStringLiteral("BHW/TEST/VIDEOS.PAK");
+        const auto member = QStringLiteral("Videos/pics001.rsv");
+        QVERIFY(QDir().mkpath(temp.filePath("BHW/TEST")));
+        studio::pack::writeArchive(temp.filePath(pack), {{member, rsv(false)}});
+        auto q = studio::newQuestion();
+        q.id = "missing-picture-id";
+        q.extra["source_media"] = QJsonArray{QJsonObject{{"type", "ps2-picture"}, {"archive", temp.path()},
+                                                        {"frame", 3}, {"container", pack + ':' + member}}};
+        QVector<studio::Question> questions{q};
+        QStringList warnings;
+        QCOMPARE(studio::importPs2Pictures(questions, "unused", warnings), 0);
+        QCOMPARE(warnings.size(), 1);
+        QVERIFY(warnings.first().contains("Videos/pics001.rsv [3] · missing-picture-id"));
     }
     void readsSportsArchiveEntries() {
         QByteArray bpak(28 + 16, '\0');

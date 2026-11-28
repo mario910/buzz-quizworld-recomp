@@ -42,15 +42,18 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QShortcut>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
+#include <QTabBar>
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <iterator>
 #include <utility>
 
@@ -58,6 +61,17 @@ namespace {
 // Translation contexts "Main" and "PackDialogs" group the interface strings in studio_en.ts.
 QString T(const char *text) { return QCoreApplication::translate("Main", text); }
 QString P(const char *text) { return QCoreApplication::translate("PackDialogs", text); }
+
+QString roundTypeLabel(const QString &type) {
+    static const QMap<QString, const char *> labels{
+        {"TriggerFinger", "Szybki palec"}, {"StopTheClockChallenge", "Zatrzymaj zegar"},
+        {"OverTheEdgeChallenge", "Na krawędzi"}, {"PointBuilder", "Zdobywanie punktów"},
+        {"PassTheBomb", "Podaj bombę"}, {"FastestFingerFirst", "Kto pierwszy"},
+        {"PieFight", "Bitwa na torty"}, {"PointStealerMix", "Kradzież punktów"},
+        {"BetIt", "Obstawianie"}, {"FinalCountdown", "Odliczanie finałowe"}};
+    const auto label = labels.value(type);
+    return label ? T(label) : type;
+}
 
 void copyFfmpegInstallCommand(QWidget *parent, const QString &command) {
     QApplication::clipboard()->setText(command);
@@ -562,6 +576,7 @@ QWidget *MainWindow::buildHeader() {
     }
     menu->addAction(T("Języki paczki…"), this, &MainWindow::openProjectLanguages);
     menu->addAction(T("Kategorie paczki…"), this, &MainWindow::openPackCategories);
+    menu->addAction(T("Plan rund…"), this, &MainWindow::openRoundPlans)->setObjectName("editRoundPlans");
     auto *assignCategories = menu->addAction(T("Przypisz kategorie po imporcie…"), this,
                                              [this] { openImportedCategories(false, this); });
     connect(menu, &QMenu::aboutToShow, assignCategories, [this, assignCategories] {
@@ -2230,6 +2245,167 @@ void MainWindow::openPackCategories() {
         dialog->accept();
     });
     showDialog(dialog);
+}
+
+void MainWindow::openRoundPlans() {
+    if (studio.busy())
+        return;
+    commitEdits();
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName("roundPlansDialog");
+    dialog->setWindowTitle(T("Plan rund"));
+    dialog->setMinimumSize(500, 380);
+    auto *layout = new QVBoxLayout(dialog);
+    auto *modes = new QTabBar;
+    modes->setObjectName("roundPlanMode");
+    modes->setAccessibleName(T("Tryb gry"));
+    modes->setExpanding(false);
+    modes->setTabData(modes->addTab(T("Solo")), "1p");
+    modes->setTabData(modes->addTab(T("Do 4 graczy")), "4p");
+    modes->setTabData(modes->addTab(T("Do 8 graczy")), "8p");
+    layout->addWidget(modes);
+
+    auto *list = new QListWidget;
+    list->setObjectName("roundPlanList");
+    list->setAccessibleName(T("Plan rund"));
+    auto *add = button(T("Dodaj rundę"));
+    auto *remove = button(T("Usuń rundę"));
+    auto *up = button(T("W górę"));
+    auto *down = button(T("W dół"));
+    add->setObjectName("roundPlanAdd");
+    remove->setObjectName("roundPlanRemove");
+    up->setObjectName("roundPlanMoveUp");
+    down->setObjectName("roundPlanMoveDown");
+    auto *items = new QHBoxLayout;
+    items->addWidget(list, 1);
+    auto *controls = new QVBoxLayout;
+    controls->addWidget(add);
+    controls->addWidget(remove);
+    controls->addSpacing(8);
+    controls->addWidget(up);
+    controls->addWidget(down);
+    controls->addStretch();
+    items->addLayout(controls);
+    layout->addLayout(items, 1);
+
+    auto *type = new QComboBox;
+    type->setObjectName("roundPlanType");
+    auto *questionCount = new QSpinBox;
+    questionCount->setObjectName("roundPlanQuestionCount");
+    questionCount->setRange(0, studio::maxRoundQuestionCount);
+    questionCount->setSpecialValueText(T("Domyślna"));
+    auto *fields = new QFormLayout;
+    fields->addRow(T("Typ rundy"), type);
+    fields->addRow(T("Liczba pytań"), questionCount);
+    layout->addLayout(fields);
+    auto *buttons = new QDialogButtonBox;
+    auto *reset = buttons->addButton(T("Przywróć domyślne"), QDialogButtonBox::ResetRole);
+    reset->setObjectName("roundPlanReset");
+    buttons->addButton(T("Anuluj"), QDialogButtonBox::RejectRole);
+    auto *save = buttons->addButton(T("Zapisz"), QDialogButtonBox::AcceptRole);
+    save->setObjectName("primary");
+    layout->addWidget(buttons);
+
+    const auto plans = std::make_shared<studio::RoundPlans>(studio.roundPlans());
+    const auto mode = [modes] { return modes->tabData(modes->currentIndex()).toString(); };
+    const auto roundLabel = [](const studio::RoundPlanEntry &round) {
+        const auto label = roundTypeLabel(round.type);
+        return round.questionCount == 0 ? label : QStringLiteral("%1 (%L2)").arg(label).arg(round.questionCount);
+    };
+    const auto updateReset = [=] {
+        reset->setEnabled(plans->value(mode()) != studio::defaultRoundPlans().value(mode()));
+    };
+    const auto updateSelection = [=] {
+        const QSignalBlocker changingType(type), changingCount(questionCount);
+        const int row = list->currentRow();
+        const auto round = plans->value(mode()).value(row);
+        type->setEnabled(row >= 0);
+        type->setCurrentIndex(type->findData(round.type));
+        questionCount->setEnabled(row >= 0);
+        questionCount->setValue(round.questionCount);
+        remove->setEnabled(row >= 0 && list->count() > 1);
+        up->setEnabled(row > 0);
+        down->setEnabled(row >= 0 && row + 1 < list->count());
+        updateReset();
+    };
+    const auto loadMode = [=] {
+        const QSignalBlocker changingList(list), changingType(type);
+        type->clear();
+        for (const auto &choice : studio::roundTypesForMode(mode()))
+            type->addItem(roundTypeLabel(choice), choice);
+        list->clear();
+        for (const auto &round : plans->value(mode()))
+            list->addItem(roundLabel(round));
+        list->setCurrentRow(0);
+        updateSelection();
+    };
+    connect(modes, &QTabBar::currentChanged, dialog, loadMode);
+    connect(list, &QListWidget::currentRowChanged, dialog, updateSelection);
+    connect(add, &QPushButton::clicked, dialog, [=] {
+        const int row = list->currentRow();
+        const int position = row >= 0 ? row + 1 : list->count();
+        const int choice = row >= 0 ? type->currentIndex() : 0;
+        const QSignalBlocker changingList(list);
+        const studio::RoundPlanEntry round{type->itemData(choice).toString()};
+        (*plans)[mode()].insert(position, round);
+        list->insertItem(position, roundLabel(round));
+        list->setCurrentRow(position);
+        updateSelection();
+    });
+    connect(remove, &QPushButton::clicked, dialog, [=] {
+        const int row = list->currentRow();
+        if (row < 0 || list->count() <= 1)
+            return;
+        const QSignalBlocker changingList(list);
+        (*plans)[mode()].removeAt(row);
+        delete list->takeItem(row);
+        list->setCurrentRow(std::min(row, list->count() - 1));
+        updateSelection();
+    });
+    connect(type, &QComboBox::currentIndexChanged, dialog, [=](int index) {
+        const int row = list->currentRow();
+        if (row >= 0 && index >= 0) {
+            auto &round = (*plans)[mode()][row];
+            round.type = type->itemData(index).toString();
+            list->item(row)->setText(roundLabel(round));
+            updateReset();
+        }
+    });
+    connect(questionCount, &QSpinBox::valueChanged, dialog, [=](int count) {
+        const int row = list->currentRow();
+        if (row >= 0) {
+            auto &round = (*plans)[mode()][row];
+            round.questionCount = count;
+            list->item(row)->setText(roundLabel(round));
+            updateReset();
+        }
+    });
+    const auto move = [=](int offset) {
+        const int row = list->currentRow(), destination = row + offset;
+        if (row < 0 || destination < 0 || destination >= list->count())
+            return;
+        const QSignalBlocker changingList(list);
+        (*plans)[mode()].swapItemsAt(row, destination);
+        list->insertItem(destination, list->takeItem(row));
+        list->setCurrentRow(destination);
+        updateSelection();
+    };
+    connect(up, &QPushButton::clicked, dialog, [=] { move(-1); });
+    connect(down, &QPushButton::clicked, dialog, [=] { move(1); });
+    connect(reset, &QPushButton::clicked, dialog, [=] {
+        (*plans)[mode()] = studio::defaultRoundPlans().value(mode());
+        loadMode();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, dialog, [this, plans, dialog] {
+        studio.setRoundPlans(*plans);
+        dialog->accept();
+    });
+    for (auto *button : {add, remove, up, down, reset})
+        button->setAutoDefault(false);
+    loadMode();
+    showDialog(dialog);
+    list->setFocus();
 }
 
 void MainWindow::openTts() {

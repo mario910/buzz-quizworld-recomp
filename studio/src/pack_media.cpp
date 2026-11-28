@@ -20,6 +20,9 @@ QByteArray readFile(const QString &path) {
         fail(QCoreApplication::translate("PackBuilder", "Plik mediów przekracza 512 MB."));
     return file.readAll();
 }
+bool isLegacyRsfSpeech(QByteArrayView bytes) {
+    return bytes.size() >= 3 && bytes[0] == 6 && bytes[2] == 1;
+}
 void validateSpeech(const QByteArray &bytes) {
     check(bytes, 0, 32);
     const auto size = u32(bytes, 8, true);
@@ -384,7 +387,17 @@ QByteArray previewAudioWave(const QString &path) {
 
     QByteArray frames;
     int channels = 1, frameSize = 152;
-    if (!bytes.isEmpty() && quint8(bytes[0]) == 6) {
+    if (isLegacyRsfSpeech(bytes)) {
+        // Brain of... stores some mono voices in 192-byte ATRAC3 frames.
+        check(bytes, 0, 32);
+        frameSize = 192;
+        const auto length = u32(bytes, 8, true);
+        if (u16(bytes, 4, true) != 48000 || u16(bytes, 6, true) != 1 || !length ||
+            length % frameSize || length != u32(bytes, 12, true) || length != u32(bytes, 20, true) ||
+            u32(bytes, 16, true) != quint32(frameSize) || length + 32ull != quint64(bytes.size()))
+            fail(QCoreApplication::translate("PackBuilder", "Nieprawidłowy plik nagrania RSF."));
+        frames = bytes.mid(32);
+    } else if (!bytes.isEmpty() && quint8(bytes[0]) == 6) {
         constexpr qsizetype blockSize = 65536, headerSize = 32;
         if (!isStreamedMusic(bytes) || bytes.size() % blockSize)
             fail(QCoreApplication::translate("PackBuilder", "Plik klipu muzycznego RSF jest uszkodzony."));
@@ -434,7 +447,9 @@ QByteArray encodeAudio(const QString &source, const QString &ffmpeg, double gain
     QFile original(source);
     if (!original.open(QIODevice::ReadOnly))
         fail(original.errorString());
-    if (source.endsWith(".rsf", Qt::CaseInsensitive) || (music && original.peek(1) == QByteArray(1, '\6'))) {
+    const bool rsf = source.endsWith(".rsf", Qt::CaseInsensitive);
+    const bool legacySpeech = rsf && !music && isLegacyRsfSpeech(original.peek(3));
+    if ((rsf && !legacySpeech) || (music && original.peek(1) == QByteArray(1, '\6'))) {
         if (music && original.size() > maxMusicBytes)
             validate({});
         const auto bytes = readFile(source);
@@ -468,9 +483,10 @@ QByteArray encodeAudio(const QString &source, const QString &ffmpeg, double gain
                                                                "Nie można utworzyć katalogu roboczego mediów."));
     const auto path = temp.filePath("audio.pcm");
     auto inputPath = source;
-    if (source.endsWith(".wem", Qt::CaseInsensitive)) {
-        inputPath = temp.filePath("voice.at9");
-        const auto bytes = unwrapWem(readFile(source));
+    const bool wem = source.endsWith(".wem", Qt::CaseInsensitive);
+    if (legacySpeech || wem) {
+        inputPath = temp.filePath(wem ? "voice.at9" : "voice.wav");
+        const auto bytes = previewAudioWave(source);
         QFile input(inputPath);
         if (!input.open(QIODevice::WriteOnly) || input.write(bytes) != bytes.size())
             throw MediaEnvironmentError(input.errorString());

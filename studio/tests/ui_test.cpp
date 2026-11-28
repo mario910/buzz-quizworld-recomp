@@ -2,8 +2,10 @@
 #include "localization.h"
 #include "main_window.h"
 #include "source_movie.h"
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
@@ -21,6 +23,7 @@
 #include <QSignalSpy>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QTreeWidget>
@@ -56,6 +59,102 @@ class UiTest final : public QObject {
         QCOMPARE(Localization(nullptr, "en").language(), QString("en")); // --ui-language is session-only.
         QCOMPARE(QSettings().value("interfaceLanguage").toString(), chosen);
         QSettings().remove("interfaceLanguage");
+    }
+    void editsIndependentRoundPlansAndSavesTheProject() {
+        Localization localization(nullptr, "en");
+        StudioController controller;
+        MainWindow window(controller, localization);
+        window.show();
+        auto *action = window.findChild<QAction *>("editRoundPlans");
+        QVERIFY(action);
+        QCOMPARE(action->text(), QString("Round plans…"));
+        action->trigger();
+        auto *dialog = find<QDialog>(window, "roundPlansDialog");
+        QVERIFY(dialog && dialog->isVisible());
+        auto *tabs = find<QTabBar>(*dialog, "roundPlanMode");
+        auto *list = find<QListWidget>(*dialog, "roundPlanList");
+        auto *type = find<QComboBox>(*dialog, "roundPlanType");
+        auto *questionCount = find<QSpinBox>(*dialog, "roundPlanQuestionCount");
+        auto *add = find<QPushButton>(*dialog, "roundPlanAdd");
+        auto *remove = find<QPushButton>(*dialog, "roundPlanRemove");
+        auto *down = find<QPushButton>(*dialog, "roundPlanMoveDown");
+        auto *reset = find<QPushButton>(*dialog, "roundPlanReset");
+        auto *save = find<QPushButton>(*dialog, "primary");
+        QVERIFY(tabs && list && type && questionCount && add && remove && down && reset && save);
+        QCOMPARE(add->text(), QString("Add round"));
+        QCOMPARE(remove->text(), QString("Remove round"));
+        QCOMPARE(questionCount->text(), QString("Default"));
+        QCOMPARE(list->count(), 3);
+        type->setCurrentIndex(type->findData("StopTheClockChallenge"));
+        questionCount->setValue(5);
+        QTest::mouseClick(down, Qt::LeftButton);
+        QCOMPARE(list->currentRow(), 1);
+        QCOMPARE(list->item(1)->text(), QString("Stop the Clock (5)"));
+        QCOMPARE(questionCount->value(), 5);
+        QTest::mouseClick(add, Qt::LeftButton);
+        QCOMPARE(list->count(), 4);
+        QCOMPARE(list->currentRow(), 2);
+        QCOMPARE(type->currentData().toString(), QString("StopTheClockChallenge"));
+        QCOMPARE(questionCount->value(), 0);
+        questionCount->setValue(7);
+        type->setCurrentIndex(type->findData("OverTheEdgeChallenge"));
+        QCOMPARE(questionCount->value(), 7);
+        tabs->setCurrentIndex(1);
+        QCOMPARE(list->count(), 7);
+        QTest::mouseClick(down, Qt::LeftButton);
+        QCOMPARE(list->item(1)->text(), QString("Point Builder"));
+        questionCount->setValue(3);
+        list->setCurrentRow(6);
+        QTest::mouseClick(remove, Qt::LeftButton);
+        QCOMPARE(list->count(), 6);
+        QCOMPARE(list->currentRow(), 5);
+        tabs->setCurrentIndex(2);
+        QCOMPARE(list->count(), 4);
+        QVERIFY(type->findData("PassTheBomb") < 0);
+        questionCount->setValue(8);
+        for (int removed = 0; removed < 3; ++removed)
+            QTest::mouseClick(remove, Qt::LeftButton);
+        QCOMPARE(list->count(), 1);
+        QVERIFY(!remove->isEnabled());
+        QTest::mouseClick(reset, Qt::LeftButton);
+        QCOMPARE(list->count(), 4);
+        QCOMPARE(type->currentData().toString(), QString("PointBuilder"));
+        QCOMPARE(questionCount->value(), 0);
+        QTest::mouseClick(add, Qt::LeftButton);
+        type->setCurrentIndex(type->findData("PieFight"));
+        questionCount->setValue(6);
+        QCOMPARE(list->count(), 5);
+        tabs->setCurrentIndex(0);
+        QCOMPARE(list->count(), 4);
+        list->setCurrentRow(1);
+        QCOMPARE(questionCount->value(), 5);
+        tabs->setCurrentIndex(1);
+        QCOMPARE(list->count(), 6);
+        list->setCurrentRow(1);
+        QCOMPARE(questionCount->value(), 3);
+        QCOMPARE(controller.roundPlans(), studio::defaultRoundPlans());
+        QTest::mouseClick(save, Qt::LeftButton);
+        QTRY_VERIFY(!find<QDialog>(window, "roundPlansDialog"));
+
+        auto expected = studio::defaultRoundPlans();
+        expected["1p"][1] = {"StopTheClockChallenge", 5};
+        expected["1p"].insert(2, {"OverTheEdgeChallenge", 7});
+        expected["4p"].swapItemsAt(0, 1);
+        expected["4p"][1].questionCount = 3;
+        expected["4p"].removeLast();
+        expected["8p"].insert(1, {"PieFight", 6});
+        QCOMPARE(controller.roundPlans(), expected);
+        QVERIFY(controller.dirty());
+        controller.undo();
+        QCOMPARE(controller.roundPlans(), studio::defaultRoundPlans());
+        controller.redo();
+        QCOMPARE(controller.roundPlans(), expected);
+
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto path = temp.filePath("rounds.buzz.json");
+        QVERIFY(controller.saveFile(QUrl::fromLocalFile(path)));
+        QCOMPARE(studio::loadDocument(path).document.roundPlans(), expected);
     }
     void mediaErrorsUseInterfaceLanguage_data() {
         QTest::addColumn<QString>("language");
@@ -160,6 +259,12 @@ class UiTest final : public QObject {
         QVERIFY(std::any_of(labels.cbegin(), labels.cend(), [](const QLabel *label) {
             return label->isVisible() && label->text() == "Images or videos still missing after recovery: 1";
         }));
+        auto *copy = find<QPushButton>(*wizard, "copyImportReport");
+        QVERIFY(copy && copy->isVisible());
+        QCOMPARE(copy->text(), QString("Copy import report"));
+        QTest::mouseClick(copy, Qt::LeftButton);
+        const auto report = QApplication::clipboard()->text();
+        QVERIFY(report.contains("Images or videos still missing after recovery: 1"));
         QTest::mouseClick(next, Qt::LeftButton);
         QTRY_VERIFY(!find<QDialog>(window, "importWizard"));
         auto *play = find<QPushButton>(window, "previewVideo");

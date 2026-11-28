@@ -310,6 +310,7 @@ class DocumentTest final : public QObject {
     void normalizesLanguageCodesAndRejectsInvalidTags() {
         QCOMPARE(studio::languageCode("POL"), QString("pl"));
         QCOMPARE(studio::languageCode("ENG"), QString("en"));
+        QCOMPARE(studio::languageCode("PRT"), QString("pt"));
         QCOMPARE(studio::languageCode("pt_BR"), QString("pt-BR"));
         QCOMPARE(studio::languageCode("en-GB"), QString("en-GB"));
         QVERIFY(studio::languageCode("x").isEmpty());

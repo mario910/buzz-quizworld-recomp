@@ -23,6 +23,77 @@
 #include <utility>
 
 namespace studio {
+const RoundPlans &defaultRoundPlans() {
+    static const RoundPlans plans{
+        {"1p", {{"TriggerFinger"}, {"TriggerFinger"}, {"TriggerFinger"}}},
+        {"4p", {{"PointBuilder"}, {"PassTheBomb"}, {"FastestFingerFirst"}, {"PieFight"}, {"PointStealerMix"},
+                {"BetIt"}, {"FinalCountdown"}}},
+        {"8p", {{"PointBuilder"}, {"TriggerFinger"}, {"BetIt"}, {"FinalCountdown"}}}};
+    return plans;
+}
+
+QStringList roundTypesForMode(const QString &mode) {
+    if (mode == "1p") {
+        // Quiz World registers both challenges as solo round types.
+        return {"TriggerFinger", "StopTheClockChallenge", "OverTheEdgeChallenge"};
+    }
+    if (mode == "4p" || mode == "8p") {
+        QStringList types;
+        for (const auto &round : defaultRoundPlans().value("4p"))
+            types << round.type;
+        types.insert(3, "TriggerFinger");
+        // The original local eight-player round definitions omit Pass the Bomb.
+        if (mode == "8p")
+            types.removeAll("PassTheBomb");
+        return types;
+    }
+    return {};
+}
+
+namespace {
+bool validRoundPlan(const QString &mode, const QList<RoundPlanEntry> &rounds) {
+    const auto types = roundTypesForMode(mode);
+    return !rounds.isEmpty() && std::all_of(rounds.cbegin(), rounds.cend(), [&](const RoundPlanEntry &round) {
+        return types.contains(round.type) && round.questionCount >= 0 && round.questionCount <= maxRoundQuestionCount;
+    });
+}
+} // namespace
+
+RoundPlans Document::roundPlans() const {
+    auto plans = defaultRoundPlans();
+    const auto stored = packExtra.value("round_plans").toObject();
+    for (auto it = stored.constBegin(); it != stored.constEnd(); ++it) {
+        QList<RoundPlanEntry> rounds;
+        for (const auto &entry : it.value().toArray()) {
+            const auto fields = entry.toObject();
+            rounds.append({entry.toString(fields.value("type").toString()), fields.value("question_count").toInt()});
+        }
+        if (validRoundPlan(it.key(), rounds))
+            plans[it.key()] = rounds;
+    }
+    return plans;
+}
+
+void Document::setRoundPlans(const RoundPlans &plans) {
+    QJsonObject stored;
+    for (auto it = plans.cbegin(); it != plans.cend(); ++it) {
+        if (!validRoundPlan(it.key(), it.value()) || it.value() == defaultRoundPlans().value(it.key()))
+            continue;
+        QJsonArray rounds;
+        for (const auto &round : it.value()) {
+            if (round.questionCount == 0)
+                rounds.append(round.type);
+            else
+                rounds.append(QJsonObject{{"type", round.type}, {"question_count", round.questionCount}});
+        }
+        stored[it.key()] = rounds;
+    }
+    if (stored.isEmpty())
+        packExtra.remove("round_plans");
+    else
+        packExtra["round_plans"] = stored;
+}
+
 QString categoryName(int id) {
     static const QMap<int, QString> names = {{174, "Sport"},
                                              {175, "Muzyka"},
@@ -883,6 +954,12 @@ LoadResult loadDocument(const QString &path, const QString &language) {
 QByteArray serialize(const Document &doc, const QString &baseDir, bool legacy) {
     auto root = doc.rootExtra;
     auto pack = doc.packExtra;
+    if (legacy) {
+        if (doc.roundPlans() != defaultRoundPlans())
+            throw std::runtime_error(QCoreApplication::translate(
+                "Document", "Zmieniony plan rund wymaga paczki .edat. Zbuduj ją w Studio.").toStdString());
+        pack.remove("round_plans");
+    }
     pack["title"] = doc.title;
     pack["description"] = doc.description;
     if (!legacy) {

@@ -363,6 +363,11 @@
             <source>Eksport JSON pomija klipy muzyczne. Zbuduj paczkę .edat w Studiu.</source>
             <translation>Η εξαγωγή JSON παραλείπει τα μουσικά αποσπάσματα. Δημιουργήστε ένα πακέτο .edat στο Studio.</translation>
         </message>
+        <message>
+            <location filename="../src/document.cpp" />
+            <source>Zmieniony plan rund wymaga paczki .edat. Zbuduj ją w Studio.</source>
+            <translation>Για τροποποιημένο πρόγραμμα γύρων απαιτείται πακέτο .edat. Δημιουργήστε το στο Studio.</translation>
+        </message>
     </context>
     <context>
         <name>Languages</name>
@@ -1655,6 +1660,126 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
             <source>Odtwórz</source>
             <translation>Αναπαραγωγή</translation>
         </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund…</source>
+            <translation>Προγράμματα γύρων…</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Plan rund</source>
+            <translation>Προγράμματα γύρων</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Tryb gry</source>
+            <translation>Τρόπος παιχνιδιού</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Solo</source>
+            <translation>Μόνος</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 4 graczy</source>
+            <translation>Έως 4 παίκτες</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Do 8 graczy</source>
+            <translation>Έως 8 παίκτες</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Typ rundy</source>
+            <translation>Τύπος γύρου</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Liczba pytań</source>
+            <translation>Αριθμός ερωτήσεων</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Domyślna</source>
+            <translation>Προεπιλογή</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Dodaj rundę</source>
+            <translation>Προσθήκη γύρου</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Usuń rundę</source>
+            <translation>Αφαίρεση γύρου</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W górę</source>
+            <translation>Πάνω</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>W dół</source>
+            <translation>Κάτω</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Przywróć domyślne</source>
+            <translation>Επαναφορά προεπιλογών</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Szybki palec</source>
+            <translation>Γρήγορο δάχτυλο</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zatrzymaj zegar</source>
+            <translation>Σταμάτα το ρολόι</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Na krawędzi</source>
+            <translation>Στο χείλος</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Zdobywanie punktów</source>
+            <translation>Συλλογή βαθμών</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Podaj bombę</source>
+            <translation>Πάσα της βόμβας</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kto pierwszy</source>
+            <translation>Το πιο γρήγορο δάχτυλο</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Bitwa na torty</source>
+            <translation>Μάχη με τούρτες</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Kradzież punktów</source>
+            <translation>Κλοπή βαθμών</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Obstawianie</source>
+            <translation>Στοίχημα</translation>
+        </message>
+        <message>
+            <location filename="../src/main_window.cpp" />
+            <source>Odliczanie finałowe</source>
+            <translation>Τελική αντίστροφη μέτρηση</translation>
+        </message>
     </context>
     <context>
         <name>PackBuilder</name>
@@ -2050,6 +2175,11 @@ Projekt zapisuje odwołania do mediów. Budowanie paczek w aplikacji i przenośn
         <message>
             <source>Nagranie RSF musi być mono ATRAC3 48 kHz, z ramkami 152 bajty.</source>
             <translation>Η ομιλία RSF πρέπει να είναι μονοφωνική ATRAC3 στα 48 kHz με καρέ 152 byte.</translation>
+        </message>
+        <message>
+            <location filename="../src/pack_media.cpp" />
+            <source>Nieprawidłowy plik nagrania RSF.</source>
+            <translation>Μη έγκυρο αρχείο ηχογράφησης RSF.</translation>
         </message>
         <message>
             <source>Niepoprawny szablon planszy obrazków SDI.</source>
@@ -2979,8 +3109,8 @@ Zbudowany plik: </source>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry PS3 albo KiP.</source>
-            <translation>Επιλέξτε εικόνα δίσκου, αρχείο ερωτήσεων ή φάκελο αποσυμπιεσμένου παιχνιδιού PS3 ή Knowledge Is Power.</translation>
+            <source>Wybierz obraz płyty, plik pytań lub rozpakowany folder gry.</source>
+            <translation>Επιλέξτε εικόνα δίσκου, αρχείο ερωτήσεων ή φάκελο αποσυμπιεσμένου παιχνιδιού.</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
@@ -3004,8 +3134,13 @@ Zbudowany plik: </source>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />
-            <source>Z rozpakowanej gry PS2 lub PSP wybierz plik ROUND.PAK lub MERGED.QDB.</source>
-            <translation>Για αποσυμπιεσμένο παιχνίδι PS2 ή PSP, επιλέξτε το ROUND.PAK ή το MERGED.QDB.</translation>
+            <source>Z rozpakowanej gry PSP wybierz plik MERGED.QDB.</source>
+            <translation>Για αποσυμπιεσμένο παιχνίδι PSP, επιλέξτε το αρχείο MERGED.QDB.</translation>
+        </message>
+        <message>
+            <location filename="../src/import_wizard.cpp" />
+            <source>Kopiuj raport importu</source>
+            <translation>Αντιγραφή αναφοράς εισαγωγής</translation>
         </message>
         <message>
             <location filename="../src/import_wizard.cpp" />

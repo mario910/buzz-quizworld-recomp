@@ -47,6 +47,14 @@ bool emptyTranslation(const QJsonObject &value) {
             return false;
     return true;
 }
+bool canRecoverVisual(const studio::Question &question) {
+    return studio::hasSourceQuestionMedia(question) || studio::hasBuzzSourcePicture(question);
+}
+bool isVisualReference(const QJsonValue &value) {
+    const auto type = value.toObject().value("type");
+    return type == 2 || type == 3 || type == "ps2-picture" || type == "ps2-video" ||
+           type == "psp-picture" || type == "psp-video";
+}
 class Command final : public QUndoCommand {
     std::function<void(bool)> apply_;
 
@@ -505,6 +513,46 @@ void StudioController::openFile(const QUrl &url, bool append, const QString &lan
                         const bool active = it.key() == existing.language;
                         auto current = active ? existing.localized() : existing.translations.value(it.key()).toObject();
                         const auto imported = it.value().toObject();
+                        if (result.gameImport && existing.source == q.source &&
+                            current["question"] == imported["question"] && current["answers"] == imported["answers"] &&
+                            current["correct_index"] == imported["correct_index"] &&
+                            !QFileInfo(current["image"].toString()).isFile() &&
+                            !QFileInfo(current["video"].toString()).isFile()) {
+                            auto incoming = q;
+                            incoming.switchLanguage(it.key());
+                            const bool recoverable = canRecoverVisual(incoming);
+                            const bool hasImage = QFileInfo(incoming.image).isFile();
+                            const bool hasVideo = QFileInfo(incoming.video).isFile();
+                            if (recoverable || hasImage || hasVideo) {
+                                const auto beforeMedia = current;
+                                current["image"] = hasImage ? incoming.image : QString();
+                                if (hasVideo)
+                                    current["video"] = incoming.video;
+                                else
+                                    current.remove("video");
+                                if (recoverable) {
+                                    QJsonArray refs;
+                                    for (const auto &ref : current["source_media"].toArray())
+                                        if (!isVisualReference(ref))
+                                            refs << ref;
+                                    for (const auto &ref : imported["source_media"].toArray())
+                                        if (isVisualReference(ref))
+                                            refs << ref;
+                                    current["source_media"] = refs;
+                                    for (const auto *key : {"source_archive", "source_round"})
+                                        if (imported.contains(key))
+                                            current[key] = imported[key];
+                                    if (!hasImage && !hasVideo)
+                                        importedQuestions.insert(q.id);
+                                }
+                                if (current != beforeMedia) {
+                                    existing.translations[it.key()] = current;
+                                    if (active)
+                                        existing.loadLocalized(current);
+                                    attachedMedia = true;
+                                }
+                            }
+                        }
                         auto origins = current["source_rounds"].toArray();
                         const auto incomingOrigins = imported["source_rounds"].toArray();
                         const auto beforeOrigins = origins.size();
@@ -760,6 +808,18 @@ void StudioController::setPackTitle(const QString &title) {
         model_.document.title = forward ? title : old;
         notifyContent();
     }));
+}
+void StudioController::setRoundPlans(const studio::RoundPlans &plans) {
+    if (busy_ || roundPlans() == plans)
+        return;
+    auto draft = model_.document;
+    draft.setRoundPlans(plans);
+    const auto before = model_.document.packExtra.value("round_plans"), after = draft.packExtra.value("round_plans");
+    if (before != after)
+        history_.push(new Command(QCoreApplication::translate("Main", "Plan rund"), [this, before, after](bool forward) {
+            model_.document.packExtra.insert("round_plans", forward ? after : before);
+            notifyContent();
+        }));
 }
 QVariantList StudioController::packCategories() const {
     QVariantList out;
@@ -1068,8 +1128,7 @@ studio::SourceMediaStatus StudioController::sourceMediaStatus(const QString &lan
         if (!language.isEmpty())
             question.switchLanguage(language);
         const bool visual = question.hasUnresolvedVisualMedia(), music = question.hasUnresolvedMusic();
-        const bool visualRecoverable = visual &&
-            (studio::hasSourceQuestionMedia(question) || studio::hasBuzzSourcePicture(question));
+        const bool visualRecoverable = visual && canRecoverVisual(question);
         const bool musicRecoverable = music && studio::hasBuzzSourceMusic(question);
         status.pending += visual || music;
         status.recoverable += visualRecoverable || musicRecoverable;

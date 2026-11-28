@@ -6,6 +6,8 @@
 #include <optional>
 
 namespace studio {
+
+QString ps2DiscFile(const QString &root, const QString &path);
 namespace pack { class Archive; }
 std::unique_ptr<pack::Archive> openPs2Archive(const QString &source, const QString &path);
 bool hasPs2Music(const Question &question);

@@ -95,6 +95,48 @@ class ControllerTest final : public QObject {
         imported.extra["source_media"] = QJsonArray{QJsonObject{{"type", 2}}};
         QCOMPARE(imported.contentType(), studio::QuestionContentType::Video);
     }
+    void reimportRecoversMissingPictureWithoutReplacingEdits() {
+        QTemporaryDir temp;
+        QVERIFY(temp.isValid());
+        const auto makePack = [&](const QString &file, int picture) {
+            using namespace studio::pack;
+            QVector<RoundQuestion> questions;
+            for (int i = 1; i <= 3; ++i)
+                questions << RoundQuestion{quint32(i), 0, QString("Question %1?").arg(i), {},
+                                           {"A", "B", "C", "D"}, 2, 235, 237, picture};
+            const auto round = writeRound("original", "ENG", 100, 1, 1, questions);
+            writeArchive(file, {{"ENG/ROUNDS/original.qak", round.little}, {"ENG/ROUNDS/original.hdr", round.header},
+                                {"ENG/ROUNDS/original.hst", round.stream}});
+        };
+        const auto original = temp.filePath("original.pak"), refreshed = temp.filePath("refreshed.pak");
+        makePack(original, 0);
+        makePack(refreshed, 1);
+        const auto custom = temp.filePath("custom.png");
+        QImage image(4, 4, QImage::Format_RGB32);
+        image.fill(Qt::white);
+        QVERIFY(image.save(custom));
+
+        StudioController c;
+        c.openFile(QUrl::fromLocalFile(original), false, "en");
+        QTRY_COMPARE(c.totalCount(), 3);
+        c.select("buzz:1003:100:2");
+        c.updateCurrent({{"image", custom}});
+        c.select("buzz:1003:100:3");
+        c.updateCurrent({{"question", "Edited question?"}});
+        QSignalSpy imported(&c, &StudioController::importFinished);
+        c.openFile(QUrl::fromLocalFile(refreshed), true, "en");
+        QTRY_COMPARE(imported.size(), 1);
+        QCOMPARE(c.totalCount(), 3);
+        QCOMPARE(c.sourceMediaStatus("en", true).visualRecoverable, 1);
+        c.select("buzz:1003:100:1");
+        QCOMPARE(c.current()["question"].toString(), QString("Question 1?"));
+        c.select("buzz:1003:100:2");
+        QCOMPARE(c.current()["image"].toString(), custom);
+        c.select("buzz:1003:100:3");
+        QCOMPARE(c.current()["question"].toString(), QString("Edited question?"));
+        c.undo();
+        QCOMPARE(c.sourceMediaStatus("en", true).visualRecoverable, 0);
+    }
     void musicFilterAndRecoveryForOneQuestion() {
         QTemporaryDir temp;
         QVERIFY(temp.isValid());

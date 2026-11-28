@@ -6,7 +6,7 @@
 #include <atomic>
 
 namespace studio {
-using PspAssetIndex = QHash<quint32, DiscImage::File>;
+using PspAssetIndex = QHash<quint32, DiscImage::Extent>;
 PspAssetIndex readPspAssetIndex(DiscImage &disc);
 quint32 pspStringHash(const QByteArray &key);
 quint32 pspPathHash(const QString &path, bool lowerCase = false);

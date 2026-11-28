@@ -118,6 +118,7 @@ void DiscImage::walk(qint64 extent, qint64 size, const QString &prefix, int dept
         fail(tr("Niepoprawna struktura katalogów płyty."));
     const auto data = readAt(extent * sector, size);
     qint64 p = 0;
+    QString continued;
     while (p < data.size()) {
         const int length = quint8(data[p]);
         if (length == 0) { // Records never cross a sector boundary.
@@ -140,11 +141,31 @@ void DiscImage::walk(qint64 extent, qint64 size, const QString &prefix, int dept
         if (name.isEmpty() || name.contains('/') || name == "." || name == "..")
             continue;
         const qint64 start = u32(record, 2), bytes = u32(record, 10);
-        if (quint8(record[25]) & 2)
+        const auto flags = quint8(record[25]);
+        const auto path = prefix + name;
+        if (!continued.isEmpty() && (continued != path || (flags & 2)))
+            fail(tr("Niepoprawna struktura katalogów płyty."));
+        if (flags & 2) {
             walk(start, bytes, prefix + name + '/', depth + 1);
-        else
-            files_.insert(prefix + name, File{start * sector, bytes});
+            continue;
+        }
+        const Extent next{start * sector, bytes};
+        auto &file = files_[path];
+        // Bit 7 marks another directory record for the same logical file.
+        if (continued.isEmpty()) {
+            file = File{bytes, {next}};
+        } else {
+            auto &last = file.extents.last();
+            if (last.offset + last.size == next.offset)
+                last.size += bytes;
+            else
+                file.extents << next;
+            file.size += bytes;
+        }
+        continued = flags & 0x80 ? path : QString();
     }
+    if (!continued.isEmpty())
+        fail(tr("Niepoprawna struktura katalogów płyty."));
 }
 
 QByteArray DiscImage::read(const QString &path, qint64 limit) {
@@ -153,6 +174,27 @@ QByteArray DiscImage::read(const QString &path, qint64 limit) {
         fail(tr("Brak pliku %1 w obrazie płyty.").arg(path));
     if (it->size > limit)
         fail(tr("Plik %1 w obrazie płyty jest za duży.").arg(path));
-    return readAt(it->offset, it->size);
+    return readFile(*it, 0, it->size);
+}
+
+QByteArray DiscImage::readFile(const File &file, qint64 offset, qint64 size) {
+    if (offset < 0 || size < 0 || offset > file.size || size > file.size - offset)
+        fail(tr("Odczyt poza obrazem płyty."));
+    if (file.extents.size() == 1)
+        return readAt(file.extents.first().offset + offset, size);
+    QByteArray out;
+    for (const auto &extent : file.extents) {
+        if (offset >= extent.size) {
+            offset -= extent.size;
+            continue;
+        }
+        const auto take = std::min(size, extent.size - offset);
+        out += readAt(extent.offset + offset, take);
+        size -= take;
+        if (!size)
+            break;
+        offset = 0;
+    }
+    return out;
 }
 } // namespace studio

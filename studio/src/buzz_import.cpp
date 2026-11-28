@@ -212,7 +212,7 @@ namespace {
 QMap<QString, QString> archiveLanguages(Archive &archive) {
     QMap<QString, QString> languages;
     for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it)
-        if (it.key().endsWith(".qak")) {
+        if (it.key().endsWith(".qak") || it.key().endsWith(".kaq")) {
             const auto folder = it.key().section('/', 0, 0);
             const auto code = languageCode(folder);
             if (!code.isEmpty())
@@ -225,7 +225,7 @@ struct Tally {
     QHash<QString, qsizetype> ids;
     QHash<QString, UnsupportedAnswer> unsupported;
     int pictures = 0, adapted = 0, duplicates = 0;
-    QStringList pictureWarnings, musicWarnings;
+    QStringList pictureWarnings, musicWarnings, unsupportedRounds;
     QMap<QString, QString> gameText;
     bool gameTextRead = false;
 };
@@ -345,7 +345,7 @@ QString namedTextHash(const QString &key) {
 }
 
 void importArchive(Archive &archive, const BuzzPack &source, const QString &selected, bool extractSpeech,
-                   Tally &tally, Document &document) {
+                   const QString &title, Tally &tally, Document &document) {
     const auto languages = archiveLanguages(archive);
     if (!languages.contains(selected))
         return;
@@ -402,20 +402,51 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
     QMap<int, QVector<qsizetype>> pendingPictures;
     QHash<QString, QString> musicPaths;
     QString musicDirectory;
-    for (auto it = archive.entries.cbegin(); it != archive.entries.cend(); ++it) {
-        const auto name = it.key();
-        if (!name.startsWith(language + "/") || !name.endsWith(".qak"))
+    QMap<QString, QStringList> roundFiles;
+    for (auto it = archive.entries.keyBegin(); it != archive.entries.keyEnd(); ++it) {
+        const auto &name = *it;
+        if (name.startsWith(language + "/") && (name.endsWith(".qak") || name.endsWith(".kaq"))) {
+            auto &files = roundFiles[name.chopped(4)];
+            if (name.endsWith(".qak"))
+                files.prepend(name);
+            else
+                files.append(name);
+        }
+    }
+    for (auto round = roundFiles.cbegin(); round != roundFiles.cend(); ++round) {
+        const auto &base = round.key();
+        QByteArray b;
+        bool be = false;
+        int version = 0;
+        QStringList headers;
+        for (const auto &name : round.value()) {
+            b = archive.read(name);
+            be = b.startsWith("\xff\xfe");
+            const bool marker = be || b.startsWith("\xfe\xff");
+            version = marker && b.size() >= 6 ? u16(b, 4, be) : 0;
+            if (b.size() >= 20 && version >= 1001 && version <= 1003)
+                break;
+            const auto header = QString::fromLatin1(b.left(16).toHex(' '));
+            headers << name + (version ? QString(" (QAK %1, %2)").arg(version).arg(header)
+                                       : QString(" [%1]").arg(header));
+            version = 0;
+        }
+        if (!version) {
+            tally.unsupportedRounds << QFileInfo(source.label).fileName() + " / " + headers.join(" | ");
             continue;
-        const auto base = name.left(name.size() - 4);
-        const auto b = archive.read(name);
+        }
         const auto text = decodeHuffman(archive.read(base + ".hdr"), archive.read(base + ".hst"));
-        if (u16(b, 0) != 0xfffe || (u16(b, 4) != 1002 && u16(b, 4) != 1003))
-            fail(QCoreApplication::translate("BuzzImport", "Nieobsługiwana wersja QAK."));
-        const int version = u16(b, 4), pack = u16(b, 0x12);
+        const auto word = [&](qint64 at) { return u16(b, at, be); };
+        const auto dword = [&](qint64 at) { return u32(b, at, be); };
+        const int pack = word(0x12);
+        // The UK/US Quiz TV discs include a v1001 Stop the Clock round. The
+        // sections used here have the same layout as the later v1002 rounds.
+        const bool quizTv = version < 1003;
+        const bool ultimateMusic = pack == 111 && title.contains("The Ultimate Music Quiz", Qt::CaseInsensitive);
         const auto sectionKey = roundSubjects.value(base.section('/', -1).toCaseFolded());
         QString roundParentKey;
         QJsonArray roundCategory;
-        if (version == 1002 && !sectionKey.isEmpty()) {
+        if (quizTv && !sectionKey.isEmpty()) {
             const auto titleKey = packTitles.value(pack);
             const auto packKey = QString("PACK%1").arg(pack, 4, 10, QLatin1Char('0'));
             const auto rootLabel = gameLabel(titleKey);
@@ -426,13 +457,13 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
                               ? QString(sectionKey).remove(QRegularExpression("^SUBJECT_")).replace('_', ' ')
                               : sectionLabel);
         }
-        const auto table = u32(b, 0x0c);
+        const auto table = dword(0x0c);
         check(b, table, 88);
         const int strides[] = {16, 36, 4, 8, 4, 2, 2};
         QVector<QPair<quint32, int>> sections;
         for (int s = 0; s < 7; ++s) {
-            const auto offset = u32(b, table + s * 8);
-            const int count = u16(b, table + s * 8 + 4);
+            const auto offset = dword(table + s * 8);
+            const int count = word(table + s * 8 + 4);
             check(b, offset, qint64(count) * strides[s]);
             sections << qMakePair(offset, count);
         }
@@ -448,8 +479,8 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
         };
         for (int i = 0; i < sections[1].second; ++i) {
             const int p = row(1, i);
-            const auto original = u32(b, p);
-            const auto id = QString("buzz:%1:%2:%3").arg(version).arg(pack).arg(original);
+            const auto original = dword(p);
+            const auto id = QString("buzz:%1:%2:%3").arg(quizTv ? 1002 : version).arg(pack).arg(original);
             QJsonObject origin{{"archive", source.label}, {"round", base}};
             if (!sectionKey.isEmpty())
                 origin["section"] = sectionKey;
@@ -474,7 +505,7 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
             QList<int> correctAnswers;
             bool pictureAnswers = false;
             for (int a = 0; a < answerCount; ++a) {
-                const int ar = row(4, u16(b, p + 24) + a);
+                const int ar = row(4, word(p + 24) + a);
                 const auto flags = quint8(b[ar + 2]);
                 if (flags & 4)
                     correctAnswers << a;
@@ -488,30 +519,31 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
             q.language = selected;
             q.id = id;
             // Pack numbers: Quiz TV discs/DLC 1..49, Brain of... 50..59, Quiz World 100+.
-            q.source = pack >= 50 && pack < 60 ? "Buzz! Brain of..."
-                       : version == 1002       ? "Buzz! Quiz TV"
-                                               : "Buzz! Quiz World";
+            q.source = ultimateMusic            ? "Buzz! The Ultimate Music Quiz"
+                       : pack >= 50 && pack < 60 ? "Buzz! Brain of..."
+                       : quizTv                  ? "Buzz! Quiz TV"
+                                                 : "Buzz! Quiz World";
             q.extra["source_archive"] = source.label;
             q.extra["source_question_id"] = double(original);
             q.extra["source_round"] = base;
             q.difficulty = std::clamp(int(quint8(b[p + 30])), 1, 3);
             q.answers.clear();
             for (int a = 0; a < answerCount; ++a) {
-                const int ar = row(4, u16(b, p + 24) + a);
-                q.answers << string(u16(b, ar));
+                const int ar = row(4, word(p + 24) + a);
+                q.answers << string(word(ar));
             }
             for (int t = 0; t < quint8(b[p + 33]); ++t) {
-                const int tr = row(3, u16(b, p + 16) + t);
+                const int tr = row(3, word(p + 16) + t);
                 const int kind = quint8(b[tr + 6]);
                 if (kind == 1) {
-                    q.text = string(u16(b, tr + 4));
+                    q.text = string(word(tr + 4));
                     if (extractSpeech)
                         q.speech = cachedAsset(archive,
                                                language + "/QUESTIONASSETS/SPEECH/QUESTIONS/ONDEMAND/" +
-                                                   QString::number(6000000000ll + u32(b, tr)) + ".rsf",
+                                                   QString::number(6000000000ll + dword(tr)) + ".rsf",
                                                cache);
                 } else if (kind == 2)
-                    q.topic = string(u16(b, tr + 4));
+                    q.topic = string(word(tr + 4));
             }
             if (!adaptImportedAnswers(q, correctAnswers)) {
                 tally.unsupported.insert(id, UnsupportedAnswer::CannotAdapt);
@@ -522,7 +554,7 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
             tally.adapted += answerCount != 4 || correctAnswers.size() != 1;
             QJsonArray cats;
             for (int c = 0; c < quint8(b[p + 34]); ++c)
-                cats << int(u16(b, row(5, u16(b, p + 18) + c)));
+                cats << int(word(row(5, word(p + 18) + c)));
             q.subjectId = cats.size() > 0 ? cats[0].toInt() : 0;
             q.categoryId = cats.size() > 1 ? cats[1].toInt() : q.subjectId;
             q.extra["source_subject_key"] = sourceKeys.value(q.subjectId);
@@ -547,11 +579,11 @@ void importArchive(Archive &archive, const BuzzPack &source, const QString &sele
             if (quint8(b[p + 32])) {
                 QJsonArray media;
                 for (int m = 0; m < quint8(b[p + 32]); ++m) {
-                    const int link = row(2, u16(b, p + 14) + m), mr = row(0, u16(b, link));
+                    const int link = row(2, word(p + 14) + m), mr = row(0, word(link));
                     const auto type = quint8(b[mr + 12]);
-                    const auto asset = u32(b, mr + 4);
+                    const auto asset = dword(mr + 4);
                     QJsonObject ref{{"type", int(type)}, {"asset", double(asset)},
-                                    {"slot", int(u16(b, mr + 10))}, {"aspect", int(quint8(b[mr + 14]))}};
+                                    {"slot", int(word(mr + 10))}, {"aspect", int(quint8(b[mr + 14]))}};
                     if (type == 1 || type == 2) {
                         const auto entry = type == 1 ? musicEntry(language, asset)
                             : language + "/QUESTIONASSETS/VIDEO/" + QString::number(1000000ull + asset) + ".sdi";
@@ -837,7 +869,7 @@ LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &reques
                 continue;
             found = true;
             ++out.sourcePacks;
-            importArchive(*archive, source, selected, extractSpeech, tally, out.document);
+            importArchive(*archive, source, selected, extractSpeech, title, tally, out.document);
         }
         if (packs.isEmpty())
             fail(QCoreApplication::translate("BuzzImport", "Brak baz pytań QAK w paczce."));
@@ -846,6 +878,13 @@ LoadResult importBuzzPacks(const QVector<BuzzPack> &packs, const QString &reques
         out.document.title = title;
         out.document.language = selected;
         out.duplicates = tally.duplicates;
+        if (!tally.unsupportedRounds.isEmpty()) {
+            const auto message = QCoreApplication::translate("BuzzImport", "Nieobsługiwana wersja QAK.") + '\n' +
+                                 tally.unsupportedRounds.join('\n');
+            if (out.document.questions.isEmpty())
+                fail(message);
+            out.warnings << message;
+        }
         if (out.document.questions.isEmpty())
             fail(QCoreApplication::translate("BuzzImport", "Paczka nie zawiera obsługiwanych pytań."));
         if (tally.adapted)

@@ -1,6 +1,4 @@
 #include "pack_codec.h"
-#include <QSaveFile>
-#include <QSet>
 #include <cmath>
 #include <cstring>
 #include <functional>
@@ -522,65 +520,71 @@ QByteArray swapRound(const QByteArray &little) {
     }
     return out;
 }
-void writeArchive(const QString &path, const Entries &entries) {
-    if (entries.size() > 65534)
+ArchiveWriter::ArchiveWriter(const QString &path) : file_(path) {
+    if (!file_.open(QIODevice::WriteOnly))
+        fail(file_.errorString());
+}
+void ArchiveWriter::write(const QByteArray &bytes) {
+    if (file_.write(bytes) != bytes.size())
+        fail(file_.errorString());
+}
+void ArchiveWriter::add(const QString &path, const QByteArray &data) {
+    if (names_.size() == 65534)
         fail(QCoreApplication::translate("PackBuilder", "Za dużo plików w paczce."));
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly))
-        fail(file.errorString());
-    QByteArray central;
-    QSet<QString> names;
-    auto write = [&](const QByteArray &b) {
-        if (file.write(b) != b.size())
-            fail(file.errorString());
-    };
-    for (const auto &entry : entries) {
-        const auto name = entry.first.toLatin1();
-        const auto &data = entry.second;
-        if (QString::fromLatin1(name) != entry.first || names.contains(entry.first))
-            fail(QCoreApplication::translate("PackBuilder", "Powtórzona lub niepoprawna ścieżka paczki."));
-        names.insert(entry.first);
-        write(QByteArray((-(file.pos() + 30 + name.size())) & 15, '\0'));
-        const auto offset = file.pos();
-        const auto crc = crc32(data);
-        QByteArray head;
-        put(head, 0x04034b50, 4);
-        put(head, 20, 2);
-        head += QByteArray(8, '\0');
-        put(head, crc, 4);
-        put(head, data.size(), 4);
-        put(head, data.size(), 4);
-        put(head, name.size(), 2);
-        put(head, 0, 2);
-        write(head + name);
-        write(data);
-        put(central, 0x02014b50, 4);
-        put(central, 20, 2);
-        put(central, 20, 2);
-        central += QByteArray(8, '\0');
-        put(central, crc, 4);
-        put(central, data.size(), 4);
-        put(central, data.size(), 4);
-        put(central, name.size(), 2);
-        central += QByteArray(12, '\0');
-        put(central, offset, 4);
-        central += name;
-        if (file.pos() > 0xffffffffll)
-            fail(QCoreApplication::translate("PackBuilder", "Paczka przekracza limit ZIP 4 GB."));
-    }
-    const auto start = file.pos();
-    write(central);
+    const auto name = path.toLatin1();
+    if (QString::fromLatin1(name) != path || name.size() > 65535 || names_.contains(path))
+        fail(QCoreApplication::translate("PackBuilder", "Powtórzona lub niepoprawna ścieżka paczki."));
+    const auto pad = (-(file_.pos() + 30 + name.size())) & 15;
+    const auto offset = file_.pos() + pad;
+    const auto newDirectorySize = central_.size() + 46 + name.size();
+    if (offset + 30 + name.size() + newDirectorySize + 22 > 0xffffffffll - data.size())
+        fail(QCoreApplication::translate("PackBuilder", "Paczka przekracza limit ZIP 4 GB."));
+    names_.insert(path);
+    write(QByteArray(pad, '\0'));
+    const auto crc = crc32(data);
+    QByteArray head;
+    put(head, 0x04034b50, 4);
+    put(head, 20, 2);
+    head += QByteArray(8, '\0');
+    put(head, crc, 4);
+    put(head, data.size(), 4);
+    put(head, data.size(), 4);
+    put(head, name.size(), 2);
+    put(head, 0, 2);
+    write(head + name);
+    write(data);
+    put(central_, 0x02014b50, 4);
+    put(central_, 20, 2);
+    put(central_, 20, 2);
+    central_ += QByteArray(8, '\0');
+    put(central_, crc, 4);
+    put(central_, data.size(), 4);
+    put(central_, data.size(), 4);
+    put(central_, name.size(), 2);
+    central_ += QByteArray(12, '\0');
+    put(central_, offset, 4);
+    central_ += name;
+}
+void ArchiveWriter::commit() {
+    const auto start = file_.pos();
+    write(central_);
     QByteArray end;
     put(end, 0x06054b50, 4);
     end += QByteArray(4, '\0');
-    put(end, entries.size(), 2);
-    put(end, entries.size(), 2);
-    put(end, central.size(), 4);
+    put(end, names_.size(), 2);
+    put(end, names_.size(), 2);
+    put(end, central_.size(), 4);
     put(end, start, 4);
     put(end, 0, 2);
     write(end);
-    if (!file.commit())
-        fail(file.errorString());
+    if (!file_.commit())
+        fail(file_.errorString());
+}
+void writeArchive(const QString &path, const Entries &entries) {
+    ArchiveWriter writer(path);
+    for (const auto &entry : entries)
+        writer.add(entry.first, entry.second);
+    writer.commit();
 }
 QByteArray namedIndex(const QStringList &lines) {
     return QByteArray::fromHex("efbbbf") + (lines.join("\r\n") + "\r\n").toUtf8();

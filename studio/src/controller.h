@@ -127,6 +127,8 @@ class StudioController final : public QObject {
     Q_INVOKABLE void duplicateCurrent();
     Q_INVOKABLE void deleteCurrent();
     Q_INVOKABLE void setPackTitle(const QString &title);
+    studio::RoundPlans roundPlans() const { return model_.document.roundPlans(); }
+    void setRoundPlans(const studio::RoundPlans &plans);
     // Custom subjects/subcategories: [{id, parent, names: {code: name}}], subjects first.
     Q_INVOKABLE QVariantList packCategories() const;
     // Replaces them (undoable); questions in removed categories lose their mapping.

@@ -7,6 +7,7 @@
 #include "psp_media.h"
 #include <QCoreApplication>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
@@ -244,6 +245,9 @@ class Source {
         if (DiscImage::isDiscImage(path)) {
             disc = std::make_unique<DiscImage>(path);
             scanDisc();
+        } else if (QFileInfo(path).isDir()) {
+            extracted = true;
+            scanPs2Folder();
         } else if (QFileInfo(path).fileName().compare("MERGED.QDB", Qt::CaseInsensitive) == 0) {
             scanQuestionFile();
         } else {
@@ -287,6 +291,7 @@ class Source {
         }
         return entries->contains(entry);
     }
+    bool hasCompleteDisc() const { return disc || extracted; }
     QString pspFile(const QString &qdb, const QString &localPath, const QString &mergedPath) const {
         const auto parts = qdb.toUpper().split('/');
         if (disc) {
@@ -346,6 +351,7 @@ class Source {
 
   private:
     std::unique_ptr<DiscImage> disc;
+    bool extracted = false;
     PspAssetIndex assets;
     QHash<QString, QSet<QString>> mediaEntries;
 
@@ -375,15 +381,50 @@ class Source {
         return QStringLiteral("English");
     }
 
+    void addPs2Rounds(const QStringList &files) {
+        static const QRegularExpression round("^(?:(?:[A-Z]{2,3}|LOCALE)/)?([A-Z]{2,3})ROUND\\.PAK$");
+        const QSet<QString> entries(files.cbegin(), files.cend());
+        const bool hasVideos = std::any_of(files.cbegin(), files.cend(), [](const QString &entry) {
+            return entry.endsWith("/VIDEOS.PAK");
+        });
+        for (const auto &name : files) {
+            const auto match = round.match(name);
+            if (!match.hasMatch())
+                continue;
+            const auto text = name.chopped(9) + "TEXT.PAK";
+            const auto kind = entries.contains(text) && entries.contains("QVIDEOS.PAK") ? Kind::Ps2Sports
+                              : entries.contains(text) && entries.contains("SONGCLIP.PAK") &&
+                                    (serial == "SCES-53304" || serial == "SCES-53663" || !hasVideos)
+                                  ? Kind::Ps2Music : Kind::Ps2Rounds;
+            sets << Set{kind, folderLanguage(match.captured(1)), extracted ? ps2DiscFile(path, name) : name,
+                        extracted ? ps2DiscFile(path, text) : text};
+        }
+    }
+
+    void scanPs2Folder() {
+        QFile config(ps2DiscFile(path, "SYSTEM.CNF"));
+        if (config.open(QIODevice::ReadOnly))
+            serial = ps2Serial(config.read(4096));
+        game = ps2Title(serial);
+        const QDir root(path);
+        QDirIterator files(path, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+        QStringList names;
+        while (files.hasNext())
+            names << root.relativeFilePath(files.next()).toUpper();
+        names.removeDuplicates();
+        names.sort();
+        addPs2Rounds(names);
+    }
+
     void scanDisc() {
-        static const QRegularExpression ps2("^(?:(?:[A-Z]{2,3}|LOCALE)/)?([A-Z]{2,3})ROUND\\.PAK$"),
-            merged("(?:^|/)QUIZDATA_MERGED/([A-Z]+)/MERGED\\.QDB$"),
+        static const QRegularExpression merged("(?:^|/)QUIZDATA_MERGED/([A-Z]+)/MERGED\\.QDB$"),
             locale("(?:^|/)SKU_LOCALE[0-9]+/QUESTION_DATA/MERGED\\.QDB$");
         const auto &files = disc->files();
         if (files.contains("SYSTEM.CNF")) {
             serial = ps2Serial(disc->read("SYSTEM.CNF", 4096));
             game = ps2Title(serial);
         }
+        addPs2Rounds(files.keys());
         if (files.contains("PSP_GAME/PARAM.SFO")) {
             const auto sfo = disc->read("PSP_GAME/PARAM.SFO", 64 * 1024);
             game = sfoValue(sfo, "TITLE");
@@ -392,16 +433,6 @@ class Source {
         }
         for (auto it = files.cbegin(); it != files.cend(); ++it) {
             const auto name = it.key();
-            if (const auto m = ps2.match(name); m.hasMatch()) {
-                const auto text = name.chopped(9) + "TEXT.PAK";
-                const auto kind = files.contains(text) && files.contains("QVIDEOS.PAK") ? Kind::Ps2Sports
-                                  : files.contains(text) && files.contains("SONGCLIP.PAK") &&
-                                        (serial == "SCES-53304" || serial == "SCES-53663" ||
-                                         !std::any_of(files.keyBegin(), files.keyEnd(), [](const QString &entry) {
-                                             return entry.endsWith("/VIDEOS.PAK");
-                                         })) ? Kind::Ps2Music : Kind::Ps2Rounds;
-                sets << Set{kind, folderLanguage(m.captured(1)), name, text};
-            }
             const auto text = name.left(name.size() - 3) + "TXT";
             if (const auto m = merged.match(name); m.hasMatch() && files.contains(text))
                 sets << Set{Kind::PspQuestions, folderLanguage(m.captured(1)), name, text};
@@ -560,27 +591,58 @@ class Source {
 
 struct Collector {
     LoadResult out;
-    QHash<QString, int> byText;
+    QHash<QString, QVector<qsizetype>> byText;
     int adapted = 0, unsupported = 0, media = 0, otherLanguage = 0, correctedPictures = 0;
-    // The games repeat questions across rounds (and picture/video variants share
-    // text tables): keep one copy. A copy with a media reference wins: such text
-    // ("which country makes this drink?") needs its picture, even where another
-    // table of the game lost the reference (media id 0x7FFF).
+
+    static QStringList ps2MediaKey(const Question &q) {
+        QStringList keys;
+        if (hasPs2Media(q) || hasPs2Music(q)) {
+            for (const auto &value : q.extra["source_media"].toArray()) {
+                const auto ref = value.toObject();
+                const auto container = ref["container"].toString();
+                const auto entry = ref["entry"].toString();
+                if (!container.isEmpty() || !entry.isEmpty()) {
+                    auto key = QStringList{ref["type"].toString(), container, QString::number(ref["frame"].toInt(-1)),
+                                           ref["pack"].toString(), entry};
+                    for (const auto &extra : ref["additional_entries"].toArray())
+                        key << extra.toString();
+                    keys << key.join('\n');
+                }
+            }
+        }
+        keys.sort();
+        return keys;
+    }
+
     bool add(Question q, bool hasMedia) {
         const auto key = (q.text + '\n' + q.answers.join('\n')).simplified().toCaseFolded();
-        if (const auto it = byText.constFind(key); it != byText.constEnd()) {
+        const auto mediaKey = ps2MediaKey(q);
+        auto &matches = byText[key];
+        qsizetype match = -1;
+        // Prefer an exact clip/frame match. A round with no media pointer can be
+        // folded into a playable copy, but identical text can refer to different clips.
+        for (const auto index : matches) {
+            const auto &existing = out.document.questions[index];
+            const auto existingMedia = ps2MediaKey(existing);
+            if (q.id == existing.id || mediaKey == existingMedia) {
+                match = index;
+                break;
+            }
+            if (match < 0 && (mediaKey.isEmpty() || existingMedia.isEmpty()))
+                match = index;
+        }
+        if (match >= 0) {
             ++out.duplicates;
-            auto &existing = out.document.questions[*it];
+            auto &existing = out.document.questions[match];
             if (hasMedia && (!existing.extra.contains("source_media") ||
-                             (hasPs2Media(q) && !hasPs2Media(existing)) ||
-                             (hasPs2Music(q) && !hasPs2Music(existing)))) {
+                             (!mediaKey.isEmpty() && ps2MediaKey(existing).isEmpty()))) {
                 media += !existing.extra.contains("source_media");
                 existing = q;
             }
             return false;
         }
         media += hasMedia;
-        byText.insert(key, out.document.questions.size());
+        matches << out.document.questions.size();
         out.document.questions << q;
         return true;
     }
@@ -630,7 +692,7 @@ QJsonObject ps2Music(const QString &source, const QString &asset, const QString 
 
 void checkMediaReference(Source &source, QJsonObject &ref) {
     // A loose round file can be opened before its media archives are copied.
-    if (!DiscImage::isDiscImage(source.path))
+    if (!source.hasCompleteDisc())
         return;
     const auto container = ref["container"].toString();
     if (!container.isEmpty() && !source.hasMedia(container.section(':', 0, 0), container.section(':', 1))) {
@@ -1214,7 +1276,10 @@ void importPsp(Source &source, const Set &set, Collector &c) {
 } // namespace
 
 bool isLegacySource(const QString &path) {
-    const auto name = QFileInfo(path).fileName();
+    const QFileInfo info(path);
+    if (info.isDir())
+        return !ps2DiscFile(path, "SYSTEM.CNF").isEmpty();
+    const auto name = info.fileName();
     static const QRegularExpression round("^[A-Za-z]{2,3}ROUND(?:_[A-Za-z0-9]+)?\\.PAK$",
                                           QRegularExpression::CaseInsensitiveOption);
     return DiscImage::isDiscImage(path) || name.compare("MERGED.QDB", Qt::CaseInsensitive) == 0 ||
