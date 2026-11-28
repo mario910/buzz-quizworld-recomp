@@ -152,11 +152,20 @@ inline void transform_geometry_host_object_value(GeometryHostSoA8& value,
     const v8* matrix, bool direction, v8 mask)
 {
     if constexpr (BoundedDirection) {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        uint32x4_t magnitude=vdupq_n_u32(0);
+        for (unsigned axis=0;axis<3;++axis) {
+            const v8 bits=_mm256_and_si256(value.component[axis],v8_set(0x7fffffff));
+            magnitude=vmaxq_u32(magnitude,vmaxq_u32(bits.lo,bits.hi));
+        }
+        if (vmaxvq_u32(magnitude)>0x49800000u) {
+#else
         v8 outside = _mm256_setzero_si256();
         for (unsigned axis = 0; axis < 3; ++axis)
             outside = _mm256_or_si256(outside, _mm256_cmpgt_epi32(
                 _mm256_and_si256(value.component[axis], v8_set(0x7fffffff)), v8_set(0x49800000)));
         if (_mm256_movemask_ps(_mm256_castsi256_ps(outside))) {
+#endif
             transform_geometry_host_object_value<false>(value, matrix, direction, mask);
             return;
         }
@@ -351,20 +360,35 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
             matrix[coefficient] = v8_set(workspace.object[coefficient]);
         }
         const bool bounded_object=geometry_object_matrix_bounded(workspace.object);
+        auto transform = [&](unsigned semantic, unsigned first, v8 mask) {
+            auto& value = data.at(input, recipe.field[semantic], first / 8);
+            if (semantic==0 && bounded_object && transform_geometry_bounded_position(value,matrix,mask)) return;
+            if (semantic && bounded_object)
+                transform_geometry_host_object_value<true>(value,matrix,true,mask);
+            else
+                transform_geometry_host_object_value(value,matrix,semantic!=0,mask);
+        };
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        for (unsigned semantic=0;semantic<3;++semantic) {
+            if (!geometry_host_capture_field<Phase>(semantic+1) || recipe.field[semantic]==16 ||
+                (semantic && e.position_only())) continue;
+            for (unsigned first = 0; first < input.vertices; first += 8) {
+                const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
+                const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
+                transform(semantic,first,mask);
+            }
+        }
+#else
         for (unsigned first = 0; first < input.vertices; first += 8) {
             const unsigned active = input.vertices - first < 8 ? input.vertices - first : 8;
             const v8 mask = _mm256_cmpgt_epi32(v8_set(active), _mm256_setr_epi32(0,1,2,3,4,5,6,7));
             for (unsigned semantic = 0; semantic < 3; ++semantic) {
                 if(!geometry_host_capture_field<Phase>(semantic+1))continue;
                 if (recipe.field[semantic] == 16 || (semantic && e.position_only())) continue;
-                auto& value = data.at(input, recipe.field[semantic], first / 8);
-                if (semantic==0 && bounded_object && transform_geometry_bounded_position(value,matrix,mask)) continue;
-                if (semantic && bounded_object)
-                    transform_geometry_host_object_value<true>(value,matrix,true,mask);
-                else
-                    transform_geometry_host_object_value(value,matrix,semantic!=0,mask);
+                transform(semantic,first,mask);
             }
         }
+#endif
         data.ready = true; if (reason) *reason = nullptr; return true;
     }
     if (!recipe.active) { data.ready = true; return true; }
@@ -448,7 +472,11 @@ inline bool skin_geometry_host_inputs_impl(const spu_context& c, const GeometryJ
             index[influence] = _mm256_load_si256(reinterpret_cast<const v8*>(indices[influence]));
             const v8 weight = _mm256_load_si256(reinterpret_cast<const v8*>(weights[influence]));
 #endif
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__) && BUZZ_NEON_SKIN_BLOCKS
+            if (vmaxvq_u16(bones)>=recipe.matrices) {
+#else
             if (_mm256_movemask_epi8(_mm256_cmpgt_epi32(index[influence], v8_set(recipe.matrices - 1)))) {
+#endif
                 if (reason) *reason = "host skin palette index"; return false;
             }
             const v8 integer_weight=_mm256_castps_si256(_mm256_cvtepi32_ps(weight));

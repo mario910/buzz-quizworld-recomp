@@ -180,6 +180,24 @@ inline bool emit_geometry_host_vertices(const GeometryHostInputRecipe& input,
     if (!destination || capacity < output.bytes) return reject("host vertex output span");
     // Admission proves every byte of each output record is defined.
     unsigned first = 0;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    if (output.stride==16 && output.fields==2 && output.field[1].offset==12 &&
+        output.field[1].storage==6 && !(uintptr_t(destination)&3)) {
+        for (; first+8<=input.vertices;first+=8) {
+            const auto& position=data.at(input,0,first/8);
+            const auto& normal=data.at(input,output.field[1].slot,first/8);
+            const v8 packed=v8_bswap(geometry_host_cmp8(normal));
+            uint32x4x4_t lo,hi;
+            for (unsigned k=0;k<3;++k) {
+                const v8 word=v8_bswap(position.component[k]);
+                lo.val[k]=word.lo; hi.val[k]=word.hi;
+            }
+            lo.val[3]=packed.lo; hi.val[3]=packed.hi;
+            auto* out=reinterpret_cast<uint32_t*>(destination+first*16);
+            vst4q_u32(out,lo); vst4q_u32(out+16,hi);
+        }
+    }
+#endif
 #if defined(__AVX2__)
     // Admission proves that field zero is float3 position in slot zero.
     if (output.fields >= 2 && output.field[1].offset == 12 && output.field[1].storage == 6) {

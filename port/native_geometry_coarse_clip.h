@@ -49,7 +49,10 @@ inline bool geometry_host_trivially_outside(const spu_context& c,const GeometryJ
     if(_mm256_movemask_ps(_mm256_castsi256_ps(outside)))return false;
     double minimum[3],maximum[3];
     for(unsigned axis=0;axis<3;++axis) {
-#if defined(__AVX2__) && !defined(__aarch64__)
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+        minimum[axis]=vminvq_f32(vminq_f32(lo[axis].lo,lo[axis].hi));
+        maximum[axis]=vmaxvq_f32(vmaxq_f32(hi[axis].lo,hi[axis].hi));
+#elif defined(__AVX2__) && !defined(__aarch64__)
         __m128 l = _mm_min_ps(_mm256_castps256_ps128(lo[axis]), _mm256_extractf128_ps(lo[axis],1));
         __m128 h = _mm_max_ps(_mm256_castps256_ps128(hi[axis]), _mm256_extractf128_ps(hi[axis],1));
         l = _mm_min_ps(l, _mm_movehl_ps(l,l)); h = _mm_max_ps(h, _mm_movehl_ps(h,h));

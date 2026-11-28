@@ -154,12 +154,39 @@ inline GeometryHostSoA8 decode_geometry_host_half_stream8(const uint8_t* arena,
     return decode_geometry_host_halves8(input, _mm256_load_si256(reinterpret_cast<const v8*>(prefixes)), components);
 }
 
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+template<unsigned Stride>
+inline GeometryHostSoA8 geometry_mobile_half_pair(const uint8_t* arena,unsigned offset)
+{
+    alignas(32) uint32_t words[8],prefixes[8];
+    for (unsigned lane=0;lane<8;++lane) {
+        const unsigned at=offset+lane*Stride;
+        uint32_t word;
+        memcpy(&word,arena+at,sizeof(word));
+        words[lane]=__builtin_bswap32(word);
+        prefixes[lane]=arena[at&~15u];
+    }
+    const v8 pair=_mm256_load_si256(reinterpret_cast<const v8*>(words));
+    const GeometryHostSoA8 halves{{_mm256_srli_epi32(pair,16),_mm256_and_si256(pair,v8_set(65535)),{}, {}}};
+    return decode_geometry_host_halves8(halves,_mm256_load_si256(reinterpret_cast<const v8*>(prefixes)),2);
+}
+#endif
+
 // Decode a complete field while its stride and starting alignment are fixed.
 // The scalar tail also clears every inactive lane and unused component.
 inline void decode_geometry_host_half_stream(const uint8_t* arena, unsigned source, unsigned stride,
     unsigned components, unsigned vertices, GeometryHostSoA8* out)
 {
     unsigned first = 0;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    if (components==2 && stride==7) {
+        for (;first+8<=vertices;first+=8)
+            *out++=geometry_mobile_half_pair<7>(arena,source+7*first);
+    } else if (components==2 && stride==10) {
+        for (;first+8<=vertices;first+=8)
+            *out++=geometry_mobile_half_pair<10>(arena,source+10*first);
+    }
+#endif
 #if defined(__AVX2__) && !defined(__aarch64__)
     const unsigned full = vertices & ~7u;
     if (stride == 7 && components == 2) {

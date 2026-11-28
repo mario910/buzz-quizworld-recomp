@@ -71,6 +71,24 @@ inline v8 geometry_host_pack_cmp8(v8 x, v8 y, v8 z)
 inline v8 geometry_host_cmp8(const GeometryHostSoA8& input)
 {
     const v8 xy_scale = v8_set(0x3f7fe000), xy_bias = v8_set(0xba000000);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    // Inside [-1,1] the guest scale/bias produces a finite signed fraction.
+    uint32x4_t maximum=vdupq_n_u32(0);
+    for (unsigned k=0;k<3;++k) {
+        const v8 magnitude=_mm256_and_si256(input.component[k],v8_set(0x7fffffff));
+        maximum=vmaxq_u32(maximum,vmaxq_u32(magnitude.lo,magnitude.hi));
+    }
+    if (vmaxvq_u32(maximum)<=0x3f800000u) {
+        auto encode=[](v8 raw,v8 scale,v8 bias) {
+            const auto fp=_mm256_fmadd_ps(_mm256_castsi256_ps(raw),_mm256_castsi256_ps(scale),_mm256_castsi256_ps(bias));
+            return v8{vreinterpretq_u32_s32(vcvtq_n_s32_f32(fp.lo,31)),
+                      vreinterpretq_u32_s32(vcvtq_n_s32_f32(fp.hi,31))};
+        };
+        return geometry_host_pack_cmp8(encode(input.component[0],xy_scale,xy_bias),
+            encode(input.component[1],xy_scale,xy_bias),
+            encode(input.component[2],v8_set(0x3f7fc000),v8_set(0xba800000)));
+    }
+#endif
 #if defined(__AVX2__)
     // For unit components, scale/bias maps [-1,1] into [-1,1).
     // Multiplication by 2^31 is exact and the truncated signed result fits.
@@ -103,6 +121,18 @@ inline v8 geometry_host_cmp8(const GeometryHostSoA8& input)
 inline void geometry_host_float_field8(const GeometryHostSoA8& input, unsigned components,
     uint8_t* destination, unsigned stride, unsigned vertices)
 {
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    if (vertices==8 && components==3 && stride==12 && !(uintptr_t(destination)&3)) {
+        uint32x4x3_t lo,hi;
+        for (unsigned k=0;k<3;++k) {
+            const v8 word=v8_bswap(input.component[k]);
+            lo.val[k]=word.lo; hi.val[k]=word.hi;
+        }
+        vst3q_u32(reinterpret_cast<uint32_t*>(destination),lo);
+        vst3q_u32(reinterpret_cast<uint32_t*>(destination+48),hi);
+        return;
+    }
+#endif
     for (unsigned component = 0; component < components; ++component) {
         uint32_t words[8];
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(words), v8_bswap(input.component[component]));

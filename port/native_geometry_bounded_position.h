@@ -42,12 +42,32 @@ inline bool transform_geometry_bounded_position(GeometryHostSoA8& value,const v8
     if (_mm256_movemask_ps(_mm256_castsi256_ps(outside))) return false;
 #endif
     const v8 x=value.component[0],y=value.component[1],z=value.component[2],w=value.component[3];
-    v8 a=geometry_bounded_mul(x,matrix[0]);a=geometry_bounded_fma(y,matrix[1],a);
-    a=geometry_bounded_fma(z,matrix[2],a);a=geometry_bounded_fma(w,matrix[3],a);
-    v8 b=geometry_bounded_mul(y,matrix[5]);b=geometry_bounded_fma(z,matrix[6],b);
-    b=geometry_bounded_fma(w,matrix[7],b);b=geometry_bounded_fma(x,matrix[4],b);
-    v8 d=geometry_bounded_mul(z,matrix[10]);d=geometry_bounded_fma(w,matrix[11],d);
-    d=geometry_bounded_fma(x,matrix[8],d);d=geometry_bounded_fma(y,matrix[9],d);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    // The bounded dot products consume intermediate zeros only as FMA addends.
+    // Either zero sign yields the same nonzero result. Canonicalize each final
+    // component before it can be observed or used by another operation.
+    auto mul=[](v8 p,v8 q) {
+        return _mm256_castps_si256(_mm256_mul_ps(_mm256_castsi256_ps(p),_mm256_castsi256_ps(q)));
+    };
+    auto madd=[](v8 p,v8 q,v8 r) {
+        return _mm256_castps_si256(_mm256_fmadd_ps(
+            _mm256_castsi256_ps(p),_mm256_castsi256_ps(q),_mm256_castsi256_ps(r)));
+    };
+#else
+    auto mul=geometry_bounded_mul;
+    auto madd=geometry_bounded_fma;
+#endif
+    v8 a=mul(x,matrix[0]);a=madd(y,matrix[1],a);
+    a=madd(z,matrix[2],a);a=madd(w,matrix[3],a);
+    v8 b=mul(y,matrix[5]);b=madd(z,matrix[6],b);
+    b=madd(w,matrix[7],b);b=madd(x,matrix[4],b);
+    v8 d=mul(z,matrix[10]);d=madd(w,matrix[11],d);
+    d=madd(x,matrix[8],d);d=madd(y,matrix[9],d);
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+    a=geometry_bounded_finish(_mm256_castsi256_ps(a));
+    b=geometry_bounded_finish(_mm256_castsi256_ps(b));
+    d=geometry_bounded_finish(_mm256_castsi256_ps(d));
+#endif
     value.component[0]=_mm256_and_si256(a,mask);
     value.component[1]=_mm256_and_si256(b,mask);
     value.component[2]=_mm256_and_si256(d,mask);

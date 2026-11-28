@@ -65,6 +65,8 @@ def indexFusion = providers.gradleProperty('buzzIndexFusion').map { it.toBoolean
 def packedIndexFusion = providers.gradleProperty('buzzPackedIndexFusion').map { it.toBoolean() }.getOrElse(false)
 def geometryDeferredClip = providers.gradleProperty('buzzGeometryDeferredClip').map { it.toBoolean() }.getOrElse(false)
 def geometryLazyAttributes = providers.gradleProperty('buzzGeometryLazyAttributes').map { it.toBoolean() }.getOrElse(false)
+def geometryCoarseClip = providers.gradleProperty('buzzGeometryCoarseClip').map { it.toBoolean() }.getOrElse(false)
+def geometryBoundedSkin = providers.gradleProperty('buzzGeometryBoundedSkin').map { it.toBoolean() }.getOrElse(false)
 def geometryIndexCache = providers.gradleProperty('buzzGeometryIndexCache').map { it.toBoolean() }.getOrElse(false)
 def geometryHostCommands = providers.gradleProperty('buzzGeometryHostCommands').map { it.toBoolean() }.getOrElse(false)
 def geometryZeroVertexPadding = providers.gradleProperty('buzzGeometryZeroVertexPadding').map { it.toBoolean() }.getOrElse(false)
@@ -129,6 +131,8 @@ android {
                     "-DBUZZ_RENDERER_PACKED_FUSION=${packedIndexFusion ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_DEFERRED_CLIP=${geometryDeferredClip ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_LAZY_ATTRIBUTES=${geometryLazyAttributes ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_COARSE_CLIP=${geometryCoarseClip ? 'ON' : 'OFF'}",
+                    "-DBUZZ_GEOMETRY_BOUNDED_SKIN=${geometryBoundedSkin ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_INDEX_CACHE=${geometryIndexCache ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_HOST_COMMANDS=${geometryHostCommands ? 'ON' : 'OFF'}",
                     "-DBUZZ_GEOMETRY_ZERO_VERTEX_PADDING=${geometryZeroVertexPadding ? 'ON' : 'OFF'}",

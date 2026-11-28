@@ -162,6 +162,17 @@ inline bool capture_geometry_host_inputs_phase(const spu_context& c, const Geome
             // Other supported formats admit every payload bit pattern.
             if constexpr(Phase==GeometryHostInputPhase::Attributes)continue;
             if(f.storage!=9)continue;
+#if BUZZ_GEOMETRY_MOBILE_KERNELS && defined(__aarch64__)
+            // Only the low nibble determines whether this deferred field is admissible.
+            unsigned invalid = 0;
+            for (unsigned lane=0; lane<recipe.vertices; ++lane)
+                invalid |= (c.ls[f.source + lane*f.stride + 2] & 12) == 12;
+            if (invalid) {
+                if (reason) *reason="host unsupported unit selector";
+                return false;
+            }
+            continue;
+#endif
         }
         if (f.storage == 3) {
             decode_geometry_host_half_stream(c.ls, f.source, f.stride, f.components, recipe.vertices,

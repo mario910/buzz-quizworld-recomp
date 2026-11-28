@@ -377,7 +377,9 @@ uses the default column. Paths (`buzzWorkspace`, `buzzPython`, `sdlSource`) are 
 | `buzzIndexFusion` | `false` | `true` | `true` |
 | `buzzPackedIndexFusion` | `false` | `true` | `true` |
 | `buzzGeometryDeferredClip` | `false` | `false` | `true` |
-| `buzzGeometryLazyAttributes` | `false` | `false` | `false` |
+| `buzzGeometryLazyAttributes` | `false` | `false` | `true` |
+| `buzzGeometryCoarseClip` | `false` | `false` | `true` |
+| `buzzGeometryBoundedSkin` | `false` | `false` | `true` |
 | `buzzGeometryIndexCache` | `false` | `false` | `true` |
 | `buzzGeometryHostCommands` | `false` | `false` | `false` |
 | `buzzGeometryZeroVertexPadding` | `false` | `false` | `false` |
