@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "controller.h"
 #include "import_wizard.h"
+#include "languages.h"
 #include "localization.h"
 #include "media_preview.h"
 #include "media_tools.h"
@@ -2549,8 +2550,20 @@ void MainWindow::openBuild() {
                 edit->setText(QDir::toNativeSeparators(folder));
         };
     };
-    auto *templatePath = pathRow(col, P("Szablon Quiz World — PACK0100 w wybranym języku"), "buildTemplatePath",
+    auto *templatePath = pathRow(col, P("Wybierz szablon Quiz World PACK0100"), "buildTemplatePath",
                                  browseFile(P("Wybierz szablon Quiz World PACK0100"), "PAK / EDAT (*.PAK *.pak *.edat)"));
+    auto *slotNote = label({}, "muted");
+    slotNote->setWordWrap(true);
+    slotNote->hide();
+    col->addWidget(slotNote);
+    connect(templatePath, &QLineEdit::textChanged, dialog, [this, slotNote](const QString &path) {
+        const auto content = studio.packLanguage();
+        const auto slot = studio::templateGameLanguage(path, content);
+        slotNote->setVisible(!slot.isEmpty() && slot != content);
+        if (!slot.isEmpty() && slot != content)
+            slotNote->setText(P("Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.")
+                                  .arg(studio::languageName(slot), studio::languageName(content)));
+    });
     templatePath->setText(values["templatePath"].toString());
     auto *numberRow = new QHBoxLayout;
     numberRow->addWidget(label(P("Numer paczki"), "muted"));

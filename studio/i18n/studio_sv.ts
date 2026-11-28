@@ -1833,10 +1833,6 @@ Projekt länkar till mediefiler. Paketbygge i programmet och portabla arkiv komm
             <translation>Ogiltig ljudlängd (gräns på 10 minuter).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Mallen innehåller inte projektets aktiva språk. Välj ett PACK0100-arkiv på det språket.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Paketfilen ändrades medan den kopierades.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projekt länkar till mediefiler. Paketbygge i programmet och portabla arkiv komm
             <translation>Bygg ett paket för det aktiva språket. Frågor utan den versionen hoppas över; ofullständiga frågor måste färdigställas innan du bygger.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Quiz World-mall – PACK0100 på det valda språket</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Välj %1 i Quiz World för att spela. Språk för frågor och inspelningar: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

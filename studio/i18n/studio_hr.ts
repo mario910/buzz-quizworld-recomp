@@ -1833,10 +1833,6 @@ Projekti sadrže poveznice na medijske datoteke. Izgradnja paketa u aplikaciji i
             <translation>Neispravna duljina audiozapisa (ograničenje 10 minuta).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Predložak ne sadrži aktivni jezik projekta. Odaberite arhivu PACK0100 na tom jeziku.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Datoteka paketa promijenila se tijekom kopiranja.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projekti sadrže poveznice na medijske datoteke. Izgradnja paketa u aplikaciji i
             <translation>Izgradite paket za aktivni jezik. Pitanja bez te verzije bit će preskočena; nedovršena pitanja treba dovršiti prije izgradnje.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Predložak Quiz World — PACK0100 na odabranom jeziku</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Za igranje odaberite %1 u igri Quiz World. Jezik pitanja i snimki: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

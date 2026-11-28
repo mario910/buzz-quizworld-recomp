@@ -1833,10 +1833,6 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
             <translation>Neplatná délka zvuku (limit 10 minut).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Šablona neobsahuje aktivní jazyk projektu. Vyberte archiv PACK0100 v tomto jazyce.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Soubor sady se během kopírování změnil.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projekty odkazují na soubory médií. Sestavování sad v aplikaci a přenosné
             <translation>Sestavte sadu pro aktivní jazyk. Otázky bez této verze budou přeskočeny; neúplné otázky je nutné před sestavením doplnit.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Šablona Quiz World — PACK0100 ve vybraném jazyce</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Pro hraní vyberte v Quiz World jazyk %1. Jazyk otázek a nahrávek: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

@@ -1833,10 +1833,6 @@ Os projetos fazem ligação a ficheiros multimédia. A criação de pacotes na a
             <translation>Duração de áudio inválida (limite de 10 minutos).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>O modelo não contém o idioma ativo do projeto. Escolha um arquivo PACK0100 nesse idioma.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>O ficheiro do pacote foi alterado durante a cópia.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Os projetos fazem ligação a ficheiros multimédia. A criação de pacotes na a
             <translation>Crie um pacote para o idioma ativo. As perguntas sem essa versão serão ignoradas; as perguntas incompletas têm de ser concluídas antes da criação.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Modelo do Quiz World — PACK0100 no idioma selecionado</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Para jogar, selecione %1 no Quiz World. Idioma das perguntas e das gravações: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

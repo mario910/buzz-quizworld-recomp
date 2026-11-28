@@ -16,8 +16,8 @@ Release packages (BuzzSetup) include Question Studio:
 
 When BuzzSetup opens Studio for a prepared game, it passes that folder as
 `--game-dir <dist>`. The build dialog proposes that copy's `runtime`, reads the
-title ID from its disc's `PARAM.SFO`, and looks for the PACK0100 template in the
-selected language.
+title ID from its disc's `PARAM.SFO`, and suggests a PACK0100 template from that
+disc. It prefers the question language, then English, then another available language.
 Installation works before the game's first start. The interface uses the same
 colours and controls as BuzzSetup.
 
@@ -202,11 +202,12 @@ the user chooses another language. The example opens in the selected question la
 
 1. Select the content language in the header, complete its questions and category
    mappings, and attach images/audio or generate WAV with **Generate speech**.
-2. Click **Build an .edat pack…**. Choose the original Quiz World **PACK0100** PAK in
-   that language, an output directory, and a custom pack number (default 103).
-   For Polish, use `POLPACK0100.PAK`; English needs an English template. A template
-   for another language cannot supply translated category names. Project language,
-   not interface language, controls the resulting pack.
+2. Click **Build an .edat pack…**. Choose an original Quiz World **PACK0100** PAK
+   from your copy of the game, an output directory, and a custom pack number
+   (default 103). The template determines which language to select in Quiz World.
+   For example, you can build Hungarian questions with `POLPACK0100.PAK` and
+   select Polish in the game. Questions, answers, attached narration and custom
+   category names stay in Hungarian. Built-in category names come from the template.
 3. Review the preliminary counts for ready, incomplete and empty questions in
    the active language. Click **Needs fixes** to see the questions and their
    reasons. Open a question in the editor, move through the list with

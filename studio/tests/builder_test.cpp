@@ -1252,12 +1252,13 @@ class BuilderTest final : public QObject {
         const auto pcm = bytes(fixture("atrac-input.pcm"));
         QVERIFY(!pcm.isEmpty());
         int recording = 0;
-        for (const QString &language : {QString("en"), QString("pl")}) {
+        for (const QString &language : {QString("en"), QString("pl"), QString("hu")}) {
             req.document.switchLanguage(language);
             QMap<QString, QByteArray> expected;
             for (auto &q : req.document.questions) {
-                q.text = language + ' ' + q.id;
-                q.answers = QStringList{"A", "B", "C", "D"};
+                q.text = (language == "hu" ? QString("Melyik az első? ") : language + ' ') + q.id;
+                q.answers = language == "hu" ? QStringList{"Tűz", "Víz", "Föld", "Levegő"}
+                                             : QStringList{"A", "B", "C", "D"};
                 q.correct = 0;
                 q.speech = temp.filePath(QString::number(++recording) + ".rsf");
                 const auto audio = encodeAtracPcm(pcm.repeated(recording));
@@ -1266,11 +1267,17 @@ class BuilderTest final : public QObject {
             }
             const auto built = studio::buildPack(req);
             QVERIFY2(built.ok(), qPrintable(built.error));
-            const auto imported = studio::importBuzz(built.path, language);
+            const auto slot = language == "hu" ? QString("en") : language;
+            QCOMPARE(studio::templateGameLanguage(req.templatePath, language), slot);
+            if (language == "hu")
+                QVERIFY(built.path.endsWith("ENGPACK0103.edat"));
+            const auto imported = studio::importBuzz(built.path, slot);
             QVERIFY2(imported.ok(), qPrintable(imported.error));
             QCOMPARE(imported.document.questions.size(), expected.size());
             for (const auto &q : imported.document.questions) {
                 QVERIFY(expected.contains(q.text));
+                if (language == "hu")
+                    QCOMPARE(q.answers, QStringList({"Tűz", "Víz", "Föld", "Levegő"}));
                 QVERIFY(!q.speech.isEmpty());
                 QCOMPARE(bytes(q.speech), expected.value(q.text));
             }
@@ -1527,6 +1534,10 @@ class BuilderTest final : public QObject {
                  QFileInfo(runtime).canonicalFilePath());
         QCOMPARE(QFileInfo(english["templatePath"].toString()).fileName(), QString("ENGPACK0100.PAK"));
         QCOMPARE(QFileInfo(studio::suggestBuildSettings("pl")["templatePath"].toString()).fileName(),
+                 QString("POLPACK0100.PAK"));
+        QCOMPARE(studio::suggestBuildSettings("hu")["templatePath"], english["templatePath"]);
+        QVERIFY(QFile::remove(packs + "/ENGPACK0100.PAK"));
+        QCOMPARE(QFileInfo(studio::suggestBuildSettings("hu")["templatePath"].toString()).fileName(),
                  QString("POLPACK0100.PAK"));
         studio::setGameDirectory({});
         QSettings().remove("build");

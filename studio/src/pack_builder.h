@@ -33,6 +33,7 @@ BuildResult buildPack(const BuildRequest &request, const pack::Progress &progres
 BuildResult installPack(const QString &source, const QString &runtimeRoot, const QString &titleId,
                         const pack::Progress &progress = {}, std::atomic_bool *cancel = nullptr);
 QString defaultFfmpeg();
+QString templateGameLanguage(const QString &path, const QString &contentLanguage);
 QVariantMap suggestBuildSettings(const QString &language);
 // A game folder prepared by BuzzSetup (the folder with BuzzQuizWorldRecomp and
 // runtime/). Its runtime and PACK0100 templates take precedence in suggestions.

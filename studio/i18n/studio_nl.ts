@@ -1833,10 +1833,6 @@ Projecten verwijzen naar mediabestanden. Pakketten bouwen in de app en draagbare
             <translation>Ongeldige audiolengte (limiet van 10 minuten).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Het sjabloon bevat de actieve projecttaal niet. Kies een PACK0100-archief in die taal.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Het pakketbestand is tijdens het kopiëren gewijzigd.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Projecten verwijzen naar mediabestanden. Pakketten bouwen in de app en draagbare
             <translation>Bouw een pakket voor de actieve taal. Vragen zonder die versie worden overgeslagen; onvolledige vragen moeten vóór het bouwen worden aangevuld.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Quiz World-sjabloon — PACK0100 in de geselecteerde taal</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Kies %1 in Quiz World om te spelen. Taal van de vragen en opnamen: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>

@@ -1833,10 +1833,6 @@ Das Projekt speichert Verweise auf Medien. Paketerstellung in der App und portab
             <translation>Ungültige Aufnahmelänge (Limit 10 Minuten).</translation>
         </message>
         <message>
-            <source>Szablon nie zawiera aktywnego języka projektu. Wybierz paczkę PACK0100 w tym języku.</source>
-            <translation>Die Vorlage enthält die aktive Projektsprache nicht. Wählen Sie ein PACK0100-Paket in dieser Sprache.</translation>
-        </message>
-        <message>
             <source>Plik paczki zmienił się podczas kopiowania.</source>
             <translation>Die Paketdatei hat sich beim Kopieren geändert.</translation>
         </message>
@@ -2331,8 +2327,8 @@ Das Projekt speichert Verweise auf Medien. Paketerstellung in der App und portab
             <translation>Erstellen Sie ein Paket für die aktive Sprache. Fragen ohne diese Version werden übersprungen; unvollständige Fragen müssen vor dem Erstellen vervollständigt werden.</translation>
         </message>
         <message>
-            <source>Szablon Quiz World — PACK0100 w wybranym języku</source>
-            <translation>Quiz-World-Vorlage — PACK0100 in der ausgewählten Sprache</translation>
+            <source>Aby zagrać, wybierz w Quiz World język %1. Język pytań i nagrań: %2.</source>
+            <translation>Wähle zum Spielen in Quiz World die Sprache %1. Sprache der Fragen und Aufnahmen: %2.</translation>
         </message>
         <message>
             <source>Numer paczki</source>
