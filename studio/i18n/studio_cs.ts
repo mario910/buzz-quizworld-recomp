@@ -3273,4 +3273,199 @@ Sestavený soubor: </translation>
             <translation>Tento soubor se nepodařilo přehrát.</translation>
         </message>
     </context>
+    <context>
+        <name>OmniVoice</name>
+        <message>
+            <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
+            <translation>Váhy modelu OmniVoice jsou určeny pro nekomerční použití. Tokenizátor Higgs Audio 2 má vlastní licenci.</translation>
+        </message>
+        <message>
+            <source>Mam zgodę na klonowanie tego głosu.</source>
+            <translation>Mám svolení klonovat tento hlas.</translation>
+        </message>
+        <message>
+            <source>W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.</source>
+            <translation>Podle grafické karty může instalátor stáhnout také balíčky CUDA nebo ROCm.</translation>
+        </message>
+        <message>
+            <source>Skonfiguruj ponownie OmniVoice…</source>
+            <translation>Znovu nastavit OmniVoice…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy (%1).</source>
+            <translation>OmniVoice je připraven (%1).</translation>
+        </message>
+        <message>
+            <source>Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku.</source>
+            <translation>Instalátor stáhne několik GB dat. Na disku potřebujete také několik GB volného místa.</translation>
+        </message>
+        <message>
+            <source>Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.</source>
+            <translation>Studio vytvoří vlastní prostředí Pythonu, nainstaluje OmniVoice, PyTorch a FFmpeg a stáhne soubory modelu. Stačí běžná uživatelská oprávnění. Po instalaci funguje generování hlasu offline.</translation>
+        </message>
+        <message>
+            <source>Zainstaluj OmniVoice</source>
+            <translation>Nainstalovat OmniVoice</translation>
+        </message>
+        <message>
+            <source>Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline.</source>
+            <translation>První instalace stáhne několik GB. Poté lze generovat hlas offline.</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie środowiska OmniVoice…</source>
+            <translation>Příprava prostředí OmniVoice…</translation>
+        </message>
+        <message>
+            <source>Instalowanie pakietów OmniVoice…</source>
+            <translation>Instalace balíčků OmniVoice…</translation>
+        </message>
+        <message>
+            <source>Pobieranie i sprawdzanie modelu OmniVoice…</source>
+            <translation>Stahování a kontrola modelu OmniVoice…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy.</source>
+            <translation>OmniVoice je připraven.</translation>
+        </message>
+        <message>
+            <source>Anulowano instalację OmniVoice.</source>
+            <translation>Instalace OmniVoice byla zrušena.</translation>
+        </message>
+        <message>
+            <source>Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.</source>
+            <translation>OmniVoice se nepodařilo nainstalovat. Zkuste to znovu.</translation>
+        </message>
+        <message>
+            <source>Anulowanie instalacji…</source>
+            <translation>Rušení instalace…</translation>
+        </message>
+        <message>
+            <source>Instalacja OmniVoice już trwa w innym oknie.</source>
+            <translation>Instalace OmniVoice již probíhá v jiném okně.</translation>
+        </message>
+        <message>
+            <source>OmniVoice — lokalny lektor</source>
+            <translation>OmniVoice — místní hlasový doprovod</translation>
+        </message>
+        <message>
+            <source>Wybierz Python…</source>
+            <translation>Vybrat Python…</translation>
+        </message>
+        <message>
+            <source>Wybierz interpreter Python z zainstalowanym OmniVoice.</source>
+            <translation>Vyberte interpret Pythonu s nainstalovaným OmniVoice.</translation>
+        </message>
+        <message>
+            <source>OmniVoice wymaga osobnego środowiska Python. Przy pierwszym użyciu pobierze wagi modelu.</source>
+            <translation>OmniVoice používá samostatné prostředí Pythonu. Při prvním použití stáhne váhy modelu.</translation>
+        </message>
+        <message>
+            <source>Użyj lektora z importu</source>
+            <translation>Použít hlas z importu</translation>
+        </message>
+        <message>
+            <source>Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.</source>
+            <translation>Byla vybrána ukázka z nainstalované hry. Zkontrolujte přepis.</translation>
+        </message>
+        <message>
+            <source>Brak próbki w przygotowanej grze dla tego języka.</source>
+            <translation>V připravené hře není ukázka pro tento jazyk.</translation>
+        </message>
+        <message>
+            <source>Wybierz nagranie…</source>
+            <translation>Vybrat nahrávku…</translation>
+        </message>
+        <message>
+            <source>Nagranie referencyjne</source>
+            <translation>Referenční nahrávka</translation>
+        </message>
+        <message>
+            <source>Transkrypcja nagrania</source>
+            <translation>Přepis nahrávky</translation>
+        </message>
+        <message>
+            <source>Tekst do przeczytania</source>
+            <translation>Text k přečtení</translation>
+        </message>
+        <message>
+            <source>Zapisz profil</source>
+            <translation>Uložit profil</translation>
+        </message>
+        <message>
+            <source>Odsłuchaj próbkę</source>
+            <translation>Poslechnout ukázku</translation>
+        </message>
+        <message>
+            <source>Generuj dla pytania</source>
+            <translation>Vygenerovat pro otázku</translation>
+        </message>
+        <message>
+            <source>Uzupełnij brakującego lektora (%1)</source>
+            <translation>Doplnit chybějící hlas (%1)</translation>
+        </message>
+        <message>
+            <source>Uzupełnianie dotyczy pytań z całego projektu w wybranym języku.</source>
+            <translation>Hromadné generování platí pro celý projekt ve vybraném jazyce.</translation>
+        </message>
+        <message>
+            <source>Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</source>
+            <translation>Zvukové soubory (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</translation>
+        </message>
+        <message>
+            <source>Zaimportuj pytanie z lektorem w wybranym języku.</source>
+            <translation>Importujte otázku s hlasovým doprovodem ve vybraném jazyce.</translation>
+        </message>
+        <message>
+            <source>Sprawdź, czy transkrypcja odpowiada nagraniu.</source>
+            <translation>Zkontrolujte, zda přepis odpovídá nahrávce.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odczytać lektora z gry.</source>
+            <translation>Hlas ze hry se nepodařilo načíst.</translation>
+        </message>
+        <message>
+            <source>Zapisano profil dla tego języka.</source>
+            <translation>Profil pro tento jazyk byl uložen.</translation>
+        </message>
+        <message>
+            <source>Anulowano. Zapisane nagrania: %1 z %2.</source>
+            <translation>Zrušeno. Uloženo %1 z %2 nahrávek.</translation>
+        </message>
+        <message>
+            <source>Zapisane nagrania: %1 z %2.</source>
+            <translation>Uloženo %1 z %2 nahrávek.</translation>
+        </message>
+        <message>
+            <source>Dodaj nagranie referencyjne i wpisz jego transkrypcję.</source>
+            <translation>Přidejte referenční nahrávku a zadejte její přepis.</translation>
+        </message>
+        <message>
+            <source>Nie można odczytać nagrania referencyjnego.</source>
+            <translation>Referenční nahrávku nelze načíst.</translation>
+        </message>
+        <message>
+            <source>Nie można zapisać lokalnego profilu lektora.</source>
+            <translation>Místní hlasový profil nelze uložit.</translation>
+        </message>
+        <message>
+            <source>Nie znaleziono lektora wybranego pytania.</source>
+            <translation>U vybrané otázky nebyla nalezena hlasová nahrávka.</translation>
+        </message>
+        <message>
+            <source>Nie można przygotować lokalnego zadania OmniVoice.</source>
+            <translation>Místní úlohu OmniVoice nelze připravit.</translation>
+        </message>
+        <message>
+            <source>Nie można uruchomić OmniVoice.</source>
+            <translation>OmniVoice nelze spustit.</translation>
+        </message>
+        <message>
+            <source>OmniVoice nie wygenerował wszystkich nagrań. Sprawdź instalację i nagranie referencyjne.</source>
+            <translation>OmniVoice nevytvořil všechny nahrávky. Zkontrolujte instalaci a referenční nahrávku.</translation>
+        </message>
+        <message>
+            <source>Uzupełnij lektora (OmniVoice)</source>
+            <translation>Doplnit hlas (OmniVoice)</translation>
+        </message>
+    </context>
 </TS>

@@ -36,6 +36,7 @@ class MainWindow final : public QMainWindow {
     Q_INVOKABLE void commitEdits();
     Q_INVOKABLE void openBuild();
     Q_INVOKABLE void openTts();
+    void openOmniVoice();
     Q_INVOKABLE void openProjectLanguages();
     // The project's own subjects and subcategories, named per content language.
     Q_INVOKABLE void openPackCategories();

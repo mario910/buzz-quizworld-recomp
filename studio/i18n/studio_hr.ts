@@ -3273,4 +3273,199 @@ Izgrađena datoteka: </translation>
             <translation>Datoteku nije moguće reproducirati.</translation>
         </message>
     </context>
+    <context>
+        <name>OmniVoice</name>
+        <message>
+            <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
+            <translation>Težine modela OmniVoice namijenjene su nekomercijalnoj upotrebi. Tokenizator Higgs Audio 2 ima zasebnu licencu.</translation>
+        </message>
+        <message>
+            <source>Mam zgodę na klonowanie tego głosu.</source>
+            <translation>Imam dopuštenje za kloniranje ovog glasa.</translation>
+        </message>
+        <message>
+            <source>W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.</source>
+            <translation>Ovisno o grafičkoj kartici, instalacijski program može preuzeti i pakete CUDA ili ROCm.</translation>
+        </message>
+        <message>
+            <source>Skonfiguruj ponownie OmniVoice…</source>
+            <translation>Ponovno konfiguriraj OmniVoice…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy (%1).</source>
+            <translation>OmniVoice je spreman (%1).</translation>
+        </message>
+        <message>
+            <source>Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku.</source>
+            <translation>Instalacijski program preuzet će nekoliko GB podataka. Potrebno je i nekoliko GB slobodnog prostora na disku.</translation>
+        </message>
+        <message>
+            <source>Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.</source>
+            <translation>Studio će stvoriti vlastito Python okruženje, instalirati OmniVoice, PyTorch i FFmpeg te preuzeti datoteke modela. Dovoljne su uobičajene korisničke ovlasti. Nakon instalacije glas se može generirati bez internetske veze.</translation>
+        </message>
+        <message>
+            <source>Zainstaluj OmniVoice</source>
+            <translation>Instaliraj OmniVoice</translation>
+        </message>
+        <message>
+            <source>Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline.</source>
+            <translation>Prva instalacija preuzima nekoliko GB. Nakon toga glas se generira bez internetske veze.</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie środowiska OmniVoice…</source>
+            <translation>Priprema okruženja OmniVoice…</translation>
+        </message>
+        <message>
+            <source>Instalowanie pakietów OmniVoice…</source>
+            <translation>Instaliranje paketa OmniVoice…</translation>
+        </message>
+        <message>
+            <source>Pobieranie i sprawdzanie modelu OmniVoice…</source>
+            <translation>Preuzimanje i provjera modela OmniVoice…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy.</source>
+            <translation>OmniVoice je spreman.</translation>
+        </message>
+        <message>
+            <source>Anulowano instalację OmniVoice.</source>
+            <translation>Instalacija OmniVoicea je otkazana.</translation>
+        </message>
+        <message>
+            <source>Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.</source>
+            <translation>Nije moguće instalirati OmniVoice. Možeš pokušati ponovo.</translation>
+        </message>
+        <message>
+            <source>Anulowanie instalacji…</source>
+            <translation>Otkazivanje instalacije…</translation>
+        </message>
+        <message>
+            <source>Instalacja OmniVoice już trwa w innym oknie.</source>
+            <translation>Instalacija OmniVoicea već je u tijeku u drugom prozoru.</translation>
+        </message>
+        <message>
+            <source>OmniVoice — lokalny lektor</source>
+            <translation>OmniVoice — lokalna naracija</translation>
+        </message>
+        <message>
+            <source>Wybierz Python…</source>
+            <translation>Odaberi Python…</translation>
+        </message>
+        <message>
+            <source>Wybierz interpreter Python z zainstalowanym OmniVoice.</source>
+            <translation>Odaberite Pythonov interpreter s instaliranim OmniVoiceom.</translation>
+        </message>
+        <message>
+            <source>OmniVoice wymaga osobnego środowiska Python. Przy pierwszym użyciu pobierze wagi modelu.</source>
+            <translation>OmniVoice koristi zasebno Pythonovo okruženje. Težine modela preuzimaju se pri prvom korištenju.</translation>
+        </message>
+        <message>
+            <source>Użyj lektora z importu</source>
+            <translation>Upotrijebi uvezenu naraciju</translation>
+        </message>
+        <message>
+            <source>Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.</source>
+            <translation>Odabran je uzorak iz instalirane igre. Provjerite prijepis.</translation>
+        </message>
+        <message>
+            <source>Brak próbki w przygotowanej grze dla tego języka.</source>
+            <translation>Pripremljena igra nema uzorak za ovaj jezik.</translation>
+        </message>
+        <message>
+            <source>Wybierz nagranie…</source>
+            <translation>Odaberi snimku…</translation>
+        </message>
+        <message>
+            <source>Nagranie referencyjne</source>
+            <translation>Referentna snimka</translation>
+        </message>
+        <message>
+            <source>Transkrypcja nagrania</source>
+            <translation>Prijepis snimke</translation>
+        </message>
+        <message>
+            <source>Tekst do przeczytania</source>
+            <translation>Tekst za čitanje</translation>
+        </message>
+        <message>
+            <source>Zapisz profil</source>
+            <translation>Spremi profil</translation>
+        </message>
+        <message>
+            <source>Odsłuchaj próbkę</source>
+            <translation>Poslušaj primjer</translation>
+        </message>
+        <message>
+            <source>Generuj dla pytania</source>
+            <translation>Generiraj za pitanje</translation>
+        </message>
+        <message>
+            <source>Uzupełnij brakującego lektora (%1)</source>
+            <translation>Dopuni naraciju koja nedostaje (%1)</translation>
+        </message>
+        <message>
+            <source>Uzupełnianie dotyczy pytań z całego projektu w wybranym języku.</source>
+            <translation>Skupno generiranje obuhvaća cijeli projekt na odabranom jeziku.</translation>
+        </message>
+        <message>
+            <source>Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</source>
+            <translation>Zvučne datoteke (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</translation>
+        </message>
+        <message>
+            <source>Zaimportuj pytanie z lektorem w wybranym języku.</source>
+            <translation>Uvezite pitanje s naracijom na odabranom jeziku.</translation>
+        </message>
+        <message>
+            <source>Sprawdź, czy transkrypcja odpowiada nagraniu.</source>
+            <translation>Provjerite odgovara li prijepis snimci.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odczytać lektora z gry.</source>
+            <translation>Nije moguće pročitati naraciju iz igre.</translation>
+        </message>
+        <message>
+            <source>Zapisano profil dla tego języka.</source>
+            <translation>Profil za ovaj jezik je spremljen.</translation>
+        </message>
+        <message>
+            <source>Anulowano. Zapisane nagrania: %1 z %2.</source>
+            <translation>Otkazano. Spremljeno je %1 od %2 snimaka.</translation>
+        </message>
+        <message>
+            <source>Zapisane nagrania: %1 z %2.</source>
+            <translation>Spremljeno je %1 od %2 snimaka.</translation>
+        </message>
+        <message>
+            <source>Dodaj nagranie referencyjne i wpisz jego transkrypcję.</source>
+            <translation>Dodajte referentnu snimku i unesite njezin prijepis.</translation>
+        </message>
+        <message>
+            <source>Nie można odczytać nagrania referencyjnego.</source>
+            <translation>Nije moguće pročitati referentnu snimku.</translation>
+        </message>
+        <message>
+            <source>Nie można zapisać lokalnego profilu lektora.</source>
+            <translation>Nije moguće spremiti lokalni glasovni profil.</translation>
+        </message>
+        <message>
+            <source>Nie znaleziono lektora wybranego pytania.</source>
+            <translation>Za odabrano pitanje nije pronađena naracija.</translation>
+        </message>
+        <message>
+            <source>Nie można przygotować lokalnego zadania OmniVoice.</source>
+            <translation>Nije moguće pripremiti lokalni zadatak OmniVoicea.</translation>
+        </message>
+        <message>
+            <source>Nie można uruchomić OmniVoice.</source>
+            <translation>Nije moguće pokrenuti OmniVoice.</translation>
+        </message>
+        <message>
+            <source>OmniVoice nie wygenerował wszystkich nagrań. Sprawdź instalację i nagranie referencyjne.</source>
+            <translation>OmniVoice nije mogao generirati sve snimke. Provjerite instalaciju i referentnu snimku.</translation>
+        </message>
+        <message>
+            <source>Uzupełnij lektora (OmniVoice)</source>
+            <translation>Dopuni naraciju (OmniVoice)</translation>
+        </message>
+    </context>
 </TS>

@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonObject>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
@@ -11,6 +12,9 @@
 
 namespace studio {
 QString findMediaFfmpeg();
+QString managedOmniVoiceManifest();
+QJsonObject managedOmniVoiceRuntime();
+QString managedMediaFfmpeg();
 bool verifyMediaFfmpeg(const QString &executable);
 struct FfmpegInstallation {
     QString manager, program;

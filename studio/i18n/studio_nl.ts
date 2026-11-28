@@ -3273,4 +3273,199 @@ Gebouwd bestand: </translation>
             <translation>Dit bestand kan niet worden afgespeeld.</translation>
         </message>
     </context>
+    <context>
+        <name>OmniVoice</name>
+        <message>
+            <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
+            <translation>De modelgewichten van OmniVoice zijn bedoeld voor niet-commercieel gebruik. De Higgs Audio 2-tokenizer heeft een eigen licentie.</translation>
+        </message>
+        <message>
+            <source>Mam zgodę na klonowanie tego głosu.</source>
+            <translation>Ik heb toestemming om deze stem te klonen.</translation>
+        </message>
+        <message>
+            <source>W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.</source>
+            <translation>Afhankelijk van je videokaart kan het installatieprogramma ook CUDA- of ROCm-pakketten downloaden.</translation>
+        </message>
+        <message>
+            <source>Skonfiguruj ponownie OmniVoice…</source>
+            <translation>OmniVoice opnieuw instellen…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy (%1).</source>
+            <translation>OmniVoice is gereed (%1).</translation>
+        </message>
+        <message>
+            <source>Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku.</source>
+            <translation>Het installatieprogramma downloadt enkele GB aan gegevens. Je hebt ook enkele GB vrije schijfruimte nodig.</translation>
+        </message>
+        <message>
+            <source>Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.</source>
+            <translation>Studio maakt een eigen Python-omgeving aan, installeert OmniVoice, PyTorch en FFmpeg en downloadt de modelbestanden. Gewone gebruikersrechten volstaan. Na de installatie kun je offline spraak genereren.</translation>
+        </message>
+        <message>
+            <source>Zainstaluj OmniVoice</source>
+            <translation>OmniVoice installeren</translation>
+        </message>
+        <message>
+            <source>Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline.</source>
+            <translation>De eerste installatie downloadt enkele GB. Daarna kun je offline spraak genereren.</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie środowiska OmniVoice…</source>
+            <translation>OmniVoice-omgeving voorbereiden…</translation>
+        </message>
+        <message>
+            <source>Instalowanie pakietów OmniVoice…</source>
+            <translation>OmniVoice-pakketten installeren…</translation>
+        </message>
+        <message>
+            <source>Pobieranie i sprawdzanie modelu OmniVoice…</source>
+            <translation>OmniVoice-model downloaden en controleren…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy.</source>
+            <translation>OmniVoice is gereed.</translation>
+        </message>
+        <message>
+            <source>Anulowano instalację OmniVoice.</source>
+            <translation>De installatie van OmniVoice is geannuleerd.</translation>
+        </message>
+        <message>
+            <source>Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.</source>
+            <translation>OmniVoice kon niet worden geïnstalleerd. Je kunt het opnieuw proberen.</translation>
+        </message>
+        <message>
+            <source>Anulowanie instalacji…</source>
+            <translation>Installatie annuleren…</translation>
+        </message>
+        <message>
+            <source>Instalacja OmniVoice już trwa w innym oknie.</source>
+            <translation>OmniVoice wordt al in een ander venster geïnstalleerd.</translation>
+        </message>
+        <message>
+            <source>OmniVoice — lokalny lektor</source>
+            <translation>OmniVoice — lokale voorleesstem</translation>
+        </message>
+        <message>
+            <source>Wybierz Python…</source>
+            <translation>Python kiezen…</translation>
+        </message>
+        <message>
+            <source>Wybierz interpreter Python z zainstalowanym OmniVoice.</source>
+            <translation>Kies de Python-interpreter waarop OmniVoice is geïnstalleerd.</translation>
+        </message>
+        <message>
+            <source>OmniVoice wymaga osobnego środowiska Python. Przy pierwszym użyciu pobierze wagi modelu.</source>
+            <translation>OmniVoice heeft een afzonderlijke Python-omgeving nodig. De modelgewichten worden bij het eerste gebruik gedownload.</translation>
+        </message>
+        <message>
+            <source>Użyj lektora z importu</source>
+            <translation>Geïmporteerde voorleesstem gebruiken</translation>
+        </message>
+        <message>
+            <source>Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.</source>
+            <translation>Voorbeeld geselecteerd uit het geïnstalleerde spel. Controleer het transcript.</translation>
+        </message>
+        <message>
+            <source>Brak próbki w przygotowanej grze dla tego języka.</source>
+            <translation>Het voorbereide spel heeft geen voorbeeld in deze taal.</translation>
+        </message>
+        <message>
+            <source>Wybierz nagranie…</source>
+            <translation>Opname kiezen…</translation>
+        </message>
+        <message>
+            <source>Nagranie referencyjne</source>
+            <translation>Referentieopname</translation>
+        </message>
+        <message>
+            <source>Transkrypcja nagrania</source>
+            <translation>Transcript van de opname</translation>
+        </message>
+        <message>
+            <source>Tekst do przeczytania</source>
+            <translation>Voor te lezen tekst</translation>
+        </message>
+        <message>
+            <source>Zapisz profil</source>
+            <translation>Profiel opslaan</translation>
+        </message>
+        <message>
+            <source>Odsłuchaj próbkę</source>
+            <translation>Voorbeeld beluisteren</translation>
+        </message>
+        <message>
+            <source>Generuj dla pytania</source>
+            <translation>Voor vraag genereren</translation>
+        </message>
+        <message>
+            <source>Uzupełnij brakującego lektora (%1)</source>
+            <translation>Ontbrekende opnames aanvullen (%1)</translation>
+        </message>
+        <message>
+            <source>Uzupełnianie dotyczy pytań z całego projektu w wybranym języku.</source>
+            <translation>De verwerking geldt voor het hele project in de geselecteerde taal.</translation>
+        </message>
+        <message>
+            <source>Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</source>
+            <translation>Audiobestanden (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</translation>
+        </message>
+        <message>
+            <source>Zaimportuj pytanie z lektorem w wybranym języku.</source>
+            <translation>Importeer een vraag met een voorleesstem in de geselecteerde taal.</translation>
+        </message>
+        <message>
+            <source>Sprawdź, czy transkrypcja odpowiada nagraniu.</source>
+            <translation>Controleer of het transcript overeenkomt met de opname.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odczytać lektora z gry.</source>
+            <translation>De voorleesstem uit het spel kon niet worden gelezen.</translation>
+        </message>
+        <message>
+            <source>Zapisano profil dla tego języka.</source>
+            <translation>Profiel opgeslagen voor deze taal.</translation>
+        </message>
+        <message>
+            <source>Anulowano. Zapisane nagrania: %1 z %2.</source>
+            <translation>Geannuleerd. %1 van %2 opnames opgeslagen.</translation>
+        </message>
+        <message>
+            <source>Zapisane nagrania: %1 z %2.</source>
+            <translation>%1 van %2 opnames opgeslagen.</translation>
+        </message>
+        <message>
+            <source>Dodaj nagranie referencyjne i wpisz jego transkrypcję.</source>
+            <translation>Voeg een referentieopname toe en voer het transcript ervan in.</translation>
+        </message>
+        <message>
+            <source>Nie można odczytać nagrania referencyjnego.</source>
+            <translation>De referentieopname kon niet worden gelezen.</translation>
+        </message>
+        <message>
+            <source>Nie można zapisać lokalnego profilu lektora.</source>
+            <translation>Het lokale stemprofiel kon niet worden opgeslagen.</translation>
+        </message>
+        <message>
+            <source>Nie znaleziono lektora wybranego pytania.</source>
+            <translation>Geen opname gevonden voor de geselecteerde vraag.</translation>
+        </message>
+        <message>
+            <source>Nie można przygotować lokalnego zadania OmniVoice.</source>
+            <translation>De lokale OmniVoice-taak kon niet worden voorbereid.</translation>
+        </message>
+        <message>
+            <source>Nie można uruchomić OmniVoice.</source>
+            <translation>OmniVoice kon niet worden gestart.</translation>
+        </message>
+        <message>
+            <source>OmniVoice nie wygenerował wszystkich nagrań. Sprawdź instalację i nagranie referencyjne.</source>
+            <translation>OmniVoice kon niet alle opnames genereren. Controleer de installatie en de referentieopname.</translation>
+        </message>
+        <message>
+            <source>Uzupełnij lektora (OmniVoice)</source>
+            <translation>Opnames aanvullen (OmniVoice)</translation>
+        </message>
+    </context>
 </TS>

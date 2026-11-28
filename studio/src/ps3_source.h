@@ -26,7 +26,8 @@ class LicenseRequired : public std::runtime_error {
 
 bool isPs3Source(const QString &path);
 SourceLanguages ps3Languages(const QString &path);
-LoadResult importPs3(const QString &path, const QString &language = {}, bool extractSpeech = true);
+LoadResult importPs3(const QString &path, const QString &language = {}, bool extractSpeech = true,
+                    bool narrationSample = false);
 QString readTitleId(const QString &sfoPath);
 std::unique_ptr<pack::Archive> openQuestionArchive(const QString &sourcePath, const QString &packLabel);
 QByteArray readQuestionMedia(const QString &sourcePath, const QString &packLabel, const QString &entry);

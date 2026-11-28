@@ -3273,4 +3273,199 @@ Rakennettu tiedosto: </translation>
             <translation>Tätä tiedostoa ei voitu toistaa.</translation>
         </message>
     </context>
+    <context>
+        <name>OmniVoice</name>
+        <message>
+            <source>Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.</source>
+            <translation>OmniVoicen mallipainot on tarkoitettu ei-kaupalliseen käyttöön. Higgs Audio 2 -tokenisaattorilla on oma lisenssi.</translation>
+        </message>
+        <message>
+            <source>Mam zgodę na klonowanie tego głosu.</source>
+            <translation>Minulla on lupa kloonata tämä ääni.</translation>
+        </message>
+        <message>
+            <source>W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.</source>
+            <translation>Näytönohjaimesta riippuen asennusohjelma voi ladata myös CUDA- tai ROCm-paketteja.</translation>
+        </message>
+        <message>
+            <source>Skonfiguruj ponownie OmniVoice…</source>
+            <translation>Määritä OmniVoice uudelleen…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy (%1).</source>
+            <translation>OmniVoice on valmis (%1).</translation>
+        </message>
+        <message>
+            <source>Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku.</source>
+            <translation>Asennusohjelma lataa useita gigatavuja tietoja. Tarvitset myös useita gigatavuja vapaata levytilaa.</translation>
+        </message>
+        <message>
+            <source>Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.</source>
+            <translation>Studio luo oman Python-ympäristön, asentaa OmniVoicen, PyTorchin ja FFmpegin sekä lataa mallitiedostot. Tavalliset käyttöoikeudet riittävät. Asennuksen jälkeen puhetta voi luoda ilman verkkoyhteyttä.</translation>
+        </message>
+        <message>
+            <source>Zainstaluj OmniVoice</source>
+            <translation>Asenna OmniVoice</translation>
+        </message>
+        <message>
+            <source>Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline.</source>
+            <translation>Ensimmäinen asennus lataa useita gigatavuja. Sen jälkeen puhetta voi luoda ilman verkkoyhteyttä.</translation>
+        </message>
+        <message>
+            <source>Przygotowywanie środowiska OmniVoice…</source>
+            <translation>Valmistellaan OmniVoice-ympäristöä…</translation>
+        </message>
+        <message>
+            <source>Instalowanie pakietów OmniVoice…</source>
+            <translation>Asennetaan OmniVoice-paketteja…</translation>
+        </message>
+        <message>
+            <source>Pobieranie i sprawdzanie modelu OmniVoice…</source>
+            <translation>Ladataan ja tarkistetaan OmniVoice-mallia…</translation>
+        </message>
+        <message>
+            <source>OmniVoice jest gotowy.</source>
+            <translation>OmniVoice on valmis.</translation>
+        </message>
+        <message>
+            <source>Anulowano instalację OmniVoice.</source>
+            <translation>OmniVoicen asennus peruttiin.</translation>
+        </message>
+        <message>
+            <source>Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.</source>
+            <translation>OmniVoicen asennus epäonnistui. Voit yrittää uudelleen.</translation>
+        </message>
+        <message>
+            <source>Anulowanie instalacji…</source>
+            <translation>Perutaan asennusta…</translation>
+        </message>
+        <message>
+            <source>Instalacja OmniVoice już trwa w innym oknie.</source>
+            <translation>OmniVoicen asennus on jo käynnissä toisessa ikkunassa.</translation>
+        </message>
+        <message>
+            <source>OmniVoice — lokalny lektor</source>
+            <translation>OmniVoice — paikallinen selostus</translation>
+        </message>
+        <message>
+            <source>Wybierz Python…</source>
+            <translation>Valitse Python…</translation>
+        </message>
+        <message>
+            <source>Wybierz interpreter Python z zainstalowanym OmniVoice.</source>
+            <translation>Valitse Python-tulkki, johon OmniVoice on asennettu.</translation>
+        </message>
+        <message>
+            <source>OmniVoice wymaga osobnego środowiska Python. Przy pierwszym użyciu pobierze wagi modelu.</source>
+            <translation>OmniVoice käyttää erillistä Python-ympäristöä. Mallin painot ladataan ensimmäisellä käyttökerralla.</translation>
+        </message>
+        <message>
+            <source>Użyj lektora z importu</source>
+            <translation>Käytä tuotua selostusta</translation>
+        </message>
+        <message>
+            <source>Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.</source>
+            <translation>Näyte valittiin asennetusta pelistä. Tarkista litterointi.</translation>
+        </message>
+        <message>
+            <source>Brak próbki w przygotowanej grze dla tego języka.</source>
+            <translation>Valmistellussa pelissä ei ole näytettä tällä kielellä.</translation>
+        </message>
+        <message>
+            <source>Wybierz nagranie…</source>
+            <translation>Valitse äänite…</translation>
+        </message>
+        <message>
+            <source>Nagranie referencyjne</source>
+            <translation>Viiteäänite</translation>
+        </message>
+        <message>
+            <source>Transkrypcja nagrania</source>
+            <translation>Äänitteen litterointi</translation>
+        </message>
+        <message>
+            <source>Tekst do przeczytania</source>
+            <translation>Luettava teksti</translation>
+        </message>
+        <message>
+            <source>Zapisz profil</source>
+            <translation>Tallenna profiili</translation>
+        </message>
+        <message>
+            <source>Odsłuchaj próbkę</source>
+            <translation>Kuuntele näyte</translation>
+        </message>
+        <message>
+            <source>Generuj dla pytania</source>
+            <translation>Luo kysymykselle</translation>
+        </message>
+        <message>
+            <source>Uzupełnij brakującego lektora (%1)</source>
+            <translation>Täydennä puuttuva selostus (%1)</translation>
+        </message>
+        <message>
+            <source>Uzupełnianie dotyczy pytań z całego projektu w wybranym języku.</source>
+            <translation>Eräajo kattaa koko projektin valitulla kielellä.</translation>
+        </message>
+        <message>
+            <source>Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</source>
+            <translation>Äänitiedostot (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)</translation>
+        </message>
+        <message>
+            <source>Zaimportuj pytanie z lektorem w wybranym języku.</source>
+            <translation>Tuo kysymys, jossa on selostus valitulla kielellä.</translation>
+        </message>
+        <message>
+            <source>Sprawdź, czy transkrypcja odpowiada nagraniu.</source>
+            <translation>Tarkista, että litterointi vastaa äänitettä.</translation>
+        </message>
+        <message>
+            <source>Nie udało się odczytać lektora z gry.</source>
+            <translation>Pelin selostusta ei voitu lukea.</translation>
+        </message>
+        <message>
+            <source>Zapisano profil dla tego języka.</source>
+            <translation>Profiili tallennettiin tälle kielelle.</translation>
+        </message>
+        <message>
+            <source>Anulowano. Zapisane nagrania: %1 z %2.</source>
+            <translation>Peruutettu. Tallennettiin %1/%2 äänitettä.</translation>
+        </message>
+        <message>
+            <source>Zapisane nagrania: %1 z %2.</source>
+            <translation>Tallennettiin %1/%2 äänitettä.</translation>
+        </message>
+        <message>
+            <source>Dodaj nagranie referencyjne i wpisz jego transkrypcję.</source>
+            <translation>Lisää viiteäänite ja syötä sen litterointi.</translation>
+        </message>
+        <message>
+            <source>Nie można odczytać nagrania referencyjnego.</source>
+            <translation>Viiteäänitettä ei voitu lukea.</translation>
+        </message>
+        <message>
+            <source>Nie można zapisać lokalnego profilu lektora.</source>
+            <translation>Paikallista ääniprofiilia ei voitu tallentaa.</translation>
+        </message>
+        <message>
+            <source>Nie znaleziono lektora wybranego pytania.</source>
+            <translation>Valitulle kysymykselle ei löytynyt selostusta.</translation>
+        </message>
+        <message>
+            <source>Nie można przygotować lokalnego zadania OmniVoice.</source>
+            <translation>Paikallista OmniVoice-tehtävää ei voitu valmistella.</translation>
+        </message>
+        <message>
+            <source>Nie można uruchomić OmniVoice.</source>
+            <translation>OmniVoicea ei voitu käynnistää.</translation>
+        </message>
+        <message>
+            <source>OmniVoice nie wygenerował wszystkich nagrań. Sprawdź instalację i nagranie referencyjne.</source>
+            <translation>OmniVoice ei voinut luoda kaikkia äänitteitä. Tarkista asennus ja viiteäänite.</translation>
+        </message>
+        <message>
+            <source>Uzupełnij lektora (OmniVoice)</source>
+            <translation>Täydennä selostus (OmniVoice)</translation>
+        </message>
+    </context>
 </TS>

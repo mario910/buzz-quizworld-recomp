@@ -7,6 +7,7 @@
 #include "ps3_source.h"
 #include "source_movie.h"
 #include "media_tools.h"
+#include "omnivoice.h"
 #include "project_media.h"
 #include "tts.h"
 #include <QCoreApplication>
@@ -37,6 +38,20 @@ bool textValid(const studio::Question &q) {
     return !q.text.trimmed().isEmpty() && q.correct >= 0 && q.correct < 4 && q.answers.size() == 4 &&
            std::none_of(
                q.answers.begin(), q.answers.end(), [](const QString &s) { return s.trimmed().isEmpty(); });
+}
+studio::Question narrationVariant(const studio::Question &question, const QString &language) {
+    auto translated = question;
+    translated.switchLanguage(language);
+    return translated;
+}
+bool canRecoverNarration(const studio::Question &question) {
+    const auto ref = question.translations.value(question.language).toObject().value("source_speech").toObject();
+    return QFileInfo::exists(ref.value("archive").toString()) &&
+           (studio::hasPs2Narration(question) || studio::hasPspNarration(question));
+}
+bool needsNarration(const studio::Question &question) {
+    return !question.text.trimmed().isEmpty() && !QFileInfo(question.speech).isFile() &&
+           !canRecoverNarration(question);
 }
 bool emptyTranslation(const QJsonObject &value) {
     for (const auto &key : {"question", "image", "speech", "video", "music", "topic", "tts_text"})
@@ -168,6 +183,8 @@ StudioController::StudioController(QObject *parent, const QString &newProjectLan
 StudioController::~StudioController() {
     if (buildCancel_)
         buildCancel_->store(true);
+    if (omniVoiceCancel_)
+        omniVoiceCancel_->store(true);
 }
 QVariantMap StudioController::buildSettings() const {
     auto values = studio::suggestBuildSettings(model_.document.language);
@@ -1333,6 +1350,138 @@ void StudioController::generateAudio(const QUrl &destination, const QString &tex
     watcher->setFuture(QtConcurrent::run(
         [text, voice, rate, path] { return studio::synthesizeSpeech(text, voice, rate, path); }));
 }
+
+std::optional<studio::Question> StudioController::omniVoiceQuestion(const QString &language) const {
+    const int row = model_.find(selected_);
+    if (row < 0)
+        return std::nullopt;
+    auto question = narrationVariant(model_.document.questions[row], language);
+    if (question.text.trimmed().isEmpty())
+        return std::nullopt;
+    return question;
+}
+
+std::optional<studio::Question> StudioController::omniVoiceSourceQuestion(const QString &language) const {
+    const auto hasSourceVoice = [](const studio::Question &q) {
+        return !q.text.trimmed().isEmpty() &&
+               (canRecoverNarration(q) || (!q.sourceCategoryPath().isEmpty() && QFileInfo(q.speech).isFile()));
+    };
+    if (const auto selected = omniVoiceQuestion(language); selected && hasSourceVoice(*selected))
+        return selected;
+    std::optional<studio::Question> available, recoverable;
+    for (const auto &question : model_.document.questions) {
+        auto candidate = narrationVariant(question, language);
+        if (!hasSourceVoice(candidate))
+            continue;
+        if (QFileInfo(candidate.speech).isFile()) {
+            if (candidate.text.size() >= 35)
+                return candidate;
+            if (!available)
+                available = std::move(candidate);
+        } else if (!recoverable) {
+            recoverable = std::move(candidate);
+        }
+    }
+    return available ? available : recoverable;
+}
+
+int StudioController::missingNarrationCount(const QString &language) const {
+    const auto &questions = model_.document.questions;
+    return int(std::count_if(questions.cbegin(), questions.cend(), [&](const studio::Question &question) {
+        return needsNarration(narrationVariant(question, language));
+    }));
+}
+
+bool StudioController::startOmniVoice(const QString &language, const studio::VoiceProfile &profile,
+                                      NarrationScope scope, const QString &text) {
+    const auto python = studio::omniVoicePython();
+    if (busy_ || python.isEmpty() || !profile.ready())
+        return false;
+    const auto root = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    const QDir dir(QDir(root).filePath("omnivoice"));
+    if (root.isEmpty() || !QDir().mkpath(dir.path())) {
+        emit errorOccurred(QCoreApplication::translate("OmniVoice", "Nie można przygotować lokalnego zadania OmniVoice."));
+        return false;
+    }
+    QVector<studio::VoiceJob> jobs;
+    QVector<qsizetype> rows;
+    const auto append = [&](const QString &spoken, qsizetype row) {
+        jobs.append({spoken, dir.filePath(QUuid::createUuid().toString(QUuid::WithoutBraces) + ".wav")});
+        rows.append(row);
+    };
+    const auto &questions = model_.document.questions;
+    if (scope == NarrationScope::Missing) {
+        for (qsizetype row = 0; row < questions.size(); ++row) {
+            const auto question = narrationVariant(questions[row], language);
+            if (needsNarration(question))
+                append(question.ttsText.trimmed().isEmpty() ? question.text : question.ttsText, row);
+        }
+    } else if (!text.trimmed().isEmpty()) {
+        if (scope == NarrationScope::Preview)
+            append(text, -1);
+        else if (omniVoiceQuestion(language))
+            append(text, model_.find(selected_));
+    }
+    if (jobs.isEmpty())
+        return false;
+    const auto ffmpeg = studio::configuredMediaFfmpeg();
+    busy_ = true;
+    omniVoiceCancel_ = std::make_shared<std::atomic_bool>(false);
+    const auto cancel = omniVoiceCancel_;
+    setStatus(tr("Generowanie nagrania lektora…"));
+    emit busyChanged();
+    auto *watcher = new QFutureWatcher<studio::VoiceBatch>(this);
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, jobs, rows, language, scope] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+        QString preview;
+        if (!result.written.isEmpty()) {
+            if (scope == NarrationScope::Preview) {
+                preview = jobs.front().destination;
+            } else {
+                const auto before = model_.document;
+                auto after = before;
+                for (const auto index : result.written) {
+                    auto &question = after.questions[rows[index]];
+                    const auto active = question.language;
+                    question.switchLanguage(language);
+                    question.speech = jobs[index].destination;
+                    if (scope == NarrationScope::Question)
+                        question.ttsText = jobs[index].text;
+                    question.translations[language] = question.localized();
+                    question.switchLanguage(active);
+                }
+                history_.push(new Command(QCoreApplication::translate("OmniVoice", "Uzupełnij lektora (OmniVoice)"),
+                                          [this, before, after](bool forward) {
+                    model_.reset(forward ? after : before);
+                    notifyContent();
+                }));
+            }
+        }
+        omniVoiceCancel_.reset();
+        busy_ = false;
+        setStatus(tr("Gotowe do tworzenia"));
+        emit busyChanged();
+        emit omniVoiceFinished(preview, int(result.written.size()), int(jobs.size()), result.cancelled, result.errors);
+    });
+    const QPointer<StudioController> guard(this);
+    watcher->setFuture(QtConcurrent::run([python, ffmpeg, language, profile, jobs, cancel, guard] {
+        return studio::generateOmniVoice(python, ffmpeg, language, profile, jobs, cancel.get(), [guard](int done, int total) {
+            if (guard)
+                QMetaObject::invokeMethod(guard.data(), [guard, done, total] {
+                    if (guard)
+                        emit guard->omniVoiceProgress(done, total);
+                }, Qt::QueuedConnection);
+        });
+    }));
+    return true;
+}
+
+void StudioController::cancelOmniVoice() {
+    if (omniVoiceCancel_)
+        omniVoiceCancel_->store(true);
+}
+
 void StudioController::recover() {
     if (recoveryAvailable())
         openFile(QUrl::fromLocalFile(recoveryPath_));

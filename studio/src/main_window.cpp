@@ -4,6 +4,7 @@
 #include "localization.h"
 #include "media_preview.h"
 #include "media_tools.h"
+#include "omnivoice.h"
 #include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
@@ -40,6 +41,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
+#include <QSet>
 #include <QSettings>
 #include <QShortcut>
 #include <QSignalBlocker>
@@ -53,6 +55,7 @@
 #include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrentRun>
 #include <algorithm>
 #include <iterator>
 #include <utility>
@@ -577,6 +580,7 @@ QWidget *MainWindow::buildHeader() {
     menu->addAction(T("Języki paczki…"), this, &MainWindow::openProjectLanguages);
     menu->addAction(T("Kategorie paczki…"), this, &MainWindow::openPackCategories);
     menu->addAction(T("Plan rund…"), this, &MainWindow::openRoundPlans)->setObjectName("editRoundPlans");
+    menu->addAction(QStringLiteral("OmniVoice…"), this, &MainWindow::openOmniVoice)->setObjectName("openOmniVoice");
     auto *assignCategories = menu->addAction(T("Przypisz kategorie po imporcie…"), this,
                                              [this] { openImportedCategories(false, this); });
     connect(menu, &QMenu::aboutToShow, assignCategories, [this, assignCategories] {
@@ -2408,6 +2412,373 @@ void MainWindow::openRoundPlans() {
     list->setFocus();
 }
 
+void MainWindow::openOmniVoice() {
+    if (studio.busy())
+        return;
+    commitEdits();
+    const auto V = [](const char *text) { return QCoreApplication::translate("OmniVoice", text); };
+    auto *dialog = new QDialog(this);
+    dialog->setObjectName("omniVoiceDialog");
+    dialog->setWindowTitle(V("OmniVoice — lokalny lektor"));
+    dialog->setMinimumWidth(640);
+    auto *layout = new QVBoxLayout(dialog);
+    auto *form = new QFormLayout;
+    layout->addLayout(form);
+
+    auto *python = new QLineEdit(studio::omniVoicePython());
+    python->setObjectName("omniVoicePython");
+    python->setReadOnly(true);
+    auto *choosePython = button(V("Wybierz Python…"));
+    auto *install = button(V("Zainstaluj OmniVoice") + QStringLiteral("…"), "primary");
+    install->setObjectName("omniVoiceInstall");
+    auto *runtime = new QHBoxLayout;
+    runtime->addWidget(python, 1);
+    runtime->addWidget(choosePython);
+    form->addRow("Python", runtime);
+    connect(choosePython, &QPushButton::clicked, dialog, [=] {
+        const auto path = QFileDialog::getOpenFileName(dialog, V("Wybierz interpreter Python z zainstalowanym OmniVoice."),
+                                                      python->text());
+        if (!path.isEmpty()) {
+            studio::setOmniVoicePython(path);
+            python->setText(path);
+        }
+    });
+    auto *setup = label(V("Pierwsza instalacja pobierze kilka GB. Potem generowanie działa offline."));
+    setup->setWordWrap(true);
+    form->insertRow(0, install, setup);
+
+    const auto licenseText = V("Wagi OmniVoice są przeznaczone do użytku niekomercyjnego. Tokenizer Higgs Audio 2 ma osobną licencję.")
+        .toHtmlEscaped() + QStringLiteral(
+        " <a href=\"https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/README.md#license\">OmniVoice</a>"
+        " · <a href=\"https://huggingface.co/k2-fsa/OmniVoice/blob/3fc979d1cd72492cd679c5ac2611e0d7ac047ba1/audio_tokenizer/LICENSE\">Higgs Audio 2</a>");
+    auto *licenseNotice = label(licenseText, "muted");
+    licenseNotice->setTextFormat(Qt::RichText);
+    licenseNotice->setOpenExternalLinks(true);
+    licenseNotice->setWordWrap(true);
+    form->addRow(licenseNotice);
+
+    auto *language = new QComboBox;
+    language->setObjectName("omniVoiceLanguage");
+    for (const auto &choice : studio.editingLanguageOptions()) {
+        const auto item = choice.toMap();
+        language->addItem(item.value("name").toString(), item.value("code"));
+    }
+    language->setCurrentIndex(std::max(0, language->findData(studio.packLanguage())));
+    form->addRow(T("Język pytań"), language);
+
+    auto *reference = new QLineEdit;
+    reference->setObjectName("omniVoiceReference");
+    reference->setReadOnly(true);
+    auto *fromGame = button(V("Użyj lektora z importu"));
+    auto *fromFile = button(V("Wybierz nagranie…"));
+    auto *recording = new QHBoxLayout;
+    recording->addWidget(reference, 1);
+    recording->addWidget(fromGame);
+    recording->addWidget(fromFile);
+    form->addRow(V("Nagranie referencyjne"), recording);
+    auto *transcript = new QPlainTextEdit;
+    transcript->setObjectName("omniVoiceTranscript");
+    transcript->setFixedHeight(64);
+    form->addRow(V("Transkrypcja nagrania"), transcript);
+    auto *voicePermission = new QCheckBox(V("Mam zgodę na klonowanie tego głosu."));
+    voicePermission->setObjectName("omniVoicePermission");
+    form->addRow(voicePermission);
+    auto *speech = new QPlainTextEdit;
+    speech->setObjectName("omniVoiceText");
+    speech->setFixedHeight(85);
+    form->addRow(V("Tekst do przeczytania"), speech);
+    auto *profileSave = button(V("Zapisz profil"));
+    profileSave->setObjectName("omniVoiceSaveProfile");
+    auto *listen = button(V("Odsłuchaj próbkę"));
+    listen->setObjectName("omniVoicePreview");
+    auto *generate = button(V("Generuj dla pytania"));
+    generate->setObjectName("omniVoiceGenerate");
+    auto *batch = button(V("Uzupełnij brakującego lektora (%1)").arg(0), "primary");
+    batch->setObjectName("omniVoiceBatch");
+    auto *actions = new QGridLayout;
+    actions->addWidget(profileSave, 0, 0);
+    actions->addWidget(listen, 0, 1);
+    actions->addWidget(generate, 1, 0);
+    actions->addWidget(batch, 1, 1);
+    layout->addLayout(actions);
+    auto *status = label(QString(), "muted");
+    status->setWordWrap(true);
+    layout->addWidget(status);
+    auto *progress = new QProgressBar;
+    progress->hide();
+    layout->addWidget(progress);
+    auto *buttons = new QDialogButtonBox;
+    auto *close = buttons->addButton(T("Zamknij"), QDialogButtonBox::RejectRole);
+    auto *cancel = buttons->addButton(T("Anuluj"), QDialogButtonBox::ActionRole);
+    cancel->hide();
+    layout->addWidget(buttons);
+
+    const auto code = [language] { return language->currentData().toString(); };
+    const auto draft = [=] { return studio::VoiceProfile{reference->text(), transcript->toPlainText()}; };
+    const auto drafts = std::make_shared<QMap<QString, studio::VoiceProfile>>();
+    const auto tried = std::make_shared<QSet<QString>>();
+    const auto missing = std::make_shared<int>();
+    const auto work = std::make_shared<bool>(false);
+    const auto resolving = std::make_shared<bool>(false);
+    const auto installing = std::make_shared<bool>(false);
+    const auto stopInstall = std::make_shared<std::atomic_bool>(false);
+    const auto update = [=] {
+        const bool active = !*work && !*resolving, hasReference = draft().ready();
+        const bool hasPython = QFileInfo(python->text()).isExecutable();
+        const bool ready = active && hasPython && hasReference && voicePermission->isChecked();
+        const bool managed = !studio::managedOmniVoicePython().isEmpty();
+        const bool offerInstall = studio::canInstallOmniVoice();
+        install->setText(managed ? V("Skonfiguruj ponownie OmniVoice…")
+                                 : V("Zainstaluj OmniVoice") + QStringLiteral("…"));
+        install->setVisible(offerInstall);
+        install->setEnabled(active);
+        setup->setVisible(offerInstall && !managed);
+        for (auto *widget : QList<QWidget *>{language, choosePython, fromGame, fromFile, transcript, speech})
+            widget->setEnabled(active);
+        voicePermission->setEnabled(active && hasReference);
+        profileSave->setEnabled(active && hasReference);
+        const bool hasText = !speech->toPlainText().trimmed().isEmpty();
+        listen->setEnabled(ready && hasText);
+        generate->setEnabled(ready && hasText && bool(studio.omniVoiceQuestion(code())));
+        batch->setEnabled(ready && *missing > 0);
+        batch->setText(V("Uzupełnij brakującego lektora (%1)").arg(*missing));
+        cancel->setVisible(*work);
+        close->setVisible(!*work);
+    };
+    connect(python, &QLineEdit::textChanged, dialog, update);
+    const auto startInstall = [=] {
+        *work = *installing = true;
+        stopInstall->store(false);
+        const auto step = std::make_shared<std::atomic_int>(0);
+        const auto updateProgress = [=] {
+            if (stopInstall->load())
+                return;
+            const auto current = step->load();
+            progress->setValue(current);
+            switch (current) {
+            case 0: status->setText(V("Przygotowywanie środowiska OmniVoice…")); break;
+            case 1: status->setText(V("Instalowanie pakietów OmniVoice…")); break;
+            case 2: status->setText(V("Pobieranie i sprawdzanie modelu OmniVoice…")); break;
+            }
+        };
+        progress->setRange(0, 3);
+        progress->setTextVisible(false);
+        progress->show();
+        status->setToolTip({});
+        updateProgress();
+        update();
+        auto *timer = new QTimer(dialog);
+        connect(timer, &QTimer::timeout, dialog, updateProgress);
+        timer->start(250);
+        auto *watcher = new QFutureWatcher<studio::SpeechResult>(dialog);
+        connect(watcher, &QFutureWatcherBase::finished, dialog, [=] {
+            timer->stop();
+            timer->deleteLater();
+            const auto result = watcher->result();
+            watcher->deleteLater();
+            *work = *installing = false;
+            progress->hide();
+            progress->setTextVisible(true);
+            if (result.ok() && !result.path.isEmpty()) {
+                studio::setOmniVoicePython({});
+                python->setText(result.path);
+                const auto backend = studio::managedOmniVoiceBackend();
+                status->setText(V("OmniVoice jest gotowy (%1).").arg(backend == "rocm" ? "ROCm" : backend.toUpper()));
+            } else if (stopInstall->load()) {
+                status->setText(V("Anulowano instalację OmniVoice."));
+            } else {
+                const auto message = V("Nie udało się zainstalować OmniVoice. Możesz spróbować ponownie.");
+                status->setText(message);
+                auto *failure = new QMessageBox(QMessageBox::Warning, dialog->windowTitle(), message,
+                                                QMessageBox::Ok, dialog);
+                failure->setTextFormat(Qt::PlainText);
+                failure->setDetailedText(result.error);
+                failure->setAttribute(Qt::WA_DeleteOnClose);
+                failure->open();
+            }
+            update();
+        });
+        watcher->setFuture(QtConcurrent::run([stopInstall, step] {
+            return studio::installOmniVoice(*stopInstall, [step](int stage) { step->store(stage); });
+        }));
+    };
+    connect(install, &QPushButton::clicked, dialog, [=] {
+        if (dialog->findChild<QMessageBox *>("omniVoiceInstallConfirmation"))
+            return;
+        auto *confirmation = new QMessageBox(QMessageBox::Information, V("Zainstaluj OmniVoice"),
+            V("Instalator pobierze kilka GB danych. Potrzebujesz też kilku GB wolnego miejsca na dysku."),
+            QMessageBox::NoButton, dialog);
+        confirmation->setObjectName("omniVoiceInstallConfirmation");
+        confirmation->setTextFormat(Qt::RichText);
+        confirmation->setInformativeText(
+            "<p>" + V("Studio utworzy własne środowisko Python, zainstaluje OmniVoice, PyTorch i FFmpeg oraz pobierze pliki modelu. Wystarczą zwykłe uprawnienia użytkownika. Po instalacji generowanie działa offline.").toHtmlEscaped() +
+            "</p><p>" + V("W zależności od karty graficznej instalator może też pobrać pakiety CUDA lub ROCm.").toHtmlEscaped() +
+            "</p><p>" + licenseText + "</p>");
+        auto *cancelSetup = confirmation->addButton(T("Anuluj"), QMessageBox::RejectRole);
+        auto *proceed = confirmation->addButton(V("Zainstaluj OmniVoice"), QMessageBox::AcceptRole);
+        confirmation->setDefaultButton(cancelSetup);
+        confirmation->setEscapeButton(cancelSetup);
+        confirmation->setAttribute(Qt::WA_DeleteOnClose);
+        connect(confirmation, &QMessageBox::buttonClicked, dialog, [=](QAbstractButton *chosen) {
+            if (chosen == proceed)
+                startInstall();
+        });
+        confirmation->open();
+    });
+    const auto updateDraft = [=] {
+        drafts->insert(code(), draft());
+        update();
+    };
+    connect(reference, &QLineEdit::textChanged, dialog, [=] {
+        voicePermission->setChecked(false);
+        updateDraft();
+    });
+    connect(transcript, &QPlainTextEdit::textChanged, dialog, updateDraft);
+    connect(voicePermission, &QCheckBox::toggled, dialog, update);
+    connect(speech, &QPlainTextEdit::textChanged, dialog, update);
+    connect(fromFile, &QPushButton::clicked, dialog, [=] {
+        const auto path = QFileDialog::getOpenFileName(dialog, V("Wybierz nagranie…"), {},
+            T("Nagranie WAV (*.wav)") + ";;" + V("Pliki audio (*.wav *.flac *.mp3 *.ogg *.m4a *.rsf *.wem *.at3)"));
+        if (!path.isEmpty()) {
+            reference->setText(path);
+            transcript->clear();
+            transcript->setFocus();
+        }
+    });
+    const auto loadGameSample = [=](bool automatic) {
+        const auto selectedLanguage = code();
+        const auto question = automatic ? std::nullopt : studio.omniVoiceSourceQuestion(selectedLanguage);
+        if (!automatic && !question) {
+            status->setText(V("Zaimportuj pytanie z lektorem w wybranym języku."));
+            return;
+        }
+        tried->insert(selectedLanguage);
+        *resolving = true;
+        status->setText(T("Odzyskaj media z gry"));
+        status->setToolTip({});
+        update();
+        auto *watcher = new QFutureWatcher<studio::VoiceProfile>(dialog);
+        connect(watcher, &QFutureWatcherBase::finished, dialog, [=] {
+            const auto profile = watcher->result();
+            watcher->deleteLater();
+            *resolving = false;
+            if (code() != selectedLanguage) {
+                update();
+                return;
+            }
+            if (profile.ready()) {
+                reference->setText(profile.recording);
+                transcript->setPlainText(profile.transcript);
+                if (speech->toPlainText().trimmed().isEmpty())
+                    speech->setPlainText(profile.transcript);
+                status->setText(automatic
+                    ? V("Wybrano próbkę z zainstalowanej gry. Sprawdź transkrypcję.")
+                    : V("Sprawdź, czy transkrypcja odpowiada nagraniu."));
+            } else if (!automatic) {
+                status->setText(V("Nie udało się odczytać lektora z gry."));
+            } else {
+                status->setText(V("Brak próbki w przygotowanej grze dla tego języka."));
+            }
+            update();
+        });
+        watcher->setFuture(QtConcurrent::run([question, selectedLanguage, automatic] {
+            if (automatic)
+                return studio::omniVoiceInstalledProfile(selectedLanguage);
+            const auto reference = studio::omniVoiceReference(*question);
+            return reference.ok() ? studio::VoiceProfile{reference.path, question->text} : studio::VoiceProfile{};
+        }));
+    };
+    connect(fromGame, &QPushButton::clicked, dialog, [=] { loadGameSample(false); });
+    const auto reload = [=] {
+        const auto selectedLanguage = code();
+        const auto saved = drafts->value(selectedLanguage, studio::omniVoiceProfile(selectedLanguage));
+        const auto question = studio.omniVoiceQuestion(selectedLanguage);
+        const QSignalBlocker permissionSignals(voicePermission);
+        voicePermission->setChecked(false);
+        {
+            const QSignalBlocker referenceSignals(reference), transcriptSignals(transcript), speechSignals(speech);
+            reference->setText(saved.recording);
+            transcript->setPlainText(saved.transcript);
+            speech->setPlainText(question ? (question->ttsText.isEmpty() ? question->text : question->ttsText)
+                                          : saved.transcript);
+        }
+        *missing = studio.missingNarrationCount(selectedLanguage);
+        status->setText(V("Uzupełnianie dotyczy pytań z całego projektu w wybranym języku."));
+        status->setToolTip({});
+        update();
+        if (!saved.ready() && !drafts->contains(selectedLanguage) && !tried->contains(selectedLanguage))
+            loadGameSample(true);
+    };
+    connect(language, &QComboBox::currentIndexChanged, dialog, reload);
+    const auto saveProfile = [=] {
+        const auto saved = studio::saveOmniVoiceProfile(code(), draft());
+        status->setToolTip({});
+        status->setText(saved.ok() ? V("Zapisano profil dla tego języka.") : saved.error);
+        if (saved.ok())
+            reference->setText(saved.path);
+        return saved.ok();
+    };
+    connect(profileSave, &QPushButton::clicked, dialog, saveProfile);
+    const auto start = [=](StudioController::NarrationScope scope) {
+        if (!voicePermission->isChecked())
+            return;
+        if (QFileInfo(reference->text()).suffix().compare("wav", Qt::CaseInsensitive) != 0 &&
+            studio::configuredMediaFfmpeg().isEmpty() && !chooseMediaFfmpeg(dialog))
+            return;
+        if (!studio.startOmniVoice(code(), draft(), scope, speech->toPlainText()))
+            return;
+        *work = true;
+        progress->setRange(0, 0);
+        progress->show();
+        status->setText(studio.status());
+        update();
+    };
+    connect(listen, &QPushButton::clicked, dialog, [=] { start(StudioController::NarrationScope::Preview); });
+    connect(generate, &QPushButton::clicked, dialog, [=] { start(StudioController::NarrationScope::Question); });
+    connect(batch, &QPushButton::clicked, dialog, [=] { start(StudioController::NarrationScope::Missing); });
+    connect(close, &QPushButton::clicked, dialog, &QDialog::reject);
+    const auto cancelWork = [=] {
+        if (*installing) {
+            stopInstall->store(true);
+            status->setText(V("Anulowanie instalacji…"));
+        } else {
+            studio.cancelOmniVoice();
+        }
+    };
+    connect(cancel, &QPushButton::clicked, dialog, cancelWork);
+    connect(dialog, &QDialog::finished, dialog, cancelWork);
+    connect(&studio, &StudioController::omniVoiceProgress, dialog, [=](int done, int total) {
+        progress->setRange(0, total);
+        progress->setValue(done);
+    });
+    connect(&studio, &StudioController::omniVoiceFinished, dialog,
+            [=](const QString &preview, int written, int total, bool cancelled, const QStringList &errors) {
+        *work = false;
+        progress->hide();
+        *missing = studio.missingNarrationCount(code());
+        update();
+        status->setText(cancelled ? V("Anulowano. Zapisane nagrania: %1 z %2.").arg(written).arg(total)
+                                  : V("Zapisane nagrania: %1 z %2.").arg(written).arg(total));
+        if (!errors.isEmpty()) {
+            auto *failure = new QMessageBox(QMessageBox::Warning, dialog->windowTitle(), errors.first(),
+                                            QMessageBox::Ok, dialog);
+            failure->setTextFormat(Qt::PlainText);
+            failure->setDetailedText(errors.mid(1).join('\n'));
+            failure->setAttribute(Qt::WA_DeleteOnClose);
+            failure->open();
+        } else if (!preview.isEmpty() && !cancelled) {
+            auto *player = new MediaPreviewDialog(preview, V("Odsłuchaj próbkę"), false, {}, dialog);
+            player->setAttribute(Qt::WA_DeleteOnClose);
+            player->open();
+            connect(player, &QObject::destroyed, [preview] { QFile::remove(preview); });
+        } else if (!preview.isEmpty()) {
+            QFile::remove(preview);
+        }
+    });
+    reload();
+    showDialog(dialog);
+}
+
 void MainWindow::openTts() {
     commitEdits();
     const auto q = current();
@@ -2417,6 +2788,12 @@ void MainWindow::openTts() {
     dialog->setMinimumWidth(560);
     auto *col = new QVBoxLayout(dialog);
     col->setSpacing(12);
+    auto *omniVoice = button(QStringLiteral("OmniVoice…"));
+    col->addWidget(omniVoice, 0, Qt::AlignRight);
+    connect(omniVoice, &QPushButton::clicked, dialog, [this, dialog] {
+        dialog->accept();
+        openOmniVoice();
+    });
 #ifdef Q_OS_WIN
     col->addWidget(label(T("Głosy zainstalowane w Windows · generowanie lokalne"), "muted"));
 #else

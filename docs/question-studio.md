@@ -408,6 +408,52 @@ voice for Polish questions. Generating WAV neither calls a cloud service nor
 requires an API key. Changing a question later does not regenerate its speech;
 use **Generate speech** again. Undo detaches a generated WAV but keeps the saved file.
 
+### Local voice cloning with OmniVoice
+
+On 64-bit Windows and Linux (x86-64), open **… → OmniVoice…** and click
+**Install OmniVoice…**. Review the download and disk space requirements and
+confirm to start. Studio creates a private Python environment, installs
+OmniVoice, PyTorch and FFmpeg, and downloads the model and speech codec. Allow
+several GB of downloads and disk space on first setup. Installation works with
+standard user permissions. After setup, synthesis runs offline.
+
+Studio selects CUDA for eligible NVIDIA cards and ROCm for eligible AMD GPUs.
+On Windows 11 it uses AMD's ROCm 7.2.1 wheels for compatible Radeon and Ryzen
+devices. On Linux it uses the PyTorch ROCm 6.4 wheel for the GPU architectures
+included in that build and requires access to the AMD kernel driver. The installer
+tests an FP16 operation on the GPU and switches to CPU if GPU setup fails.
+Choose **Reconfigure OmniVoice…** to detect hardware again after changing the
+GPU or its driver. Studio shows the selected backend when setup finishes.
+[Windows Radeon compatibility](https://rocm.docs.amd.com/projects/radeon-ryzen/en/docs-7.2.1/docs/compatibility/compatibilityrad/windows/windows_compatibility.html) ·
+[Linux PyTorch wheels](https://pytorch.org/get-started/previous-versions/#v280)
+
+For an existing environment, use **Choose Python…** with a Python 3.11 or newer
+interpreter that has [OmniVoice 0.2.1](https://github.com/k2-fsa/OmniVoice#installation).
+The OmniVoice code is Apache-2.0. The pretrained weights are for noncommercial
+use under CC BY-NC. The Higgs Audio 2 tokenizer has separate Boson and Meta license
+terms. Studio links both licenses before setup. [Third-party notices](../THIRD_PARTY_NOTICES.md#optional-omnivoice-narration).
+
+1. Select the **Question language**. If you have no saved profile for it,
+   Studio looks for a reference in the game prepared by BuzzSetup. It reads
+   one narrated question in that language. To use a different reference,
+   choose **Use imported narration** or select an audio file.
+   A clean 3–10 second recording works well. Check that the transcript matches
+   what the speaker says. Confirm that you have permission to clone the voice
+   before generating narration, including with samples from the installed game.
+   The FFmpeg installed with OmniVoice converts game formats such as RSF and
+   WEM and can also encode generated narration when building the pack.
+2. Use **Preview voice** to hear the current text. **Save profile** remembers
+   your choice for that language on this computer and gives it priority over
+   the automatic sample.
+3. Use **Generate for question** for the current question or **Fill missing
+   narration** for every question with text in the selected language. Existing
+   files and narration recoverable from an available game source are kept.
+   Studio uses a question's pronunciation text if it has one.
+
+Batch generation reports progress and can be cancelled. Completed clips are
+attached together as one undoable edit. WAVs become part of the project when
+it is saved or exported, and the normal `.edat` builder encodes them for the game.
+
 `--demo` opens authored sample questions. `--open <file>` opens a library.
 `--inspect <file>` runs a headless importer and reports counts/languages/errors;
 add `--language en` to select a source language.
